@@ -17,7 +17,7 @@ nodes:
   - id: implement
     type: codergen          # an agent turn
     max_visits: 5           # the budget; nothing else stops a loop
-    prompt: Work toward the goal. Make the smallest change that could satisfy the check.
+    prompt: $goal           # the goal is the whole prompt
     edges:
       - to: check
   - id: check
@@ -59,6 +59,17 @@ something runnable, an implementer does it, a command checks it, repeat.
 No upfront plan to go stale. When you want to read and approve a plan
 before the tokens burn, add a planner node in front — the two shapes differ
 by exactly one node.
+
+## Writing node prompts
+
+State the condition the agent is to bring about, never the steps — the
+repository, its skills, and its tools already teach how. The engine
+substitutes `$goal` into the prompt (nothing else delivers the goal text),
+supplies the workspace, and builds a structured routing choice from the
+node's edge conditions. So never coach routing ("respond with pass"),
+never point at files that teach ("read AGENTS.md first"), never script the
+checks. "Validate the work done in this loop" beats a list of commands —
+and `prompt: $goal` is a complete, correct prompt.
 
 ## Make "done" honest
 

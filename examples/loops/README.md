@@ -22,6 +22,15 @@ tractor run examples/loops/<file>.yaml
   repeat until the goal's claims are demonstrable. For *"keep working on
   this after I close my laptop."*
 
+## Writing node prompts
+
+State the condition the agent is to bring about, never the steps — the
+repository, its skills, and its tools already teach how. The engine
+substitutes `$goal` (nothing else delivers the goal text), supplies the
+workspace, and builds a structured routing choice from the node's edge
+conditions. Never coach routing, never point at files that teach, never
+script the checks: `prompt: $goal` is a complete, correct prompt.
+
 ## When a loop misbehaves
 
 You don't need this table to write a loop; you need it when a loop annoys

@@ -1,7 +1,7 @@
 name: bake-off
 goal: >
-  Three attempts implement the same small task in isolated worktrees; a
-  judge runs each one and merges the winner into the main workspace.
+  Create fizzbuzz.sh in this workspace: `sh fizzbuzz.sh N` prints the
+  classic FizzBuzz lines from 1 to N, one per line.
 start: attempts
 
 defaults:
@@ -10,8 +10,9 @@ defaults:
   max_retries: 1
 
 # The shape for "try a couple of approaches in parallel, keep the best".
-# The judge decides on demonstrated behavior, not on the reports.
-# To adapt: change the task in the branch prompts and the final check.
+# Three isolated attempts at the same goal; the judge decides on
+# demonstrated behavior, not on the reports. To adapt: change the goal and
+# the final check.
 nodes:
   - id: attempts
     type: parallel
@@ -24,10 +25,10 @@ nodes:
           llm_model: claude-sonnet-5
           reasoning_effort: low
           prompt: >
-            Create fizzbuzz.sh in this workspace: `sh fizzbuzz.sh N` prints
-            the classic FizzBuzz lines from 1 to N, one per line. Run it to
-            prove it works, then write REPORT.md describing your approach
-            and pasting the output of `sh fizzbuzz.sh 15`.
+            $goal
+
+            Leave REPORT.md recording what you built and how you proved it
+            works.
       - id: attempt_codex
         artifacts: [REPORT.md]
         codergen:
@@ -35,10 +36,10 @@ nodes:
           llm_model: gpt-5.6-sol
           reasoning_effort: low
           prompt: >
-            Create fizzbuzz.sh in this workspace: `sh fizzbuzz.sh N` prints
-            the classic FizzBuzz lines from 1 to N, one per line. Run it to
-            prove it works, then write REPORT.md describing your approach
-            and pasting the output of `sh fizzbuzz.sh 15`.
+            $goal
+
+            Leave REPORT.md recording what you built and how you proved it
+            works.
       - id: attempt_gemini
         artifacts: [REPORT.md]
         codergen:
@@ -46,11 +47,10 @@ nodes:
           llm_model: gemini-3.1-pro-low
           reasoning_effort: low
           prompt: >
-            Create fizzbuzz.sh in this workspace: `sh fizzbuzz.sh N` prints
-            the classic FizzBuzz lines from 1 to N, one per line. Run it to
-            prove it works, then write REPORT.md as a plain file created
-            with a shell command such as a heredoc, describing your approach
-            and pasting the output of `sh fizzbuzz.sh 15`.
+            $goal
+
+            Leave REPORT.md recording what you built and how you proved it
+            works.
     edges:
       - to: judge
 
@@ -60,11 +60,9 @@ nodes:
     llm_model: claude-sonnet-5
     reasoning_effort: low
     prompt: >
-      Use the supplied branch evidence and worktree paths. For each branch,
-      run its fizzbuzz.sh yourself and check the output; judge on
-      demonstrated behavior, not on the reports. Copy the winning branch's
-      fizzbuzz.sh into this main workspace, and write WINNER.md naming the
-      winning branch and why it won. Do not alter any branch worktree.
+      Judge the branches on demonstrated behavior, running each one
+      yourself. Merge the winning fizzbuzz.sh into this main workspace and
+      record the decision in WINNER.md.
     edges:
       - to: verify
 
@@ -72,8 +70,8 @@ nodes:
     type: tool
     tool_command: |
       set -eu
-      test "$(sh fizzbuzz.sh 5 | tail -1)" = Buzz
       test "$(sh fizzbuzz.sh 3 | tail -1)" = Fizz
+      test "$(sh fizzbuzz.sh 5 | tail -1)" = Buzz
       test "$(sh fizzbuzz.sh 15 | tail -1)" = FizzBuzz
       test -f WINNER.md
     on_success: success

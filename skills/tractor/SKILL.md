@@ -22,7 +22,7 @@ nodes:
   - id: implement
     type: codergen          # an agent turn
     max_visits: 5           # the budget; nothing else stops a loop
-    prompt: Work toward the goal. Make the smallest change that could satisfy the check.
+    prompt: $goal           # the goal is the whole prompt
     edges:
       - to: check
   - id: check
@@ -34,6 +34,16 @@ nodes:
 
 An agent works, a command decides, failure routes back. Fan-out shapes add
 `parallel` branches (one per provider) and a `parallel.fan_in` node to judge.
+
+## Writing node prompts
+
+State the condition the agent is to bring about, never the steps: the
+repository, its skills, and its tools already teach how. The engine
+substitutes `$goal` (nothing else delivers the goal text), supplies the
+workspace, and builds a structured routing choice from the node's edge
+conditions — so never coach routing ("respond with pass"), never point at
+files that teach ("read AGENTS.md first"), never script the checks.
+"Validate the work done in this loop" beats a list of commands.
 
 ## Pick the user's moment
 
@@ -91,5 +101,4 @@ stop; calling it again after the graceful window forces it.
 
 `get_pipeline_schema` returns the current graph schema, and `start_run`'s
 lint diagnostics teach as they reject. Keep each prompt to the decision its
-node owns — the engine already supplies the goal, the workspace, and the
-routing choices.
+node owns.
