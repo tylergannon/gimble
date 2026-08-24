@@ -1,7 +1,7 @@
 name: critique-circle
 goal: >
-  Three providers each write a proposal on the same topic, then each
-  critiques the other two. The topic lives in TOPIC.md.
+  Three providers each write a proposal on the topic in TOPIC.md, then each
+  critiques the other two.
 start: write_topic
 
 defaults:
@@ -9,9 +9,9 @@ defaults:
   fidelity: none
   max_retries: 1
 
-# The shape for "have a couple of models cross-check this design":
-# same topic to everyone, independent proposals, mutual critique.
-# To adapt: change what write_topic puts in TOPIC.md.
+# The shape for "have a couple of models cross-check this": same topic to
+# everyone, independent proposals, mutual critique. To adapt: change what
+# write_topic puts in TOPIC.md.
 nodes:
   - id: write_topic
     type: tool
@@ -30,9 +30,9 @@ nodes:
           llm_model: claude-sonnet-5
           reasoning_effort: low
           prompt: >
-            Read TOPIC.md in this workspace. Write your proposal to
-            claude_proposal.md in the workspace root. Work from your own
-            reading; make no other changes.
+            $goal
+
+            Write your own proposal to claude_proposal.md.
       - id: codex_proposal
         artifacts: [codex_proposal.md]
         codergen:
@@ -40,9 +40,9 @@ nodes:
           llm_model: gpt-5.6-sol
           reasoning_effort: low
           prompt: >
-            Read TOPIC.md in this workspace. Write your proposal to
-            codex_proposal.md in the workspace root. Work from your own
-            reading; make no other changes.
+            $goal
+
+            Write your own proposal to codex_proposal.md.
       - id: gemini_proposal
         artifacts: [gemini_proposal.md]
         codergen:
@@ -50,10 +50,9 @@ nodes:
           llm_model: gemini-3.1-pro-low
           reasoning_effort: low
           prompt: >
-            Read TOPIC.md in this workspace. Write your proposal as a plain
-            file named gemini_proposal.md in the workspace root, created
-            with a shell command such as a heredoc. Work from your own
-            reading; make no other changes.
+            $goal
+
+            Write your own proposal to gemini_proposal.md.
     edges:
       - to: collect_proposals
 
@@ -63,11 +62,9 @@ nodes:
     llm_model: claude-sonnet-5
     reasoning_effort: low
     prompt: >
-      Each branch declared exactly one proposal artifact and a supplied
-      collected path where its content already lives. Copy each one
-      byte-for-byte into this main workspace at proposals/<name>.md, where
-      <name> is claude, codex, or gemini. Do not alter any proposal's text.
-      Confirm all three exist and are non-empty.
+      Copy each branch's collected proposal unchanged into this main
+      workspace as proposals/<name>.md, where <name> is claude, codex, or
+      gemini.
     edges:
       - to: critique
 
@@ -82,11 +79,10 @@ nodes:
           llm_model: claude-sonnet-5
           reasoning_effort: low
           prompt: >
-            Read proposals/codex.md and proposals/gemini.md, not your own
-            proposals/claude.md. Write claude_critique.md in the workspace
-            root: where each proposal is strong, where it is weak or wrong,
-            and what all three of you appear to agree on. Make no other
-            changes.
+            Critique the other two proposals in proposals/ — not your own,
+            proposals/claude.md — in claude_critique.md: where each is
+            strong, where it is weak or wrong, and what all three of you
+            agree on.
       - id: codex_critique
         artifacts: [codex_critique.md]
         codergen:
@@ -94,11 +90,10 @@ nodes:
           llm_model: gpt-5.6-sol
           reasoning_effort: low
           prompt: >
-            Read proposals/claude.md and proposals/gemini.md, not your own
-            proposals/codex.md. Write codex_critique.md in the workspace
-            root: where each proposal is strong, where it is weak or wrong,
-            and what all three of you appear to agree on. Make no other
-            changes.
+            Critique the other two proposals in proposals/ — not your own,
+            proposals/codex.md — in codex_critique.md: where each is
+            strong, where it is weak or wrong, and what all three of you
+            agree on.
       - id: gemini_critique
         artifacts: [gemini_critique.md]
         codergen:
@@ -106,12 +101,10 @@ nodes:
           llm_model: gemini-3.1-pro-low
           reasoning_effort: low
           prompt: >
-            Read proposals/claude.md and proposals/codex.md, not your own
-            proposals/gemini.md. Write your critique as a plain file named
-            gemini_critique.md in the workspace root, created with a shell
-            command such as a heredoc: where each proposal is strong, where
-            it is weak or wrong, and what all three of you appear to agree
-            on. Make no other changes.
+            Critique the other two proposals in proposals/ — not your own,
+            proposals/gemini.md — in gemini_critique.md: where each is
+            strong, where it is weak or wrong, and what all three of you
+            agree on.
     edges:
       - to: collect_critiques
 
@@ -121,10 +114,8 @@ nodes:
     llm_model: claude-sonnet-5
     reasoning_effort: low
     prompt: >
-      Each branch declared exactly one critique artifact and a supplied
-      collected path where its content already lives. Copy each one
-      byte-for-byte into this main workspace at critiques/<name>.md, where
-      <name> is claude, codex, or gemini. Do not alter any critique's text.
-      Confirm all three exist and are non-empty.
+      Copy each branch's collected critique unchanged into this main
+      workspace as critiques/<name>.md, where <name> is claude, codex, or
+      gemini.
     edges:
       - to: success

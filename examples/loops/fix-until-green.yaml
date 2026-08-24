@@ -11,14 +11,14 @@ defaults:
   reasoning_effort: low
 
 # The smallest loop: an agent works, a command decides, failure routes back.
-# To adapt: change the goal and the check's tool_command. Nothing else.
+# The goal is the whole prompt — the engine substitutes $goal, supplies the
+# workspace, and turns the edges into a structured routing schema. To adapt:
+# change the goal and the check's tool_command. Nothing else.
 nodes:
   - id: implement
     type: codergen
     max_visits: 5
-    prompt: >
-      Work toward the goal. Make the smallest change that could satisfy the
-      check, then route onward.
+    prompt: $goal
     edges:
       - to: check
 
