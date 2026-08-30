@@ -142,6 +142,21 @@ func TestProofContractValidationDetails(t *testing.T) {
 		"ambiguous oracle": func(contract *graph.ProofContract) {
 			contract.PrimaryCases[0].CorrectnessOracle = "review_record"
 		},
+		"unknown promise status": func(contract *graph.ProofContract) {
+			contract.PrimaryCases[0].Status = "done"
+		},
+		"missing capability": func(contract *graph.ProofContract) {
+			contract.PrimaryCases[0].RequiredCapabilities = []string{"missing"}
+		},
+		"unsafe evidence artifact": func(contract *graph.ProofContract) {
+			contract.PrimaryCases[0].EvidenceArtifacts[0].Path = "../outside.txt"
+		},
+		"unknown artifact role": func(contract *graph.ProofContract) {
+			contract.PrimaryCases[0].EvidenceArtifacts[0].Role = "diagram"
+		},
+		"missing artifact edge": func(contract *graph.ProofContract) {
+			contract.PrimaryCases[0].EvidenceArtifacts[0].ArchitectureEdge = " "
+		},
 		"unknown evidence mode": func(contract *graph.ProofContract) {
 			contract.PrimaryCases[0].EvidenceMode = "mock"
 		},
@@ -156,6 +171,13 @@ func TestProofContractValidationDetails(t *testing.T) {
 			contract.TerminalSuccess.RequiredCases = append(contract.TerminalSuccess.RequiredCases, "invented")
 		},
 		"blank unknown": func(contract *graph.ProofContract) { contract.Unknowns = []string{" "} },
+		"scope gap names unknown promise": func(contract *graph.ProofContract) {
+			contract.ScopeGaps = []graph.ProofScopeGap{{
+				PromiseID: "missing", OriginalPromise: "A user-visible promise.",
+				CurrentProvenBehavior: "Only a boundary works.", MissingCapability: "Primary behavior.",
+				Impact: "The user job is not met.", RecommendedNextMove: "Implement the primary behavior.",
+			}}
+		},
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -175,6 +197,47 @@ func TestProofContractRejectsAdvisoryOracleRoute(t *testing.T) {
 	tool.OnError = set(tool.OnSuccess)
 	if _, ok := findDiagnostic(lint.Validate(g), "proof_contract"); !ok {
 		t.Fatal("proof tool with indistinguishable success and error routes was admitted")
+	}
+}
+
+func TestProofContractRejectsParallelBranchOracle(t *testing.T) {
+	g := graph.Graph{
+		Start: "fanout",
+		ProofContract: set(graph.ProofContract{
+			Mode: graph.ProofContractDelivery, IntendedArchitecture: "A branch produces a result before fan-in.",
+			PrimaryOutcome: "A parallel branch produces the expected result.",
+			PrimaryCases:   []graph.ProofCase{proofCase("branch_assertion", "left")},
+			BoundaryCases:  []graph.ProofCase{}, Unknowns: []string{},
+			TerminalSuccess: graph.ProofTerminalSuccess{RequiredCases: []string{"branch_assertion"}},
+		}),
+		Nodes: []graph.Node{
+			&graph.ParallelNode{NodeBase: graph.NodeBase{ID: "fanout"}, Branches: graph.LegacyParallelBranches("left", "right")},
+			&graph.ToolNode{NodeBase: graph.NodeBase{ID: "left"}, ToolCommand: "true", OnSuccess: "join"},
+			codergen("right", edge("join")),
+			fanIn("join", edge(graph.Success)),
+		},
+	}
+	if _, ok := findDiagnostic(lint.Validate(g), "proof_contract"); !ok {
+		t.Fatal("parallel branch proof oracle was admitted")
+	}
+}
+
+func TestDiscoveryContractMayDeclareManualEvidenceButCannotPretendItIsIndependent(t *testing.T) {
+	g := validProofGraph()
+	g.ProofContract.Value.Mode = graph.ProofContractDiscovery
+	manual := &g.ProofContract.Value.PrimaryCases[0]
+	manual.Node = ""
+	manual.CorrectnessOracle = graph.ProofOracleHumanAttestation
+	manual.EvidenceSource = graph.ProofEvidenceManual
+	manual.Independence = graph.ProofHumanAttestation
+	manual.Status = graph.ProofStatusSimulated
+	if finding, ok := findDiagnostic(lint.Validate(g), "proof_contract"); ok {
+		t.Fatalf("discovery declaration rejected: %#v", finding)
+	}
+
+	g.ProofContract.Value.Mode = graph.ProofContractDelivery
+	if _, ok := findDiagnostic(lint.Validate(g), "proof_contract"); !ok {
+		t.Fatal("manual evidence was admitted for delivery success")
 	}
 }
 
@@ -314,18 +377,14 @@ func validProofGraph() graph.Graph {
 	return graph.Graph{
 		Start: "primary_assertion",
 		ProofContract: set(graph.ProofContract{
-			PrimaryOutcome: "Representative input produces an observable result.",
-			PrimaryCases: []graph.ProofCase{{
-				ID: "qualifying_input", Node: "primary_assertion",
-				RepresentativeInput: "A known qualifying fixture.", ExpectedOutput: "The expected value is visible.",
-				CorrectnessOracle: graph.ProofOracleToolExitZero, EvidenceMode: graph.ProofEvidenceOperatingLayer,
-			}},
-			BoundaryCases: []graph.ProofCase{{
-				ID: "empty_boundary", Node: "empty_assertion",
-				RepresentativeInput: "An empty fixture.", ExpectedOutput: "The observed value remains empty.",
-				CorrectnessOracle: graph.ProofOracleToolExitZero, EvidenceMode: graph.ProofEvidenceOperatingLayer,
-			}},
-			Unknowns: []string{},
+			Mode:                 graph.ProofContractDelivery,
+			IntendedArchitecture: "Input crosses the operating boundary and produces a user-visible result.",
+			PrimaryOutcome:       "Representative input produces an observable result.",
+			PrimaryCases:         []graph.ProofCase{proofCase("qualifying_input", "primary_assertion")},
+			BoundaryCases:        []graph.ProofCase{proofCase("empty_boundary", "empty_assertion")},
+			RequiredCapabilities: []graph.ProofCapability{{ID: "operating_runtime", Description: "The operating surface is available."}},
+			Unknowns:             []string{},
+			ScopeGaps:            []graph.ProofScopeGap{},
 			TerminalSuccess: graph.ProofTerminalSuccess{
 				RequiredCases: []string{"qualifying_input", "empty_boundary"},
 			},
@@ -334,6 +393,23 @@ func validProofGraph() graph.Graph {
 			&graph.ToolNode{NodeBase: graph.NodeBase{ID: "primary_assertion"}, ToolCommand: "true", OnSuccess: "empty_assertion"},
 			&graph.ToolNode{NodeBase: graph.NodeBase{ID: "empty_assertion"}, ToolCommand: "true", OnSuccess: graph.Success},
 		},
+	}
+}
+
+func proofCase(id, node string) graph.ProofCase {
+	return graph.ProofCase{
+		ID: id, Actor: "A user", Job: "Submit qualifying input and observe the promised result.", Node: node,
+		QualifyingInputCriteria: "Input independently established to meet the case criteria.",
+		ExpectedOutput:          "The expected value is visible at the declared evidence surface.",
+		CorrectnessOracle:       graph.ProofOracleToolExitZero,
+		EvidenceMode:            graph.ProofEvidenceOperatingLayer,
+		EvidenceSource:          graph.ProofEvidenceCurrentRun,
+		Independence:            graph.ProofIndependentExecution,
+		Status:                  graph.ProofStatusUnproven,
+		RequiredCapabilities:    []string{"operating_runtime"},
+		EvidenceArtifacts: []graph.ProofArtifactRequirement{{
+			Path: id + ".txt", Role: graph.ProofArtifactInput, ArchitectureEdge: "caller_to_product",
+		}},
 	}
 }
 

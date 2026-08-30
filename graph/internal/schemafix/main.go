@@ -101,12 +101,33 @@ func walk(value any) {
 				workspace["enum"] = []any{"isolated", "shared"}
 			}
 			if oracle, ok := props["correctness_oracle"].(map[string]any); ok {
-				oracle["enum"] = []any{"tool_exit_zero"}
+				oracle["enum"] = []any{"tool_exit_zero", "human_attestation"}
 			}
 			if mode, ok := props["evidence_mode"].(map[string]any); ok {
 				mode["enum"] = []any{"component", "operating_layer"}
 			}
-			for _, name := range []string{"primary_outcome", "representative_input", "expected_output"} {
+			if mode, ok := props["mode"].(map[string]any); ok {
+				mode["enum"] = []any{"delivery", "discovery"}
+			}
+			if source, ok := props["evidence_source"].(map[string]any); ok {
+				source["enum"] = []any{"current_run", "manual"}
+			}
+			if independence, ok := props["independence"].(map[string]any); ok {
+				independence["enum"] = []any{"independent_execution", "human_attestation"}
+			}
+			if status, ok := props["status"].(map[string]any); ok {
+				status["enum"] = []any{"proven", "partial", "blocked", "simulated", "unproven"}
+			}
+			if role, ok := props["role"].(map[string]any); ok {
+				role["enum"] = []any{"input", "output", "observation"}
+			}
+			for _, name := range []string{
+				"intended_architecture", "primary_outcome", "actor", "job",
+				"qualifying_input_criteria", "expected_output", "description",
+				"promise_id", "original_promise", "current_proven_behavior",
+				"missing_capability", "impact", "recommended_next_move", "path",
+				"architecture_edge",
+			} {
 				if field, ok := props[name].(map[string]any); ok {
 					field["minLength"] = 1
 				}
@@ -117,6 +138,12 @@ func walk(value any) {
 			if required, ok := props["required_cases"].(map[string]any); ok {
 				required["minItems"] = 1
 				required["uniqueItems"] = true
+			}
+			if capabilities, ok := props["required_capabilities"].(map[string]any); ok {
+				capabilities["uniqueItems"] = true
+			}
+			if artifacts, ok := props["evidence_artifacts"].(map[string]any); ok {
+				artifacts["uniqueItems"] = true
 			}
 			if artifacts, ok := props["artifacts"].(map[string]any); ok {
 				artifacts["minItems"] = 1

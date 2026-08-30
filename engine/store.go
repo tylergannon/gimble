@@ -61,7 +61,7 @@ func LoadCheckpoint(root string) (Checkpoint, error) {
 	checkpoint.CompletedNodes = cloneSlice(checkpoint.CompletedNodes)
 	checkpoint.NodeVisits = cloneMap(checkpoint.NodeVisits)
 	checkpoint.NodeAttempts = cloneMap(checkpoint.NodeAttempts)
-	checkpoint.PassedProofCases = cloneMap(checkpoint.PassedProofCases)
+	checkpoint.ProofEvidence = cloneProofEvidence(checkpoint.ProofEvidence)
 	checkpoint.Sessions = cloneMap(checkpoint.Sessions)
 	return checkpoint, nil
 }
@@ -74,6 +74,7 @@ func (s *runStore) saveCheckpoint(checkpoint Checkpoint) error {
 	checkpoint.CompletedNodes = cloneSlice(checkpoint.CompletedNodes)
 	checkpoint.NodeVisits = cloneMap(checkpoint.NodeVisits)
 	checkpoint.NodeAttempts = cloneMap(checkpoint.NodeAttempts)
+	checkpoint.ProofEvidence = cloneProofEvidence(checkpoint.ProofEvidence)
 	checkpoint.Sessions = cloneMap(checkpoint.Sessions)
 	raw, err := json.MarshalIndent(checkpoint, "", "  ")
 	if err != nil {

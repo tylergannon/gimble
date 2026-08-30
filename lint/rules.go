@@ -2,6 +2,7 @@ package lint
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -561,6 +562,12 @@ func (a *analysis) proofContract() []Diagnostic {
 	add := func(message, nodeID string) {
 		diagnostics = append(diagnostics, diagnostic("proof_contract", SeverityError, message, nodeID))
 	}
+	if contract.Mode != graph.ProofContractDelivery && contract.Mode != graph.ProofContractDiscovery {
+		add(fmt.Sprintf("unsupported proof contract mode %q", contract.Mode), "")
+	}
+	if strings.TrimSpace(contract.IntendedArchitecture) == "" {
+		add("intended_architecture must be non-empty", "")
+	}
 	if strings.TrimSpace(contract.PrimaryOutcome) == "" {
 		add("primary_outcome must be non-empty", "")
 	}
@@ -568,7 +575,22 @@ func (a *analysis) proofContract() []Diagnostic {
 		add("at least one primary proof case is required", "")
 	}
 
+	capabilities := make(map[string]struct{}, len(contract.RequiredCapabilities))
+	for _, capability := range contract.RequiredCapabilities {
+		if strings.TrimSpace(capability.ID) == "" {
+			add("required capability id must be non-empty", "")
+		} else if _, duplicate := capabilities[capability.ID]; duplicate {
+			add(fmt.Sprintf("required capability %q appears more than once", capability.ID), "")
+		} else {
+			capabilities[capability.ID] = struct{}{}
+		}
+		if strings.TrimSpace(capability.Description) == "" {
+			add(fmt.Sprintf("required capability %q description must be non-empty", capability.ID), "")
+		}
+	}
+
 	caseKind := make(map[string]string, len(contract.PrimaryCases)+len(contract.BoundaryCases))
+	primaryIDs := make(map[string]struct{}, len(contract.PrimaryCases))
 	caseNodes := make(map[string]string, len(contract.PrimaryCases)+len(contract.BoundaryCases))
 	validateCase := func(current graph.ProofCase, kind string) {
 		if strings.TrimSpace(current.ID) == "" {
@@ -577,31 +599,91 @@ func (a *analysis) proofContract() []Diagnostic {
 			add(fmt.Sprintf("proof case id %q is repeated in %s and %s cases", current.ID, previous, kind), current.Node)
 		} else {
 			caseKind[current.ID] = kind
+			if kind == "primary" {
+				primaryIDs[current.ID] = struct{}{}
+			}
 		}
-		if strings.TrimSpace(current.RepresentativeInput) == "" {
-			add(fmt.Sprintf("proof case %q representative_input must be non-empty", current.ID), current.Node)
+		if strings.TrimSpace(current.Actor) == "" {
+			add(fmt.Sprintf("proof case %q actor must be non-empty", current.ID), current.Node)
+		}
+		if strings.TrimSpace(current.Job) == "" {
+			add(fmt.Sprintf("proof case %q job must be non-empty", current.ID), current.Node)
+		}
+		if strings.TrimSpace(current.QualifyingInputCriteria) == "" {
+			add(fmt.Sprintf("proof case %q qualifying_input_criteria must be non-empty", current.ID), current.Node)
 		}
 		if strings.TrimSpace(current.ExpectedOutput) == "" {
 			add(fmt.Sprintf("proof case %q expected_output must be non-empty", current.ID), current.Node)
 		}
-		if current.CorrectnessOracle != graph.ProofOracleToolExitZero {
-			add(fmt.Sprintf("proof case %q has unsupported correctness_oracle %q", current.ID, current.CorrectnessOracle), current.Node)
-		}
 		if current.EvidenceMode != graph.ProofEvidenceComponent && current.EvidenceMode != graph.ProofEvidenceOperatingLayer {
 			add(fmt.Sprintf("proof case %q has unsupported evidence_mode %q", current.ID, current.EvidenceMode), current.Node)
 		}
-		node, exists := a.byID[current.Node]
-		if !exists {
-			add(fmt.Sprintf("proof case %q names missing node %q", current.ID, current.Node), current.Node)
-		} else if tool, isTool := node.(*graph.ToolNode); !isTool {
-			add(fmt.Sprintf("proof case %q must reference a tool node", current.ID), current.Node)
-		} else if tool.OnError.Present && tool.OnError.Value == tool.OnSuccess {
-			add(fmt.Sprintf("proof case %q tool must distinguish successful and failed assertion routes", current.ID), current.Node)
+		if !validProofStatus(current.Status) {
+			add(fmt.Sprintf("proof case %q has unsupported status %q", current.ID, current.Status), current.Node)
 		}
-		if previous, duplicate := caseNodes[current.Node]; duplicate {
-			add(fmt.Sprintf("proof cases %q and %q cannot share one assertion node", previous, current.ID), current.Node)
-		} else if strings.TrimSpace(current.Node) != "" {
-			caseNodes[current.Node] = current.ID
+		seenCapabilities := map[string]struct{}{}
+		for _, capabilityID := range current.RequiredCapabilities {
+			if _, duplicate := seenCapabilities[capabilityID]; duplicate {
+				add(fmt.Sprintf("proof case %q repeats required capability %q", current.ID, capabilityID), current.Node)
+				continue
+			}
+			seenCapabilities[capabilityID] = struct{}{}
+			if _, exists := capabilities[capabilityID]; !exists {
+				add(fmt.Sprintf("proof case %q names unknown required capability %q", current.ID, capabilityID), current.Node)
+			}
+		}
+		seenArtifacts := map[string]struct{}{}
+		for _, artifact := range current.EvidenceArtifacts {
+			cleaned := filepath.Clean(artifact.Path)
+			if strings.TrimSpace(artifact.Path) == "" || filepath.IsAbs(artifact.Path) || cleaned == "." ||
+				cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
+				add(fmt.Sprintf("proof case %q has unsafe evidence artifact path %q", current.ID, artifact.Path), current.Node)
+			}
+			if _, duplicate := seenArtifacts[cleaned]; duplicate {
+				add(fmt.Sprintf("proof case %q repeats evidence artifact path %q", current.ID, artifact.Path), current.Node)
+			} else {
+				seenArtifacts[cleaned] = struct{}{}
+			}
+			if artifact.Role != graph.ProofArtifactInput && artifact.Role != graph.ProofArtifactOutput &&
+				artifact.Role != graph.ProofArtifactObservation {
+				add(fmt.Sprintf("proof case %q has unsupported evidence artifact role %q", current.ID, artifact.Role), current.Node)
+			}
+			if strings.TrimSpace(artifact.ArchitectureEdge) == "" {
+				add(fmt.Sprintf("proof case %q evidence artifact %q must name an architecture_edge", current.ID, artifact.Path), current.Node)
+			}
+		}
+
+		automated := current.CorrectnessOracle == graph.ProofOracleToolExitZero &&
+			current.EvidenceSource == graph.ProofEvidenceCurrentRun &&
+			current.Independence == graph.ProofIndependentExecution
+		manual := current.CorrectnessOracle == graph.ProofOracleHumanAttestation &&
+			current.EvidenceSource == graph.ProofEvidenceManual &&
+			current.Independence == graph.ProofHumanAttestation
+		if !automated && !manual {
+			add(fmt.Sprintf("proof case %q has inconsistent oracle, evidence_source, and independence", current.ID), current.Node)
+		}
+		if contract.Mode == graph.ProofContractDelivery && !automated {
+			add(fmt.Sprintf("delivery proof case %q must use independent current-run tool evidence", current.ID), current.Node)
+		}
+		if automated {
+			node, exists := a.byID[current.Node]
+			if !exists {
+				add(fmt.Sprintf("proof case %q names missing node %q", current.ID, current.Node), current.Node)
+			} else if tool, isTool := node.(*graph.ToolNode); !isTool {
+				add(fmt.Sprintf("proof case %q must reference a tool node", current.ID), current.Node)
+			} else if tool.OnError.Present && tool.OnError.Value == tool.OnSuccess {
+				add(fmt.Sprintf("proof case %q tool must distinguish successful and failed assertion routes", current.ID), current.Node)
+			}
+			if owner := a.parallelBranchOwner(current.Node); owner != "" {
+				add(fmt.Sprintf("proof case %q must reference a top-level tool, not a branch of parallel node %q", current.ID, owner), current.Node)
+			}
+			if previous, duplicate := caseNodes[current.Node]; duplicate {
+				add(fmt.Sprintf("proof cases %q and %q cannot share one assertion node", previous, current.ID), current.Node)
+			} else if strings.TrimSpace(current.Node) != "" {
+				caseNodes[current.Node] = current.ID
+			}
+		} else if manual && strings.TrimSpace(current.Node) != "" {
+			add(fmt.Sprintf("manual proof case %q must not claim an executed node", current.ID), current.Node)
 		}
 	}
 	for _, current := range contract.PrimaryCases {
@@ -613,6 +695,23 @@ func (a *analysis) proofContract() []Diagnostic {
 	for index, unknown := range contract.Unknowns {
 		if strings.TrimSpace(unknown) == "" {
 			add(fmt.Sprintf("unknowns[%d] must be non-empty", index), "")
+		}
+	}
+	for _, gap := range contract.ScopeGaps {
+		if _, exists := primaryIDs[gap.PromiseID]; !exists {
+			add(fmt.Sprintf("scope gap names unknown primary promise %q", gap.PromiseID), "")
+		}
+		fields := []struct{ name, value string }{
+			{"original_promise", gap.OriginalPromise},
+			{"current_proven_behavior", gap.CurrentProvenBehavior},
+			{"missing_capability", gap.MissingCapability},
+			{"impact", gap.Impact},
+			{"recommended_next_move", gap.RecommendedNextMove},
+		}
+		for _, field := range fields {
+			if strings.TrimSpace(field.value) == "" {
+				add(fmt.Sprintf("scope gap %q %s must be non-empty", gap.PromiseID, field.name), "")
+			}
 		}
 	}
 
@@ -641,6 +740,27 @@ func (a *analysis) proofContract() []Diagnostic {
 		}
 	}
 	return diagnostics
+}
+
+func validProofStatus(status graph.ProofStatus) bool {
+	switch status {
+	case graph.ProofStatusProven, graph.ProofStatusPartial, graph.ProofStatusBlocked,
+		graph.ProofStatusSimulated, graph.ProofStatusUnproven:
+		return true
+	default:
+		return false
+	}
+}
+
+func (a *analysis) parallelBranchOwner(nodeID string) string {
+	for _, block := range a.parallelBlocks() {
+		for _, branch := range block.branches {
+			if _, inside := branch.nodes[nodeID]; inside {
+				return block.node.ID
+			}
+		}
+	}
+	return ""
 }
 
 func (a *analysis) fanInMaxVisits() []Diagnostic {

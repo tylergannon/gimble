@@ -1,6 +1,9 @@
 package engine
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -15,22 +18,40 @@ func TestProofContractRequiresPrimaryAndBoundaryToolExecutions(t *testing.T) {
 		pipeline := parseProofPipeline(t, `
 start: silence_boundary
 proof_contract:
+  mode: delivery
+  intended_architecture: Input crosses the operating boundary and produces a user-visible result.
   primary_outcome: Representative input produces the expected observable result.
   primary_cases:
     - id: qualifying_input
+      actor: A user
+      job: Submit qualifying input and observe the promised result.
       node: primary_assertion
-      representative_input: A known qualifying fixture.
+      qualifying_input_criteria: Input independently established to qualify.
       expected_output: The expected value is visible at the operating boundary.
       correctness_oracle: tool_exit_zero
       evidence_mode: operating_layer
+      evidence_source: current_run
+      independence: independent_execution
+      status: unproven
+      required_capabilities: []
+      evidence_artifacts: []
   boundary_cases:
     - id: silence_boundary
+      actor: A user
+      job: Submit empty input without receiving invented output.
       node: silence_boundary
-      representative_input: An empty fixture.
+      qualifying_input_criteria: Input is empty.
       expected_output: The observed value remains empty.
       correctness_oracle: tool_exit_zero
       evidence_mode: operating_layer
+      evidence_source: current_run
+      independence: independent_execution
+      status: unproven
+      required_capabilities: []
+      evidence_artifacts: []
+  required_capabilities: []
   unknowns: []
+  scope_gaps: []
   terminal_success:
     required_cases: [qualifying_input, silence_boundary]
 nodes:
@@ -51,7 +72,8 @@ nodes:
 			t.Fatalf("result = %#v", result)
 		}
 		if checkpoint.NextNode != "silence_boundary" || !checkpoint.RetryVisit ||
-			!reflect.DeepEqual(checkpoint.PassedProofCases, map[string]bool{"silence_boundary": true}) {
+			checkpoint.ProofEvidence["silence_boundary"].Status != graph.ProofStatusProven ||
+			len(checkpoint.ProofEvidence) != 1 {
 			t.Fatalf("checkpoint = %#v", checkpoint)
 		}
 	})
@@ -60,22 +82,40 @@ nodes:
 		pipeline := parseProofPipeline(t, `
 start: primary_assertion
 proof_contract:
+  mode: delivery
+  intended_architecture: Input crosses the operating boundary and produces a user-visible result.
   primary_outcome: Representative input produces the expected observable result.
   primary_cases:
     - id: qualifying_input
+      actor: A user
+      job: Submit qualifying input and observe the promised result.
       node: primary_assertion
-      representative_input: A known qualifying fixture.
+      qualifying_input_criteria: Input independently established to qualify.
       expected_output: The expected value is visible at the operating boundary.
       correctness_oracle: tool_exit_zero
       evidence_mode: operating_layer
+      evidence_source: current_run
+      independence: independent_execution
+      status: unproven
+      required_capabilities: []
+      evidence_artifacts: []
   boundary_cases:
     - id: silence_boundary
+      actor: A user
+      job: Submit empty input without receiving invented output.
       node: silence_boundary
-      representative_input: An empty fixture.
+      qualifying_input_criteria: Input is empty.
       expected_output: The observed value remains empty.
       correctness_oracle: tool_exit_zero
       evidence_mode: operating_layer
+      evidence_source: current_run
+      independence: independent_execution
+      status: unproven
+      required_capabilities: []
+      evidence_artifacts: []
+  required_capabilities: []
   unknowns: []
+  scope_gaps: []
   terminal_success:
     required_cases: [qualifying_input, silence_boundary]
 nodes:
@@ -95,11 +135,10 @@ nodes:
 		if result.Status != RunCompleted || result.FailureReason != "" {
 			t.Fatalf("result = %#v", result)
 		}
-		if !reflect.DeepEqual(checkpoint.PassedProofCases, map[string]bool{
-			"qualifying_input": true,
-			"silence_boundary": true,
-		}) {
-			t.Fatalf("passed proof cases = %v", checkpoint.PassedProofCases)
+		if checkpoint.ProofEvidence["qualifying_input"].Status != graph.ProofStatusProven ||
+			checkpoint.ProofEvidence["silence_boundary"].Status != graph.ProofStatusProven ||
+			len(checkpoint.ProofEvidence) != 2 {
+			t.Fatalf("proof evidence = %v", checkpoint.ProofEvidence)
 		}
 	})
 }
@@ -119,8 +158,8 @@ nodes:
 	if result.Status != RunCompleted || result.FailureReason != "" {
 		t.Fatalf("result = %#v", result)
 	}
-	if len(checkpoint.PassedProofCases) != 0 {
-		t.Fatalf("legacy checkpoint gained proof state: %v", checkpoint.PassedProofCases)
+	if len(checkpoint.ProofEvidence) != 0 {
+		t.Fatalf("legacy checkpoint gained proof state: %v", checkpoint.ProofEvidence)
 	}
 }
 
@@ -128,16 +167,27 @@ func TestFailedProofAssertionRoutesToFixBeforeItCanPass(t *testing.T) {
 	pipeline := parseProofPipeline(t, `
 start: primary_assertion
 proof_contract:
+  mode: delivery
+  intended_architecture: A repair step establishes the capability before the assertion passes.
   primary_outcome: The repaired workspace exposes the required marker.
   primary_cases:
     - id: repaired_marker
+      actor: A user
+      job: Observe the promised marker after repair.
       node: primary_assertion
-      representative_input: A workspace without ready.txt.
+      qualifying_input_criteria: The workspace initially lacks ready.txt.
       expected_output: ready.txt exists after the repair step.
       correctness_oracle: tool_exit_zero
       evidence_mode: component
+      evidence_source: current_run
+      independence: independent_execution
+      status: blocked
+      required_capabilities: []
+      evidence_artifacts: []
   boundary_cases: []
+  required_capabilities: []
   unknowns: []
+  scope_gaps: []
   terminal_success:
     required_cases: [repaired_marker]
 nodes:
@@ -156,7 +206,8 @@ nodes:
 		t.Fatalf("result = %#v", result)
 	}
 	if !reflect.DeepEqual(checkpoint.CompletedNodes, []string{"primary_assertion", "fix", "primary_assertion"}) ||
-		!reflect.DeepEqual(checkpoint.PassedProofCases, map[string]bool{"repaired_marker": true}) {
+		checkpoint.ProofEvidence["repaired_marker"].Status != graph.ProofStatusProven ||
+		len(checkpoint.ProofEvidence) != 1 {
 		t.Fatalf("checkpoint = %#v", checkpoint)
 	}
 }
@@ -165,16 +216,27 @@ func TestCompletedNodeRecordCannotSubstituteForProofExecution(t *testing.T) {
 	pipeline := parseProofPipeline(t, `
 start: primary_assertion
 proof_contract:
+  mode: delivery
+  intended_architecture: Input reaches a deterministic assertion at the product boundary.
   primary_outcome: Representative input produces the expected observable result.
   primary_cases:
     - id: qualifying_input
+      actor: A user
+      job: Submit qualifying input and observe the promised result.
       node: primary_assertion
-      representative_input: A known qualifying fixture.
+      qualifying_input_criteria: Input independently established to qualify.
       expected_output: The expected value is visible.
       correctness_oracle: tool_exit_zero
       evidence_mode: operating_layer
+      evidence_source: current_run
+      independence: independent_execution
+      status: unproven
+      required_capabilities: []
+      evidence_artifacts: []
   boundary_cases: []
+  required_capabilities: []
   unknowns: []
+  scope_gaps: []
   terminal_success:
     required_cases: [qualifying_input]
 nodes:
@@ -211,6 +273,206 @@ nodes:
 	}
 	if result.Status != RunFailed || !strings.Contains(result.FailureReason, `required proof case "qualifying_input" has not passed`) {
 		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestSelfAuthoredProofRecordCannotSubstituteForEngineEvidence(t *testing.T) {
+	pipeline := singlePromiseGraph(graph.ProofContractDelivery)
+	root := t.TempDir()
+	runID := "self-authored-run"
+	store, err := openRunStore(root, newEngineState())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(root, "manifest.json"), runManifest{ID: runID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.saveCheckpoint(Checkpoint{
+		CurrentNode:    "primary_assertion",
+		NextNode:       graph.Success,
+		CompletedNodes: []string{"primary_assertion"},
+		NodeVisits:     map[string]int{"primary_assertion": 1},
+		NodeAttempts:   map[string]int{"primary_assertion": 1},
+		ProofEvidence: map[string]ProofEvidenceRecord{"primary": {
+			Status: graph.ProofStatusProven, RunID: runID, CaseID: "primary",
+			NodeID: "primary_assertion", ExecutionRef: "stages/000001-primary_assertion",
+			EvidenceMode: graph.ProofEvidenceOperatingLayer,
+			Edge:         ProofEdgeRef{From: "primary_assertion", To: graph.Success},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runner, err := ResumeRunner(pipeline, NewRegistry(), RunnerConfig{
+		LogsRoot: root,
+		Workdir:  t.TempDir(),
+		Validate: func(graph.Graph) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := runner.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunFailed || !strings.Contains(result.FailureReason, "invalid execution reference") {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestDiscoveryAndScopeGapsCannotBecomeTerminalProductSuccess(t *testing.T) {
+	t.Run("discovery prototype", func(t *testing.T) {
+		pipeline := singlePromiseGraph(graph.ProofContractDiscovery)
+		pipeline.ProofContract.Value.PrimaryCases[0].Status = graph.ProofStatusSimulated
+		result, _ := runProofPipeline(t, pipeline, func(string) {})
+		if result.Status != RunFailed || !strings.Contains(result.FailureReason, "discovery mode cannot reach terminal product success") {
+			t.Fatalf("result = %#v", result)
+		}
+	})
+
+	t.Run("structured material gap", func(t *testing.T) {
+		pipeline := singlePromiseGraph(graph.ProofContractDelivery)
+		pipeline.ProofContract.Value.ScopeGaps = []graph.ProofScopeGap{{
+			PromiseID: "primary", OriginalPromise: "A user observes the expected value.",
+			CurrentProvenBehavior: "Only setup is available.", MissingCapability: "The primary operating behavior.",
+			Impact: "The user's job remains unmet.", RecommendedNextMove: "Implement and rerun the primary proof.",
+		}}
+		result, _ := runProofPipeline(t, pipeline, func(string) {})
+		if result.Status != RunFailed || !strings.Contains(result.FailureReason, `scope gap for promise "primary"`) {
+			t.Fatalf("result = %#v", result)
+		}
+	})
+}
+
+func TestProofEvidenceCarriesSameRunArtifactAndEdgeProvenance(t *testing.T) {
+	pipeline := singlePromiseGraph(graph.ProofContractDelivery)
+	pipeline.Nodes[0].(*graph.ToolNode).ToolCommand = `observed=$(cat input.txt); test "$observed" = expected; printf '%s\n' "$observed" > output.txt`
+	pipeline.ProofContract.Value.PrimaryCases[0].EvidenceArtifacts = []graph.ProofArtifactRequirement{
+		{Path: "input.txt", Role: graph.ProofArtifactInput, ArchitectureEdge: "caller_to_product"},
+		{Path: "output.txt", Role: graph.ProofArtifactOutput, ArchitectureEdge: "product_to_user"},
+	}
+	result, checkpoint := runProofPipeline(t, pipeline, func(workdir string) {
+		writeFixture(t, workdir, "input.txt", "expected\n")
+	})
+	if result.Status != RunCompleted {
+		t.Fatalf("result = %#v", result)
+	}
+	raw, err := json.Marshal(checkpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var persisted struct {
+		ProofEvidence map[string]struct {
+			Status       string `json:"status"`
+			RunID        string `json:"run_id"`
+			NodeID       string `json:"node_id"`
+			ExecutionRef string `json:"execution_ref"`
+			Edge         struct {
+				From string `json:"from"`
+				To   string `json:"to"`
+			} `json:"edge"`
+			Artifacts []struct {
+				Source           string `json:"source"`
+				Role             string `json:"role"`
+				Path             string `json:"path"`
+				ArchitectureEdge string `json:"architecture_edge"`
+				StoredPath       string `json:"stored_path"`
+				SHA256           string `json:"sha256"`
+				CapturedAt       string `json:"captured_at"`
+			} `json:"artifacts"`
+		} `json:"proof_evidence"`
+	}
+	if err := json.Unmarshal(raw, &persisted); err != nil {
+		t.Fatal(err)
+	}
+	evidence, exists := persisted.ProofEvidence["primary"]
+	if !exists || evidence.Status != "proven" || evidence.RunID == "" || evidence.NodeID != "primary_assertion" ||
+		evidence.ExecutionRef == "" || evidence.Edge.From != "primary_assertion" || evidence.Edge.To != graph.Success {
+		t.Fatalf("proof evidence = %#v", evidence)
+	}
+	wantHash := sha256.Sum256([]byte("expected\n"))
+	wantSHA := hex.EncodeToString(wantHash[:])
+	wantArtifacts := map[string]string{
+		"workspace:input:input.txt:caller_to_product:before": wantSHA,
+		"workspace:output:output.txt:product_to_user:after":  wantSHA,
+	}
+	for _, artifact := range evidence.Artifacts {
+		key := artifact.Source + ":" + artifact.Role + ":" + artifact.Path + ":" + artifact.ArchitectureEdge + ":" + artifact.CapturedAt
+		delete(wantArtifacts, key)
+		if artifact.SHA256 == "" {
+			t.Fatalf("artifact has no digest: %#v", artifact)
+		}
+	}
+	if len(wantArtifacts) != 0 {
+		t.Fatalf("missing provenance artifacts: %v; got %#v", wantArtifacts, evidence.Artifacts)
+	}
+}
+
+func TestChangedProofSnapshotInvalidatesTerminalResume(t *testing.T) {
+	pipeline := singlePromiseGraph(graph.ProofContractDelivery)
+	pipeline.ProofContract.Value.PrimaryCases[0].EvidenceArtifacts = []graph.ProofArtifactRequirement{
+		{Path: "input.txt", Role: graph.ProofArtifactInput, ArchitectureEdge: "caller_to_product"},
+	}
+	workdir := t.TempDir()
+	logsRoot := t.TempDir()
+	writeFixture(t, workdir, "input.txt", "expected\n")
+	runner, err := NewRunner(pipeline, NewRegistry(), RunnerConfig{
+		LogsRoot: logsRoot,
+		Workdir:  workdir,
+		Validate: func(graph.Graph) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := runner.Run()
+	if err != nil || result.Status != RunCompleted {
+		t.Fatalf("run result = %#v, err = %v", result, err)
+	}
+	checkpoint := mustCheckpoint(t, logsRoot)
+	evidence := checkpoint.ProofEvidence["primary"]
+	if len(evidence.Artifacts) == 0 {
+		t.Fatal("proof evidence has no artifacts")
+	}
+	if err := os.WriteFile(filepath.Join(logsRoot, filepath.FromSlash(evidence.Artifacts[0].StoredPath)), []byte("changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resumed, err := ResumeRunner(pipeline, NewRegistry(), RunnerConfig{
+		LogsRoot: logsRoot,
+		Workdir:  workdir,
+		Validate: func(graph.Graph) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err = resumed.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunFailed || !strings.Contains(result.FailureReason, "missing or changed evidence artifact") {
+		t.Fatalf("resume result = %#v", result)
+	}
+}
+
+func singlePromiseGraph(mode graph.ProofContractMode) graph.Graph {
+	return graph.Graph{
+		Start: "primary_assertion",
+		ProofContract: optional(graph.ProofContract{
+			Mode: mode, IntendedArchitecture: "Input crosses a deterministic assertion and produces a user-visible result.",
+			PrimaryOutcome: "A qualifying input produces the expected value.",
+			PrimaryCases: []graph.ProofCase{{
+				ID: "primary", Actor: "A user", Job: "Submit qualifying input and observe the expected value.",
+				Node: "primary_assertion", QualifyingInputCriteria: "Input meets the declared product criteria.",
+				ExpectedOutput: "The expected value is observable.", CorrectnessOracle: graph.ProofOracleToolExitZero,
+				EvidenceMode: graph.ProofEvidenceOperatingLayer, EvidenceSource: graph.ProofEvidenceCurrentRun,
+				Independence: graph.ProofIndependentExecution, Status: graph.ProofStatusUnproven,
+				RequiredCapabilities: []string{}, EvidenceArtifacts: []graph.ProofArtifactRequirement{},
+			}},
+			BoundaryCases: []graph.ProofCase{}, RequiredCapabilities: []graph.ProofCapability{},
+			Unknowns: []string{}, ScopeGaps: []graph.ProofScopeGap{},
+			TerminalSuccess: graph.ProofTerminalSuccess{RequiredCases: []string{"primary"}},
+		}),
+		Nodes: []graph.Node{
+			&graph.ToolNode{NodeBase: graph.NodeBase{ID: "primary_assertion"}, ToolCommand: "true", OnSuccess: graph.Success},
+		},
 	}
 }
 

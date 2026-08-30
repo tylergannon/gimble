@@ -506,18 +506,64 @@
             "additionalProperties": false,
             "description": "ProofCase binds one declared scenario and oracle to an executed tool node.",
             "properties": {
+              "actor": {
+                "minLength": 1,
+                "type": "string"
+              },
               "correctness_oracle": {
                 "description": "ProofOracle identifies the independent assertion mechanism for a case.",
                 "enum": [
-                  "tool_exit_zero"
+                  "tool_exit_zero",
+                  "human_attestation"
                 ],
                 "type": "string"
+              },
+              "evidence_artifacts": {
+                "items": {
+                  "additionalProperties": false,
+                  "description": "ProofArtifactRequirement identifies a workspace artifact to snapshot before or after a proof assertion and labels its intended architecture edge.",
+                  "properties": {
+                    "architecture_edge": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "role": {
+                      "description": "ProofArtifactRole describes how a fingerprinted artifact participates in the promise-to-proof trace.",
+                      "enum": [
+                        "input",
+                        "output",
+                        "observation"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "role",
+                    "architecture_edge"
+                  ],
+                  "type": "object"
+                },
+                "type": "array",
+                "uniqueItems": true
               },
               "evidence_mode": {
                 "description": "ProofEvidenceMode records the proof surface the case is required to use.",
                 "enum": [
                   "component",
                   "operating_layer"
+                ],
+                "type": "string"
+              },
+              "evidence_source": {
+                "description": "ProofEvidenceSource identifies whether evidence must come from this run or is explicitly non-automated manual evidence.",
+                "enum": [
+                  "current_run",
+                  "manual"
                 ],
                 "type": "string"
               },
@@ -535,43 +581,138 @@
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
+              "independence": {
+                "description": "ProofIndependence states how the evidence is produced.",
+                "enum": [
+                  "independent_execution",
+                  "human_attestation"
+                ],
+                "type": "string"
+              },
+              "job": {
+                "minLength": 1,
+                "type": "string"
+              },
               "node": {
                 "type": "string"
               },
-              "representative_input": {
+              "qualifying_input_criteria": {
                 "minLength": 1,
+                "type": "string"
+              },
+              "required_capabilities": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "uniqueItems": true
+              },
+              "status": {
+                "description": "ProofStatus is the declared state of a promise before current-run evidence is applied. A declared proven status never substitutes for a current run.",
+                "enum": [
+                  "proven",
+                  "partial",
+                  "blocked",
+                  "simulated",
+                  "unproven"
+                ],
                 "type": "string"
               }
             },
             "required": [
               "id",
+              "actor",
+              "job",
               "node",
-              "representative_input",
+              "qualifying_input_criteria",
               "expected_output",
               "correctness_oracle",
-              "evidence_mode"
+              "evidence_mode",
+              "evidence_source",
+              "independence",
+              "status",
+              "required_capabilities",
+              "evidence_artifacts"
             ],
             "type": "object"
           },
           "type": "array"
+        },
+        "intended_architecture": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "mode": {
+          "description": "ProofContractMode distinguishes delivery proof from an explicit discovery prototype, which may run but cannot produce terminal product success.",
+          "enum": [
+            "delivery",
+            "discovery"
+          ],
+          "type": "string"
         },
         "primary_cases": {
           "items": {
             "additionalProperties": false,
             "description": "ProofCase binds one declared scenario and oracle to an executed tool node.",
             "properties": {
+              "actor": {
+                "minLength": 1,
+                "type": "string"
+              },
               "correctness_oracle": {
                 "description": "ProofOracle identifies the independent assertion mechanism for a case.",
                 "enum": [
-                  "tool_exit_zero"
+                  "tool_exit_zero",
+                  "human_attestation"
                 ],
                 "type": "string"
+              },
+              "evidence_artifacts": {
+                "items": {
+                  "additionalProperties": false,
+                  "description": "ProofArtifactRequirement identifies a workspace artifact to snapshot before or after a proof assertion and labels its intended architecture edge.",
+                  "properties": {
+                    "architecture_edge": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "role": {
+                      "description": "ProofArtifactRole describes how a fingerprinted artifact participates in the promise-to-proof trace.",
+                      "enum": [
+                        "input",
+                        "output",
+                        "observation"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "role",
+                    "architecture_edge"
+                  ],
+                  "type": "object"
+                },
+                "type": "array",
+                "uniqueItems": true
               },
               "evidence_mode": {
                 "description": "ProofEvidenceMode records the proof surface the case is required to use.",
                 "enum": [
                   "component",
                   "operating_layer"
+                ],
+                "type": "string"
+              },
+              "evidence_source": {
+                "description": "ProofEvidenceSource identifies whether evidence must come from this run or is explicitly non-automated manual evidence.",
+                "enum": [
+                  "current_run",
+                  "manual"
                 ],
                 "type": "string"
               },
@@ -589,21 +730,58 @@
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
+              "independence": {
+                "description": "ProofIndependence states how the evidence is produced.",
+                "enum": [
+                  "independent_execution",
+                  "human_attestation"
+                ],
+                "type": "string"
+              },
+              "job": {
+                "minLength": 1,
+                "type": "string"
+              },
               "node": {
                 "type": "string"
               },
-              "representative_input": {
+              "qualifying_input_criteria": {
                 "minLength": 1,
+                "type": "string"
+              },
+              "required_capabilities": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "uniqueItems": true
+              },
+              "status": {
+                "description": "ProofStatus is the declared state of a promise before current-run evidence is applied. A declared proven status never substitutes for a current run.",
+                "enum": [
+                  "proven",
+                  "partial",
+                  "blocked",
+                  "simulated",
+                  "unproven"
+                ],
                 "type": "string"
               }
             },
             "required": [
               "id",
+              "actor",
+              "job",
               "node",
-              "representative_input",
+              "qualifying_input_criteria",
               "expected_output",
               "correctness_oracle",
-              "evidence_mode"
+              "evidence_mode",
+              "evidence_source",
+              "independence",
+              "status",
+              "required_capabilities",
+              "evidence_artifacts"
             ],
             "type": "object"
           },
@@ -613,6 +791,81 @@
         "primary_outcome": {
           "minLength": 1,
           "type": "string"
+        },
+        "required_capabilities": {
+          "items": {
+            "additionalProperties": false,
+            "description": "ProofCapability declares a dependency or capability used by proof cases.",
+            "properties": {
+              "description": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "not": {
+                  "enum": [
+                    "success",
+                    "failure"
+                  ]
+                },
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "description"
+            ],
+            "type": "object"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "scope_gaps": {
+          "items": {
+            "additionalProperties": false,
+            "description": "ProofScopeGap records a material gap without silently narrowing the original user-facing promise.",
+            "properties": {
+              "current_proven_behavior": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "decision_required": {
+                "type": "boolean"
+              },
+              "impact": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "missing_capability": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "original_promise": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "promise_id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "recommended_next_move": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "promise_id",
+              "original_promise",
+              "current_proven_behavior",
+              "missing_capability",
+              "impact",
+              "recommended_next_move",
+              "decision_required"
+            ],
+            "type": "object"
+          },
+          "type": "array"
         },
         "terminal_success": {
           "additionalProperties": false,
@@ -640,10 +893,14 @@
         }
       },
       "required": [
+        "mode",
+        "intended_architecture",
         "primary_outcome",
         "primary_cases",
         "boundary_cases",
+        "required_capabilities",
         "unknowns",
+        "scope_gaps",
         "terminal_success"
       ],
       "type": "object"

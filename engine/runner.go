@@ -1,10 +1,15 @@
 package engine
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"math/rand/v2"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -130,6 +135,13 @@ type nodeExecution struct {
 	segments  []string
 }
 
+type preparedProofInput struct {
+	caseID      string
+	requirement graph.ProofArtifactRequirement
+	contents    []byte
+	digest      string
+}
+
 // Runner executes one graph from its start node.
 type Runner struct {
 	graph            graph.Graph
@@ -240,7 +252,7 @@ func (r *Runner) Run() (RunResult, error) {
 			if r.resumeCheckpoint.NextNode == graph.Failure {
 				return failed(r.resumeCheckpoint.LastResponse), nil
 			}
-			if reason := r.incompleteProofReason(state); reason != "" {
+			if reason := r.incompleteProofReason(state, r.persistedRunID()); reason != "" {
 				return failed(reason), nil
 			}
 			return RunResult{Status: RunCompleted}, nil
@@ -286,7 +298,7 @@ func (r *Runner) Run() (RunResult, error) {
 	r.installBindingCallback(store)
 	r.supervision.start()
 	defer r.supervision.stopAndWait()
-	result, runErr := r.walk(state, store, currentID)
+	result, runErr := r.walk(state, store, currentID, manifest.ID)
 	r.supervision.stopAndWait()
 	duration := time.Since(started).String()
 	if runErr != nil {
@@ -307,7 +319,7 @@ func (r *Runner) Run() (RunResult, error) {
 	return result, nil
 }
 
-func (r *Runner) walk(state *engineState, store *runStore, currentID string) (RunResult, error) {
+func (r *Runner) walk(state *engineState, store *runStore, currentID, runID string) (RunResult, error) {
 	for {
 		node := r.nodes[currentID]
 		if node == nil {
@@ -317,6 +329,10 @@ func (r *Runner) walk(state *engineState, store *runStore, currentID string) (Ru
 			return failed("stopped by operator"), nil
 		}
 
+		preparedInputs, err := r.prepareProofInputs(node)
+		if err != nil {
+			return failed(err.Error()), nil
+		}
 		r.beginTopLevel(node.Base().ID, node.NodeType())
 		execution, executeErr := r.executeNode(node, state, store, r.config.Workdir, "")
 		r.clearTopLevel(node.Base().ID)
@@ -332,9 +348,11 @@ func (r *Runner) walk(state *engineState, store *runStore, currentID string) (Ru
 			return failed(execution.runErr.Message), nil
 		}
 		state.complete(node.Base().ID, execution.outcome.Notes)
-		r.recordProofPass(state, node, execution.nextID)
+		if err := r.recordProofPass(state, node, execution.nextID, runID, execution.stageDirs, preparedInputs); err != nil {
+			return RunResult{}, err
+		}
 		if execution.nextID == graph.Success {
-			if reason := r.incompleteProofReason(state); reason != "" {
+			if reason := r.incompleteProofReason(state, runID); reason != "" {
 				if err := r.saveCheckpoint(store, state.checkpoint(node.Base().ID, node.Base().ID, true, r.bindings()), node.Base().ID); err != nil {
 					return RunResult{}, err
 				}
@@ -357,37 +375,387 @@ func (r *Runner) walk(state *engineState, store *runStore, currentID string) (Ru
 	}
 }
 
-func (r *Runner) recordProofPass(state *engineState, node graph.Node, nextID string) {
+func (r *Runner) recordProofPass(
+	state *engineState,
+	node graph.Node,
+	nextID, runID string,
+	stageDirs []string,
+	preparedInputs []preparedProofInput,
+) error {
 	if !r.graph.ProofContract.Present {
-		return
+		return nil
 	}
 	tool, ok := node.(*graph.ToolNode)
 	if !ok || nextID != tool.OnSuccess {
-		return
+		return nil
 	}
+	if len(stageDirs) == 0 {
+		return fmt.Errorf("record proof for %s: successful tool has no stage", tool.ID)
+	}
+	stageDir := stageDirs[len(stageDirs)-1]
+	stagePath, err := filepath.Rel(r.config.LogsRoot, stageDir)
+	if err != nil {
+		return fmt.Errorf("record proof for %s: resolve stage: %w", tool.ID, err)
+	}
+	executionArtifacts, err := r.fingerprintExecutionArtifacts(stageDir)
+	if err != nil {
+		return fmt.Errorf("record proof for %s: %w", tool.ID, err)
+	}
+
 	contract := r.graph.ProofContract.Value
-	passCases := func(cases []graph.ProofCase) {
+	recordCases := func(cases []graph.ProofCase) error {
 		for _, current := range cases {
-			if current.Node == tool.ID {
-				state.passProofCase(current.ID)
+			if current.Node != tool.ID || current.CorrectnessOracle != graph.ProofOracleToolExitZero ||
+				current.EvidenceSource != graph.ProofEvidenceCurrentRun ||
+				current.Independence != graph.ProofIndependentExecution {
+				continue
 			}
+			artifacts, err := r.snapshotProofArtifacts(current, stageDir, preparedInputs)
+			if err != nil {
+				return fmt.Errorf("record proof case %s: %w", current.ID, err)
+			}
+			artifacts = append(artifacts, executionArtifacts...)
+			state.recordProofEvidence(ProofEvidenceRecord{
+				Status:       graph.ProofStatusProven,
+				RunID:        runID,
+				CaseID:       current.ID,
+				NodeID:       tool.ID,
+				ExecutionRef: filepath.ToSlash(stagePath),
+				EvidenceMode: current.EvidenceMode,
+				Edge:         ProofEdgeRef{From: tool.ID, To: nextID},
+				Artifacts:    artifacts,
+			})
 		}
+		return nil
 	}
-	passCases(contract.PrimaryCases)
-	passCases(contract.BoundaryCases)
+	if err := recordCases(contract.PrimaryCases); err != nil {
+		return err
+	}
+	return recordCases(contract.BoundaryCases)
 }
 
-func (r *Runner) incompleteProofReason(state *engineState) string {
+func (r *Runner) incompleteProofReason(state *engineState, runID string) string {
 	if !r.graph.ProofContract.Present {
 		return ""
 	}
 	contract := r.graph.ProofContract.Value
+	if contract.Mode == graph.ProofContractDiscovery {
+		return "discovery mode cannot reach terminal product success"
+	}
+	if len(contract.ScopeGaps) > 0 {
+		gap := contract.ScopeGaps[0]
+		return fmt.Sprintf("scope gap for promise %q: %s", gap.PromiseID, gap.MissingCapability)
+	}
 	for _, caseID := range contract.TerminalSuccess.RequiredCases {
-		if !state.proofCasePassed(caseID) {
+		evidence, exists := state.proofEvidenceFor(caseID)
+		if !exists || evidence.Status != graph.ProofStatusProven {
 			return fmt.Sprintf("required proof case %q has not passed", caseID)
+		}
+		current, exists := proofCaseByID(contract, caseID)
+		if !exists || evidence.RunID == "" || evidence.RunID != runID || evidence.CaseID != caseID ||
+			evidence.NodeID != current.Node || evidence.EvidenceMode != current.EvidenceMode ||
+			evidence.Edge.From != current.Node {
+			return fmt.Sprintf("required proof case %q is not tied to this run and assertion", caseID)
+		}
+		tool, ok := r.nodes[current.Node].(*graph.ToolNode)
+		if !ok || evidence.Edge.To != tool.OnSuccess || strings.TrimSpace(evidence.ExecutionRef) == "" {
+			return fmt.Sprintf("required proof case %q has incomplete execution provenance", caseID)
+		}
+		if reason := r.verifyProofArtifacts(current, evidence); reason != "" {
+			return fmt.Sprintf("required proof case %q %s", caseID, reason)
 		}
 	}
 	return ""
+}
+
+func (r *Runner) prepareProofInputs(node graph.Node) ([]preparedProofInput, error) {
+	if !r.graph.ProofContract.Present {
+		return nil, nil
+	}
+	tool, ok := node.(*graph.ToolNode)
+	if !ok {
+		return nil, nil
+	}
+	contract := r.graph.ProofContract.Value
+	cases := append(cloneSlice(contract.PrimaryCases), contract.BoundaryCases...)
+	var prepared []preparedProofInput
+	for _, current := range cases {
+		if current.Node != tool.ID {
+			continue
+		}
+		for _, requirement := range current.EvidenceArtifacts {
+			if requirement.Role != graph.ProofArtifactInput {
+				continue
+			}
+			contents, digest, err := r.readWorkspaceArtifact(requirement.Path)
+			if err != nil {
+				return nil, fmt.Errorf("capture proof case %s input %q: %w", current.ID, requirement.Path, err)
+			}
+			prepared = append(prepared, preparedProofInput{
+				caseID: current.ID, requirement: requirement, contents: contents, digest: digest,
+			})
+		}
+	}
+	return prepared, nil
+}
+
+func (r *Runner) snapshotProofArtifacts(
+	current graph.ProofCase,
+	stageDir string,
+	preparedInputs []preparedProofInput,
+) ([]ProofArtifactRef, error) {
+	dir := filepath.Join(stageDir, "proof-evidence", safeProofPathPart(current.ID))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("create evidence directory: %w", err)
+	}
+	var artifacts []ProofArtifactRef
+	index := 0
+	for _, prepared := range preparedInputs {
+		if prepared.caseID != current.ID {
+			continue
+		}
+		storedPath, err := r.writeProofSnapshot(dir, index, prepared.requirement.Role, prepared.contents)
+		if err != nil {
+			return nil, err
+		}
+		artifacts = append(artifacts, ProofArtifactRef{
+			Source: "workspace", Role: prepared.requirement.Role, Path: prepared.requirement.Path,
+			ArchitectureEdge: prepared.requirement.ArchitectureEdge,
+			StoredPath:       storedPath, SHA256: prepared.digest, CapturedAt: "before",
+		})
+		index++
+	}
+	for _, requirement := range current.EvidenceArtifacts {
+		if requirement.Role == graph.ProofArtifactInput {
+			continue
+		}
+		contents, digest, err := r.readWorkspaceArtifact(requirement.Path)
+		if err != nil {
+			return nil, fmt.Errorf("capture %s %q: %w", requirement.Role, requirement.Path, err)
+		}
+		storedPath, err := r.writeProofSnapshot(dir, index, requirement.Role, contents)
+		if err != nil {
+			return nil, err
+		}
+		artifacts = append(artifacts, ProofArtifactRef{
+			Source: "workspace", Role: requirement.Role, Path: requirement.Path,
+			ArchitectureEdge: requirement.ArchitectureEdge,
+			StoredPath:       storedPath, SHA256: digest, CapturedAt: "after",
+		})
+		index++
+	}
+	return artifacts, nil
+}
+
+func (r *Runner) writeProofSnapshot(dir string, index int, role graph.ProofArtifactRole, contents []byte) (string, error) {
+	path := filepath.Join(dir, fmt.Sprintf("%03d-%s.snapshot", index, role))
+	if err := os.WriteFile(path, contents, 0o644); err != nil {
+		return "", fmt.Errorf("write evidence snapshot: %w", err)
+	}
+	relative, err := filepath.Rel(r.config.LogsRoot, path)
+	if err != nil {
+		return "", fmt.Errorf("resolve evidence snapshot: %w", err)
+	}
+	return filepath.ToSlash(relative), nil
+}
+
+func (r *Runner) fingerprintExecutionArtifacts(stageDir string) ([]ProofArtifactRef, error) {
+	var artifacts []ProofArtifactRef
+	for _, name := range []string{"outcome.json", "tool.log"} {
+		path := filepath.Join(stageDir, name)
+		digest, err := digestRegularFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("fingerprint execution artifact %s: %w", name, err)
+		}
+		relative, err := filepath.Rel(r.config.LogsRoot, path)
+		if err != nil {
+			return nil, fmt.Errorf("resolve execution artifact %s: %w", name, err)
+		}
+		stored := filepath.ToSlash(relative)
+		artifacts = append(artifacts, ProofArtifactRef{
+			Source: "execution", Role: graph.ProofArtifactObservation, Path: name,
+			StoredPath: stored, SHA256: digest, CapturedAt: "after",
+		})
+	}
+	return artifacts, nil
+}
+
+func (r *Runner) readWorkspaceArtifact(path string) ([]byte, string, error) {
+	fullPath, err := resolveContainedRegularFile(r.config.Workdir, path)
+	if err != nil {
+		return nil, "", err
+	}
+	contents, err := os.ReadFile(fullPath)
+	if err != nil {
+		return nil, "", err
+	}
+	digest := sha256.Sum256(contents)
+	return contents, hex.EncodeToString(digest[:]), nil
+}
+
+func (r *Runner) verifyProofArtifacts(current graph.ProofCase, evidence ProofEvidenceRecord) string {
+	executionRef := filepath.Clean(filepath.FromSlash(evidence.ExecutionRef))
+	executionDir, err := resolveContainedDirectory(r.config.LogsRoot, executionRef)
+	if err != nil || !strings.HasSuffix(filepath.Base(executionDir), "-"+evidence.NodeID) {
+		return "has an invalid execution reference"
+	}
+	required := make(map[string]graph.ProofArtifactRequirement, len(current.EvidenceArtifacts))
+	for _, artifact := range current.EvidenceArtifacts {
+		required[artifact.Path] = artifact
+	}
+	executionObservations := map[string]bool{"outcome.json": false, "tool.log": false}
+	for _, artifact := range evidence.Artifacts {
+		if artifact.StoredPath == "" || filepath.IsAbs(artifact.StoredPath) {
+			return "has an unsafe evidence snapshot path"
+		}
+		cleaned := filepath.Clean(filepath.FromSlash(artifact.StoredPath))
+		storedFile, err := resolveContainedRegularFile(r.config.LogsRoot, cleaned)
+		if err != nil {
+			return fmt.Sprintf("has missing or changed evidence artifact %q", artifact.Path)
+		}
+		digest, err := digestRegularFile(storedFile)
+		if err != nil || digest != artifact.SHA256 {
+			return fmt.Sprintf("has missing or changed evidence artifact %q", artifact.Path)
+		}
+		if artifact.Source == "workspace" {
+			requirement, exists := required[artifact.Path]
+			wantCapture := "after"
+			if requirement.Role == graph.ProofArtifactInput {
+				wantCapture = "before"
+			}
+			proofRoot := filepath.Join(executionRef, "proof-evidence", safeProofPathPart(current.ID)) + string(filepath.Separator)
+			if exists && requirement.Role == artifact.Role && requirement.ArchitectureEdge == artifact.ArchitectureEdge &&
+				artifact.CapturedAt == wantCapture && strings.HasPrefix(cleaned, proofRoot) {
+				delete(required, artifact.Path)
+			}
+		}
+		if artifact.Source == "execution" && artifact.Role == graph.ProofArtifactObservation {
+			expectedPath := filepath.Join(executionRef, artifact.Path)
+			if _, exists := executionObservations[artifact.Path]; exists && cleaned == expectedPath && artifact.CapturedAt == "after" {
+				executionObservations[artifact.Path] = true
+			}
+		}
+	}
+	if len(required) > 0 {
+		return "does not cover every required evidence artifact"
+	}
+	for name, present := range executionObservations {
+		if !present {
+			return fmt.Sprintf("does not include engine-owned %s", name)
+		}
+	}
+	rawOutcome, err := os.ReadFile(filepath.Join(executionDir, "outcome.json"))
+	if err != nil {
+		return "does not include a readable engine outcome"
+	}
+	var outcome harness.Outcome
+	if err := json.Unmarshal(rawOutcome, &outcome); err != nil || outcome.Next != evidence.Edge.To {
+		return "does not match the engine-recorded assertion route"
+	}
+	return ""
+}
+
+func proofCaseByID(contract graph.ProofContract, caseID string) (graph.ProofCase, bool) {
+	for _, current := range append(cloneSlice(contract.PrimaryCases), contract.BoundaryCases...) {
+		if current.ID == caseID {
+			return current, true
+		}
+	}
+	return graph.ProofCase{}, false
+}
+
+func digestRegularFile(path string) (string, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("not a regular file")
+	}
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(contents)
+	return hex.EncodeToString(digest[:]), nil
+}
+
+func resolveContainedRegularFile(root, relative string) (string, error) {
+	resolved, err := resolveContainedPath(root, relative)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Lstat(resolved)
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("artifact is not a regular file")
+	}
+	return resolved, nil
+}
+
+func resolveContainedDirectory(root, relative string) (string, error) {
+	resolved, err := resolveContainedPath(root, relative)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Lstat(resolved)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("not a directory")
+	}
+	return resolved, nil
+}
+
+func resolveContainedPath(root, relative string) (string, error) {
+	cleaned := filepath.Clean(relative)
+	if filepath.IsAbs(relative) || cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("unsafe relative path")
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(filepath.Join(resolvedRoot, cleaned))
+	if err != nil {
+		return "", err
+	}
+	contained, err := filepath.Rel(resolvedRoot, resolved)
+	if err != nil || contained == ".." || strings.HasPrefix(contained, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path escapes root")
+	}
+	return resolved, nil
+}
+
+func safeProofPathPart(value string) string {
+	var builder strings.Builder
+	for _, current := range value {
+		if current >= 'a' && current <= 'z' || current >= 'A' && current <= 'Z' ||
+			current >= '0' && current <= '9' || current == '-' || current == '_' {
+			builder.WriteRune(current)
+		} else {
+			builder.WriteByte('_')
+		}
+	}
+	if builder.Len() == 0 {
+		return "case"
+	}
+	return builder.String()
+}
+
+func (r *Runner) persistedRunID() string {
+	raw, err := os.ReadFile(filepath.Join(r.config.LogsRoot, "manifest.json"))
+	if err != nil {
+		return ""
+	}
+	var manifest runManifest
+	if json.Unmarshal(raw, &manifest) != nil {
+		return ""
+	}
+	return manifest.ID
 }
 
 func (r *Runner) saveCheckpoint(store *runStore, checkpoint Checkpoint, nodeID string) error {

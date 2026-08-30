@@ -37,22 +37,42 @@ type Graph struct {
 // ProofContract declares product-specific proof without asking Tractor to
 // infer product truth from fixture names, node names, or prose.
 type ProofContract struct {
-	PrimaryOutcome  string               `json:"primary_outcome"`
-	PrimaryCases    []ProofCase          `json:"primary_cases"`
-	BoundaryCases   []ProofCase          `json:"boundary_cases"`
-	Unknowns        []string             `json:"unknowns"`
-	TerminalSuccess ProofTerminalSuccess `json:"terminal_success"`
+	Mode                 ProofContractMode    `json:"mode"`
+	IntendedArchitecture string               `json:"intended_architecture"`
+	PrimaryOutcome       string               `json:"primary_outcome"`
+	PrimaryCases         []ProofCase          `json:"primary_cases"`
+	BoundaryCases        []ProofCase          `json:"boundary_cases"`
+	RequiredCapabilities []ProofCapability    `json:"required_capabilities"`
+	Unknowns             []string             `json:"unknowns"`
+	ScopeGaps            []ProofScopeGap      `json:"scope_gaps"`
+	TerminalSuccess      ProofTerminalSuccess `json:"terminal_success"`
 }
 
 // ProofCase binds one declared scenario and oracle to an executed tool node.
 type ProofCase struct {
-	ID                  string            `json:"id"`
-	Node                string            `json:"node"`
-	RepresentativeInput string            `json:"representative_input"`
-	ExpectedOutput      string            `json:"expected_output"`
-	CorrectnessOracle   ProofOracle       `json:"correctness_oracle"`
-	EvidenceMode        ProofEvidenceMode `json:"evidence_mode"`
+	ID                      string                     `json:"id"`
+	Actor                   string                     `json:"actor"`
+	Job                     string                     `json:"job"`
+	Node                    string                     `json:"node"`
+	QualifyingInputCriteria string                     `json:"qualifying_input_criteria"`
+	ExpectedOutput          string                     `json:"expected_output"`
+	CorrectnessOracle       ProofOracle                `json:"correctness_oracle"`
+	EvidenceMode            ProofEvidenceMode          `json:"evidence_mode"`
+	EvidenceSource          ProofEvidenceSource        `json:"evidence_source"`
+	Independence            ProofIndependence          `json:"independence"`
+	Status                  ProofStatus                `json:"status"`
+	RequiredCapabilities    []string                   `json:"required_capabilities"`
+	EvidenceArtifacts       []ProofArtifactRequirement `json:"evidence_artifacts"`
 }
+
+// ProofContractMode distinguishes delivery proof from an explicit discovery
+// prototype, which may run but cannot produce terminal product success.
+type ProofContractMode string
+
+const (
+	ProofContractDelivery  ProofContractMode = "delivery"
+	ProofContractDiscovery ProofContractMode = "discovery"
+)
 
 // ProofOracle identifies the independent assertion mechanism for a case.
 type ProofOracle string
@@ -61,6 +81,10 @@ const (
 	// ProofOracleToolExitZero requires the referenced tool node to execute and
 	// exit zero; an authored evidence record is not a substitute.
 	ProofOracleToolExitZero ProofOracle = "tool_exit_zero"
+	// ProofOracleHumanAttestation explicitly labels non-independent manual
+	// evidence. It is allowed only in discovery contracts and never passes the
+	// automated terminal gate.
+	ProofOracleHumanAttestation ProofOracle = "human_attestation"
 )
 
 // ProofEvidenceMode records the proof surface the case is required to use.
@@ -70,6 +94,71 @@ const (
 	ProofEvidenceComponent      ProofEvidenceMode = "component"
 	ProofEvidenceOperatingLayer ProofEvidenceMode = "operating_layer"
 )
+
+// ProofEvidenceSource identifies whether evidence must come from this run or
+// is explicitly non-automated manual evidence.
+type ProofEvidenceSource string
+
+const (
+	ProofEvidenceCurrentRun ProofEvidenceSource = "current_run"
+	ProofEvidenceManual     ProofEvidenceSource = "manual"
+)
+
+// ProofIndependence states how the evidence is produced.
+type ProofIndependence string
+
+const (
+	ProofIndependentExecution ProofIndependence = "independent_execution"
+	ProofHumanAttestation     ProofIndependence = "human_attestation"
+)
+
+// ProofStatus is the declared state of a promise before current-run evidence
+// is applied. A declared proven status never substitutes for a current run.
+type ProofStatus string
+
+const (
+	ProofStatusProven    ProofStatus = "proven"
+	ProofStatusPartial   ProofStatus = "partial"
+	ProofStatusBlocked   ProofStatus = "blocked"
+	ProofStatusSimulated ProofStatus = "simulated"
+	ProofStatusUnproven  ProofStatus = "unproven"
+)
+
+// ProofCapability declares a dependency or capability used by proof cases.
+type ProofCapability struct {
+	ID          string `json:"id"`
+	Description string `json:"description"`
+}
+
+// ProofArtifactRequirement identifies a workspace artifact to snapshot before
+// or after a proof assertion and labels its intended architecture edge.
+type ProofArtifactRequirement struct {
+	Path             string            `json:"path"`
+	Role             ProofArtifactRole `json:"role"`
+	ArchitectureEdge string            `json:"architecture_edge"`
+}
+
+// ProofArtifactRole describes how a fingerprinted artifact participates in
+// the promise-to-proof trace.
+type ProofArtifactRole string
+
+const (
+	ProofArtifactInput       ProofArtifactRole = "input"
+	ProofArtifactOutput      ProofArtifactRole = "output"
+	ProofArtifactObservation ProofArtifactRole = "observation"
+)
+
+// ProofScopeGap records a material gap without silently narrowing the
+// original user-facing promise.
+type ProofScopeGap struct {
+	PromiseID             string `json:"promise_id"`
+	OriginalPromise       string `json:"original_promise"`
+	CurrentProvenBehavior string `json:"current_proven_behavior"`
+	MissingCapability     string `json:"missing_capability"`
+	Impact                string `json:"impact"`
+	RecommendedNextMove   string `json:"recommended_next_move"`
+	DecisionRequired      bool   `json:"decision_required"`
+}
 
 // ProofTerminalSuccess explicitly names every case required for success.
 type ProofTerminalSuccess struct {
