@@ -11,29 +11,31 @@ import (
 
 // Checkpoint is the durable top-level execution state.
 type Checkpoint struct {
-	Timestamp      time.Time                        `json:"timestamp"`
-	CurrentNode    string                           `json:"current_node"`
-	NextNode       string                           `json:"next_node"`
-	CompletedNodes []string                         `json:"completed_nodes"`
-	NodeVisits     map[string]int                   `json:"node_visits"`
-	NodeAttempts   map[string]int                   `json:"node_attempts"`
-	Seq            uint64                           `json:"seq"`
-	RetryVisit     bool                             `json:"retry_visit"`
-	LastStage      string                           `json:"last_stage"`
-	LastResponse   string                           `json:"last_response"`
-	Sessions       map[string]harness.ThreadBinding `json:"sessions"`
+	Timestamp        time.Time                        `json:"timestamp"`
+	CurrentNode      string                           `json:"current_node"`
+	NextNode         string                           `json:"next_node"`
+	CompletedNodes   []string                         `json:"completed_nodes"`
+	NodeVisits       map[string]int                   `json:"node_visits"`
+	NodeAttempts     map[string]int                   `json:"node_attempts"`
+	Seq              uint64                           `json:"seq"`
+	RetryVisit       bool                             `json:"retry_visit"`
+	LastStage        string                           `json:"last_stage"`
+	LastResponse     string                           `json:"last_response"`
+	Sessions         map[string]harness.ThreadBinding `json:"sessions"`
+	PassedProofCases map[string]bool                  `json:"passed_proof_cases,omitempty"`
 }
 
 type engineState struct {
 	mu sync.Mutex
 
-	completedNodes []string
-	nodeVisits     map[string]int
-	nodeAttempts   map[string]int
-	lastStage      string
-	lastResponse   string
-	seq            uint64
-	retryVisit     bool
+	completedNodes   []string
+	nodeVisits       map[string]int
+	nodeAttempts     map[string]int
+	passedProofCases map[string]bool
+	lastStage        string
+	lastResponse     string
+	seq              uint64
+	retryVisit       bool
 }
 
 type counterSnapshot struct {
@@ -43,21 +45,23 @@ type counterSnapshot struct {
 
 func newEngineState() *engineState {
 	return &engineState{
-		completedNodes: []string{},
-		nodeVisits:     make(map[string]int),
-		nodeAttempts:   make(map[string]int),
+		completedNodes:   []string{},
+		nodeVisits:       make(map[string]int),
+		nodeAttempts:     make(map[string]int),
+		passedProofCases: make(map[string]bool),
 	}
 }
 
 func stateFromCheckpoint(checkpoint Checkpoint) *engineState {
 	return &engineState{
-		completedNodes: cloneSlice(checkpoint.CompletedNodes),
-		nodeVisits:     cloneMap(checkpoint.NodeVisits),
-		nodeAttempts:   cloneMap(checkpoint.NodeAttempts),
-		lastStage:      checkpoint.LastStage,
-		lastResponse:   checkpoint.LastResponse,
-		seq:            checkpoint.Seq,
-		retryVisit:     checkpoint.RetryVisit,
+		completedNodes:   cloneSlice(checkpoint.CompletedNodes),
+		nodeVisits:       cloneMap(checkpoint.NodeVisits),
+		nodeAttempts:     cloneMap(checkpoint.NodeAttempts),
+		passedProofCases: cloneMap(checkpoint.PassedProofCases),
+		lastStage:        checkpoint.LastStage,
+		lastResponse:     checkpoint.LastResponse,
+		seq:              checkpoint.Seq,
+		retryVisit:       checkpoint.RetryVisit,
 	}
 }
 
@@ -65,17 +69,30 @@ func (s *engineState) checkpoint(currentNode, nextNode string, retryVisit bool, 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return Checkpoint{
-		CurrentNode:    currentNode,
-		NextNode:       nextNode,
-		CompletedNodes: cloneSlice(s.completedNodes),
-		NodeVisits:     cloneMap(s.nodeVisits),
-		NodeAttempts:   cloneMap(s.nodeAttempts),
-		Seq:            s.seq,
-		RetryVisit:     retryVisit,
-		LastStage:      s.lastStage,
-		LastResponse:   s.lastResponse,
-		Sessions:       cloneMap(sessions),
+		CurrentNode:      currentNode,
+		NextNode:         nextNode,
+		CompletedNodes:   cloneSlice(s.completedNodes),
+		NodeVisits:       cloneMap(s.nodeVisits),
+		NodeAttempts:     cloneMap(s.nodeAttempts),
+		PassedProofCases: cloneMap(s.passedProofCases),
+		Seq:              s.seq,
+		RetryVisit:       retryVisit,
+		LastStage:        s.lastStage,
+		LastResponse:     s.lastResponse,
+		Sessions:         cloneMap(sessions),
 	}
+}
+
+func (s *engineState) passProofCase(caseID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.passedProofCases[caseID] = true
+}
+
+func (s *engineState) proofCasePassed(caseID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.passedProofCases[caseID]
 }
 
 func (s *engineState) beginVisit(nodeID string) {

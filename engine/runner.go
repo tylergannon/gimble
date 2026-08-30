@@ -232,6 +232,7 @@ func (r *Runner) Run() (RunResult, error) {
 	state := newEngineState()
 	currentID := r.startID
 	if r.resumeCheckpoint != nil {
+		state = stateFromCheckpoint(*r.resumeCheckpoint)
 		if graph.IsPseudoTarget(r.resumeCheckpoint.NextNode) {
 			if err := cleanupBranchWorktrees(r.config.Workdir, r.config.LogsRoot); err != nil {
 				return RunResult{}, err
@@ -239,9 +240,11 @@ func (r *Runner) Run() (RunResult, error) {
 			if r.resumeCheckpoint.NextNode == graph.Failure {
 				return failed(r.resumeCheckpoint.LastResponse), nil
 			}
+			if reason := r.incompleteProofReason(state); reason != "" {
+				return failed(reason), nil
+			}
 			return RunResult{Status: RunCompleted}, nil
 		}
-		state = stateFromCheckpoint(*r.resumeCheckpoint)
 		currentID = r.resumeCheckpoint.NextNode
 		r.lastCheckpoint = *r.resumeCheckpoint
 	}
@@ -329,6 +332,15 @@ func (r *Runner) walk(state *engineState, store *runStore, currentID string) (Ru
 			return failed(execution.runErr.Message), nil
 		}
 		state.complete(node.Base().ID, execution.outcome.Notes)
+		r.recordProofPass(state, node, execution.nextID)
+		if execution.nextID == graph.Success {
+			if reason := r.incompleteProofReason(state); reason != "" {
+				if err := r.saveCheckpoint(store, state.checkpoint(node.Base().ID, node.Base().ID, true, r.bindings()), node.Base().ID); err != nil {
+					return RunResult{}, err
+				}
+				return failed(reason), nil
+			}
+		}
 		if err := r.saveCheckpoint(store, state.checkpoint(node.Base().ID, execution.nextID, false, r.bindings()), node.Base().ID); err != nil {
 			return RunResult{}, err
 		}
@@ -343,6 +355,39 @@ func (r *Runner) walk(state *engineState, store *runStore, currentID string) (Ru
 		}
 		currentID = execution.nextID
 	}
+}
+
+func (r *Runner) recordProofPass(state *engineState, node graph.Node, nextID string) {
+	if !r.graph.ProofContract.Present {
+		return
+	}
+	tool, ok := node.(*graph.ToolNode)
+	if !ok || nextID != tool.OnSuccess {
+		return
+	}
+	contract := r.graph.ProofContract.Value
+	passCases := func(cases []graph.ProofCase) {
+		for _, current := range cases {
+			if current.Node == tool.ID {
+				state.passProofCase(current.ID)
+			}
+		}
+	}
+	passCases(contract.PrimaryCases)
+	passCases(contract.BoundaryCases)
+}
+
+func (r *Runner) incompleteProofReason(state *engineState) string {
+	if !r.graph.ProofContract.Present {
+		return ""
+	}
+	contract := r.graph.ProofContract.Value
+	for _, caseID := range contract.TerminalSuccess.RequiredCases {
+		if !state.proofCasePassed(caseID) {
+			return fmt.Sprintf("required proof case %q has not passed", caseID)
+		}
+	}
+	return ""
 }
 
 func (r *Runner) saveCheckpoint(store *runStore, checkpoint Checkpoint, nodeID string) error {

@@ -61,6 +61,7 @@ func LoadCheckpoint(root string) (Checkpoint, error) {
 	checkpoint.CompletedNodes = cloneSlice(checkpoint.CompletedNodes)
 	checkpoint.NodeVisits = cloneMap(checkpoint.NodeVisits)
 	checkpoint.NodeAttempts = cloneMap(checkpoint.NodeAttempts)
+	checkpoint.PassedProofCases = cloneMap(checkpoint.PassedProofCases)
 	checkpoint.Sessions = cloneMap(checkpoint.Sessions)
 	return checkpoint, nil
 }
