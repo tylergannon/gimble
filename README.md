@@ -8,7 +8,8 @@
 An agent does the work, a command decides when it's done, and a
 supervisor keeps watch — long after you close your laptop.
 
-[Specification](docs/spec.md) · [Examples](examples/README.md) ·
+[Specification](docs/spec.md) · [Proof readiness](docs/proof-readiness.md) ·
+[Examples](examples/README.md) ·
 [Implementation notes](docs/implementation-notes.md) ·
 [Agent reference](llms.txt)
 
@@ -42,6 +43,12 @@ A loop is two nodes pointing at each other:
 
 The agent works. The command decides. Failure routes back. `max_visits` is
 the budget.
+
+When a passing check could prove less than the user promise, an optional
+`proof_contract` distinguishes intended architecture, current-run evidence,
+primary outcomes, and boundary conditions. Terminal success then requires
+same-run proof for every declared case; discovery, material scope gaps, and a
+boundary-only pass remain non-terminal.
 
 ## Why
 
@@ -125,6 +132,7 @@ Copy one into a git repo, change the goal and the check, run it:
 | "Keep working after I leave" | [`milestone-loop.yaml`](examples/loops/milestone-loop.yaml) |
 | "Try a few approaches, keep the best" | [`bake-off.yaml`](examples/loops/bake-off.yaml) |
 | "Have another model check this" | [`critique-circle.yaml`](examples/loops/critique-circle.yaml) |
+| "Tie a user promise to current-run evidence" | [`required-happy-path.yaml`](examples/proof-readiness/required-happy-path.yaml) |
 | Live supervision, steering, parallel fan-out | [`examples/`](examples/README.md) |
 
 The [spec](docs/spec.md) is the sole normative definition of Tractor's

@@ -1,0 +1,87 @@
+name: promise-to-proof
+goal: Create transform.sh so standard input is written to standard output in uppercase.
+start: prepare_evidence
+
+proof_contract:
+  mode: delivery
+  intended_architecture: Caller input -> transform.sh -> standard output observed by the user.
+  primary_outcome: A user submits qualifying text and observes its uppercase value.
+  primary_cases:
+    - id: qualifying_text
+      actor: A command-line user
+      job: Transform qualifying lowercase text and read the uppercase result.
+      node: assert_qualifying_text
+      qualifying_input_criteria: A UTF-8 text file containing hello followed by a newline.
+      expected_output: The operating command writes exactly HELLO followed by a newline.
+      correctness_oracle: tool_exit_zero
+      evidence_mode: operating_layer
+      evidence_source: current_run
+      independence: independent_execution
+      status: unproven
+      required_capabilities: [shell_runtime]
+      evidence_artifacts:
+        - path: evidence/qualifying-input.txt
+          role: input
+          architecture_edge: caller_to_transform
+        - path: evidence/qualifying-output.txt
+          role: output
+          architecture_edge: transform_to_user
+  boundary_cases:
+    - id: empty_input
+      actor: A command-line user
+      job: Submit empty input without receiving invented output.
+      node: assert_empty_input
+      qualifying_input_criteria: A zero-byte input file.
+      expected_output: The operating command writes a zero-byte output file.
+      correctness_oracle: tool_exit_zero
+      evidence_mode: operating_layer
+      evidence_source: current_run
+      independence: independent_execution
+      status: unproven
+      required_capabilities: [shell_runtime]
+      evidence_artifacts:
+        - path: evidence/empty-input.txt
+          role: input
+          architecture_edge: caller_to_transform
+        - path: evidence/empty-output.txt
+          role: output
+          architecture_edge: transform_to_user
+  required_capabilities:
+    - id: shell_runtime
+      description: A POSIX shell can execute transform.sh at the user-facing command boundary.
+  unknowns: []
+  scope_gaps: []
+  terminal_success:
+    required_cases: [qualifying_text, empty_input]
+
+nodes:
+  - id: prepare_evidence
+    type: tool
+    tool_command: >-
+      mkdir -p evidence &&
+      printf 'hello\n' > evidence/qualifying-input.txt &&
+      : > evidence/empty-input.txt
+    on_success: implement
+
+  - id: implement
+    type: codergen
+    max_visits: 5
+    prompt: $goal
+    edges:
+      - to: assert_qualifying_text
+
+  - id: assert_qualifying_text
+    type: tool
+    tool_command: >-
+      sh transform.sh < evidence/qualifying-input.txt > evidence/qualifying-output.txt &&
+      test "$(cat evidence/qualifying-output.txt)" = HELLO
+    on_success: assert_empty_input
+    on_error: implement
+
+  - id: assert_empty_input
+    type: tool
+    tool_command: >-
+      sh transform.sh < evidence/empty-input.txt > evidence/empty-output.txt &&
+      test ! -s evidence/empty-output.txt
+    on_success: success
+    on_error: implement

@@ -61,13 +61,14 @@ tractor run pipeline.yaml --workdir . --logs .tractor/runs/ship-a-fix
 
 Only `start` and `nodes` are required at the top level.
 
-| Field      | What it does                                                  |
-| ---------- | ------------------------------------------------------------- |
-| `name`     | Gives the pipeline a display name.                            |
-| `goal`     | Defines the objective and becomes `$goal` inside prompts.     |
-| `defaults` | Supplies shared model, retry, fidelity, and timeout settings. |
-| `start`    | Names the first walk node.                                    |
-| `nodes`    | Holds the flat, typed graph.                                  |
+| Field            | What it does                                                            |
+| ---------------- | ----------------------------------------------------------------------- |
+| `name`           | Gives the pipeline a display name.                                      |
+| `goal`           | Defines the objective and becomes `$goal` inside prompts.               |
+| `defaults`       | Supplies shared model, retry, fidelity, and timeout settings.           |
+| `proof_contract` | Optionally declares primary and boundary evidence required for success. |
+| `start`          | Names the first walk node.                                              |
+| `nodes`          | Holds the flat, typed graph.                                            |
 
 JSON is canonical and strictly validated. YAML is an authoring convenience that decodes through the same generated schema, so it supports comments and multiline strings without creating a second graph language.
 
@@ -118,6 +119,81 @@ Tool nodes are different because the shell has already made the decision:
 ```
 
 If `on_error` is absent, a nonzero exit fails the run. That is a good default for assertion-style checks.
+
+## Tie a user promise to current-run proof
+
+A passing edge case, diagram, or component check does not establish the
+primary operating outcome. Add a `proof_contract` before the run starts when
+that distinction matters. It separates intended architecture from same-run
+evidence and binds each primary or boundary case to a distinct top-level tool
+assertion.
+
+```yaml
+proof_contract:
+  mode: delivery
+  intended_architecture: Caller input -> product -> value visible to the user.
+  primary_outcome: A qualifying input produces the expected visible value.
+  primary_cases:
+    - id: qualifying_value
+      actor: A product user
+      job: Submit qualifying input and observe the promised value.
+      node: assert_qualifying_value
+      qualifying_input_criteria: A fixture independently known to qualify.
+      expected_output: The operating surface displays EXPECTED_VALUE.
+      correctness_oracle: tool_exit_zero
+      evidence_mode: operating_layer
+      evidence_source: current_run
+      independence: independent_execution
+      status: unproven
+      required_capabilities: [operating_runtime]
+      evidence_artifacts:
+        - path: evidence/input.txt
+          role: input
+          architecture_edge: caller_to_product
+        - path: evidence/output.txt
+          role: observation
+          architecture_edge: product_to_user
+  boundary_cases:
+    - id: empty_input
+      actor: A product user
+      job: Submit empty input without receiving invented output.
+      node: assert_empty_input
+      qualifying_input_criteria: An empty fixture.
+      expected_output: The operating surface remains empty.
+      correctness_oracle: tool_exit_zero
+      evidence_mode: operating_layer
+      evidence_source: current_run
+      independence: independent_execution
+      status: unproven
+      required_capabilities: [operating_runtime]
+      evidence_artifacts: []
+  required_capabilities:
+    - id: operating_runtime
+      description: The operating product surface is available to the assertion.
+  unknowns: []
+  scope_gaps: []
+  terminal_success:
+    required_cases: [qualifying_value, empty_input]
+```
+
+Only an independently executed current-run tool's exit-zero route can prove a
+delivery case. Tractor records the run, route, execution reference, and hashes
+of declared input/output snapshots plus engine execution artifacts. Nonzero
+exits keep their normal `on_error` fix routing. A route to `success` remains
+non-terminal until every case passes; discovery mode and material `scope_gaps`
+also block it.
+Declared status or authored JSON is never sufficient by itself.
+
+Use `mode: discovery` with explicit `simulated`, `partial`, `blocked`, or
+`unproven` status when certainty is not available yet. Manual human
+attestation can be labeled in discovery, but discovery cannot become terminal
+product success. Tractor enforces the declaration and provenance; the author
+remains responsible for choosing a truly qualifying fixture and an oracle
+that reaches the claimed surface.
+
+The repository's [proof-readiness guide](https://github.com/tylergannon/tractor/blob/main/docs/proof-readiness.md)
+explains compatibility and limits, and the [required happy-path example](https://github.com/tylergannon/tractor/tree/main/examples/proof-readiness)
+is ready to copy.
 
 ## Control sessions and retries
 
@@ -211,7 +287,7 @@ Inside Codex, ask Tractor for the current pipeline schema only when authoring or
 ## Authoring checklist
 
 1. Write one sentence for `goal` that is observable in the workspace.
-2. Start with a linear graph and explicit proof at the end.
+2. Start with a linear graph and explicit proof at the end; declare a proof contract when primary and boundary evidence must not substitute for one another.
 3. Use tool nodes for facts a command can decide.
 4. Put branch conditions on the agent that has enough context to choose.
 5. Bound intentional loops with `max_visits`.

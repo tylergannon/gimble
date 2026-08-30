@@ -154,8 +154,70 @@ that want richer authoring affordances are generated.
 | `name`     | String     | no       | Display name for the pipeline (UI, telemetry). |
 | `goal`     | String     | no       | Human-readable goal. Exposed as `$goal` in prompt templates via `ExecutionScope.goal` (Section 4.1). |
 | `defaults` | Object     | no       | File-level node defaults (Section 2.7). |
+| `proof_contract` | Object | no     | Promise-to-Proof declaration and evidence required before terminal success (Section 2.3.1). |
 | `start`    | String     | yes      | ID of the node the walk begins at. Must name a walk node in this file (lint `start_target`, Section 7.2). |
 | `nodes`    | Node array | yes      | The graph. |
+
+### 2.3.1 Proof Contract
+
+`proof_contract` is optional. When present, it distinguishes intended
+architecture, current-run execution evidence, and terminal user outcome.
+Tractor validates and enforces the project declaration; it never infers
+product truth from a fixture name, test name, diagram, node ID, or agent
+report.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `mode` | String | yes | `delivery` or `discovery`. Discovery may execute but cannot reach terminal product success. |
+| `intended_architecture` | String | yes | Non-empty prose, diagram source, or diagram reference describing the intended flow. It is context, not run evidence. |
+| `primary_outcome` | String | yes | Non-empty statement of the user-observable outcome the work exists to produce. |
+| `primary_cases` | ProofCase array | yes | One or more qualifying-input promise cases. |
+| `boundary_cases` | ProofCase array | yes | Relevant empty, invalid, absent, limit, or other boundary cases; may be empty. |
+| `required_capabilities` | ProofCapability array | yes | Unique `{id, description}` declarations referenced by cases. May be empty. |
+| `unknowns` | String array | yes | Known unknowns stated explicitly; entries must be non-empty. May be empty. |
+| `scope_gaps` | ProofScopeGap array | yes | Material gaps that block delivery success. May be empty. |
+| `terminal_success` | Object | yes | Contains `required_cases`, a non-empty unique list naming every declared primary and boundary case. |
+
+Each `ProofCase` has these required fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | String | Case identity, unique across both case arrays and using node-ID lexical syntax. |
+| `actor` | String | The user or system actor receiving the promise. |
+| `job` | String | The job that actor must be able to complete. |
+| `node` | String | For automated cases, a distinct existing top-level `tool` node whose assertion executes this case. Empty for manual discovery cases. |
+| `qualifying_input_criteria` | String | Non-empty criteria establishing why the selected input qualifies for this primary or boundary case. |
+| `expected_output` | String | Non-empty description of the output observable at the claimed evidence surface. |
+| `correctness_oracle` | String | `tool_exit_zero` or explicitly manual `human_attestation`. |
+| `evidence_mode` | String | `component` or `operating_layer`; records the surface the assertion is required to exercise. |
+| `evidence_source` | String | `current_run` or `manual`. |
+| `independence` | String | `independent_execution` or `human_attestation`. |
+| `status` | String | Declared pre-run status: `proven`, `partial`, `blocked`, `simulated`, or `unproven`. It never substitutes for execution evidence. |
+| `required_capabilities` | String array | Unique IDs from the contract-level capability declarations. |
+| `evidence_artifacts` | ProofArtifactRequirement array | Relative regular-file paths to snapshot. Each entry has `path`, role `input`/`output`/`observation`, and a non-empty project-defined `architecture_edge`. |
+
+One tool node cannot prove two cases, because that would let a boundary
+execution stand in for a primary execution. An automated proof tool's
+`on_success` and `on_error` routes must differ so exit code zero remains an
+unambiguous oracle. Delivery cases require the coherent triple
+`tool_exit_zero`, `current_run`, and `independent_execution`. The coherent
+manual triple is allowed only for discovery, which is always non-terminal.
+Every declared case must appear in `terminal_success.required_cases`; an
+author who no longer considers a boundary relevant removes the case instead
+of leaving declared evidence optional.
+
+Each `ProofScopeGap` has required `promise_id`, `original_promise`,
+`current_proven_behavior`, `missing_capability`, `impact`,
+`recommended_next_move`, and `decision_required` fields. `promise_id` names a
+primary case. A non-empty scope-gap list blocks terminal delivery success so a
+workflow cannot silently narrow the original promise.
+
+This contract makes author intent and run progress machine-checkable, but it
+does not establish that the descriptions are true. In particular, Tractor
+cannot determine whether a fixture genuinely qualifies, whether an
+architecture string is accurate, or whether a command declared
+`operating_layer` actually reaches the operating product boundary. That
+remains the pipeline author's responsibility.
 
 ### 2.4 Nodes: a Discriminated Union
 
@@ -465,7 +527,9 @@ PARSE -> VALIDATE -> INITIALIZE -> EXECUTE -> FINALIZE
 4. **Execute:** Traverse the graph from the node `start` names,
    executing handlers and following chosen successors (Section 3.3).
 5. **Finalize:** When a chooser routes to a pseudo-target -- `success`
-   or deliberate `failure`, both final -- the engine writes the final
+   or deliberate `failure` -- the engine first applies any declared
+   proof-contract gate (Section 3.2). An admitted pseudo-target is final:
+   the engine writes the final
    checkpoint (`next_node` is the pseudo-target, Section 5.3) and
    removes any remaining branch worktrees (Section 4.6). On an error
    failure, it writes the failure checkpoint (Section 3.7) and leaves
@@ -490,7 +554,8 @@ algorithm -- the heart of the system.
 FUNCTION run(graph, config):
     state = new EngineState()      -- typed engine bookkeeping (Section 5.1):
                                    -- completed_nodes, node_visits,
-                                   -- node_attempts, last_stage,
+                                   -- node_attempts, proof_evidence,
+                                   -- last_stage,
                                    -- last_response, seq
     stop = new StopSignal()        -- one-shot operator-stop signal
                                    -- (Section 4.1); config wires it to the
@@ -522,7 +587,8 @@ FUNCTION run(graph, config):
                 failure_reason="every successor of " + node.id +
                                " has exhausted its visit budget")
 
-        -- Step 3: Resolve the handler and execute the node; retryable
+        -- Step 3: Resolve the handler and execute the node; capture declared
+        --         input artifacts before an automated proof tool; retryable
         --         turn errors are retried (Section 3.5); any surviving
         --         error fails the run
         handler = registry.resolve(node)   -- total for a parsed graph:
@@ -569,8 +635,31 @@ FUNCTION run(graph, config):
         state.completed_nodes.append(node.id)
         state.last_stage = node.id
         state.last_response = truncate(outcome.notes, 200)
+        IF graph.proof_contract is set AND
+           node is the distinct tool bound to an automated proof case AND
+           next_id == node.on_success:
+            snapshot declared output/observation artifacts after execution
+            state.proof_evidence[case.id] = {
+                status: "proven", run_id, case_id, node_id,
+                execution_ref, evidence_mode, edge: {node.id, next_id},
+                artifacts: fingerprints of before/after snapshots,
+                           outcome.json, and tool.log
+            }
 
-        -- Step 6: Save checkpoint, then finish or advance
+        -- Step 6: Enforce proof readiness, save checkpoint, then finish
+        IF next_id == "success" AND graph.proof_contract is set:
+            blocked = contract is discovery OR scope_gaps is non-empty
+            invalid = first required case without same-run, matching-node,
+                      matching-edge, verified artifact evidence
+            IF blocked OR invalid is not NONE:
+                save_failure_checkpoint(state, node.id,
+                                        retry_visit=true)
+                    -- next_node is node.id, not success: resume can rerun
+                    -- the attempted terminal chooser after the graph is
+                    -- corrected or it selects the outstanding proof path
+                RETURN RunResult(status=FAILED,
+                    failure_reason=proof gate's structured blocking reason)
+
         save_checkpoint(create_checkpoint(state, node.id, next_id),
                         logs_root)
         IF next_id == "success":
@@ -588,6 +677,21 @@ to `success`, `FAILED` with a reason otherwise. It is deliberately distinct from
 the node-level Outcome (Section 5.2), which carries no success vocabulary --
 a node's execution either produces an Outcome or an Error, and "how well it
 went" is expressed by where the chooser routed and what its notes say.
+
+Only an executed automated proof tool that follows `on_success` creates a
+`proof_evidence` record. Before execution, Tractor captures declared input
+files; after successful execution it captures declared outputs and
+observations. It stores copies under engine-owned run evidence and fingerprints them together
+with `outcome.json` and `tool.log`. The record ties those artifacts to the run
+ID, case, assertion node, successful graph edge, evidence mode, and execution reference.
+
+A nonzero exit continues to use the tool's ordinary `on_error` route,
+commonly a fix node, and creates no proof pass. Completed nodes, diagrams,
+agent reports, declared `status: proven`, and self-authored JSON records do not
+substitute for engine-owned current-run evidence. On resume from a final
+`success` checkpoint, the engine rechecks the run identity, contract mapping,
+and stored artifact hashes before returning `COMPLETED`. Discovery mode and
+non-empty material scope gaps are always non-terminal.
 
 Advance dispatches on the Outcome's `next`, never on the offered count alone:
 a handler that made a choice is always honored (a parallel node with a single
@@ -1623,6 +1727,8 @@ EngineState:
     completed_nodes : List<String>          -- ordered audit trail (3.2)
     node_visits     : Map<String, Integer>  -- top-level dispatches per node (3.4)
     node_attempts   : Map<String, Integer>  -- retry attempts per node (3.5)
+    proof_evidence  : Map<String, ProofEvidenceRecord>
+                                         -- same-run evidence by case ID (3.2)
     last_stage      : String                -- last completed top-level stage
     last_response   : String                -- its truncated notes
     seq             : Integer               -- run-wide stage-dir sequence
@@ -1679,6 +1785,10 @@ Checkpoint:
     completed_nodes : List<String>            -- IDs of all completed nodes in order
     node_visits     : Map<String, Integer>    -- visit counters per node (Section 3.4)
     node_attempts   : Map<String, Integer>    -- retry-attempt counters per node (Section 3.5)
+    proof_evidence  : Map<String, ProofEvidenceRecord>
+                                              -- engine-owned execution and
+                                              -- artifact provenance by case ID
+                                              -- (Section 3.2); omitted when empty
     seq             : Integer                 -- the stage-dir sequence counter
                                               -- (Sections 3.5, 5.1); restored on
                                               -- resume so a resumed run never
@@ -1704,7 +1814,7 @@ The engine stores `next_node` because it never reads routing decisions
 back from `outcome.json` (Appendix A). After a success, `next_node` is
 the chosen successor. After a failure, `current_node` and `next_node`
 both name the failed node and `completed_nodes` stays unchanged; the
-counters and `sessions` record what actually happened (minus the
+counters, `proof_evidence`, and `sessions` record what actually happened (minus the
 parallel rollback, Section 4.6), so a session the dying node opened
 stays durably bound. Every written failure checkpoint sets
 `retry_visit`, so resume continues the consumed visit instead of
@@ -1712,8 +1822,10 @@ counting a new one -- failure-resume and in-process retry share the
 same budget arithmetic (Section 3.5). The initial checkpoint points at
 the node `start` names with empty state; the final checkpoint records
 the last executed node and, in `next_node`, the pseudo-target it
-routed to. A checkpoint whose `next_node` is a pseudo-target is final:
-the run is over, and resuming it is a no-op.
+routed to. A checkpoint whose `next_node` is a pseudo-target is final.
+Resuming `failure` is a no-op; resuming `success` rechecks any proof contract
+against the stored run ID, case/node/edge mapping, and artifact fingerprints
+before returning `COMPLETED`.
 
 **Resume.** Resume restores the checkpointed walk state and hands the
 `sessions` map to a freshly constructed backend -- no live turns
@@ -1730,6 +1842,17 @@ after. `completed_nodes` is an ordered audit trail, not a skip list
 -- loops legally revisit nodes. Bindings enter the backend's table at
 session open, so an interrupted node's session is checkpointed
 alongside its partial work (Sections 5.3, 12.1).
+
+`proof_evidence` is separate because ordinary node completion is not proof: a
+tool may complete through `on_error`, and a report or outcome record may be
+authored without the independent assertion running. Each record contains
+`status`, `run_id`, `case_id`, `node_id`, `execution_ref`, `evidence_mode`, the
+successful `{from,to}` edge, and artifact records. An artifact record contains
+its source, role, declared path and architecture edge, stored snapshot path,
+SHA-256 digest, and capture phase (`before` or `after`). A missing map in an
+older or hand-written checkpoint is restored as empty; completed-node history
+is never promoted into proof state, and a record without verifiable
+engine-owned execution artifacts is rejected.
 
 ### 5.4 Context Fidelity
 
@@ -1901,6 +2024,7 @@ Severity:
 | `fidelity_valid`         | ERROR    | Fidelity mode values must be one of `full`, `compacted`, `none`, or a mode the active implementation defines (Section 5.4). An unsupported mode is rejected, never given accidental runtime semantics (Section 12.1). |
 | `thread_id_collision`    | ERROR    | An explicit `thread_id` must not equal any node ID -- implicit per-node threads and named shared threads are separate namespaces (Section 5.4). |
 | `thread_harness_consistent`| ERROR  | Nodes sharing a resolved thread key under session-reusing fidelity modes (`full`, `compacted`) must resolve to models that route to the same harness (Section 12.1). Thread keys resolve statically (Section 5.4), so this check is fully static. |
+| `proof_contract`          | ERROR   | A present proof contract must use a supported mode; state intended architecture and a primary outcome; declare at least one primary case; supply actor/job, qualifying-input criteria, expected output, status, coherent oracle/source/independence, valid capability references, and safe artifact paths/roles/architecture edges; use unique case IDs and distinct top-level tool nodes for automated cases; distinguish proof-tool success and error routes; contain no blank unknowns; reference valid primary promises from complete scope-gap records; and require every declared primary and boundary case for terminal success (Sections 2.3.1, 3.2). |
 | `fan_in_max_visits`      | WARNING  | `max_visits` on a `parallel.fan_in` node does not bound the loop at the parallel node (the fan-in is reached via the parallel's `next`, not an offered set); it takes effect only inside branch walks, where an exhausted fan-in starves the branches' final offered sets and fails the run (Sections 3.2-3.4). Bound the loop at the parallel node or a downstream node. |
 | `branch_root_max_visits` | WARNING  | `max_visits` on a parallel branch root silently shrinks later fan-outs: an exhausted root is excluded from the branches the fan-out runs (Section 4.6). Bound the loop at the parallel node instead. |
 | `prompt_on_llm_nodes`    | WARNING  | A codergen node's `prompt` should be present and non-empty: absent, the turn runs on the node's label or ID alone (Section 4.3). |
@@ -2038,6 +2162,17 @@ logging -- with checkpoint-resume equivalence, worktree-isolated
 parallel convergence, and a 10+ node pipeline exercised end to end. The subsections below define the
 additional conformance evidence required at the adapter, backend, and
 supervision boundaries.
+
+When proof contracts are implemented, conformance also includes one
+outside-in run where a boundary assertion passes but a required primary case
+has not executed and terminal success is refused; one run where independent
+primary and boundary tool assertions both pass and the run completes; schema
+or lint rejection of missing or ambiguous expected-output/oracle fields; and
+a compatibility run with no proof contract. Discovery mode and a material
+scope-gap record must remain non-terminal. Evidence conformance includes a
+same-run ID, assertion edge, execution reference, and before/after artifact fingerprints; a
+changed snapshot, completed-node record, or authored `proven` JSON record
+without verifiable engine-owned artifacts must not satisfy the resume gate.
 
 ### 11.1 HarnessAdapter Conformance
 

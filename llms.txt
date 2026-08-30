@@ -26,8 +26,13 @@ Copy-and-run loop pipelines live in `examples/loops/` (also bundled with the
   in isolated worktrees; a judge runs each and merges the winner.
 - `milestone-loop.yaml` — "keep working after I leave": a chooser picks the
   next runnable step, an implementer does it, a command checks, repeat.
+- `examples/proof-readiness/required-happy-path.yaml` — tie a primary user
+  promise and its boundaries to independent same-run artifact evidence before
+  terminal success.
 
 `examples/loops/README.md` carries a symptom→fix table for misbehaving loops.
+`docs/proof-readiness.md` explains Promise-to-Proof contracts, discovery,
+scope gaps, provenance, compatibility, and limits.
 
 ## Requirements
 

@@ -19,5 +19,9 @@ spend tokens on a substantial coding task.
 - [`loops/`](loops/README.md) are the starting points for iterative work:
   fix-until-green, critique circle, bake-off, and a milestone loop. Copy
   one, change the goal and the check, run it.
+- [`proof-readiness/required-happy-path.yaml`](proof-readiness/required-happy-path.yaml)
+  declares a primary promise, a boundary case, capabilities, and artifact
+  provenance, then requires both independent current-run assertions before
+  terminal success.
 
 Each directory documents the invocation and the observable success criteria.
