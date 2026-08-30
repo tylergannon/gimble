@@ -497,6 +497,157 @@
       },
       "type": "array"
     },
+    "proof_contract": {
+      "additionalProperties": false,
+      "description": "ProofContract declares the evidence that must execute before success.",
+      "properties": {
+        "boundary_cases": {
+          "items": {
+            "additionalProperties": false,
+            "description": "ProofCase binds one declared scenario and oracle to an executed tool node.",
+            "properties": {
+              "correctness_oracle": {
+                "description": "ProofOracle identifies the independent assertion mechanism for a case.",
+                "enum": [
+                  "tool_exit_zero"
+                ],
+                "type": "string"
+              },
+              "evidence_mode": {
+                "description": "ProofEvidenceMode records the proof surface the case is required to use.",
+                "enum": [
+                  "component",
+                  "operating_layer"
+                ],
+                "type": "string"
+              },
+              "expected_output": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "not": {
+                  "enum": [
+                    "success",
+                    "failure"
+                  ]
+                },
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "node": {
+                "type": "string"
+              },
+              "representative_input": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "node",
+              "representative_input",
+              "expected_output",
+              "correctness_oracle",
+              "evidence_mode"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "primary_cases": {
+          "items": {
+            "additionalProperties": false,
+            "description": "ProofCase binds one declared scenario and oracle to an executed tool node.",
+            "properties": {
+              "correctness_oracle": {
+                "description": "ProofOracle identifies the independent assertion mechanism for a case.",
+                "enum": [
+                  "tool_exit_zero"
+                ],
+                "type": "string"
+              },
+              "evidence_mode": {
+                "description": "ProofEvidenceMode records the proof surface the case is required to use.",
+                "enum": [
+                  "component",
+                  "operating_layer"
+                ],
+                "type": "string"
+              },
+              "expected_output": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "not": {
+                  "enum": [
+                    "success",
+                    "failure"
+                  ]
+                },
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "node": {
+                "type": "string"
+              },
+              "representative_input": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "node",
+              "representative_input",
+              "expected_output",
+              "correctness_oracle",
+              "evidence_mode"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "primary_outcome": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "terminal_success": {
+          "additionalProperties": false,
+          "description": "ProofTerminalSuccess explicitly names every case required for success.",
+          "properties": {
+            "required_cases": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "required_cases"
+          ],
+          "type": "object"
+        },
+        "unknowns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "primary_outcome",
+        "primary_cases",
+        "boundary_cases",
+        "unknowns",
+        "terminal_success"
+      ],
+      "type": "object"
+    },
     "start": {
       "description": "Start names the walk node where execution begins.",
       "type": "string"

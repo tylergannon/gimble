@@ -86,6 +86,11 @@ func TestEveryBuiltInRule(t *testing.T) {
 		{"fidelity_valid", lint.SeverityError, func() graph.Graph { g := validLinear(); coder(g, "work").Fidelity = set("summary"); return g }, lint.Options{}},
 		{"thread_id_collision", lint.SeverityError, func() graph.Graph { g := validLinear(); coder(g, "work").ThreadID = set("work"); return g }, lint.Options{}},
 		{"thread_harness_consistent", lint.SeverityError, sharedThreadLinear, lint.Options{ResolveHarness: func(provider, _ string) (string, error) { return provider, nil }}},
+		{"proof_contract", lint.SeverityError, func() graph.Graph {
+			g := validProofGraph()
+			g.ProofContract.Value.PrimaryCases = nil
+			return g
+		}, lint.Options{}},
 		{"fan_in_max_visits", lint.SeverityWarning, func() graph.Graph { g := validParallel(); fan(g, "join").MaxVisits = set(2); return g }, lint.Options{}},
 		{"branch_root_max_visits", lint.SeverityWarning, func() graph.Graph { g := validParallel(); coder(g, "left").MaxVisits = set(2); return g }, lint.Options{}},
 		{"prompt_on_llm_nodes", lint.SeverityWarning, func() graph.Graph {
@@ -106,8 +111,8 @@ func TestEveryBuiltInRule(t *testing.T) {
 			}
 		})
 	}
-	if len(tests) != 27 {
-		t.Fatalf("covered %d built-in rules, want 27", len(tests))
+	if len(tests) != 28 {
+		t.Fatalf("covered %d built-in rules, want 28", len(tests))
 	}
 }
 
@@ -115,6 +120,7 @@ func TestValidGraphsAndSupervisorExemption(t *testing.T) {
 	for name, g := range map[string]graph.Graph{
 		"linear":   validLinear(),
 		"parallel": validParallel(),
+		"proof":    validProofGraph(),
 		"supervised": func() graph.Graph {
 			g := validLinear()
 			g.Nodes = append(g.Nodes, supervisor("coach", "work"))
@@ -126,6 +132,49 @@ func TestValidGraphsAndSupervisorExemption(t *testing.T) {
 				t.Fatalf("unexpected errors: %#v", diagnostics)
 			}
 		})
+	}
+}
+
+func TestProofContractValidationDetails(t *testing.T) {
+	tests := map[string]func(*graph.ProofContract){
+		"blank primary outcome": func(contract *graph.ProofContract) { contract.PrimaryOutcome = "  " },
+		"blank expected output": func(contract *graph.ProofContract) { contract.PrimaryCases[0].ExpectedOutput = "\t" },
+		"ambiguous oracle": func(contract *graph.ProofContract) {
+			contract.PrimaryCases[0].CorrectnessOracle = "review_record"
+		},
+		"unknown evidence mode": func(contract *graph.ProofContract) {
+			contract.PrimaryCases[0].EvidenceMode = "mock"
+		},
+		"case node is not a tool": func(contract *graph.ProofContract) { contract.PrimaryCases[0].Node = "worker" },
+		"same node proves two cases": func(contract *graph.ProofContract) {
+			contract.BoundaryCases[0].Node = contract.PrimaryCases[0].Node
+		},
+		"required boundary omitted": func(contract *graph.ProofContract) {
+			contract.TerminalSuccess.RequiredCases = []string{"qualifying_input"}
+		},
+		"unknown required case": func(contract *graph.ProofContract) {
+			contract.TerminalSuccess.RequiredCases = append(contract.TerminalSuccess.RequiredCases, "invented")
+		},
+		"blank unknown": func(contract *graph.ProofContract) { contract.Unknowns = []string{" "} },
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			g := validProofGraph()
+			g.Nodes = append(g.Nodes, codergen("worker", edge(graph.Success)))
+			mutate(&g.ProofContract.Value)
+			if _, ok := findDiagnostic(lint.Validate(g), "proof_contract"); !ok {
+				t.Fatal("missing proof_contract diagnostic")
+			}
+		})
+	}
+}
+
+func TestProofContractRejectsAdvisoryOracleRoute(t *testing.T) {
+	g := validProofGraph()
+	tool := g.Nodes[0].(*graph.ToolNode)
+	tool.OnError = set(tool.OnSuccess)
+	if _, ok := findDiagnostic(lint.Validate(g), "proof_contract"); !ok {
+		t.Fatal("proof tool with indistinguishable success and error routes was admitted")
 	}
 }
 
@@ -259,6 +308,33 @@ func validParallel() graph.Graph {
 		codergen("right", edge("join")),
 		fanIn("join", edge(graph.Success)),
 	}}
+}
+
+func validProofGraph() graph.Graph {
+	return graph.Graph{
+		Start: "primary_assertion",
+		ProofContract: set(graph.ProofContract{
+			PrimaryOutcome: "Representative input produces an observable result.",
+			PrimaryCases: []graph.ProofCase{{
+				ID: "qualifying_input", Node: "primary_assertion",
+				RepresentativeInput: "A known qualifying fixture.", ExpectedOutput: "The expected value is visible.",
+				CorrectnessOracle: graph.ProofOracleToolExitZero, EvidenceMode: graph.ProofEvidenceOperatingLayer,
+			}},
+			BoundaryCases: []graph.ProofCase{{
+				ID: "empty_boundary", Node: "empty_assertion",
+				RepresentativeInput: "An empty fixture.", ExpectedOutput: "The observed value remains empty.",
+				CorrectnessOracle: graph.ProofOracleToolExitZero, EvidenceMode: graph.ProofEvidenceOperatingLayer,
+			}},
+			Unknowns: []string{},
+			TerminalSuccess: graph.ProofTerminalSuccess{
+				RequiredCases: []string{"qualifying_input", "empty_boundary"},
+			},
+		}),
+		Nodes: []graph.Node{
+			&graph.ToolNode{NodeBase: graph.NodeBase{ID: "primary_assertion"}, ToolCommand: "true", OnSuccess: "empty_assertion"},
+			&graph.ToolNode{NodeBase: graph.NodeBase{ID: "empty_assertion"}, ToolCommand: "true", OnSuccess: graph.Success},
+		},
+	}
 }
 
 func overlappingParallel() graph.Graph {

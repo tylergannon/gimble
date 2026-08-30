@@ -24,11 +24,56 @@ type Graph struct {
 	// Defaults contains file-level defaults for node fields.
 	Defaults Defaults `json:"defaults,omitzero"`
 
+	// ProofContract declares the evidence that must execute before success.
+	ProofContract jsonschema.Optional[ProofContract] `json:"proof_contract,omitzero"`
+
 	// Start names the walk node where execution begins.
 	Start string `json:"start"`
 
 	// Nodes is the graph. Each node carries its outgoing edges.
 	Nodes []Node `json:"nodes"`
+}
+
+// ProofContract declares product-specific proof without asking Tractor to
+// infer product truth from fixture names, node names, or prose.
+type ProofContract struct {
+	PrimaryOutcome  string               `json:"primary_outcome"`
+	PrimaryCases    []ProofCase          `json:"primary_cases"`
+	BoundaryCases   []ProofCase          `json:"boundary_cases"`
+	Unknowns        []string             `json:"unknowns"`
+	TerminalSuccess ProofTerminalSuccess `json:"terminal_success"`
+}
+
+// ProofCase binds one declared scenario and oracle to an executed tool node.
+type ProofCase struct {
+	ID                  string            `json:"id"`
+	Node                string            `json:"node"`
+	RepresentativeInput string            `json:"representative_input"`
+	ExpectedOutput      string            `json:"expected_output"`
+	CorrectnessOracle   ProofOracle       `json:"correctness_oracle"`
+	EvidenceMode        ProofEvidenceMode `json:"evidence_mode"`
+}
+
+// ProofOracle identifies the independent assertion mechanism for a case.
+type ProofOracle string
+
+const (
+	// ProofOracleToolExitZero requires the referenced tool node to execute and
+	// exit zero; an authored evidence record is not a substitute.
+	ProofOracleToolExitZero ProofOracle = "tool_exit_zero"
+)
+
+// ProofEvidenceMode records the proof surface the case is required to use.
+type ProofEvidenceMode string
+
+const (
+	ProofEvidenceComponent      ProofEvidenceMode = "component"
+	ProofEvidenceOperatingLayer ProofEvidenceMode = "operating_layer"
+)
+
+// ProofTerminalSuccess explicitly names every case required for success.
+type ProofTerminalSuccess struct {
+	RequiredCases []string `json:"required_cases"`
 }
 
 // Defaults contains the six fields that may be inherited by nodes.

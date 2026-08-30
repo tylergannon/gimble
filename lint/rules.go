@@ -552,6 +552,97 @@ func (a *analysis) threadHarnessConsistent() []Diagnostic {
 	return diagnostics
 }
 
+func (a *analysis) proofContract() []Diagnostic {
+	if !a.graph.ProofContract.Present {
+		return nil
+	}
+	contract := a.graph.ProofContract.Value
+	var diagnostics []Diagnostic
+	add := func(message, nodeID string) {
+		diagnostics = append(diagnostics, diagnostic("proof_contract", SeverityError, message, nodeID))
+	}
+	if strings.TrimSpace(contract.PrimaryOutcome) == "" {
+		add("primary_outcome must be non-empty", "")
+	}
+	if len(contract.PrimaryCases) == 0 {
+		add("at least one primary proof case is required", "")
+	}
+
+	caseKind := make(map[string]string, len(contract.PrimaryCases)+len(contract.BoundaryCases))
+	caseNodes := make(map[string]string, len(contract.PrimaryCases)+len(contract.BoundaryCases))
+	validateCase := func(current graph.ProofCase, kind string) {
+		if strings.TrimSpace(current.ID) == "" {
+			add(kind+" proof case id must be non-empty", current.Node)
+		} else if previous, duplicate := caseKind[current.ID]; duplicate {
+			add(fmt.Sprintf("proof case id %q is repeated in %s and %s cases", current.ID, previous, kind), current.Node)
+		} else {
+			caseKind[current.ID] = kind
+		}
+		if strings.TrimSpace(current.RepresentativeInput) == "" {
+			add(fmt.Sprintf("proof case %q representative_input must be non-empty", current.ID), current.Node)
+		}
+		if strings.TrimSpace(current.ExpectedOutput) == "" {
+			add(fmt.Sprintf("proof case %q expected_output must be non-empty", current.ID), current.Node)
+		}
+		if current.CorrectnessOracle != graph.ProofOracleToolExitZero {
+			add(fmt.Sprintf("proof case %q has unsupported correctness_oracle %q", current.ID, current.CorrectnessOracle), current.Node)
+		}
+		if current.EvidenceMode != graph.ProofEvidenceComponent && current.EvidenceMode != graph.ProofEvidenceOperatingLayer {
+			add(fmt.Sprintf("proof case %q has unsupported evidence_mode %q", current.ID, current.EvidenceMode), current.Node)
+		}
+		node, exists := a.byID[current.Node]
+		if !exists {
+			add(fmt.Sprintf("proof case %q names missing node %q", current.ID, current.Node), current.Node)
+		} else if tool, isTool := node.(*graph.ToolNode); !isTool {
+			add(fmt.Sprintf("proof case %q must reference a tool node", current.ID), current.Node)
+		} else if tool.OnError.Present && tool.OnError.Value == tool.OnSuccess {
+			add(fmt.Sprintf("proof case %q tool must distinguish successful and failed assertion routes", current.ID), current.Node)
+		}
+		if previous, duplicate := caseNodes[current.Node]; duplicate {
+			add(fmt.Sprintf("proof cases %q and %q cannot share one assertion node", previous, current.ID), current.Node)
+		} else if strings.TrimSpace(current.Node) != "" {
+			caseNodes[current.Node] = current.ID
+		}
+	}
+	for _, current := range contract.PrimaryCases {
+		validateCase(current, "primary")
+	}
+	for _, current := range contract.BoundaryCases {
+		validateCase(current, "boundary")
+	}
+	for index, unknown := range contract.Unknowns {
+		if strings.TrimSpace(unknown) == "" {
+			add(fmt.Sprintf("unknowns[%d] must be non-empty", index), "")
+		}
+	}
+
+	required := make(map[string]struct{}, len(contract.TerminalSuccess.RequiredCases))
+	for _, caseID := range contract.TerminalSuccess.RequiredCases {
+		if _, duplicate := required[caseID]; duplicate {
+			add(fmt.Sprintf("terminal_success repeats required case %q", caseID), "")
+			continue
+		}
+		required[caseID] = struct{}{}
+		if _, exists := caseKind[caseID]; !exists {
+			add(fmt.Sprintf("terminal_success names unknown required case %q", caseID), "")
+		}
+	}
+	if len(contract.TerminalSuccess.RequiredCases) == 0 {
+		add("terminal_success.required_cases must be non-empty", "")
+	}
+	for _, current := range contract.PrimaryCases {
+		if _, exists := required[current.ID]; !exists {
+			add(fmt.Sprintf("primary proof case %q must be required for terminal success", current.ID), current.Node)
+		}
+	}
+	for _, current := range contract.BoundaryCases {
+		if _, exists := required[current.ID]; !exists {
+			add(fmt.Sprintf("boundary proof case %q must be required for terminal success", current.ID), current.Node)
+		}
+	}
+	return diagnostics
+}
+
 func (a *analysis) fanInMaxVisits() []Diagnostic {
 	var diagnostics []Diagnostic
 	for _, node := range a.graph.Nodes {

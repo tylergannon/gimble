@@ -100,6 +100,24 @@ func walk(value any) {
 			if workspace, ok := props["workspace"].(map[string]any); ok {
 				workspace["enum"] = []any{"isolated", "shared"}
 			}
+			if oracle, ok := props["correctness_oracle"].(map[string]any); ok {
+				oracle["enum"] = []any{"tool_exit_zero"}
+			}
+			if mode, ok := props["evidence_mode"].(map[string]any); ok {
+				mode["enum"] = []any{"component", "operating_layer"}
+			}
+			for _, name := range []string{"primary_outcome", "representative_input", "expected_output"} {
+				if field, ok := props[name].(map[string]any); ok {
+					field["minLength"] = 1
+				}
+			}
+			if primary, ok := props["primary_cases"].(map[string]any); ok {
+				primary["minItems"] = 1
+			}
+			if required, ok := props["required_cases"].(map[string]any); ok {
+				required["minItems"] = 1
+				required["uniqueItems"] = true
+			}
 			if artifacts, ok := props["artifacts"].(map[string]any); ok {
 				artifacts["minItems"] = 1
 			}
