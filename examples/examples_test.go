@@ -3,6 +3,7 @@ package examples_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/tylergannon/tractor/graph"
@@ -44,5 +45,15 @@ func TestExamplesValidate(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestRequiredHappyPathOracleIsByteExact(t *testing.T) {
+	raw, err := os.ReadFile("proof-readiness/required-happy-path.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "printf 'HELLO\\n' | cmp -s - evidence/qualifying-output.txt") {
+		t.Fatal("qualifying oracle must compare the expected and observed bytes")
 	}
 }

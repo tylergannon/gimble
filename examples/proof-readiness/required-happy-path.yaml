@@ -74,7 +74,7 @@ nodes:
     type: tool
     tool_command: >-
       sh transform.sh < evidence/qualifying-input.txt > evidence/qualifying-output.txt &&
-      test "$(cat evidence/qualifying-output.txt)" = HELLO
+      printf 'HELLO\n' | cmp -s - evidence/qualifying-output.txt
     on_success: assert_empty_input
     on_error: implement
 
