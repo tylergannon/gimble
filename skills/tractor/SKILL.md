@@ -20,16 +20,16 @@ goal: Implement the TODO in cmd/server/routes.go and make the tests pass
 start: implement
 nodes:
   - id: implement
-    type: codergen # an agent turn
-    max_visits: 5 # the budget; nothing else stops a loop
-    prompt: $goal # the goal is the whole prompt
+    type: codergen          # an agent turn
+    max_visits: 5           # the budget; nothing else stops a loop
+    prompt: $goal           # the goal is the whole prompt
     edges:
       - to: check
   - id: check
-    type: tool # a command decides what "done" means
+    type: tool              # a command decides what "done" means
     tool_command: go test ./...
     on_success: success
-    on_error: implement # failure routes back — that's the loop
+    on_error: implement     # failure routes back — that's the loop
 ```
 
 An agent works, a command decides, failure routes back. Fan-out shapes add
@@ -47,12 +47,12 @@ files that teach ("read AGENTS.md first"), never script the checks.
 
 ## Pick the user's moment
 
-| The moment                               | Example                         |
-| ---------------------------------------- | ------------------------------- |
-| "Don't stop until it actually works"     | `examples/fix-until-green.yaml` |
-| "Have another model check this"          | `examples/critique-circle.yaml` |
-| "Try a couple of approaches in parallel" | `examples/bake-off.yaml`        |
-| "Keep working on this after I leave"     | `examples/milestone-loop.yaml`  |
+| The moment | Example |
+|---|---|
+| "Don't stop until it actually works" | `examples/fix-until-green.yaml` |
+| "Have another model check this" | `examples/critique-circle.yaml` |
+| "Try a couple of approaches in parallel" | `examples/bake-off.yaml` |
+| "Keep working on this after I leave" | `examples/milestone-loop.yaml` |
 
 They ship beside this file, mirroring `examples/loops/` in the Tractor repo;
 if neither is at hand, the pipeline above is a complete start.
@@ -99,15 +99,15 @@ stop; calling it again after the graceful window forces it.
 
 ## When a loop misbehaves
 
-| Symptom                                       | Fix                                                                                                                                                                                                         |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runs forever                                  | `max_visits` on the looping node.                                                                                                                                                                           |
-| Says it's done when it isn't                  | The command is checking the wrong thing — check the behavior itself.                                                                                                                                        |
-| Re-derives the same dead end every lap        | Have the prompt keep a short notes file: append what the next attempt should do differently, read it first.                                                                                                 |
-| Reviewer rubber-stamps                        | Fresh session (`fidelity: none`), whole target every round, never say what to find. A different provider makes the independence real.                                                                       |
-| Fan-in averages instead of deciding           | Tell it to inspect and run the work itself and adjudicate each finding on evidence — never count votes or concatenate reports.                                                                              |
+| Symptom | Fix |
+|---|---|
+| Runs forever | `max_visits` on the looping node. |
+| Says it's done when it isn't | The command is checking the wrong thing — check the behavior itself. |
+| Re-derives the same dead end every lap | Have the prompt keep a short notes file: append what the next attempt should do differently, read it first. |
+| Reviewer rubber-stamps | Fresh session (`fidelity: none`), whole target every round, never say what to find. A different provider makes the independence real. |
+| Fan-in averages instead of deciding | Tell it to inspect and run the work itself and adjudicate each finding on evidence — never count votes or concatenate reports. |
 | Guesses at a decision that wasn't its to make | Give it a door: an edge conditioned on "this decision isn't mine" leading to a node that asks the user or writes a report and routes to `failure`. Agents improvise when forward is the only route offered. |
-| Builds everything, nothing runs until the end | Steer the chooser to vertical slices: a step is done when you can run something that proves it. Stack-order plans are the model's default tic; say no to them in the prompt.                                |
+| Builds everything, nothing runs until the end | Steer the chooser to vertical slices: a step is done when you can run something that proves it. Stack-order plans are the model's default tic; say no to them in the prompt. |
 
 ## Authoring beyond the examples
 
