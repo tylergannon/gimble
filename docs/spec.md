@@ -642,10 +642,10 @@ FUNCTION run(graph, config):
            next_id == node.on_success:
             snapshot declared output/observation artifacts after execution
             state.proof_evidence[case.id] = {
-                status: "proven", run_id, case_id, node_id,
-                execution_ref, evidence_mode, edge: {node.id, next_id},
-                artifacts: fingerprints of before/after snapshots,
-                           outcome.json, and tool.log
+                run_id, case_id, node_id, execution_ref,
+                contract_sha256, edge: {node.id, next_id},
+                outcome_sha256, tool_log_sha256,
+                artifact_sha256: ordered fingerprints of declared snapshots
             }
 
         -- Step 6: Enforce proof readiness, save checkpoint, then finish
@@ -691,7 +691,8 @@ Only an executed automated proof tool that follows `on_success` creates a
 files; after successful execution it captures declared outputs and
 observations. It stores copies under engine-owned run evidence and fingerprints them together
 with `outcome.json` and `tool.log`. The record ties those artifacts to the run
-ID, case, assertion node, successful graph edge, evidence mode, and execution reference.
+ID, case, assertion node, successful graph edge, execution reference, and a
+digest of the complete case and bound tool declarations.
 
 A nonzero exit continues to use the tool's ordinary `on_error` route,
 commonly a fix node, and creates no proof pass. Completed nodes, diagrams,
@@ -1856,13 +1857,16 @@ alongside its partial work (Sections 5.3, 12.1).
 `proof_evidence` is separate because ordinary node completion is not proof: a
 tool may complete through `on_error`, and a report or outcome record may be
 authored without the independent assertion running. Each record contains
-`status`, `run_id`, `case_id`, `node_id`, `execution_ref`, `evidence_mode`, the
-successful `{from,to}` edge, and artifact records. An artifact record contains
-its source, role, declared path and architecture edge, stored snapshot path,
-SHA-256 digest, and capture phase (`before` or `after`). A missing map in an
-older or hand-written checkpoint is restored as empty; completed-node history
-is never promoted into proof state, and a record without verifiable
-engine-owned execution artifacts is rejected.
+`run_id`, `case_id`, `node_id`, `execution_ref`, `contract_sha256`, the
+successful `{from,to}` edge, `outcome_sha256`, `tool_log_sha256`, and an
+`artifact_sha256` array ordered like the case's `evidence_artifacts`. The
+contract digest binds the complete case and bound tool declarations, including
+the expected outcome, evidence policy, artifact paths/roles/architecture edges,
+and executed command, without duplicating them. Snapshot paths and before/after
+timing are deterministic from the execution, case, artifact order, and role. A
+missing map in an older or hand-written checkpoint is restored as empty;
+completed-node history is never promoted into proof state, and a record
+without verifiable engine-owned execution artifacts is rejected.
 
 ### 5.4 Context Fidelity
 

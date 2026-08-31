@@ -6,38 +6,27 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/harness"
 )
 
 // ProofEvidenceRecord ties one proven contract case to this run's executed
 // assertion, edge, and fingerprinted evidence artifacts.
 type ProofEvidenceRecord struct {
-	Status       graph.ProofStatus       `json:"status"`
-	RunID        string                  `json:"run_id"`
-	CaseID       string                  `json:"case_id"`
-	NodeID       string                  `json:"node_id"`
-	ExecutionRef string                  `json:"execution_ref"`
-	EvidenceMode graph.ProofEvidenceMode `json:"evidence_mode"`
-	Edge         ProofEdgeRef            `json:"edge"`
-	Artifacts    []ProofArtifactRef      `json:"artifacts"`
+	RunID          string       `json:"run_id"`
+	CaseID         string       `json:"case_id"`
+	NodeID         string       `json:"node_id"`
+	ExecutionRef   string       `json:"execution_ref"`
+	ContractSHA256 string       `json:"contract_sha256"`
+	Edge           ProofEdgeRef `json:"edge"`
+	OutcomeSHA256  string       `json:"outcome_sha256"`
+	ToolLogSHA256  string       `json:"tool_log_sha256"`
+	ArtifactSHA256 []string     `json:"artifact_sha256"`
 }
 
 // ProofEdgeRef records the exact successful routing edge of an assertion.
 type ProofEdgeRef struct {
 	From string `json:"from"`
 	To   string `json:"to"`
-}
-
-// ProofArtifactRef fingerprints a current-run execution or workspace artifact.
-type ProofArtifactRef struct {
-	Source           string                  `json:"source"`
-	Role             graph.ProofArtifactRole `json:"role"`
-	Path             string                  `json:"path"`
-	ArchitectureEdge string                  `json:"architecture_edge,omitempty"`
-	StoredPath       string                  `json:"stored_path"`
-	SHA256           string                  `json:"sha256"`
-	CapturedAt       string                  `json:"captured_at"`
 }
 
 // Checkpoint is the durable top-level execution state.
@@ -197,7 +186,7 @@ func cloneMap[K comparable, V any](values map[K]V) map[K]V {
 func cloneProofEvidence(values map[string]ProofEvidenceRecord) map[string]ProofEvidenceRecord {
 	result := make(map[string]ProofEvidenceRecord, len(values))
 	for caseID, evidence := range values {
-		evidence.Artifacts = cloneSlice(evidence.Artifacts)
+		evidence.ArtifactSHA256 = cloneSlice(evidence.ArtifactSHA256)
 		result[caseID] = evidence
 	}
 	return result

@@ -71,9 +71,9 @@ nodes:
 		if result.Status != RunFailed || !strings.Contains(result.FailureReason, `required proof case "qualifying_input" has not passed`) {
 			t.Fatalf("result = %#v", result)
 		}
+		_, boundaryExists := checkpoint.ProofEvidence["silence_boundary"]
 		if checkpoint.NextNode != "silence_boundary" || !checkpoint.RetryVisit ||
-			checkpoint.ProofEvidence["silence_boundary"].Status != graph.ProofStatusProven ||
-			len(checkpoint.ProofEvidence) != 1 {
+			!boundaryExists || len(checkpoint.ProofEvidence) != 1 {
 			t.Fatalf("checkpoint = %#v", checkpoint)
 		}
 	})
@@ -135,9 +135,9 @@ nodes:
 		if result.Status != RunCompleted || result.FailureReason != "" {
 			t.Fatalf("result = %#v", result)
 		}
-		if checkpoint.ProofEvidence["qualifying_input"].Status != graph.ProofStatusProven ||
-			checkpoint.ProofEvidence["silence_boundary"].Status != graph.ProofStatusProven ||
-			len(checkpoint.ProofEvidence) != 2 {
+		_, primaryExists := checkpoint.ProofEvidence["qualifying_input"]
+		_, boundaryExists := checkpoint.ProofEvidence["silence_boundary"]
+		if !primaryExists || !boundaryExists || len(checkpoint.ProofEvidence) != 2 {
 			t.Fatalf("proof evidence = %v", checkpoint.ProofEvidence)
 		}
 	})
@@ -261,9 +261,9 @@ nodes:
 	if result.Status != RunCompleted {
 		t.Fatalf("result = %#v", result)
 	}
+	_, proofExists := checkpoint.ProofEvidence["repaired_marker"]
 	if !reflect.DeepEqual(checkpoint.CompletedNodes, []string{"primary_assertion", "fix", "primary_assertion"}) ||
-		checkpoint.ProofEvidence["repaired_marker"].Status != graph.ProofStatusProven ||
-		len(checkpoint.ProofEvidence) != 1 {
+		!proofExists || len(checkpoint.ProofEvidence) != 1 {
 		t.Fatalf("checkpoint = %#v", checkpoint)
 	}
 }
@@ -343,6 +343,12 @@ func TestSelfAuthoredProofRecordCannotSubstituteForEngineEvidence(t *testing.T) 
 	if err := writeJSON(filepath.Join(root, "manifest.json"), runManifest{ID: runID}); err != nil {
 		t.Fatal(err)
 	}
+	contractSHA256, err := proofCaseDigest(
+		pipeline.ProofContract.Value.PrimaryCases[0], pipeline.Nodes[0].(*graph.ToolNode),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := store.saveCheckpoint(Checkpoint{
 		CurrentNode:    "primary_assertion",
 		NextNode:       graph.Success,
@@ -350,10 +356,10 @@ func TestSelfAuthoredProofRecordCannotSubstituteForEngineEvidence(t *testing.T) 
 		NodeVisits:     map[string]int{"primary_assertion": 1},
 		NodeAttempts:   map[string]int{"primary_assertion": 1},
 		ProofEvidence: map[string]ProofEvidenceRecord{"primary": {
-			Status: graph.ProofStatusProven, RunID: runID, CaseID: "primary",
+			RunID: runID, CaseID: "primary",
 			NodeID: "primary_assertion", ExecutionRef: "stages/000001-primary_assertion",
-			EvidenceMode: graph.ProofEvidenceOperatingLayer,
-			Edge:         ProofEdgeRef{From: "primary_assertion", To: graph.Success},
+			ContractSHA256: contractSHA256,
+			Edge:           ProofEdgeRef{From: "primary_assertion", To: graph.Success},
 		}},
 	}); err != nil {
 		t.Fatal(err)
@@ -418,93 +424,115 @@ func TestProofEvidenceCarriesSameRunArtifactAndEdgeProvenance(t *testing.T) {
 	}
 	var persisted struct {
 		ProofEvidence map[string]struct {
-			Status       string `json:"status"`
-			RunID        string `json:"run_id"`
-			NodeID       string `json:"node_id"`
-			ExecutionRef string `json:"execution_ref"`
-			Edge         struct {
+			RunID          string `json:"run_id"`
+			NodeID         string `json:"node_id"`
+			ExecutionRef   string `json:"execution_ref"`
+			ContractSHA256 string `json:"contract_sha256"`
+			OutcomeSHA256  string `json:"outcome_sha256"`
+			ToolLogSHA256  string `json:"tool_log_sha256"`
+			Edge           struct {
 				From string `json:"from"`
 				To   string `json:"to"`
 			} `json:"edge"`
-			Artifacts []struct {
-				Source           string `json:"source"`
-				Role             string `json:"role"`
-				Path             string `json:"path"`
-				ArchitectureEdge string `json:"architecture_edge"`
-				StoredPath       string `json:"stored_path"`
-				SHA256           string `json:"sha256"`
-				CapturedAt       string `json:"captured_at"`
-			} `json:"artifacts"`
+			ArtifactSHA256 []string `json:"artifact_sha256"`
 		} `json:"proof_evidence"`
 	}
 	if err := json.Unmarshal(raw, &persisted); err != nil {
 		t.Fatal(err)
 	}
 	evidence, exists := persisted.ProofEvidence["primary"]
-	if !exists || evidence.Status != "proven" || evidence.RunID == "" || evidence.NodeID != "primary_assertion" ||
+	if !exists || evidence.RunID == "" || evidence.NodeID != "primary_assertion" ||
 		evidence.ExecutionRef == "" || evidence.Edge.From != "primary_assertion" || evidence.Edge.To != graph.Success {
 		t.Fatalf("proof evidence = %#v", evidence)
 	}
+	if evidence.ContractSHA256 == "" || evidence.OutcomeSHA256 == "" || evidence.ToolLogSHA256 == "" {
+		t.Fatalf("proof evidence is missing a digest: %#v", evidence)
+	}
 	wantHash := sha256.Sum256([]byte("expected\n"))
 	wantSHA := hex.EncodeToString(wantHash[:])
-	wantArtifacts := map[string]string{
-		"workspace:input:input.txt:caller_to_product:before": wantSHA,
-		"workspace:output:output.txt:product_to_user:after":  wantSHA,
+	if !reflect.DeepEqual(evidence.ArtifactSHA256, []string{wantSHA, wantSHA}) {
+		t.Fatalf("artifact digests = %#v", evidence.ArtifactSHA256)
 	}
-	for _, artifact := range evidence.Artifacts {
-		key := artifact.Source + ":" + artifact.Role + ":" + artifact.Path + ":" + artifact.ArchitectureEdge + ":" + artifact.CapturedAt
-		delete(wantArtifacts, key)
-		if artifact.SHA256 == "" {
-			t.Fatalf("artifact has no digest: %#v", artifact)
-		}
-	}
-	if len(wantArtifacts) != 0 {
-		t.Fatalf("missing provenance artifacts: %v; got %#v", wantArtifacts, evidence.Artifacts)
+	if strings.Contains(string(raw), `"status"`) || strings.Contains(string(raw), `"evidence_mode"`) ||
+		strings.Contains(string(raw), `"source"`) || strings.Contains(string(raw), `"role"`) ||
+		strings.Contains(string(raw), `"stored_path"`) || strings.Contains(string(raw), `"captured_at"`) ||
+		strings.Contains(string(raw), `"architecture_edge"`) {
+		t.Fatalf("checkpoint repeats contract-derived provenance: %s", raw)
 	}
 }
 
-func TestChangedProofSnapshotInvalidatesTerminalResume(t *testing.T) {
-	pipeline := singlePromiseGraph(graph.WorkflowModeDelivery)
-	pipeline.ProofContract.Value.PrimaryCases[0].EvidenceArtifacts = []graph.ProofArtifactRequirement{
-		{Path: "input.txt", Role: graph.ProofArtifactInput, ArchitectureEdge: "caller_to_product"},
+func TestChangedProofEvidenceInvalidatesTerminalResume(t *testing.T) {
+	tests := []struct {
+		name       string
+		mutate     func(*testing.T, *graph.Graph, string, ProofEvidenceRecord)
+		wantReason string
+	}{
+		{"contract", func(_ *testing.T, pipeline *graph.Graph, _ string, _ ProofEvidenceRecord) {
+			pipeline.ProofContract.Value.PrimaryCases[0].ExpectedOutput = "A substituted expected value."
+		}, "does not match the current contract"},
+		{"assertion", func(_ *testing.T, pipeline *graph.Graph, _ string, _ ProofEvidenceRecord) {
+			pipeline.Nodes[0].(*graph.ToolNode).ToolCommand = "false"
+		}, "does not match the current contract"},
+		{"declared snapshot", func(t *testing.T, _ *graph.Graph, root string, e ProofEvidenceRecord) {
+			changeProofArtifact(t, root, filepath.Join(filepath.FromSlash(e.ExecutionRef), "proof-evidence", "primary", "000-input.snapshot"))
+		}, "missing or changed evidence artifact"},
+		{"engine outcome", func(t *testing.T, _ *graph.Graph, root string, e ProofEvidenceRecord) {
+			changeProofArtifact(t, root, filepath.Join(filepath.FromSlash(e.ExecutionRef), "outcome.json"))
+		}, "missing or changed engine-owned outcome.json"},
+		{"tool log", func(t *testing.T, _ *graph.Graph, root string, e ProofEvidenceRecord) {
+			changeProofArtifact(t, root, filepath.Join(filepath.FromSlash(e.ExecutionRef), "tool.log"))
+		}, "missing or changed engine-owned tool.log"},
 	}
-	workdir := t.TempDir()
-	logsRoot := t.TempDir()
-	writeFixture(t, workdir, "input.txt", "expected\n")
-	runner, err := NewRunner(pipeline, NewRegistry(), RunnerConfig{
-		LogsRoot: logsRoot,
-		Workdir:  workdir,
-		Validate: func(graph.Graph) error { return nil },
-	})
-	if err != nil {
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pipeline := singlePromiseGraph(graph.WorkflowModeDelivery)
+			pipeline.ProofContract.Value.PrimaryCases[0].EvidenceArtifacts = []graph.ProofArtifactRequirement{
+				{Path: "input.txt", Role: graph.ProofArtifactInput, ArchitectureEdge: "caller_to_product"},
+			}
+			workdir := t.TempDir()
+			logsRoot := t.TempDir()
+			writeFixture(t, workdir, "input.txt", "expected\n")
+			runner, err := NewRunner(pipeline, NewRegistry(), RunnerConfig{
+				LogsRoot: logsRoot,
+				Workdir:  workdir,
+				Validate: func(graph.Graph) error { return nil },
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := runner.Run()
+			if err != nil || result.Status != RunCompleted {
+				t.Fatalf("run result = %#v, err = %v", result, err)
+			}
+			checkpoint := mustCheckpoint(t, logsRoot)
+			evidence := checkpoint.ProofEvidence["primary"]
+			if len(evidence.ArtifactSHA256) == 0 {
+				t.Fatal("proof evidence has no artifacts")
+			}
+			test.mutate(t, &pipeline, logsRoot, evidence)
+			resumed, err := ResumeRunner(pipeline, NewRegistry(), RunnerConfig{
+				LogsRoot: logsRoot,
+				Workdir:  workdir,
+				Validate: func(graph.Graph) error { return nil },
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err = resumed.Run()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Status != RunFailed || !strings.Contains(result.FailureReason, test.wantReason) {
+				t.Fatalf("resume result = %#v", result)
+			}
+		})
+	}
+}
+
+func changeProofArtifact(t *testing.T, root, relative string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(root, relative), []byte("changed\n"), 0o644); err != nil {
 		t.Fatal(err)
-	}
-	result, err := runner.Run()
-	if err != nil || result.Status != RunCompleted {
-		t.Fatalf("run result = %#v, err = %v", result, err)
-	}
-	checkpoint := mustCheckpoint(t, logsRoot)
-	evidence := checkpoint.ProofEvidence["primary"]
-	if len(evidence.Artifacts) == 0 {
-		t.Fatal("proof evidence has no artifacts")
-	}
-	if err := os.WriteFile(filepath.Join(logsRoot, filepath.FromSlash(evidence.Artifacts[0].StoredPath)), []byte("changed\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	resumed, err := ResumeRunner(pipeline, NewRegistry(), RunnerConfig{
-		LogsRoot: logsRoot,
-		Workdir:  workdir,
-		Validate: func(graph.Graph) error { return nil },
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	result, err = resumed.Run()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Status != RunFailed || !strings.Contains(result.FailureReason, "missing or changed evidence artifact") {
-		t.Fatalf("resume result = %#v", result)
 	}
 }
 

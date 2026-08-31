@@ -189,10 +189,11 @@ proof_contract:
 
 Only an independently executed current-run tool's exit-zero route can prove a
 delivery case. Tractor records the run, route, execution reference, and hashes
-of declared input/output snapshots plus engine execution artifacts. Nonzero
-exits keep their normal `on_error` fix routing. A delivery route to `success`
-remains non-terminal until every case passes; material `scope_gaps` also block
-it. Declared status or authored JSON is never sufficient by itself.
+of the case and bound assertion declarations, declared input/output snapshots,
+and engine execution artifacts. Nonzero exits keep their normal `on_error` fix
+routing. A delivery route to `success` remains non-terminal until every case
+passes; material `scope_gaps` also block it. Declared status or authored JSON
+is never sufficient by itself.
 
 Use top-level `mode: discovery` when certainty is not available yet. Its proof
 contract is optional; when one is present it may use explicit `simulated`,

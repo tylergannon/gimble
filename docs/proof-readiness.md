@@ -61,8 +61,12 @@ domain architecture. Each relative workspace path has a role (`input`,
 captures inputs before the assertion, captures outputs and observations after
 it, copies them into engine-owned run evidence, and records SHA-256 digests.
 The checkpoint evidence also records the run ID, case and node IDs, successful
-graph edge, evidence mode, execution reference, and hashes of `outcome.json`
-and `tool.log`. Terminal resume verifies those stored artifacts again.
+graph edge, execution reference, a digest of the complete case and bound tool
+declarations, ordered snapshot digests, and hashes of `outcome.json` and
+`tool.log`. Roles, architecture edges, capture timing, and snapshot locations
+are derived from the digested contract instead of repeated in the checkpoint.
+Terminal resume reconstructs those locations and verifies every stored
+artifact again.
 
 See [`examples/proof-readiness/required-happy-path.yaml`](../examples/proof-readiness/required-happy-path.yaml)
 for a complete generic contract. A speech-transcription product could declare
