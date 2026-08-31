@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/tylergannon/tractor/graph"
 )
 
 const (
@@ -268,7 +269,7 @@ func runDetachedMCPRun(command *cobra.Command, store *mcpRunStore, runID string)
 			record.FinishedAt = &finishedAt
 			record.ExitCode = &exitCode
 			shouldRun = false
-		case "COMPLETED", "FAILED", "STOPPED":
+		case "COMPLETED", "LEARNING_COMPLETED", "FAILED", "STOPPED":
 			shouldRun = false
 		default:
 			return fmt.Errorf("run %s has unknown status %q", record.ID, record.Status)
@@ -282,6 +283,10 @@ func runDetachedMCPRun(command *cobra.Command, store *mcpRunStore, runID string)
 		return nil
 	}
 	pipeline, _, loadErr := loadPipeline([]string{record.Pipeline}, "", false, "", false)
+	terminalStatus := "COMPLETED"
+	if loadErr == nil && pipeline.Mode.Present && pipeline.Mode.Value == graph.WorkflowModeDiscovery {
+		terminalStatus = "LEARNING_COMPLETED"
+	}
 	runErr := loadErr
 	if runErr == nil {
 		runErr = runPipeline(command, *pipeline, record.Workdir, record.LogsRoot, record.Resume)
@@ -299,7 +304,7 @@ func runDetachedMCPRun(command *cobra.Command, store *mcpRunStore, runID string)
 			record.Status = "FAILED"
 			exitCode = 1
 		default:
-			record.Status = "COMPLETED"
+			record.Status = terminalStatus
 		}
 		record.ExitCode = &exitCode
 		if runErr != nil {

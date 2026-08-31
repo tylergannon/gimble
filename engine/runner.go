@@ -116,8 +116,9 @@ type RunnerConfig struct {
 type RunStatus string
 
 const (
-	RunCompleted RunStatus = "COMPLETED"
-	RunFailed    RunStatus = "FAILED"
+	RunCompleted         RunStatus = "COMPLETED"
+	RunLearningCompleted RunStatus = "LEARNING_COMPLETED"
+	RunFailed            RunStatus = "FAILED"
 )
 
 // RunResult is the run-level verdict.
@@ -255,7 +256,7 @@ func (r *Runner) Run() (RunResult, error) {
 			if reason := r.incompleteProofReason(state, r.persistedRunID()); reason != "" {
 				return failed(reason), nil
 			}
-			return RunResult{Status: RunCompleted}, nil
+			return r.successResult(), nil
 		}
 		currentID = r.resumeCheckpoint.NextNode
 		r.lastCheckpoint = *r.resumeCheckpoint
@@ -313,7 +314,11 @@ func (r *Runner) Run() (RunResult, error) {
 		}
 		return result, nil
 	}
-	if err := store.appendTimeline(timelineEvent{"type": "PipelineCompleted", "duration": duration}); err != nil {
+	eventType := "PipelineCompleted"
+	if result.Status == RunLearningCompleted {
+		eventType = "PipelineLearningCompleted"
+	}
+	if err := store.appendTimeline(timelineEvent{"type": eventType, "duration": duration}); err != nil {
 		return RunResult{}, err
 	}
 	return result, nil
@@ -369,7 +374,7 @@ func (r *Runner) walk(state *engineState, store *runStore, currentID, runID stri
 			if execution.nextID == graph.Failure {
 				return failed(truncate(execution.outcome.Notes, 200)), nil
 			}
-			return RunResult{Status: RunCompleted}, nil
+			return r.successResult(), nil
 		}
 		currentID = execution.nextID
 	}
@@ -435,13 +440,13 @@ func (r *Runner) recordProofPass(
 }
 
 func (r *Runner) incompleteProofReason(state *engineState, runID string) string {
+	if r.workflowMode() == graph.WorkflowModeDiscovery {
+		return ""
+	}
 	if !r.graph.ProofContract.Present {
 		return ""
 	}
 	contract := r.graph.ProofContract.Value
-	if contract.Mode == graph.ProofContractDiscovery {
-		return "discovery mode cannot reach terminal product success"
-	}
 	if len(contract.ScopeGaps) > 0 {
 		gap := contract.ScopeGaps[0]
 		return fmt.Sprintf("scope gap for promise %q: %s", gap.PromiseID, gap.MissingCapability)
@@ -466,6 +471,20 @@ func (r *Runner) incompleteProofReason(state *engineState, runID string) string 
 		}
 	}
 	return ""
+}
+
+func (r *Runner) workflowMode() graph.WorkflowMode {
+	if r.graph.Mode.Present {
+		return r.graph.Mode.Value
+	}
+	return graph.WorkflowModeDelivery
+}
+
+func (r *Runner) successResult() RunResult {
+	if r.workflowMode() == graph.WorkflowModeDiscovery {
+		return RunResult{Status: RunLearningCompleted}
+	}
+	return RunResult{Status: RunCompleted}
 }
 
 func (r *Runner) prepareProofInputs(node graph.Node) ([]preparedProofInput, error) {

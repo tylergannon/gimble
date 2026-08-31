@@ -21,10 +21,16 @@ type Graph struct {
 	// Goal is the pipeline objective exposed to prompt expansion.
 	Goal string `json:"goal,omitzero"`
 
+	// Mode declares whether the workflow promises delivery proof or discovery
+	// learning. Absence preserves legacy completion semantics.
+	Mode jsonschema.Optional[WorkflowMode] `json:"mode,omitzero"`
+
 	// Defaults contains file-level defaults for node fields.
 	Defaults Defaults `json:"defaults,omitzero"`
 
-	// ProofContract declares the evidence that must execute before success.
+	// ProofContract declares the evidence required before delivery success.
+	// A discovery contract records learning commitments without changing its
+	// terminal status into a delivery claim.
 	ProofContract jsonschema.Optional[ProofContract] `json:"proof_contract,omitzero"`
 
 	// Start names the walk node where execution begins.
@@ -34,10 +40,17 @@ type Graph struct {
 	Nodes []Node `json:"nodes"`
 }
 
+// WorkflowMode declares the meaning of a successful terminal route.
+type WorkflowMode string
+
+const (
+	WorkflowModeDelivery  WorkflowMode = "delivery"
+	WorkflowModeDiscovery WorkflowMode = "discovery"
+)
+
 // ProofContract declares product-specific proof without asking Tractor to
 // infer product truth from fixture names, node names, or prose.
 type ProofContract struct {
-	Mode                 ProofContractMode    `json:"mode"`
 	IntendedArchitecture string               `json:"intended_architecture"`
 	PrimaryOutcome       string               `json:"primary_outcome"`
 	PrimaryCases         []ProofCase          `json:"primary_cases"`
@@ -64,15 +77,6 @@ type ProofCase struct {
 	RequiredCapabilities    []string                   `json:"required_capabilities"`
 	EvidenceArtifacts       []ProofArtifactRequirement `json:"evidence_artifacts"`
 }
-
-// ProofContractMode distinguishes delivery proof from an explicit discovery
-// prototype, which may run but cannot produce terminal product success.
-type ProofContractMode string
-
-const (
-	ProofContractDelivery  ProofContractMode = "delivery"
-	ProofContractDiscovery ProofContractMode = "discovery"
-)
 
 // ProofOracle identifies the independent assertion mechanism for a case.
 type ProofOracle string
@@ -160,7 +164,7 @@ type ProofScopeGap struct {
 	DecisionRequired      bool   `json:"decision_required"`
 }
 
-// ProofTerminalSuccess explicitly names every case required for success.
+// ProofTerminalSuccess explicitly names every case required for delivery.
 type ProofTerminalSuccess struct {
 	RequiredCases []string `json:"required_cases"`
 }

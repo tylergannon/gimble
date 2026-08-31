@@ -71,6 +71,7 @@ func (a *analysis) builtInDiagnostics() []Diagnostic {
 		a.fidelityValid,
 		a.threadIDCollision,
 		a.threadHarnessConsistent,
+		a.workflowMode,
 		a.proofContract,
 		a.fanInMaxVisits,
 		a.branchRootMaxVisits,

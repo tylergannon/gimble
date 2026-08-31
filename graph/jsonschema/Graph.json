@@ -38,6 +38,14 @@
       "description": "Goal is the pipeline objective exposed to prompt expansion.",
       "type": "string"
     },
+    "mode": {
+      "description": "Mode declares whether the workflow promises delivery proof or discovery learning. Absence preserves legacy completion semantics.",
+      "enum": [
+        "delivery",
+        "discovery"
+      ],
+      "type": "string"
+    },
     "name": {
       "description": "Name is the pipeline's display name.",
       "type": "string"
@@ -499,7 +507,7 @@
     },
     "proof_contract": {
       "additionalProperties": false,
-      "description": "ProofContract declares the evidence that must execute before success.",
+      "description": "ProofContract declares the evidence required before delivery success. A discovery contract records learning commitments without changing its terminal status into a delivery claim.",
       "properties": {
         "boundary_cases": {
           "items": {
@@ -640,14 +648,6 @@
         },
         "intended_architecture": {
           "minLength": 1,
-          "type": "string"
-        },
-        "mode": {
-          "description": "ProofContractMode distinguishes delivery proof from an explicit discovery prototype, which may run but cannot produce terminal product success.",
-          "enum": [
-            "delivery",
-            "discovery"
-          ],
           "type": "string"
         },
         "primary_cases": {
@@ -869,7 +869,7 @@
         },
         "terminal_success": {
           "additionalProperties": false,
-          "description": "ProofTerminalSuccess explicitly names every case required for success.",
+          "description": "ProofTerminalSuccess explicitly names every case required for delivery.",
           "properties": {
             "required_cases": {
               "items": {
@@ -893,7 +893,6 @@
         }
       },
       "required": [
-        "mode",
         "intended_architecture",
         "primary_outcome",
         "primary_cases",

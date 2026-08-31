@@ -136,7 +136,7 @@ func newTractorMCPServer() (*server.MCPServer, *tractorMCPServer, error) {
 	mcpServer := server.NewMCPServer(
 		"tractor",
 		tractorMCPVersion,
-		server.WithInstructions("Use Tractor when work should fan out across several models or approaches, be cross-checked by another model, pass a deterministic verification gate, or keep running after this session ends. Start from a copy-and-run example (examples/loops/ in the Tractor repo; also bundled with the tractor skill) — no pipeline authoring needed. Pipeline definitions are files: start_run lints the graph first and refuses to launch a broken one, and the returned run_id drives later operations. Runs are detached processes that survive this stdio session and can be inspected, steered, or stopped after reconnecting."),
+		server.WithInstructions("Use Tractor when work should fan out across several models or approaches, be cross-checked by another model, pass a deterministic verification gate, or keep running after this session ends. Start from a copy-and-run example (examples/loops/ in the Tractor repo; also bundled with the tractor skill) — no pipeline authoring needed. New pipelines declare mode: delivery with a proof_contract, or mode: discovery for contract-light learning that ends as LEARNING_COMPLETED rather than product success. Pipeline definitions are files: start_run lints the graph first and refuses to launch a broken one, and the returned run_id drives later operations. Runs are detached processes that survive this stdio session and can be inspected, steered, or stopped after reconnecting."),
 		server.WithToolCapabilities(false),
 		server.WithInputSchemaValidation(),
 		server.WithOutputSchemaValidation(),
@@ -152,14 +152,14 @@ func newTractorMCPServer() (*server.MCPServer, *tractorMCPServer, error) {
 	}))
 
 	mcpServer.AddTool(mcp.NewTool("start_run",
-		mcp.WithDescription("Lint and start (or resume) a Tractor pipeline asynchronously and return a run ID immediately; a graph that fails validation is rejected instead of started, with teaching diagnostics. Make sure the graph ends in a check that fails when the goal is not demonstrated. The run outlives this session; report the run_id to the user."),
+		mcp.WithDescription("Lint and start (or resume) a Tractor pipeline asynchronously and return a run ID immediately; a graph that fails validation is rejected instead of started, with teaching diagnostics. New delivery graphs require proof_contract; discovery graphs may be contract-light and terminate as LEARNING_COMPLETED. Make sure a delivery graph ends in a check that fails when its promise is not demonstrated. The run outlives this session; report the run_id to the user."),
 		mcp.WithInputSchema[startRunInput](), mcp.WithOutputSchema[startRunOutput](),
 		mcp.WithDeferLoading(true), mcp.WithTitleAnnotation("Start Tractor run"),
 		mcp.WithDestructiveHintAnnotation(true), mcp.WithOpenWorldHintAnnotation(false),
 	), mcp.NewStructuredToolHandler(state.startRun))
 
 	mcpServer.AddTool(mcp.NewTool("get_run_status",
-		mcp.WithDescription("Read process and checkpoint status for an MCP-started Tractor run, including after reconnecting. current_node, last_stage, and last_response read as a progress update you can relay to the user verbatim."),
+		mcp.WithDescription("Read process and checkpoint status for an MCP-started Tractor run, including after reconnecting. COMPLETED means delivery or legacy success; LEARNING_COMPLETED means a discovery run ended without claiming product success. current_node, last_stage, and last_response read as a progress update you can relay to the user verbatim."),
 		mcp.WithInputSchema[runIDInput](), mcp.WithOutputSchema[runStatusOutput](),
 		mcp.WithDeferLoading(true), mcp.WithTitleAnnotation("Get Tractor run status"),
 		mcp.WithReadOnlyHintAnnotation(true), mcp.WithDestructiveHintAnnotation(false), mcp.WithOpenWorldHintAnnotation(false),
@@ -422,7 +422,7 @@ func requestRunStop(store *mcpRunStore, run mcpRunRecord) (string, error) {
 		})
 		return run.Status, err
 	case "STARTING", "RUNNING":
-	case "COMPLETED", "FAILED", "STOPPED":
+	case "COMPLETED", "LEARNING_COMPLETED", "FAILED", "STOPPED":
 		return run.Status, nil
 	default:
 		return "", fmt.Errorf("run has unknown status %q", run.Status)

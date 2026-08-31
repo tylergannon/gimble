@@ -6,9 +6,9 @@ import (
 )
 
 const completeProofContractDocument = `{
+  "mode":"delivery",
   "start":"primary_assertion",
   "proof_contract":{
-    "mode":"delivery",
     "intended_architecture":"Input crosses the operating boundary and produces a user-visible result.",
     "primary_outcome":"Representative input produces an observable result.",
     "primary_cases":[{

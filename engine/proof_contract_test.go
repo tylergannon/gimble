@@ -16,9 +16,9 @@ import (
 func TestProofContractRequiresPrimaryAndBoundaryToolExecutions(t *testing.T) {
 	t.Run("boundary-only evidence cannot complete", func(t *testing.T) {
 		pipeline := parseProofPipeline(t, `
+mode: delivery
 start: silence_boundary
 proof_contract:
-  mode: delivery
   intended_architecture: Input crosses the operating boundary and produces a user-visible result.
   primary_outcome: Representative input produces the expected observable result.
   primary_cases:
@@ -80,9 +80,9 @@ nodes:
 
 	t.Run("independent primary and boundary assertions complete", func(t *testing.T) {
 		pipeline := parseProofPipeline(t, `
+mode: delivery
 start: primary_assertion
 proof_contract:
-  mode: delivery
   intended_architecture: Input crosses the operating boundary and produces a user-visible result.
   primary_outcome: Representative input produces the expected observable result.
   primary_cases:
@@ -163,11 +163,67 @@ nodes:
 	}
 }
 
+func TestExplicitDiscoveryCompletesLearningWithoutClaimingDelivery(t *testing.T) {
+	pipeline := parseProofPipeline(t, `
+mode: discovery
+start: explore
+nodes:
+  - id: explore
+    type: tool
+    tool_command: "true"
+    on_success: success
+`)
+	workdir := t.TempDir()
+	logsRoot := t.TempDir()
+	runner, err := NewRunner(pipeline, NewRegistry(), RunnerConfig{
+		LogsRoot: logsRoot,
+		Workdir:  workdir,
+		Validate: func(graph.Graph) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := runner.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunLearningCompleted || result.FailureReason != "" {
+		t.Fatalf("result = %#v", result)
+	}
+	events, err := readTimeline(filepath.Join(logsRoot, "timeline.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := events[len(events)-1]["type"]; got != "PipelineLearningCompleted" {
+		t.Fatalf("last timeline event = %v", got)
+	}
+	checkpoint := mustCheckpoint(t, logsRoot)
+	if checkpoint.NextNode != graph.Success {
+		t.Fatalf("checkpoint = %#v", checkpoint)
+	}
+
+	resumed, err := ResumeRunner(pipeline, NewRegistry(), RunnerConfig{
+		LogsRoot: logsRoot,
+		Workdir:  workdir,
+		Validate: func(graph.Graph) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err = resumed.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunLearningCompleted {
+		t.Fatalf("resumed result = %#v", result)
+	}
+}
+
 func TestFailedProofAssertionRoutesToFixBeforeItCanPass(t *testing.T) {
 	pipeline := parseProofPipeline(t, `
+mode: delivery
 start: primary_assertion
 proof_contract:
-  mode: delivery
   intended_architecture: A repair step establishes the capability before the assertion passes.
   primary_outcome: The repaired workspace exposes the required marker.
   primary_cases:
@@ -214,9 +270,9 @@ nodes:
 
 func TestCompletedNodeRecordCannotSubstituteForProofExecution(t *testing.T) {
 	pipeline := parseProofPipeline(t, `
+mode: delivery
 start: primary_assertion
 proof_contract:
-  mode: delivery
   intended_architecture: Input reaches a deterministic assertion at the product boundary.
   primary_outcome: Representative input produces the expected observable result.
   primary_cases:
@@ -277,7 +333,7 @@ nodes:
 }
 
 func TestSelfAuthoredProofRecordCannotSubstituteForEngineEvidence(t *testing.T) {
-	pipeline := singlePromiseGraph(graph.ProofContractDelivery)
+	pipeline := singlePromiseGraph(graph.WorkflowModeDelivery)
 	root := t.TempDir()
 	runID := "self-authored-run"
 	store, err := openRunStore(root, newEngineState())
@@ -319,18 +375,18 @@ func TestSelfAuthoredProofRecordCannotSubstituteForEngineEvidence(t *testing.T) 
 	}
 }
 
-func TestDiscoveryAndScopeGapsCannotBecomeTerminalProductSuccess(t *testing.T) {
+func TestDiscoveryLearningAndDeliveryScopeGapSemantics(t *testing.T) {
 	t.Run("discovery prototype", func(t *testing.T) {
-		pipeline := singlePromiseGraph(graph.ProofContractDiscovery)
+		pipeline := singlePromiseGraph(graph.WorkflowModeDiscovery)
 		pipeline.ProofContract.Value.PrimaryCases[0].Status = graph.ProofStatusSimulated
 		result, _ := runProofPipeline(t, pipeline, func(string) {})
-		if result.Status != RunFailed || !strings.Contains(result.FailureReason, "discovery mode cannot reach terminal product success") {
+		if result.Status != RunLearningCompleted || result.FailureReason != "" {
 			t.Fatalf("result = %#v", result)
 		}
 	})
 
 	t.Run("structured material gap", func(t *testing.T) {
-		pipeline := singlePromiseGraph(graph.ProofContractDelivery)
+		pipeline := singlePromiseGraph(graph.WorkflowModeDelivery)
 		pipeline.ProofContract.Value.ScopeGaps = []graph.ProofScopeGap{{
 			PromiseID: "primary", OriginalPromise: "A user observes the expected value.",
 			CurrentProvenBehavior: "Only setup is available.", MissingCapability: "The primary operating behavior.",
@@ -344,7 +400,7 @@ func TestDiscoveryAndScopeGapsCannotBecomeTerminalProductSuccess(t *testing.T) {
 }
 
 func TestProofEvidenceCarriesSameRunArtifactAndEdgeProvenance(t *testing.T) {
-	pipeline := singlePromiseGraph(graph.ProofContractDelivery)
+	pipeline := singlePromiseGraph(graph.WorkflowModeDelivery)
 	pipeline.Nodes[0].(*graph.ToolNode).ToolCommand = `observed=$(cat input.txt); test "$observed" = expected; printf '%s\n' "$observed" > output.txt`
 	pipeline.ProofContract.Value.PrimaryCases[0].EvidenceArtifacts = []graph.ProofArtifactRequirement{
 		{Path: "input.txt", Role: graph.ProofArtifactInput, ArchitectureEdge: "caller_to_product"},
@@ -408,7 +464,7 @@ func TestProofEvidenceCarriesSameRunArtifactAndEdgeProvenance(t *testing.T) {
 }
 
 func TestChangedProofSnapshotInvalidatesTerminalResume(t *testing.T) {
-	pipeline := singlePromiseGraph(graph.ProofContractDelivery)
+	pipeline := singlePromiseGraph(graph.WorkflowModeDelivery)
 	pipeline.ProofContract.Value.PrimaryCases[0].EvidenceArtifacts = []graph.ProofArtifactRequirement{
 		{Path: "input.txt", Role: graph.ProofArtifactInput, ArchitectureEdge: "caller_to_product"},
 	}
@@ -452,12 +508,12 @@ func TestChangedProofSnapshotInvalidatesTerminalResume(t *testing.T) {
 	}
 }
 
-func singlePromiseGraph(mode graph.ProofContractMode) graph.Graph {
+func singlePromiseGraph(mode graph.WorkflowMode) graph.Graph {
 	return graph.Graph{
-		Start: "primary_assertion",
+		Mode: optional(mode), Start: "primary_assertion",
 		ProofContract: optional(graph.ProofContract{
-			Mode: mode, IntendedArchitecture: "Input crosses a deterministic assertion and produces a user-visible result.",
-			PrimaryOutcome: "A qualifying input produces the expected value.",
+			IntendedArchitecture: "Input crosses a deterministic assertion and produces a user-visible result.",
+			PrimaryOutcome:       "A qualifying input produces the expected value.",
 			PrimaryCases: []graph.ProofCase{{
 				ID: "primary", Actor: "A user", Job: "Submit qualifying input and observe the expected value.",
 				Node: "primary_assertion", QualifyingInputCriteria: "Input meets the declared product criteria.",

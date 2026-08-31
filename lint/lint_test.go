@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	jsonschema "github.com/tylergannon/go-gen-jsonschema"
@@ -86,6 +87,11 @@ func TestEveryBuiltInRule(t *testing.T) {
 		{"fidelity_valid", lint.SeverityError, func() graph.Graph { g := validLinear(); coder(g, "work").Fidelity = set("summary"); return g }, lint.Options{}},
 		{"thread_id_collision", lint.SeverityError, func() graph.Graph { g := validLinear(); coder(g, "work").ThreadID = set("work"); return g }, lint.Options{}},
 		{"thread_harness_consistent", lint.SeverityError, sharedThreadLinear, lint.Options{ResolveHarness: func(provider, _ string) (string, error) { return provider, nil }}},
+		{"workflow_mode", lint.SeverityError, func() graph.Graph {
+			g := validLinear()
+			g.Mode = set(graph.WorkflowModeDelivery)
+			return g
+		}, lint.Options{}},
 		{"proof_contract", lint.SeverityError, func() graph.Graph {
 			g := validProofGraph()
 			g.ProofContract.Value.PrimaryCases = nil
@@ -111,8 +117,8 @@ func TestEveryBuiltInRule(t *testing.T) {
 			}
 		})
 	}
-	if len(tests) != 28 {
-		t.Fatalf("covered %d built-in rules, want 28", len(tests))
+	if len(tests) != 29 {
+		t.Fatalf("covered %d built-in rules, want 29", len(tests))
 	}
 }
 
@@ -191,6 +197,31 @@ func TestProofContractValidationDetails(t *testing.T) {
 	}
 }
 
+func TestExplicitWorkflowModeValidation(t *testing.T) {
+	t.Run("delivery requires a proof contract", func(t *testing.T) {
+		g := validLinear()
+		g.Mode = set(graph.WorkflowModeDelivery)
+		diagnostic, ok := findDiagnostic(lint.Validate(g), "workflow_mode")
+		if !ok || !strings.Contains(diagnostic.Message, "delivery mode requires proof_contract") {
+			t.Fatalf("diagnostics = %#v", lint.Validate(g))
+		}
+	})
+
+	t.Run("discovery may remain contract-light", func(t *testing.T) {
+		g := validLinear()
+		g.Mode = set(graph.WorkflowModeDiscovery)
+		if diagnostics := lint.Validate(g); lint.HasErrors(diagnostics) {
+			t.Fatalf("diagnostics = %#v", diagnostics)
+		}
+	})
+
+	t.Run("legacy omission remains compatible", func(t *testing.T) {
+		if diagnostics := lint.Validate(validLinear()); lint.HasErrors(diagnostics) {
+			t.Fatalf("diagnostics = %#v", diagnostics)
+		}
+	})
+}
+
 func TestProofContractRejectsAdvisoryOracleRoute(t *testing.T) {
 	g := validProofGraph()
 	tool := g.Nodes[0].(*graph.ToolNode)
@@ -202,12 +233,12 @@ func TestProofContractRejectsAdvisoryOracleRoute(t *testing.T) {
 
 func TestProofContractRejectsParallelBranchOracle(t *testing.T) {
 	g := graph.Graph{
-		Start: "fanout",
+		Mode: set(graph.WorkflowModeDelivery), Start: "fanout",
 		ProofContract: set(graph.ProofContract{
-			Mode: graph.ProofContractDelivery, IntendedArchitecture: "A branch produces a result before fan-in.",
-			PrimaryOutcome: "A parallel branch produces the expected result.",
-			PrimaryCases:   []graph.ProofCase{proofCase("branch_assertion", "left")},
-			BoundaryCases:  []graph.ProofCase{}, Unknowns: []string{},
+			IntendedArchitecture: "A branch produces a result before fan-in.",
+			PrimaryOutcome:       "A parallel branch produces the expected result.",
+			PrimaryCases:         []graph.ProofCase{proofCase("branch_assertion", "left")},
+			BoundaryCases:        []graph.ProofCase{}, Unknowns: []string{},
 			TerminalSuccess: graph.ProofTerminalSuccess{RequiredCases: []string{"branch_assertion"}},
 		}),
 		Nodes: []graph.Node{
@@ -224,7 +255,7 @@ func TestProofContractRejectsParallelBranchOracle(t *testing.T) {
 
 func TestDiscoveryContractMayDeclareManualEvidenceButCannotPretendItIsIndependent(t *testing.T) {
 	g := validProofGraph()
-	g.ProofContract.Value.Mode = graph.ProofContractDiscovery
+	g.Mode = set(graph.WorkflowModeDiscovery)
 	manual := &g.ProofContract.Value.PrimaryCases[0]
 	manual.Node = ""
 	manual.CorrectnessOracle = graph.ProofOracleHumanAttestation
@@ -235,7 +266,7 @@ func TestDiscoveryContractMayDeclareManualEvidenceButCannotPretendItIsIndependen
 		t.Fatalf("discovery declaration rejected: %#v", finding)
 	}
 
-	g.ProofContract.Value.Mode = graph.ProofContractDelivery
+	g.Mode = set(graph.WorkflowModeDelivery)
 	if _, ok := findDiagnostic(lint.Validate(g), "proof_contract"); !ok {
 		t.Fatal("manual evidence was admitted for delivery success")
 	}
@@ -375,9 +406,8 @@ func validParallel() graph.Graph {
 
 func validProofGraph() graph.Graph {
 	return graph.Graph{
-		Start: "primary_assertion",
+		Mode: set(graph.WorkflowModeDelivery), Start: "primary_assertion",
 		ProofContract: set(graph.ProofContract{
-			Mode:                 graph.ProofContractDelivery,
 			IntendedArchitecture: "Input crosses the operating boundary and produces a user-visible result.",
 			PrimaryOutcome:       "Representative input produces an observable result.",
 			PrimaryCases:         []graph.ProofCase{proofCase("qualifying_input", "primary_assertion")},

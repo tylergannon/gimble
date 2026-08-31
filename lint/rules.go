@@ -562,9 +562,6 @@ func (a *analysis) proofContract() []Diagnostic {
 	add := func(message, nodeID string) {
 		diagnostics = append(diagnostics, diagnostic("proof_contract", SeverityError, message, nodeID))
 	}
-	if contract.Mode != graph.ProofContractDelivery && contract.Mode != graph.ProofContractDiscovery {
-		add(fmt.Sprintf("unsupported proof contract mode %q", contract.Mode), "")
-	}
 	if strings.TrimSpace(contract.IntendedArchitecture) == "" {
 		add("intended_architecture must be non-empty", "")
 	}
@@ -662,7 +659,7 @@ func (a *analysis) proofContract() []Diagnostic {
 		if !automated && !manual {
 			add(fmt.Sprintf("proof case %q has inconsistent oracle, evidence_source, and independence", current.ID), current.Node)
 		}
-		if contract.Mode == graph.ProofContractDelivery && !automated {
+		if a.resolvedWorkflowMode() == graph.WorkflowModeDelivery && !automated {
 			add(fmt.Sprintf("delivery proof case %q must use independent current-run tool evidence", current.ID), current.Node)
 		}
 		if automated {
@@ -740,6 +737,32 @@ func (a *analysis) proofContract() []Diagnostic {
 		}
 	}
 	return diagnostics
+}
+
+func (a *analysis) workflowMode() []Diagnostic {
+	if !a.graph.Mode.Present {
+		return nil
+	}
+	switch a.graph.Mode.Value {
+	case graph.WorkflowModeDelivery:
+		if !a.graph.ProofContract.Present {
+			return []Diagnostic{diagnostic("workflow_mode", SeverityError,
+				"delivery mode requires proof_contract", "")}
+		}
+	case graph.WorkflowModeDiscovery:
+		return nil
+	default:
+		return []Diagnostic{diagnostic("workflow_mode", SeverityError,
+			fmt.Sprintf("unsupported workflow mode %q", a.graph.Mode.Value), "")}
+	}
+	return nil
+}
+
+func (a *analysis) resolvedWorkflowMode() graph.WorkflowMode {
+	if a.graph.Mode.Present {
+		return a.graph.Mode.Value
+	}
+	return graph.WorkflowModeDelivery
 }
 
 func validProofStatus(status graph.ProofStatus) bool {

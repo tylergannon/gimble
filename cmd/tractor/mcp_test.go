@@ -161,6 +161,17 @@ func TestMCPStdioStartsAndObservesRealPipelineRun(t *testing.T) {
 	}
 }
 
+func TestMCPDiscoveryRunReportsLearningCompletion(t *testing.T) {
+	session, ctx := connectToTractorMCP(t)
+	pipeline := `{"mode":"discovery","start":"explore","nodes":[` +
+		`{"id":"explore","type":"tool","tool_command":"true","on_success":"success"}]}`
+	start := startMCPRun(t, ctx, session, pipeline)
+	status := waitForRunStatus(t, ctx, session, start.RunID)
+	if status.Status != "LEARNING_COMPLETED" || status.ExitCode == nil || *status.ExitCode != 0 || status.Failure != "" {
+		t.Fatalf("terminal status = %#v", status)
+	}
+}
+
 func TestMCPStdioSteersAndStopsRunningPipeline(t *testing.T) {
 	session, ctx := connectToTractorMCP(t)
 	start := startMCPRun(t, ctx, session, slowPipeline)

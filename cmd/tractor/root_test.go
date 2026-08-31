@@ -37,6 +37,21 @@ func TestRootExposesOnlyRequestedCommands(t *testing.T) {
 	}
 }
 
+func TestWorkflowModesAppearInCLIHelp(t *testing.T) {
+	for _, command := range []string{"validate", "run"} {
+		stdout, _, err := executeCommand(command, "--help")
+		if err != nil {
+			t.Fatal(err)
+		}
+		help := strings.ToLower(stdout)
+		for _, phrase := range []string{"delivery", "discovery", "legacy"} {
+			if !strings.Contains(help, phrase) {
+				t.Fatalf("%s help omits %q:\n%s", command, phrase, stdout)
+			}
+		}
+	}
+}
+
 func TestValidateRequiresExactlyOneExplicitPipelineSource(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "pipeline.json")
 	if err := os.WriteFile(file, []byte(linearPipeline), 0o644); err != nil {
@@ -102,6 +117,15 @@ func TestValidateReturnsLintFailure(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsExplicitDeliveryWithoutProofContract(t *testing.T) {
+	pipeline := `{"mode":"delivery","start":"check","nodes":[` +
+		`{"id":"check","type":"tool","tool_command":"true","on_success":"success"}]}`
+	_, _, err := executeCommand("validate", "--json", pipeline)
+	if err == nil || !strings.Contains(err.Error(), "delivery mode requires proof_contract") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestValidateSurfacesWarningsAndPreservesSuccessOutput(t *testing.T) {
 	pipeline := `{"start":"work","nodes":[` +
 		`{"id":"work","type":"codergen","edges":[{"to":"success"}]}]}`
@@ -154,6 +178,20 @@ func TestRunFreshThenResumeWithRealBackendWiring(t *testing.T) {
 	}
 	if stdout != "COMPLETED\n" {
 		t.Fatalf("resume stdout = %q", stdout)
+	}
+}
+
+func TestRunReportsLearningCompletionForDiscovery(t *testing.T) {
+	pipeline := `{"mode":"discovery","start":"explore","nodes":[` +
+		`{"id":"explore","type":"tool","tool_command":"true","on_success":"success"}]}`
+	stdout, _, err := executeCommand(
+		"run", "--json", pipeline, "--workdir", t.TempDir(), "--logs", filepath.Join(t.TempDir(), "run"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stdout != "LEARNING_COMPLETED\n" {
+		t.Fatalf("stdout = %q", stdout)
 	}
 }
 

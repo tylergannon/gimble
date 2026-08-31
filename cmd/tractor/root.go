@@ -42,6 +42,9 @@ func newValidateCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "validate [pipeline]",
 		Short: "Parse and validate a pipeline",
+		Long: "Parse and validate a pipeline. New pipelines declare mode: delivery " +
+			"with a proof_contract, or mode: discovery for contract-light learning " +
+			"that cannot report product success. Omitted mode preserves legacy behavior.",
 		RunE: func(command *cobra.Command, args []string) error {
 			pipeline, source, err := loadPipeline(
 				args,
@@ -72,6 +75,9 @@ func newRunCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "run [pipeline]",
 		Short: "Run a pipeline",
+		Long: "Run a pipeline. Delivery mode requires a proof_contract and reports " +
+			"COMPLETED only after its evidence gate passes. Discovery mode reports " +
+			"LEARNING_COMPLETED. Omitted mode preserves legacy behavior.",
 		RunE: func(command *cobra.Command, args []string) error {
 			pipeline, _, err := loadPipeline(
 				args,
@@ -223,11 +229,15 @@ func runPipeline(command *cobra.Command, pipeline graph.Graph, workdir, logsRoot
 	if err != nil {
 		return err
 	}
-	if result.Status != engine.RunCompleted {
+	switch result.Status {
+	case engine.RunCompleted, engine.RunLearningCompleted:
+		_, err = fmt.Fprintln(command.OutOrStdout(), result.Status)
+		return err
+	case engine.RunFailed:
 		return fmt.Errorf("pipeline failed: %s", result.FailureReason)
+	default:
+		return fmt.Errorf("pipeline returned unknown status %q", result.Status)
 	}
-	_, err = fmt.Fprintln(command.OutOrStdout(), result.Status)
-	return err
 }
 
 func absoluteDirectory(path string) (string, error) {
