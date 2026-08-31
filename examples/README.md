@@ -23,5 +23,8 @@ spend tokens on a substantial coding task.
   declares a primary promise, a boundary case, capabilities, and artifact
   provenance, then requires both independent current-run assertions before
   terminal success.
+- [`proof-readiness/discovery.yaml`](proof-readiness/discovery.yaml) preserves
+  a learning artifact without a delivery contract and terminates as
+  `LEARNING_COMPLETED`.
 
 Each directory documents the invocation and the observable success criteria.

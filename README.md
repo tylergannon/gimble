@@ -44,11 +44,11 @@ A loop is two nodes pointing at each other:
 The agent works. The command decides. Failure routes back. `max_visits` is
 the budget.
 
-When a passing check could prove less than the user promise, an optional
-`proof_contract` distinguishes intended architecture, current-run evidence,
-primary outcomes, and boundary conditions. Terminal success then requires
-same-run proof for every declared case; discovery, material scope gaps, and a
-boundary-only pass remain non-terminal.
+New pipelines declare their intent. `mode: delivery` requires a
+`proof_contract` and same-run evidence for every primary and boundary case.
+`mode: discovery` may remain contract-light and ends as
+`LEARNING_COMPLETED`, never product/user-outcome `COMPLETED`. Pipelines that
+omit mode retain legacy behavior for compatibility.
 
 ## Why
 
@@ -133,6 +133,7 @@ Copy one into a git repo, change the goal and the check, run it:
 | "Try a few approaches, keep the best" | [`bake-off.yaml`](examples/loops/bake-off.yaml) |
 | "Have another model check this" | [`critique-circle.yaml`](examples/loops/critique-circle.yaml) |
 | "Tie a user promise to current-run evidence" | [`required-happy-path.yaml`](examples/proof-readiness/required-happy-path.yaml) |
+| "Explore without claiming delivery" | [`discovery.yaml`](examples/proof-readiness/discovery.yaml) |
 | Live supervision, steering, parallel fan-out | [`examples/`](examples/README.md) |
 
 The [spec](docs/spec.md) is the sole normative definition of Tractor's

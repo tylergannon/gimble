@@ -75,14 +75,17 @@ observable proof of the user's claim — run the app, curl the endpoint, assert
 on the artifact. Tests and linters are worth requiring, but prove the claim
 only when they exercise that behavior.
 
-When a passing check could establish less than the user promise, use a
-top-level `proof_contract`: declare the actor/job, qualifying input, observable
-output, oracle, evidence source and surface, capabilities, unknowns, primary
-and boundary cases, and any material scope gaps. Bind delivery cases to
-distinct top-level tool nodes and require every case for terminal success.
-Tractor records same-run routes and fingerprinted artifact snapshots; it does
-not infer which fixture or expected output is product truth. Discovery and
-material gaps remain non-terminal.
+For a new pipeline, choose top-level intent explicitly. `mode: delivery`
+requires a `proof_contract`: declare the actor/job, qualifying input,
+observable output, oracle, evidence source and surface, capabilities,
+unknowns, primary and boundary cases, and material scope gaps. Bind delivery
+cases to distinct top-level tool nodes and require every case for terminal
+success. `mode: discovery` may remain contract-light and ends as
+`LEARNING_COMPLETED`, which must not be reported as delivered product
+behavior. Copied older examples without mode use legacy compatibility
+semantics. Tractor records same-run routes and fingerprinted artifact
+snapshots; it does not infer which fixture or expected output is product
+truth.
 
 ## While it runs
 

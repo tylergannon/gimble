@@ -1,0 +1,17 @@
+name: contract-light-discovery
+mode: discovery
+goal: Explore two implementation approaches and preserve the current findings without claiming delivery.
+start: explore
+
+nodes:
+  - id: explore
+    type: codergen
+    prompt: Compare two plausible approaches for $goal, then write concise findings and unresolved questions to DISCOVERY.md.
+    edges:
+      - to: check_learning
+
+  - id: check_learning
+    type: tool
+    tool_command: test -s DISCOVERY.md
+    on_success: success
+    on_error: explore

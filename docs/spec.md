@@ -152,15 +152,17 @@ that want richer authoring affordances are generated.
 | Field      | Type       | Required | Description |
 |------------|------------|----------|-------------|
 | `name`     | String     | no       | Display name for the pipeline (UI, telemetry). |
+| `mode`     | String     | no       | Workflow intent: `delivery` or `discovery`. Explicit delivery requires `proof_contract`; discovery reports learning completion rather than product success. Absence preserves legacy behavior. |
 | `goal`     | String     | no       | Human-readable goal. Exposed as `$goal` in prompt templates via `ExecutionScope.goal` (Section 4.1). |
 | `defaults` | Object     | no       | File-level node defaults (Section 2.7). |
-| `proof_contract` | Object | no     | Promise-to-Proof declaration and evidence required before terminal success (Section 2.3.1). |
+| `proof_contract` | Object | conditionally | Promise-to-Proof declaration and evidence required before delivery success. Required when `mode` is explicit `delivery`; optional for discovery and legacy workflows (Section 2.3.1). |
 | `start`    | String     | yes      | ID of the node the walk begins at. Must name a walk node in this file (lint `start_target`, Section 7.2). |
 | `nodes`    | Node array | yes      | The graph. |
 
 ### 2.3.1 Proof Contract
 
-`proof_contract` is optional. When present, it distinguishes intended
+`proof_contract` is required for an explicit delivery workflow and optional
+for discovery or legacy workflows. When present, it distinguishes intended
 architecture, current-run execution evidence, and terminal user outcome.
 Tractor validates and enforces the project declaration; it never infers
 product truth from a fixture name, test name, diagram, node ID, or agent
@@ -168,7 +170,6 @@ report.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `mode` | String | yes | `delivery` or `discovery`. Discovery may execute but cannot reach terminal product success. |
 | `intended_architecture` | String | yes | Non-empty prose, diagram source, or diagram reference describing the intended flow. It is context, not run evidence. |
 | `primary_outcome` | String | yes | Non-empty statement of the user-observable outcome the work exists to produce. |
 | `primary_cases` | ProofCase array | yes | One or more qualifying-input promise cases. |
@@ -199,9 +200,10 @@ Each `ProofCase` has these required fields:
 One tool node cannot prove two cases, because that would let a boundary
 execution stand in for a primary execution. An automated proof tool's
 `on_success` and `on_error` routes must differ so exit code zero remains an
-unambiguous oracle. Delivery cases require the coherent triple
+unambiguous oracle. Cases in a delivery workflow require the coherent triple
 `tool_exit_zero`, `current_run`, and `independent_execution`. The coherent
-manual triple is allowed only for discovery, which is always non-terminal.
+manual triple is allowed only for discovery, whose successful graph end is
+reported as learning completion rather than product success.
 Every declared case must appear in `terminal_success.required_cases`; an
 author who no longer considers a boundary relevant removes the case instead
 of leaving declared evidence optional.
@@ -647,8 +649,9 @@ FUNCTION run(graph, config):
             }
 
         -- Step 6: Enforce proof readiness, save checkpoint, then finish
-        IF next_id == "success" AND graph.proof_contract is set:
-            blocked = contract is discovery OR scope_gaps is non-empty
+        IF next_id == "success" AND workflow mode resolves to delivery AND
+           graph.proof_contract is set:
+            blocked = scope_gaps is non-empty
             invalid = first required case without same-run, matching-node,
                       matching-edge, verified artifact evidence
             IF blocked OR invalid is not NONE:
@@ -663,6 +666,8 @@ FUNCTION run(graph, config):
         save_checkpoint(create_checkpoint(state, node.id, next_id),
                         logs_root)
         IF next_id == "success":
+            IF graph.mode is explicit discovery:
+                RETURN RunResult(status=LEARNING_COMPLETED)
             RETURN RunResult(status=COMPLETED)
         IF next_id == "failure":
             -- deliberate, reasoned failure: the walk is complete and
@@ -672,8 +677,11 @@ FUNCTION run(graph, config):
         current_node = graph.nodes[next_id]
 ```
 
-`RunResult` is the run-level verdict: `COMPLETED` when the walk routes
-to `success`, `FAILED` with a reason otherwise. It is deliberately distinct from
+`RunResult` is the run-level verdict: explicit delivery and legacy workflows
+return `COMPLETED` when admitted at `success`; explicit discovery returns
+`LEARNING_COMPLETED`; errors and a deliberate `failure` route return `FAILED`
+with a reason. `LEARNING_COMPLETED` is terminal process success but not a
+product/user-outcome claim. The verdict is deliberately distinct from
 the node-level Outcome (Section 5.2), which carries no success vocabulary --
 a node's execution either produces an Outcome or an Error, and "how well it
 went" is expressed by where the chooser routed and what its notes say.
@@ -690,8 +698,9 @@ commonly a fix node, and creates no proof pass. Completed nodes, diagrams,
 agent reports, declared `status: proven`, and self-authored JSON records do not
 substitute for engine-owned current-run evidence. On resume from a final
 `success` checkpoint, the engine rechecks the run identity, contract mapping,
-and stored artifact hashes before returning `COMPLETED`. Discovery mode and
-non-empty material scope gaps are always non-terminal.
+and stored artifact hashes before returning `COMPLETED`. Non-empty material
+scope gaps block delivery. Discovery does not apply the delivery proof gate;
+it can finish only with the distinct `LEARNING_COMPLETED` status.
 
 Advance dispatches on the Outcome's `next`, never on the offered count alone:
 a handler that made a choice is always honored (a parallel node with a single
@@ -1823,9 +1832,10 @@ same budget arithmetic (Section 3.5). The initial checkpoint points at
 the node `start` names with empty state; the final checkpoint records
 the last executed node and, in `next_node`, the pseudo-target it
 routed to. A checkpoint whose `next_node` is a pseudo-target is final.
-Resuming `failure` is a no-op; resuming `success` rechecks any proof contract
-against the stored run ID, case/node/edge mapping, and artifact fingerprints
-before returning `COMPLETED`.
+Resuming `failure` is a no-op; resuming delivery `success` rechecks any proof
+contract against the stored run ID, case/node/edge mapping, and artifact
+fingerprints before returning `COMPLETED`. Resuming explicit discovery
+`success` returns `LEARNING_COMPLETED` without relabeling learning as delivery.
 
 **Resume.** Resume restores the checkpointed walk state and hands the
 `sessions` map to a freshly constructed backend -- no live turns
@@ -2024,7 +2034,8 @@ Severity:
 | `fidelity_valid`         | ERROR    | Fidelity mode values must be one of `full`, `compacted`, `none`, or a mode the active implementation defines (Section 5.4). An unsupported mode is rejected, never given accidental runtime semantics (Section 12.1). |
 | `thread_id_collision`    | ERROR    | An explicit `thread_id` must not equal any node ID -- implicit per-node threads and named shared threads are separate namespaces (Section 5.4). |
 | `thread_harness_consistent`| ERROR  | Nodes sharing a resolved thread key under session-reusing fidelity modes (`full`, `compacted`) must resolve to models that route to the same harness (Section 12.1). Thread keys resolve statically (Section 5.4), so this check is fully static. |
-| `proof_contract`          | ERROR   | A present proof contract must use a supported mode; state intended architecture and a primary outcome; declare at least one primary case; supply actor/job, qualifying-input criteria, expected output, status, coherent oracle/source/independence, valid capability references, and safe artifact paths/roles/architecture edges; use unique case IDs and distinct top-level tool nodes for automated cases; distinguish proof-tool success and error routes; contain no blank unknowns; reference valid primary promises from complete scope-gap records; and require every declared primary and boundary case for terminal success (Sections 2.3.1, 3.2). |
+| `workflow_mode`           | ERROR   | `mode`, when present, must be `delivery` or `discovery`; explicit delivery requires `proof_contract`. Absence is accepted only as the compatibility behavior specified in Section 2.3. |
+| `proof_contract`          | ERROR   | A present proof contract must state intended architecture and a primary outcome; declare at least one primary case; supply actor/job, qualifying-input criteria, expected output, status, mode-coherent oracle/source/independence, valid capability references, and safe artifact paths/roles/architecture edges; use unique case IDs and distinct top-level tool nodes for automated cases; distinguish proof-tool success and error routes; contain no blank unknowns; reference valid primary promises from complete scope-gap records; and require every declared primary and boundary case for terminal success (Sections 2.3.1, 3.2). |
 | `fan_in_max_visits`      | WARNING  | `max_visits` on a `parallel.fan_in` node does not bound the loop at the parallel node (the fan-in is reached via the parallel's `next`, not an offered set); it takes effect only inside branch walks, where an exhausted fan-in starves the branches' final offered sets and fails the run (Sections 3.2-3.4). Bound the loop at the parallel node or a downstream node. |
 | `branch_root_max_visits` | WARNING  | `max_visits` on a parallel branch root silently shrinks later fan-outs: an exhausted root is excluded from the branches the fan-out runs (Section 4.6). Bound the loop at the parallel node instead. |
 | `prompt_on_llm_nodes`    | WARNING  | A codergen node's `prompt` should be present and non-empty: absent, the turn runs on the node's label or ID alone (Section 4.3). |
@@ -2118,6 +2129,7 @@ The engine emits typed events during execution for UI, logging, and metrics inte
 **Pipeline lifecycle events:**
 - `PipelineStarted(name, id)` -- pipeline begins
 - `PipelineCompleted(duration)` -- pipeline completed
+- `PipelineLearningCompleted(duration)` -- discovery learning completed without a delivery claim
 - `PipelineFailed(error, duration)` -- pipeline failed
 
 **Stage lifecycle events:**
@@ -2163,12 +2175,15 @@ parallel convergence, and a 10+ node pipeline exercised end to end. The subsecti
 additional conformance evidence required at the adapter, backend, and
 supervision boundaries.
 
-When proof contracts are implemented, conformance also includes one
+When workflow modes and proof contracts are implemented, conformance also
+includes schema acceptance of both explicit modes; lint rejection of explicit
+delivery without a proof contract; one discovery run (fresh and resumed) that
+returns `LEARNING_COMPLETED`, never `COMPLETED`; one
 outside-in run where a boundary assertion passes but a required primary case
 has not executed and terminal success is refused; one run where independent
 primary and boundary tool assertions both pass and the run completes; schema
 or lint rejection of missing or ambiguous expected-output/oracle fields; and
-a compatibility run with no proof contract. Discovery mode and a material
+a compatibility run with no mode or proof contract. A material delivery
 scope-gap record must remain non-terminal. Evidence conformance includes a
 same-run ID, assertion edge, execution reference, and before/after artifact fingerprints; a
 changed snapshot, completed-node record, or authored `proven` JSON record

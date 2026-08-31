@@ -59,18 +59,29 @@ tractor run pipeline.yaml --workdir . --logs .tractor/runs/ship-a-fix
 
 ## The document shape
 
-Only `start` and `nodes` are required at the top level.
+Only `start` and `nodes` are structurally required at the top level. New
+pipelines should also declare `mode`; explicit delivery mode makes
+`proof_contract` semantically required by lint.
 
-| Field            | What it does                                                            |
-| ---------------- | ----------------------------------------------------------------------- |
-| `name`           | Gives the pipeline a display name.                                      |
-| `goal`           | Defines the objective and becomes `$goal` inside prompts.               |
-| `defaults`       | Supplies shared model, retry, fidelity, and timeout settings.           |
-| `proof_contract` | Optionally declares primary and boundary evidence required for success. |
-| `start`          | Names the first walk node.                                              |
-| `nodes`          | Holds the flat, typed graph.                                            |
+| Field            | What it does                                                           |
+| ---------------- | ---------------------------------------------------------------------- |
+| `name`           | Gives the pipeline a display name.                                     |
+| `mode`           | Declares `delivery` or `discovery`; absence preserves legacy behavior. |
+| `goal`           | Defines the objective and becomes `$goal` inside prompts.              |
+| `defaults`       | Supplies shared model, retry, fidelity, and timeout settings.          |
+| `proof_contract` | Required by delivery; optional for contract-light discovery.           |
+| `start`          | Names the first walk node.                                             |
+| `nodes`          | Holds the flat, typed graph.                                           |
 
 JSON is canonical and strictly validated. YAML is an authoring convenience that decodes through the same generated schema, so it supports comments and multiline strings without creating a second graph language.
+
+Use `mode: delivery` when the workflow promises a product or user outcome;
+validation then rejects a missing proof contract, and runtime reports
+`COMPLETED` only after the declared evidence gate passes. Use
+`mode: discovery` for feasibility work or unknown reduction. Discovery may
+omit the contract, but its successful terminal route is reported as
+`LEARNING_COMPLETED`, not product success. Mode omission exists only to keep
+older pipelines compatible.
 
 Node IDs must match `[A-Za-z_][A-Za-z0-9_]*`. `success` and `failure` are reserved terminal targets; you do not declare nodes for them. Unknown fields and `null` values are rejected.
 
@@ -129,8 +140,8 @@ evidence and binds each primary or boundary case to a distinct top-level tool
 assertion.
 
 ```yaml
+mode: delivery
 proof_contract:
-  mode: delivery
   intended_architecture: Caller input -> product -> value visible to the user.
   primary_outcome: A qualifying input produces the expected visible value.
   primary_cases:
@@ -179,17 +190,23 @@ proof_contract:
 Only an independently executed current-run tool's exit-zero route can prove a
 delivery case. Tractor records the run, route, execution reference, and hashes
 of declared input/output snapshots plus engine execution artifacts. Nonzero
-exits keep their normal `on_error` fix routing. A route to `success` remains
-non-terminal until every case passes; discovery mode and material `scope_gaps`
-also block it.
-Declared status or authored JSON is never sufficient by itself.
+exits keep their normal `on_error` fix routing. A delivery route to `success`
+remains non-terminal until every case passes; material `scope_gaps` also block
+it. Declared status or authored JSON is never sufficient by itself.
 
-Use `mode: discovery` with explicit `simulated`, `partial`, `blocked`, or
-`unproven` status when certainty is not available yet. Manual human
-attestation can be labeled in discovery, but discovery cannot become terminal
-product success. Tractor enforces the declaration and provenance; the author
-remains responsible for choosing a truly qualifying fixture and an oracle
-that reaches the claimed surface.
+Use top-level `mode: discovery` when certainty is not available yet. Its proof
+contract is optional; when one is present it may use explicit `simulated`,
+`partial`, `blocked`, or `unproven` status and labeled human attestation. A
+successful discovery run reports `LEARNING_COMPLETED`, never delivered
+`COMPLETED`. Tractor validates any present contract and records provenance for
+executed automated cases, but discovery coverage does not become a delivery
+gate. The author remains responsible for choosing a truly qualifying fixture
+and an oracle that reaches the claimed surface.
+
+Mode omission is a compatibility path for existing pipelines: it preserves
+the previous `COMPLETED` behavior and does not require a contract. New and
+materially edited graphs should choose a mode explicitly. See the guide for
+the migration policy.
 
 The repository's [proof-readiness guide](https://github.com/tylergannon/tractor/blob/main/docs/proof-readiness.md)
 explains compatibility and limits, and the [required happy-path example](https://github.com/tylergannon/tractor/tree/main/examples/proof-readiness)

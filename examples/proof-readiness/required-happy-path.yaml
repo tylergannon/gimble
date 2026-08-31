@@ -1,9 +1,9 @@
 name: promise-to-proof
+mode: delivery
 goal: Create transform.sh so standard input is written to standard output in uppercase.
 start: prepare_evidence
 
 proof_contract:
-  mode: delivery
   intended_architecture: Caller input -> transform.sh -> standard output observed by the user.
   primary_outcome: A user submits qualifying text and observes its uppercase value.
   primary_cases:
