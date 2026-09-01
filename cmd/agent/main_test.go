@@ -24,18 +24,24 @@ func TestResolveSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fromCodex.provider != "anthropic" || fromCodex.model != "fable" || fromCodex.reasoningEffort != "medium" {
+	if fromCodex.provider != "anthropic" || fromCodex.model != "claude-fable-5-1" || fromCodex.reasoningEffort != "medium" {
 		t.Fatalf("Codex caller selection = %#v", fromCodex)
 	}
 
 	standalone, err := resolveSelection(callerNone, options{
-		provider: "openai", model: "gpt-explicit", reasoningEffort: "high",
+		provider: "anthropic", model: "fable-5.1", reasoningEffort: "high",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if standalone.model != "gpt-explicit" || standalone.reasoningEffort != "high" {
+	if standalone.model != "claude-fable-5-1" || standalone.reasoningEffort != "high" {
 		t.Fatalf("standalone selection = %#v", standalone)
+	}
+	raw, err := resolveSelection(callerNone, options{
+		provider: "openai", model: "gpt-explicit", reasoningEffort: "high",
+	})
+	if err != nil || raw.model != "gpt-explicit" {
+		t.Fatalf("raw selection = %#v, %v", raw, err)
 	}
 
 	if _, err := resolveSelection(callerNone, options{}); err == nil {
@@ -45,6 +51,11 @@ func TestResolveSelection(t *testing.T) {
 		provider: "unsupported", model: "model", reasoningEffort: "high",
 	}); err == nil {
 		t.Fatal("standalone selection accepted unsupported provider")
+	}
+	if _, err := resolveSelection(callerNone, options{
+		provider: "openai", model: "fable", reasoningEffort: "high",
+	}); err == nil {
+		t.Fatal("standalone selection accepted a provider that conflicts with a model alias")
 	}
 }
 

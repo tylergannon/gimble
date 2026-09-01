@@ -100,6 +100,27 @@ func TestSupervisorQuietScopeCostsNoTurn(t *testing.T) {
 	}
 }
 
+func TestSupervisorTurnResolvesFableAliasAndRejectsConflict(t *testing.T) {
+	service := &supervisionService{runner: &Runner{
+		graph:  graph.Graph{Defaults: graph.Defaults{LLMModel: optional("fable")}},
+		config: RunnerConfig{Workdir: "/workspace", DefaultReasoningEffort: "high"},
+	}}
+	node := &graph.SupervisorNode{NodeBase: graph.NodeBase{ID: "coach"}, Supervises: []string{"work"}}
+	turn, turnErr := service.supervisorTurn(node, "watch", "/logs/coach.jsonl")
+	if turnErr != nil {
+		t.Fatal(turnErr)
+	}
+	if turn.Provider != "anthropic" || turn.Model != "claude-fable-5-1" {
+		t.Fatalf("resolved supervisor turn = %#v", turn)
+	}
+
+	node.LLMProvider = optional("openai")
+	_, turnErr = service.supervisorTurn(node, "watch", "/logs/coach.jsonl")
+	if turnErr == nil || !strings.Contains(turnErr.Message, `provider "openai" conflicts with model alias "fable"`) {
+		t.Fatalf("conflict error = %#v", turnErr)
+	}
+}
+
 func TestSupervisorResumePreservesBindingBacklogAndBriefing(t *testing.T) {
 	root := t.TempDir()
 	workdir := t.TempDir()

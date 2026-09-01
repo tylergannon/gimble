@@ -11,6 +11,7 @@ import (
 	jsonschema "github.com/tylergannon/go-gen-jsonschema"
 	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/harness"
+	"github.com/tylergannon/tractor/internal/modelalias"
 )
 
 // CodergenConfig supplies the backend and implementation-level model defaults.
@@ -113,6 +114,10 @@ type resolvedCodergenRecord struct {
 func (h *CodergenHandler) turn(node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt string) (harness.CodergenTurn, *harness.Error) {
 	model := resolveString(fields.LLMModel, pipeline.Defaults.LLMModel, h.config.DefaultModel)
 	provider := resolveProvider(fields.LLMProvider, pipeline.Defaults.LLMProvider, h.config.DefaultProvider, model)
+	provider, model, selectionErr := modelalias.ResolveSelection(provider, model)
+	if selectionErr != nil {
+		return harness.CodergenTurn{}, terminalError(selectionErr.Error())
+	}
 	reasoningDefault := h.config.DefaultReasoningEffort
 	if reasoningDefault == "" {
 		reasoningDefault = "high"

@@ -15,6 +15,7 @@ import (
 	"github.com/tylergannon/tractor/harness/agy"
 	"github.com/tylergannon/tractor/harness/claude"
 	"github.com/tylergannon/tractor/harness/codex"
+	"github.com/tylergannon/tractor/internal/modelalias"
 	"github.com/tylergannon/tractor/internal/runlog"
 )
 
@@ -197,6 +198,11 @@ func resolveSelection(caller string, values options) (options, error) {
 		}
 	default:
 		return options{}, fmt.Errorf("unknown caller %q", caller)
+	}
+	var err error
+	values.provider, values.model, err = modelalias.ResolveSelection(values.provider, values.model)
+	if err != nil {
+		return options{}, err
 	}
 	if _, err := harnessForProvider(values.provider); err != nil {
 		return options{}, err

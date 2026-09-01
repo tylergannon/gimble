@@ -17,6 +17,7 @@ import (
 
 	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/harness"
+	"github.com/tylergannon/tractor/internal/modelalias"
 )
 
 type liveExecution struct {
@@ -372,6 +373,10 @@ func (s *supervisionService) flush(runtime *supervisorRuntime, snapshot []liveEx
 func (s *supervisionService) supervisorTurn(node *graph.SupervisorNode, message, runLog string) (harness.SupervisorTurn, *harness.Error) {
 	model := resolveString(node.LLMModel, s.runner.graph.Defaults.LLMModel, s.runner.config.DefaultModel)
 	provider := resolveProvider(node.LLMProvider, s.runner.graph.Defaults.LLMProvider, s.runner.config.DefaultProvider, model)
+	provider, model, selectionErr := modelalias.ResolveSelection(provider, model)
+	if selectionErr != nil {
+		return harness.SupervisorTurn{}, terminalError(selectionErr.Error())
+	}
 	effortDefault := s.runner.config.DefaultReasoningEffort
 	if effortDefault == "" {
 		effortDefault = "high"
