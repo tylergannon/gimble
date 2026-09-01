@@ -208,9 +208,12 @@ func TestResolveHarnessUsesExecutionProviderDetectionAndSystemModel(t *testing.T
 		wantErr  string
 	}{
 		{model: "claude-opus-4-6", want: "claude"},
+		{model: "fable", want: "claude"},
+		{provider: "anthropic", model: "fable-5.1", want: "claude"},
 		{model: "gpt-5.6-sol", want: "codex"},
 		{want: "codex"},
 		{model: "gemini-2.5-pro", want: "agy"},
+		{provider: "openai", model: "fable", wantErr: "conflicts with model alias"},
 	}
 	for _, test := range tests {
 		got, err := resolveHarness(test.provider, test.model)

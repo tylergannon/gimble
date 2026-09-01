@@ -123,6 +123,16 @@ If `on_error` is absent, a nonzero exit fails the run. That is a good default fo
 
 LLM nodes can set `llm_provider`, `llm_model`, `reasoning_effort`, `timeout`, `max_retries`, `fidelity`, and `thread_id`. Put shared values under `defaults`, then override only where the stage has a real reason to differ.
 
+Tractor maintains these Fable aliases:
+
+| Alias | Provider model |
+|---|---|
+| `fable` | `claude-fable-5-1` (current default) |
+| `fable-5.1` | `claude-fable-5-1` |
+| `fable-5` | `claude-fable-5` |
+
+Aliases supply their provider and are maintained upgrade policy. Use a provider-native model ID when a pipeline must remain pinned independently of that policy; raw IDs continue to pass through unchanged. If `llm_provider` is present with an alias, it must match the alias's provider.
+
 - `fidelity: full` reuses the native harness session and preserves its conversation.
 - `fidelity: compacted` reuses the session after native compaction.
 - `fidelity: none` starts without prior conversational context; the workspace and run evidence still exist.

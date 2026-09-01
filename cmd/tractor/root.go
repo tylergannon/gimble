@@ -16,6 +16,7 @@ import (
 	"github.com/tylergannon/tractor/harness/agy"
 	"github.com/tylergannon/tractor/harness/claude"
 	"github.com/tylergannon/tractor/harness/codex"
+	"github.com/tylergannon/tractor/internal/modelalias"
 	"github.com/tylergannon/tractor/lint"
 )
 
@@ -250,10 +251,15 @@ func cliValidator() *lint.Validator {
 }
 
 func resolveHarness(provider, model string) (string, error) {
+	if model == "" {
+		model = defaultModel
+	}
+	var err error
+	provider, model, err = modelalias.ResolveSelection(provider, model)
+	if err != nil {
+		return "", err
+	}
 	if provider == "" {
-		if model == "" {
-			model = defaultModel
-		}
 		provider = engine.DetectProvider(model)
 	}
 	harnessName := harness.DefaultProviderRoutes()[provider]

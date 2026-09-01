@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,6 +157,15 @@ func TestCodergenHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.
 			wantThread:    "work",
 		},
 		{
+			name:          "unversioned Fable resolves to 5.1",
+			config:        CodergenConfig{DefaultModel: "fable"},
+			wantModel:     "claude-fable-5-1",
+			wantProvider:  "anthropic",
+			wantReasoning: "high",
+			wantFidelity:  harness.FidelityCompacted,
+			wantThread:    "work",
+		},
+		{
 			name:          "none fidelity has no thread key",
 			nodeFields:    graph.LLMNodeFields{Fidelity: optional("none"), ThreadID: optional("ignored")},
 			config:        CodergenConfig{DefaultModel: "gemini-2.5-pro"},
@@ -185,6 +195,24 @@ func TestCodergenHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.
 				t.Fatalf("resolved turn = %#v", turn)
 			}
 		})
+	}
+}
+
+func TestCodergenHandlerRejectsProviderConflictWithModelAlias(t *testing.T) {
+	node := &graph.CodergenNode{
+		NodeBase: graph.NodeBase{ID: "work"},
+		LLMNodeFields: graph.LLMNodeFields{
+			LLMProvider: optional("openai"),
+			LLMModel:    optional("fable"),
+		},
+	}
+	pipeline := &graph.Graph{Nodes: []graph.Node{node, exitNode("done")}}
+	stageDir := t.TempDir()
+	_, runErr := NewCodergenHandler(CodergenConfig{}).Execute(node, []graph.Edge{{To: "done"}}, ExecutionScope{
+		Workdir: "/workspace", StageDir: stageDir, RunLog: filepath.Join(stageDir, "events.jsonl"), Stop: NewStopSignal(),
+	}, pipeline)
+	if runErr == nil || !strings.Contains(runErr.Message, `provider "openai" conflicts with model alias "fable"`) {
+		t.Fatalf("conflict error = %#v", runErr)
 	}
 }
 
