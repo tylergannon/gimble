@@ -41,7 +41,17 @@ func (h *CodergenHandler) Execute(node graph.Node, offered []graph.Edge, scope E
 
 	prompt := codergen.PromptValue(codergen.DisplayLabel())
 	prompt = expandPrompt(prompt, scope.Goal)
+	prompt = prependFrame(scope.Frame, prompt)
 	return h.executeTurn(codergen, &codergen.LLMNodeFields, offered, scope, pipeline, prompt)
+}
+
+// prependFrame places the rendered loop frame stack ahead of a node's own
+// prompt, separated by a blank line. Empty frames leave the prompt alone.
+func prependFrame(frame, prompt string) string {
+	if frame == "" {
+		return prompt
+	}
+	return frame + "\n\n" + prompt
 }
 
 func (h *CodergenHandler) executeTurn(node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt string) (harness.Outcome, *harness.Error) {

@@ -20,7 +20,10 @@ type ExecutionScope struct {
 	StageDir string
 	RunLog   string
 	Goal     string
-	Stop     *StopSignal
+	// Frame is the rendered loop frame stack, outermost first, or empty when
+	// no loop is active. Codergen and fan-in turns prepend it to their prompt.
+	Frame string
+	Stop  *StopSignal
 }
 
 // Handler executes one graph node.
@@ -149,6 +152,8 @@ type Runner struct {
 	checkpointMu     sync.Mutex
 	lastCheckpoint   Checkpoint
 	supervision      *supervisionService
+	framesMu         sync.Mutex
+	frames           []loopFrame
 }
 
 // NewRunner validates the graph and prepares a runner without creating run files.
@@ -268,6 +273,7 @@ func (r *Runner) Run() (RunResult, error) {
 		return RunResult{}, err
 	}
 	r.registry.Register("parallel", &parallelHandler{runner: r, state: state, store: store})
+	r.registry.Register("loop", &loopHandler{runner: r, state: state, store: store})
 	if r.resumeCheckpoint == nil {
 		if err := r.saveCheckpoint(store, state.checkpoint("", r.startID, false, r.bindings()), r.startID); err != nil {
 			eventErr := store.appendTimeline(timelineEvent{
@@ -456,6 +462,7 @@ func (r *Runner) executeWithRetry(
 				StageDir: stage.Dir,
 				RunLog:   runLog,
 				Goal:     r.graph.Goal,
+				Frame:    r.renderFrames(workdir),
 				Stop:     r.stop,
 			}, &r.graph)
 			r.endExecution(liveID)
