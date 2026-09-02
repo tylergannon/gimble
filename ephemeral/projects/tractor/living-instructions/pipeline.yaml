@@ -1,0 +1,49 @@
+name: living-instructions
+goal: Build Tractor's living instructions one sprint at a time. Chapters are the outer loop, sprints the inner loop. Ask the reviewer through tractor ask whenever a sprint leaves a decision open.
+start: chapters
+
+defaults:
+  timeout: 4h
+  fidelity: none
+  max_retries: 1
+  llm_provider: openai
+  llm_model: gpt-5.6-sol
+  reasoning_effort: high
+
+# Outer loop: one lap per chapter. The lap is the plan node followed by the
+# whole sprint loop. The chapter is validated when the sprint loop exits.
+nodes:
+  - id: chapters
+    type: loop
+    checklist: ephemeral/projects/tractor/living-instructions/chapters.md
+    body: plan
+    on_done: success
+    max_visits: 12
+    timeout: 30m
+
+  - id: plan
+    type: codergen
+    prompt: |
+      You are planning one chapter of the living-instructions build for Tractor, in this repository. Read ephemeral/projects/tractor/living-instructions/BUILD.md first, then the chapter doc in the iterate block above.
+
+      The chapter's sprint ledger is the `checklist:` path in the block. If it already holds open sprints whose docs cover the chapter, leave it alone and finish with a one-line note. Otherwise plan the chapter: interview the reviewer with `tractor ask` until intent is clear (BUILD.md says how), write one sprint doc per sprint beside the ledger, and append the sprints to the ledger's frontmatter, each with a `check`, a real `command`, and a `doc`. Keep sprints to one agent turn each. Never write `done`. Commit what you wrote.
+    edges:
+      - to: sprints
+
+  # Inner loop: one lap per sprint. No checklist field; it comes from the
+  # chapter item's `checklist:`.
+  - id: sprints
+    type: loop
+    body: implement
+    on_done: chapters
+    max_visits: 40
+    timeout: 45m
+
+  - id: implement
+    type: codergen
+    prompt: |
+      You are executing one sprint of the living-instructions build for Tractor, in this repository. Read ephemeral/projects/tractor/living-instructions/BUILD.md first, then the sprint doc in the innermost iterate block above.
+
+      Do the whole sprint: the code, tests, and docs it names. Run the sprint's `command` yourself before you finish; the engine runs it again after you stop and re-enters this sprint if it fails, with the failure shown in the block. Where the sprint doc leaves a decision open, ask the reviewer with `tractor ask` and act on the answer. Commit when done.
+    edges:
+      - to: sprints
