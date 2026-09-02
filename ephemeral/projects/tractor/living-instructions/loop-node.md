@@ -159,10 +159,13 @@ to the outer loop node is illegal, because the body node-set follows every
 edge except through its own loop node; the pop rule is defensive, not a
 supported shape. If escape edges are wanted later, the node-set definition
 must stop at enclosing loop nodes.)
-Restart is coarse and dumb by design: after a resume the stack is empty,
-the first arrival validates nothing and selects the first open item, which
-is the item the interrupted lap was working on unless a planner changed
-the file. Nothing about the loop is checkpointed.
+Restart is coarse and dumb by design: nothing about the loop is
+checkpointed. On resume the engine rewinds the checkpoint's next node to
+the outermost loop whose body contains it (added after review: resuming at
+a body node ran it frameless, and resuming at a nested loop with no
+`checklist` field failed outright). That loop's first arrival validates
+nothing and selects the first open item, which is the item the
+interrupted lap was working on unless a planner changed the file.
 
 ## 5. Validation
 

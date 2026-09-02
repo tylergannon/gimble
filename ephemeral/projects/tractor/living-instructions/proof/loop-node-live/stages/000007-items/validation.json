@@ -8,7 +8,7 @@
       "notes.md"
     ],
     "verdict": "pass",
-    "notes": "notes.md accurately describes both facts. Verified: `sh greet.sh` outputs exactly \"GREETING_2d171d08\" matching greet.sh's echo line, and `wc -l greet.sh` returns 2 (shebang line + echo line), matching count.txt's content of \"2\"."
+    "notes": "notes.md states greet.sh prints \"GREETING_10ae02e8\" — confirmed by cat greet.sh (echo GREETING_10ae02e8). notes.md states count.txt (value 2) is the line count of greet.sh — confirmed: greet.sh has exactly 2 lines (shebang + echo). Both claims accurate."
   },
   "passed": true,
   "summary": "passed"

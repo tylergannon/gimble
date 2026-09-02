@@ -1,7 +1,5 @@
 # Notes
 
-Running `sh greet.sh` prints exactly `GREETING_2d171d08`.
+`greet.sh` prints `GREETING_10ae02e8` when run.
 
-`count.txt` contains `2`, which is the number of lines in `greet.sh` as
-counted by `wc -l` (the file has two lines: the `#!/bin/sh` shebang and the
-`echo` line).
+`count.txt` contains `2`, the number of lines in `greet.sh` (the shebang line and the `echo` line).

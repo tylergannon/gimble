@@ -2,8 +2,8 @@
 title: Loop node live proof
 items:
   - name: greet script
-    check: Running `sh greet.sh` prints exactly GREETING_2d171d08 and nothing else
-    command: test "$(sh greet.sh)" = GREETING_2d171d08
+    check: Running `sh greet.sh` prints exactly GREETING_10ae02e8 and nothing else
+    command: test "$(sh greet.sh)" = GREETING_10ae02e8
     done: true
   - name: line count
     check: count.txt contains the number of lines in greet.sh, as a bare integer

@@ -1,5 +1,9 @@
 # Loop node: live proof (claim 7 of loop-node.md §11)
 
+Second run, after the adversarial-review fixes. The first run (HEAD
+`c1378a3`, run `26e8e41b`, nonce `2d171d08`) behaved identically; its
+artifacts were replaced by this run's.
+
 A real run of the new `loop` node through the Claude harness, against a
 scratch git repository seeded with a three-item checklist. This directory
 holds the evidence copied out of the run directory and the workspace.
@@ -8,10 +12,10 @@ holds the evidence copied out of the run directory and the workspace.
 
 | | |
 |---|---|
-| Branch / HEAD | `worktree-goal-gates` at `c1378a3fdb97949c4e81888f38d5257006ebb794` |
-| Binary | `go build -o tractor ./cmd/tractor` at that HEAD; SHA-256 `ec0ff91cb4211af917110006cb855e9bfdb7505d5f5c4338fb595ecaa87be751` |
-| Run id | `26e8e41b696d8e9d1229a1ce0603b6ae` |
-| Started / duration | 2026-09-02T17:38:10Z, 44.2 s |
+| Branch / HEAD | `worktree-goal-gates` at `0643b55a1186334248b23049bafdf2030e4ea0a8` |
+| Binary | `go build -o tractor ./cmd/tractor` at that HEAD; SHA-256 `8a4dbe31d645a3b47f22ba695ea20ab29707827ffd2eacaf1b2edcc1e355488a` |
+| Run id | `c4cdcdecb0fdb70466f4740f51027f4c` |
+| Started / duration | 2026-09-02T17:58:06Z, 41.1 s |
 | Pipeline | `pipeline.yaml` here (the `checklist-loop.yaml` example with `max_visits: 8`) |
 | Model | claude-sonnet-5, fidelity none, reasoning low, for both body and judge |
 | Result | `COMPLETED`; exit 0 |
@@ -19,7 +23,7 @@ holds the evidence copied out of the run directory and the workspace.
 ## Unpredictable input
 
 The checklist was seeded with a nonce minted from `/dev/urandom` at seed
-time (`GREETING_2d171d08`) so the agent could not satisfy the first
+time (`GREETING_10ae02e8`) so the agent could not satisfy the first
 command from prior knowledge. The second command compares `count.txt`
 against a value recomputed from `greet.sh` at validation time. The third
 item has no command and is judged by a model reading `notes.md`.
@@ -36,7 +40,7 @@ LoopValidated     line count    passed
 LoopItemSelected  notes         3/3 lap 1
 LoopValidated     notes         passed
 LoopCompleted     3
-PipelineCompleted 44.17s
+PipelineCompleted 41.13s
 ```
 
 Seven stages: `items, implement, items, implement, items, implement,
@@ -54,9 +58,10 @@ items`. Three laps, no retries, no failed validation.
    `stages/000003-items/validation.json` and `000005-items/validation.json`
    record the exact command, exit 0, and an empty log tail.
 3. **The infer judge worked from the evidence, not the report.**
-   `stages/000007-items/judge-prompt.md` is the engine-built prompt;
-   `judge-events.jsonl` shows the judge `Read` all three files and ran
-   `sh greet.sh && wc -l greet.sh` itself before answering; `judge-response.md`
+   `stages/000007-items/prompt.md` is the engine-built prompt;
+   `judge-events.jsonl` shows the judge `cat` all three files itself
+   before answering (in the first run it also ran `sh greet.sh` and
+   `wc -l greet.sh`); `response.md`
    routes `next: pass` with the recomputed values in its notes.
 4. **The frame reached the agent.** `lap2-implement-prompt.md` is the
    second body prompt: the `<tractor loop="items" ... item="2/3" lap="1">`
