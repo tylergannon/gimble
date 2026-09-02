@@ -540,6 +540,64 @@ renumbering the question or emitting another `QuestionAsked` event. The node
 keeps its context while blocked; the answer does not route the graph, and the
 node chooses its successor only after its turn continues.
 
+#### 3.1.2 Built-In Workflows
+
+Tractor MAY compile a registry of named workflows into the binary. The registry
+is the sole availability authority: `tractor workflow list` prints each
+currently runnable name and description, and `tractor workflow run <name>`
+runs one without a caller-supplied pipeline file. A name absent from `workflow
+list` MUST be rejected even when another artifact refers to that name.
+
+The built-in `plan` workflow is the starting point when a caller has a seed but
+does not yet have a settled execution shape. Its invocation is:
+
+```sh
+tractor workflow run plan \
+  --project <safe-name> \
+  --seed <seed-file> \
+  --workdir <repository> \
+  --logs <run-directory>
+```
+
+`--project`, `--seed`, and `--logs` are required. `--project` MUST be one safe
+directory name, not a path. `--workdir` defaults to `.`, MUST resolve to an
+existing directory, and roots repository inspection and planning outputs. A
+relative `--seed` is resolved beneath `--workdir` and MUST name a readable
+regular file. `--logs` is the ordinary pipeline run directory and is resolved
+by the execution engine independently of `--workdir`.
+
+The workflow uses one long-lived codergen node. It reads the seed and relevant
+repository context, then asks one numbered Markdown or HTML question at a time
+through the blocking interview protocol (Section 3.1.1). Questions cover
+intent, scope and non-goals, constraints, and an observable Definition of
+success, but continue only while an answer can change the contract. Interview
+depth is proportional to the apparent work size. After those dimensions are
+clear, the planner makes a second pass and stops when two passes surface only
+details derivable from the seed, repository, or prior answers.
+
+The plan workflow writes exactly these artifacts under
+`<workdir>/ephemeral/projects/<project>/`:
+
+- `brief.md`: agreed intent, scope, non-goals, constraints, and observable
+  Definition of success.
+- `checklist.md`: Markdown with an `items` list in YAML frontmatter, using the
+  loop-node item contract (Section 4.8). Every item has fixed `name` and
+  `check`; the planner adds a real `command` and/or `infer` when knowable,
+  keeps each item within one agent turn, and never writes the engine-owned
+  `done` field.
+- `recommendation.md`: a heading followed by the non-empty `Size`, `Rationale`,
+  and `Next` fields. Size is `SIMPLE` for at most one sprint, `MEDIUM` for more
+  than one sprint but fewer than two chapters, and `LARGE` for multiple
+  chapters.
+
+`Next` is `Execute the plan yourself.` for SIMPLE,
+`tractor workflow run medium --project <project>` for MEDIUM, and
+`tractor workflow run large --project <project>` for LARGE. The workflow
+mechanically validates all three artifacts, then prints their paths, the size,
+and `Next`. A caller executes a named MEDIUM or LARGE handoff only when that
+name is present in `tractor workflow list`; until then the recommendation is a
+pending handoff, not a claim that the execution workflow is available.
+
 ### 3.2 Core Execution Loop
 
 The engine walks the graph one top-level node at a time

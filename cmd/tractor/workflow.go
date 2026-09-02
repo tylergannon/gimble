@@ -19,8 +19,10 @@ func newWorkflowCommand(run pipelineRunner) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "workflow",
 		Short: "List and run Tractor's built-in workflows",
-		Long: "List and run workflows embedded in Tractor. Start with 'tractor workflow list', " +
-			"then run one with 'tractor workflow run <name>'.",
+		Long: "List and run workflows embedded in Tractor. Start with 'tractor workflow list'. " +
+			"Use the plan workflow when you need to turn a seed into an interviewed, sized plan.",
+		Example: "  tractor workflow list\n" +
+			"  tractor workflow run plan --project demo --seed seed.md --logs ./tractor-plan-logs",
 		Args: cobra.NoArgs,
 	}
 	command.AddCommand(newWorkflowListCommand(), newWorkflowRunCommand(run), newWorkflowValidatePlanCommand())
@@ -31,7 +33,10 @@ func newWorkflowListCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List available built-in workflows",
-		Args:  cobra.NoArgs,
+		Long:  "List the built-in workflows available in this Tractor binary. Start with plan when you need to turn a seed into an interviewed, sized plan.",
+		Example: "  tractor workflow list\n" +
+			"  tractor workflow run plan --project demo --seed seed.md --logs ./tractor-plan-logs",
+		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			for _, definition := range workflowlib.List() {
 				if _, err := fmt.Fprintf(command.OutOrStdout(), "%s\t%s\n", definition.Name, definition.Description); err != nil {
@@ -51,8 +56,11 @@ func newWorkflowRunCommand(run pipelineRunner) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "run <name>",
 		Short: "Run a built-in workflow",
-		Long: "Run a workflow embedded in Tractor. The plan workflow interviews the caller and writes " +
-			"brief.md, checklist.md, and recommendation.md under ephemeral/projects/<project>/.",
+		Long: "Run a workflow embedded in Tractor. The plan workflow reads --seed relative to --workdir, " +
+			"interviews the caller through numbered QuestionAsked events, and writes brief.md, checklist.md, " +
+			"and recommendation.md under ephemeral/projects/<project>/.",
+		Example: "  tractor workflow run plan --project demo --seed seed.md --logs ./tractor-plan-logs\n" +
+			"  tractor workflow run plan --project demo --seed notes/seed.md --workdir /path/to/repo --logs /tmp/demo-plan",
 		Args: cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
 			return runWorkflow(command, run, args[0], project, seed, workdir, logsRoot)

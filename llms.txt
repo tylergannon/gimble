@@ -12,6 +12,28 @@ after the current session ends, fan out across several models or approaches
 by another model. Runs are detached processes; every prompt, response,
 routing decision, and collected artifact lands in a browsable run directory.
 
+## Plan before choosing a workflow
+
+When a request needs planning or its execution shape is unclear, start with the
+embedded planning workflow rather than choosing an example prematurely:
+
+```sh
+tractor workflow list
+tractor workflow run plan \
+  --project <safe-project-name> \
+  --seed <seed-file> \
+  --workdir <target-repository> \
+  --logs <plan-run-directory>
+```
+
+Watch `<plan-run-directory>/timeline.jsonl` for `QuestionAsked`, open each
+event's numbered question path, and answer it with `tractor answer
+<question-path> [text]`. The completed run prints `brief.md`, `checklist.md`,
+and `recommendation.md` beneath `ephemeral/projects/<project>/`, followed by a
+SIMPLE, MEDIUM, or LARGE size and its exact next action. Execute SIMPLE
+yourself. Run a MEDIUM or LARGE `Next` command only if that name is present in
+`tractor workflow list`; otherwise it is a pending handoff.
+
 ## Start from an example
 
 Copy-and-run loop pipelines live in `examples/loops/` (also bundled with the

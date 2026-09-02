@@ -1,6 +1,6 @@
 ---
 name: tractor
-description: Run coding agents as detached pipelines with Tractor — loop until a check actually passes, fan out across Claude/Codex/Gemini, or have a second model review the work. Use when the user says "don't stop until the tests pass", "loop on this until it works", "keep working while I'm gone", "keep going after I close my laptop", "run this in the background", "try a couple of approaches in parallel", "have another model check this", "get a second opinion from Codex or Gemini" — or asks to start, check on, steer, or stop a Tractor run. Starts from copy-and-run examples; no graph authoring needed. Do not use for ordinary single-agent work that finishes in this session.
+description: Plan work or run coding agents as detached pipelines with Tractor — interview a caller and recommend a workflow size, loop until a check actually passes, fan out across Claude/Codex/Gemini, or have a second model review the work. Use when the user needs a plan, does not know which Tractor shape fits, says "don't stop until the tests pass", "loop on this until it works", "keep working while I'm gone", "keep going after I close my laptop", "run this in the background", "try a couple of approaches in parallel", "have another model check this", "get a second opinion from Codex or Gemini" — or asks to start, check on, steer, or stop a Tractor run. Planning starts with the built-in plan workflow; execution starts from copy-and-run examples. Do not use for ordinary settled single-agent work that finishes in this session.
 ---
 
 # Tractor
@@ -34,6 +34,34 @@ nodes:
 
 An agent works, a command decides, failure routes back. Fan-out shapes add
 `parallel` branches (one per provider) and a `parallel.fan_in` node to judge.
+
+## Plan before choosing a shape
+
+When the user needs a plan or you cannot yet tell which Tractor shape fits,
+start with the built-in planning workflow. Put the request in a seed file in
+the target repository, then run:
+
+```sh
+tractor workflow list
+tractor workflow run plan \
+  --project <safe-project-name> \
+  --seed <seed-file> \
+  --workdir <target-repository> \
+  --logs <plan-run-directory>
+```
+
+Watch `<plan-run-directory>/timeline.jsonl`. For every `QuestionAsked` event,
+open its numbered `question` path and answer with `tractor answer
+<question-path> [text]`; the same planning turn continues after each answer.
+On completion, Tractor prints the paths to `brief.md`, `checklist.md`, and
+`recommendation.md` under `ephemeral/projects/<project>/`, plus the size and
+next action.
+
+For SIMPLE, execute the checklist yourself. MEDIUM is more than one sprint but
+fewer than two chapters; LARGE is multiple chapters. For MEDIUM or LARGE, run
+the exact `Next` command only if its workflow appears in `tractor workflow
+list`. If it is not listed, report the pending handoff instead of inventing an
+execution workflow.
 
 ## Writing node prompts
 

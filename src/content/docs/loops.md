@@ -2,7 +2,7 @@
 title: Loops
 description: A loop is a thing that runs iteratively until it's done — in Tractor, two nodes pointing at each other. Start from a copy-and-run example and change two strings.
 eyebrow: Pattern guide
-order: 1
+order: 2
 sourceLabel: Browse the runnable examples
 sourceUrl: https://github.com/tylergannon/tractor/tree/main/examples/loops
 ---

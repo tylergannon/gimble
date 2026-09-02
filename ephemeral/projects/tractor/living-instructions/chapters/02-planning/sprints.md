@@ -10,6 +10,7 @@ items:
     check: A caller can list built-in workflows and run plan with an explicit project, seed file, workdir, and logs directory; completion prints the artifact paths, size, and next action.
     doc: ephemeral/projects/tractor/living-instructions/chapters/02-planning/SPRINT-02.md
     command: go build ./... && go vet ./... && sh ephemeral/projects/tractor/living-instructions/chapters/02-planning/check-sprint-02.sh
+    done: true
   - name: planning docs and skill
     check: The CLI help, README, reference and site docs, skill bundle, and llms.txt teach callers to start with the plan workflow and accurately describe its interview, outputs, sizes, and handoff.
     doc: ephemeral/projects/tractor/living-instructions/chapters/02-planning/SPRINT-03.md

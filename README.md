@@ -115,6 +115,33 @@ claude plugin install tractor@tractor
 Start a new session after installing so the plugin picks up `tractor mcp`.
 Details and caveats: [implementation notes](docs/implementation-notes.md).
 
+## Start with a plan
+
+When the job is not already a small, settled change, let Tractor interview you
+before choosing a pipeline. Put the initial request in a seed file, then list
+the workflows in your installed binary and run `plan`:
+
+```sh
+tractor workflow list
+tractor workflow run plan \
+  --project my-build \
+  --seed seed.md \
+  --workdir . \
+  --logs ./tractor-plan-logs
+```
+
+The planner asks numbered questions through `QuestionAsked` events in
+`./tractor-plan-logs/timeline.jsonl`. Open each event's `question` path and
+answer it with `tractor answer <question-path> [text]`. When the interview
+finishes, the command prints paths to `brief.md`, `checklist.md`, and
+`recommendation.md` under `ephemeral/projects/my-build/`, followed by the size
+and next action.
+
+SIMPLE means execute the checklist yourself. MEDIUM means more than one sprint
+but fewer than two chapters; LARGE means multiple chapters. For MEDIUM and
+LARGE, use the exact `Next` command only when that workflow appears in
+`tractor workflow list`; `plan` is the only built-in workflow available today.
+
 ## Start from an example
 
 Copy one into a git repo, change the goal and the check, run it:
