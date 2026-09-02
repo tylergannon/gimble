@@ -20,7 +20,7 @@ Upstream Attractor is a broad, presentation-neutral NLSpec with a DOT DSL and mu
 | Pipeline syntax   | A constrained Graphviz DOT language                                                      | Closed typed JSON; YAML decodes through the same schema                                                         |
 | Graph model       | Separate nodes and edges; shape can infer handler type                                   | Flat discriminated node union; each node owns its outgoing routes                                               |
 | Routing           | Weighted and conditional edges interpreted by an algorithm                               | Agent chooser selects a prose-labelled target; tools route by exit code                                         |
-| Built-in nodes    | Start, exit, codergen, wait-for-human, conditional, parallel, fan-in, tool, manager loop | Codergen, tool, parallel, fan-in, and supervisor; terminal states are pseudo-targets                            |
+| Built-in nodes    | Start, exit, codergen, wait-for-human, conditional, parallel, fan-in, tool, manager loop | Codergen, tool, parallel, fan-in, loop, and supervisor; terminal states are pseudo-targets                      |
 | Extensibility     | Custom handlers, lint rules, AST transforms, stylesheets, hooks                          | Closed graph language; extensions live in authored nodes or build-time code                                     |
 | LLM layer         | Abstract `CodergenBackend`; implementations may call APIs or agents                      | Harness-backed sessions for Codex, Claude, and Antigravity/Gemini                                               |
 | Human interaction | Dedicated interviewer interface and wait-for-human handler                               | An authoring pattern using agent contact, blocking tools, or external steering                                  |
@@ -79,7 +79,7 @@ The engine never parses a model edge condition as an expression. This puts seman
 
 Upstream explicitly specifies custom handlers, custom lints, AST transforms, graph composition, model stylesheets, and tool-call hooks. It is designed as a broad orchestration platform.
 
-Tractor applies a stricter cost razor. The graph admits five node types and no arbitrary attributes. New behavior normally belongs in:
+Tractor applies a stricter cost razor. The graph admits six node types and no arbitrary attributes. New behavior normally belongs in:
 
 - a `codergen` prompt using tools available through its harness;
 - a `tool` command or authored program;
@@ -129,7 +129,7 @@ This avoids standardizing a second interaction protocol while being explicit abo
 
 ## Supervision moves outside the walk
 
-Upstream's manager loop is a handler that executes a child graph repeatedly and uses an LLM to decide whether to stop. Tractor instead adds `supervisor` nodes that never participate in traversal.
+Upstream's manager loop is a handler that executes a child graph repeatedly and uses an LLM to decide whether to stop. Tractor instead adds `supervisor` nodes that never participate in traversal. Its `loop` node is the nearer relative of the manager loop, and it stops mechanically: it iterates a checklist file and marks an item done only after the item's command exits 0 and its judge passes.
 
 A supervisor declares which nodes it watches. While any are active, the engine periodically builds a digest from their events and asks the supervisor for one of two verdicts: `ok`, or `steer` with a target and message. This makes supervision longitudinal and advisory; it can correct live work without becoming another success gate.
 

@@ -53,6 +53,7 @@ files that teach ("read AGENTS.md first"), never script the checks.
 | "Have another model check this" | `examples/critique-circle.yaml` |
 | "Try a couple of approaches in parallel" | `examples/bake-off.yaml` |
 | "Keep working on this after I leave" | `examples/milestone-loop.yaml` |
+| "Work through a list, proving each item" | `examples/checklist-loop.yaml` |
 
 They ship beside this file, mirroring `examples/loops/` in the Tractor repo;
 if neither is at hand, the pipeline above is a complete start.
@@ -74,6 +75,18 @@ The tool node is the only thing that decides. Point it at the closest
 observable proof of the user's claim — run the app, curl the endpoint, assert
 on the artifact. Tests and linters are worth requiring, but prove the claim
 only when they exercise that behavior.
+
+## Checklists
+
+`checklist-loop.yaml` puts a `loop` node in front of the agent. It iterates
+a markdown file whose YAML frontmatter lists items — `name`, `check`,
+optionally a `command` (exit 0 passes) and an `infer` judge (`files`,
+`prompt`) — and on every arrival validates the previous lap's item, writes
+`done: true` on it itself, and injects the next open item into the prompt
+as a frame (name, check, command, last failure, doc). The agent never marks
+items. Copy `examples/checklist-loop.md` to the path the pipeline names and
+edit its items; `validation.log` in the loop node's stage directory says
+why an item stayed open.
 
 ## While it runs
 

@@ -26,6 +26,9 @@ Copy-and-run loop pipelines live in `examples/loops/` (also bundled with the
   in isolated worktrees; a judge runs each and merges the winner.
 - `milestone-loop.yaml` — "keep working after I leave": a chooser picks the
   next runnable step, an implementer does it, a command checks, repeat.
+- `checklist-loop.yaml` — "work through this list and prove each item": a
+  `loop` node iterates a checklist file, validates each item by its command
+  and judge, marks it done itself, and injects the next item as a frame.
 
 `examples/loops/README.md` carries a symptom→fix table for misbehaving loops.
 

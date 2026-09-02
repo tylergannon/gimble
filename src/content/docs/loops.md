@@ -40,6 +40,7 @@ copy it, change the goal and the check, run it.
 | "Have another model check this" | [`critique-circle.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/critique-circle.yaml) |
 | "Try a couple of approaches in parallel" | [`bake-off.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/bake-off.yaml) |
 | "Keep working on this after I leave" | [`milestone-loop.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/milestone-loop.yaml) |
+| "Work through this list and prove each item" | [`checklist-loop.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/checklist-loop.yaml) |
 
 **Fix-until-green** is the pipeline above.
 
@@ -59,6 +60,19 @@ something runnable, an implementer does it, a command checks it, repeat.
 No upfront plan to go stale. When you want to read and approve a plan
 before the tokens burn, add a planner node in front — the two shapes differ
 by exactly one node.
+
+**Checklist loop** is for work that is already a list of claims. A `loop`
+node iterates a markdown file whose YAML frontmatter lists items, each
+with a `check`, optionally a `command`, and optionally an `infer` judge
+over evidence files. On every arrival the engine re-reads the file,
+validates the item the previous lap worked on — runs its command, then
+asks the judge — marks it `done: true` itself when that passes, and
+injects the first open item into the body's prompt as a frame: the item,
+its command, the last failure, and the item's `doc` if it has one. The
+agent never marks items; the file is the only loop state, so a planner
+(or a person) can append, reorder, or hand-mark items between laps. Copy
+[`checklist-loop.md`](https://github.com/tylergannon/tractor/blob/main/examples/loops/checklist-loop.md)
+beside it to start.
 
 ## Writing node prompts
 
@@ -93,6 +107,7 @@ you.
 | Agent guesses at a decision that wasn't its to make | Give it a door: an edge whose condition is "this decision isn't mine," leading to a node that asks a human or writes a report and routes to `failure`. Agents improvise when forward is the only offered route. |
 | Builds everything, nothing runs until the end | Steer the chooser to vertical slices: "the step is done when you can run something that proves it." Stack-order plans (schema → services → API → UI) are the model's default tic; say no to them in the prompt. |
 | A long run starts believing its own stale plans | Per-lap plans are working notes, not authority; they live with the run, the code is the record. Don't commit them. |
+| Item never gets marked | The engine marks it only after its command exits 0 and its `infer` judge passes; read `validation.log` in the loop node's stage directory. |
 
 Every run leaves its evidence — prompts, responses, routing decisions,
 collected artifacts — in a browsable run directory, so when a loop

@@ -81,11 +81,12 @@ Tractor deliberately has a small, fixed node vocabulary.
 | ----------------- | --------------------------------------------------- | ----------------------------------------------------------------- |
 | `codergen`        | Planning, implementation, review, or any LLM task   | The agent chooses from its `edges`.                               |
 | `tool`            | Tests, builds, scripts, and other mechanical checks | Exit code selects `on_success` or `on_error`.                     |
+| `loop`            | Working through a checklist file, proving each item | An open item remains selects `body`; none selects `on_done`.      |
 | `parallel`        | Running independent alternatives concurrently       | `branches` reference authored roots or declare Codergen branches. |
 | `parallel.fan_in` | Comparing and consolidating parallel results        | The fan-in agent reads branch evidence, artifacts, and routes.    |
 | `supervisor`      | Periodically observing and coaching active nodes    | It returns `ok` or steers a node; it never joins the walk.        |
 
-Use `tool` when a process can decide correctly from an exit code. Use `codergen` when the decision requires judgment. That distinction saves tokens and makes deterministic gates genuinely deterministic.
+Use `tool` when a process can decide correctly from an exit code. Use `codergen` when the decision requires judgment. Use `loop` when the work is a list of claims, each proven by a command or a judged artifact. That distinction saves tokens and makes deterministic gates genuinely deterministic.
 
 ## Put routing on the chooser
 
@@ -207,9 +208,78 @@ A supervisor observes declared nodes outside the main walk. At its interval, it 
 
 Supervisors are advisory. They do not route, block, or decide success. Prefer clear worker prompts and deterministic checks first; add supervision when useful mid-turn correction is worth the extra model calls.
 
+## Work through a checklist
+
+A `loop` node iterates a checklist file. Its routing targets are `body`, the entry node of one lap, and `on_done`, followed when no open item remains. `max_visits` on the loop node counts arrivals (laps plus one) and is the only ceiling; `timeout`, `llm_model`, `llm_provider`, and `reasoning_effort` configure the item judge and inherit from `defaults`.
+
+```yaml
+- id: items
+  type: loop
+  checklist: ephemeral/projects/demo/checklist.md
+  body: implement
+  on_done: success
+  max_visits: 20
+
+- id: implement
+  type: codergen
+  prompt: Implement the current checklist item so that its check holds.
+  edges:
+    - to: items
+```
+
+The checklist is markdown with YAML frontmatter. The frontmatter is the ledger the engine reads; the body is prose for agents and people.
+
+```markdown
+---
+items:
+  - name: Print a greeting
+    check: Running `sh hello.sh` prints exactly HELLO_LOOPS
+    command: test "$(sh hello.sh)" = HELLO_LOOPS
+  - name: Document the scripts
+    check: NOTES.md tells a newcomer how to run both scripts
+    infer:
+      files: NOTES.md
+      prompt: Judge whether a newcomer could run both scripts from these notes alone
+    doc: docs/writing-notes.md
+---
+
+Definition of done in open prose.
+```
+
+| Item field | What it does |
+| --- | --- |
+| `name` | Identity, unique within the file. |
+| `check` | The claim as observable behavior. Prose for agents; the engine never interprets it. |
+| `command` | Shell command run from the workdir. Exit 0 passes. |
+| `infer.files`, `infer.prompt` | Globs naming evidence files and what a cheap judge is to decide about them. Runs only after the command passes. |
+| `doc` | A prose document injected with the item. |
+| `checklist` | A sub-checklist; a `loop` node inside this loop's body with no `checklist` of its own iterates it. |
+| `done` | Engine-owned. Absent or `false` means open. |
+
+On every arrival the engine re-reads the file, validates the item the previous lap worked on, writes `done: true` on it when the validation passes, and selects the first open item in file order. An item with neither `command` nor `infer` passes when its lap returns. A hand-edited `done: true` is honored without validation. Paths are relative to the workdir. The validation record and the command's output land in `validation.json` and `validation.log` in the loop node's stage directory.
+
+The selected item reaches the agent as a frame the engine prepends to every codergen and fan-in prompt inside the body, outermost loop first:
+
+```text
+<tractor loop="items" checklist="ephemeral/projects/demo/checklist.md" item="2/2" lap="2">
+name: Document the scripts
+check: NOTES.md tells a newcomer how to run both scripts
+infer:
+  prompt: Judge whether a newcomer could run both scripts from these notes alone
+  files:
+    - NOTES.md
+doc: docs/writing-notes.md
+last validation: failed -- no evidence files
+--- doc: docs/writing-notes.md ---
+<file contents>
+</tractor>
+```
+
+`last validation` appears only after a failed lap; the doc only when the item has one. Because the frame carries the item, the body's prompt can be deictic. The body is delimited like a parallel branch: its nodes are entered only from within it, it must route back to the loop node, and it may not sit inside a parallel branch (the frame stack is run-wide).
+
 ## Validate before spending tokens
 
-Validation checks the generated closed schema and Tractor's graph-level lint rules before a run starts. It catches unknown fields, invalid targets, ambiguous branches, unsafe parallel topology, session collisions, supervision cycles, and other structural mistakes.
+Validation checks the generated closed schema and Tractor's graph-level lint rules before a run starts. It catches unknown fields, invalid targets, ambiguous branches, unsafe parallel topology, loop bodies that never return, session collisions, supervision cycles, and other structural mistakes.
 
 ```sh
 tractor validate pipeline.yaml
@@ -225,7 +295,8 @@ Inside Codex, ask Tractor for the current pipeline schema only when authoring or
 3. Use tool nodes for facts a command can decide.
 4. Put branch conditions on the agent that has enough context to choose.
 5. Bound intentional loops with `max_visits`.
-6. Choose isolated or shared branch workspaces deliberately, declare every structured-branch artifact, and converge at one fan-in.
-7. Validate the file before starting the run.
+6. When the work is a list of provable claims, write it as a checklist file and iterate it with a `loop` node.
+7. Choose isolated or shared branch workspaces deliberately, declare every structured-branch artifact, and converge at one fan-in.
+8. Validate the file before starting the run.
 
 The complete field contract and execution semantics live in the normative [Tractor specification](https://github.com/tylergannon/tractor/blob/main/docs/spec.md). Runnable steering, YAML, parallel, and supervision pipelines live in the repository's [examples](https://github.com/tylergannon/tractor/tree/main/examples).

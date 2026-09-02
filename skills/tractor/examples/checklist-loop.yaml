@@ -1,0 +1,34 @@
+name: checklist-loop
+goal: Work through the checklist until every item is demonstrated.
+start: items
+
+defaults:
+  timeout: 600s
+  fidelity: none
+  max_retries: 1
+  llm_provider: anthropic
+  llm_model: claude-sonnet-5
+  reasoning_effort: low
+
+# The shape for "work through this list and prove each item": a loop node
+# iterates a checklist file. On every arrival it re-reads the file, validates
+# the item the previous lap worked on — runs its command, then asks its
+# `infer` judge if it has one — marks it `done: true` itself when the
+# validation passes, and injects the next open item into the body's prompt
+# as a frame: name, check, command, the last failure, the item's doc. The
+# agent never marks items. That is why implement's prompt can be deictic:
+# "the current checklist item" is whatever the frame says. To adapt: copy
+# checklist-loop.md (beside this file) to the path below and edit its items.
+nodes:
+  - id: items
+    type: loop
+    checklist: ephemeral/projects/demo/checklist.md
+    body: implement
+    on_done: success
+    max_visits: 20
+
+  - id: implement
+    type: codergen
+    prompt: Implement the current checklist item so that its check holds.
+    edges:
+      - to: items

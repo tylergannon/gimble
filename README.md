@@ -123,6 +123,7 @@ Copy one into a git repo, change the goal and the check, run it:
 | --- | --- |
 | "Don't stop until it actually works" | [`fix-until-green.yaml`](examples/loops/fix-until-green.yaml) |
 | "Keep working after I leave" | [`milestone-loop.yaml`](examples/loops/milestone-loop.yaml) |
+| "Work through this list, prove each item" | [`checklist-loop.yaml`](examples/loops/checklist-loop.yaml) |
 | "Try a few approaches, keep the best" | [`bake-off.yaml`](examples/loops/bake-off.yaml) |
 | "Have another model check this" | [`critique-circle.yaml`](examples/loops/critique-circle.yaml) |
 | Live supervision, steering, parallel fan-out | [`examples/`](examples/README.md) |

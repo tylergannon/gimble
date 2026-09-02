@@ -67,7 +67,7 @@ rendering format such as Graphviz DOT when a picture is wanted.
 **Declarative pipelines.** The pipeline file declares what the workflow looks like and what each stage should do. The execution engine decides how and when to run each stage. Pipeline authors do not write control flow; they declare graph structure.
 
 **Pluggable handlers.** Each node type (LLM call, tool, parallel
-fan-out) is backed by a handler that implements a common interface.
+fan-out, checklist loop) is backed by a handler that implements a common interface.
 The execution engine does not know about handler internals.
 
 **Checkpoint and resume.** After each top-level node completes, the execution engine saves a serializable checkpoint. If the process crashes, execution resumes from the last checkpoint.
@@ -106,8 +106,9 @@ A pipeline is one JSON document: a single object carrying the pipeline's
 metadata, file-level defaults, and a flat array of nodes. **Routing
 belongs to its origin node**: a chooser node carries its `edges` array
 (each edge with the condition that selects it), a tool node carries
-`on_success`/`on_error`, a parallel node carries its `branches` -- so
-where a node can go reads as one unit. There is no separate edge list.
+`on_success`/`on_error`, a parallel node carries its `branches`, a loop
+node carries `body` and `on_done` -- so where a node can go reads as one
+unit. There is no separate edge list.
 
 ```json
 {
@@ -170,7 +171,7 @@ Three fields appear on every node type:
 
 | Field         | Type       | Default   | Description |
 |---------------|------------|-----------|-------------|
-| `id`          | String     | required  | Node identity. Must match `[A-Za-z_][A-Za-z0-9_]*` and be unique in the file; routing fields (`to`, `on_success`, `on_error`, `branches`) and `supervises` reference it. |
+| `id`          | String     | required  | Node identity. Must match `[A-Za-z_][A-Za-z0-9_]*` and be unique in the file; routing fields (`to`, `on_success`, `on_error`, `branches`, `body`, `on_done`) and `supervises` reference it. |
 | `type`        | String     | required  | Discriminator: one of the built-in types of Section 2.5. Any other value is a parse error. |
 | `label`       | String     | node ID   | Display name shown in UI, prompts, and telemetry. |
 
@@ -185,6 +186,7 @@ table in Section 2.5 is the complete list of what it admits.
 | `parallel`        | Parallel fan-out. Executes multiple branches concurrently (Section 4.6). |
 | `parallel.fan_in` | Parallel fan-in. Consolidates branch results and chooses what follows (Section 4.7). |
 | `tool`            | External tool execution (shell command). Routes on exit code (Section 4.5). |
+| `loop`            | Checklist iteration. Re-reads a checklist file on every arrival, validates the previous lap's item, and dispatches the body with the first open item as the lap's frame; routes to `on_done` when no open item remains (Section 4.8). |
 | `supervisor`      | In-graph supervision. Outside the walk: observes a set of nodes through engine-fed digests and coaches them through targeted steering (Section 3.10). |
 
 **`codergen` and `parallel.fan_in` fields** (both run LLM turns; the
@@ -220,6 +222,24 @@ fan-in's turn evaluates branch evidence):
 | `branches`     | String array | required | IDs of the branch-root nodes fanned out concurrently (Section 4.6). Node IDs only -- a branch never ends the run, so pseudo-targets are forbidden (lint `parallel_fan_in`). |
 | `max_parallel` | Integer      | `4`      | Maximum branches walked concurrently (Section 4.6). Parallel nodes have no `timeout` of their own. |
 | `max_visits`   | Integer      | unset    | Visit budget (Section 3.4). Unset means unlimited. |
+
+**`loop` fields** (Section 4.8):
+
+| Field              | Type     | Default       | Description |
+|--------------------|----------|---------------|-------------|
+| `checklist`        | String   | unset         | Path of the checklist file, relative to the execution's workdir (Section 4.8). May be omitted only when this node lies inside another loop node's body; it then iterates the `checklist` field of the item the enclosing loop's frame names (lint `loop_checklist_required`, Section 7.2). |
+| `body`             | String   | required      | Entry node of one lap: a node ID. Section 4.8 defines the body node-set it roots. |
+| `on_done`          | String   | required      | Target followed when no open item remains: a node ID or a terminal pseudo-target. |
+| `max_visits`       | Integer  | unset         | Visit budget (Section 3.4): arrivals at the loop node, laps plus one. The only loop ceiling. Unset means unlimited. |
+| `timeout`          | Duration | inherited     | Maximum duration of one item's validation command; also the infer judge turn's timeout (Section 4.8). |
+| `llm_model`        | String   | inherited     | LLM model identifier for the infer judge (Section 8). Meant for a cheap model. |
+| `llm_provider`     | String   | inherited     | LLM provider key for the infer judge. Auto-detected from model if neither the node nor `defaults` sets it. |
+| `reasoning_effort` | String   | inherited     | LLM reasoning effort of the infer judge: `low`, `medium`, `high` (Section 8). |
+
+`timeout`, `llm_model`, `llm_provider`, and `reasoning_effort` resolve
+through `defaults` (Section 2.7). A loop node has no `prompt`,
+`fidelity`, or `thread_id`: the judge turn's prompt is engine-built,
+and it runs with fidelity `none` on no thread (Section 4.8).
 
 **`supervisor` fields** (Section 3.10):
 
@@ -289,9 +309,9 @@ the first value found:
 
 Anything else in `defaults` is a parse error. Identity, typing, routing,
 and each node's own work are always explicit at the node: `id`, `type`,
-`edges`, `on_success`, `on_error`, `branches`, `prompt`,
-`tool_command`, `thread_id`, `max_parallel`, `max_visits`,
-`supervises`, and `interval` cannot be defaulted, so a reader of a
+`edges`, `on_success`, `on_error`, `branches`, `checklist`, `body`,
+`on_done`, `prompt`, `tool_command`, `thread_id`, `max_parallel`,
+`max_visits`, `supervises`, and `interval` cannot be defaulted, so a reader of a
 node sees everything that decides where it routes and what it does. A default for a field a node type lacks (e.g. `max_retries`
 for a `tool` node, Section 2.5) simply does not apply to nodes of that
 type.
@@ -615,7 +635,8 @@ the engine.
 the offered set: the node's routing targets, minus any target that has
 exhausted its visit budget (Section 3.4). A node's routing targets are
 its type's routing fields read as a list: an `edges` array's `to`
-values, a tool's `on_success` and `on_error`, a parallel's `branches`.
+values, a tool's `on_success` and `on_error`, a parallel's `branches`,
+a loop's `body` and `on_done`.
 
 ```
 FUNCTION offered_successors(node, graph, node_visits) -> List<Target>:
@@ -645,6 +666,10 @@ FUNCTION offered_successors(node, graph, node_visits) -> List<Target>:
 | `codergen`         | the agent      | `next` in the choice schema, a string enum of offered target IDs whose property description maps each ID to its route meaning (Section 4.3) |
 | `tool`             | the exit code  | zero follows `on_success`, nonzero follows `on_error` (Section 4.5) |
 | `parallel`         | nobody         | all offered branches execute; `next` names the fan-in (Section 4.6) |
+| `loop`             | the checklist  | an open item remains -> `body`; none -> `on_done` (Section 4.8) |
+
+The loop node is the second mechanical chooser (after `tool`): the
+engine reads the checklist's item order and `done` flags, never prose.
 
 - **Validation.** The engine verifies `next` names an allowed successor --
   an offered target, or the designated fan-in when the node is a parallel
@@ -766,7 +791,8 @@ when:
 
 - an Error from a node's execution survives the retry budget, or is
   `terminal` or `interrupted` outright (Appendix B) -- including a tool
-  node's exit-code route being budget-exhausted (Section 4.5);
+  node's exit-code route or a loop node's designated route being
+  budget-exhausted (Sections 4.5, 4.8);
 - every successor of the current node has exhausted its visit budget
   (Section 3.4);
 - a chooser names an unoffered successor, or supplies none when a decision
@@ -1156,6 +1182,10 @@ ExecutionScope:
                             -- outcome.json here (Appendix A)
     goal      : String      -- the top-level goal field; the source
                             -- for $goal expansion (Section 4.3)
+    frame     : String | unset -- engine-rendered loop frame block(s),
+                            -- prepended to codergen and fan-in prompts
+                            -- while a loop lap is active; unset
+                            -- otherwise (Section 4.8)
     run_log   : Path | unset -- the execution's engine-allocated run-log
                             -- segment, created and indexed before
                             -- dispatch; set for executions that run a
@@ -1224,6 +1254,12 @@ instead, naming the first offered target when a choice exists. It
 writes `response.md` -- the Outcome fields as YAML frontmatter,
 `notes` as the markdown body; the engine, not the handler, writes
 `outcome.json` (Section 3.5, Appendix A).
+
+When `scope.frame` is set (Section 4.8) the handler prepends it to the
+prompt, separated by a blank line, before the turn: `$goal` expansion
+applies to the node's own prompt text only -- the frame is never
+expanded -- and the combined text is what lands in `prompt.md`. The
+fan-in handler (Section 4.7) does the same.
 
 **Choice schema:** The output schema the backend enforces on the turn. Its
 shape follows directly from the offered successors (Section 3.3). This is
@@ -1420,7 +1456,8 @@ steers the run (Sections 3.9, 10). Section 6 develops the pattern.
 ### 4.5 Tool Handler
 
 Executes an external shell command and routes on its exit code. This is the
-one mechanical chooser: the only branching signal a command produces is its
+first mechanical chooser (the loop node, Section 4.8, is the second): the only
+branching signal a command produces is its
 exit status, so that is the only branching the tool node offers.
 
 ```
@@ -1606,6 +1643,279 @@ a synthesis) to the main workspace. Like any codergen node, the fan-in
 routes by choosing among its own offered successors: proceed with the
 merged result, loop back for another round, or escalate to a node that
 brings in a human (Section 6).
+
+### 4.8 Loop Handler
+
+Iterates a checklist file. On every arrival the handler re-reads the
+file, validates the item the previous lap worked on, marks that item
+done when the validation passed, selects the first item not yet done,
+injects it as the lap's frame, and dispatches `body`. When no open item
+remains it routes to `on_done`. The engine owns selection, validation,
+marking, and injection; agents never write the `done` field. The
+checklist file is the only durable loop state: the engine caches,
+injects, and forgets. Nothing about the loop is checkpointed
+(Section 5.3).
+
+**The checklist file.** Markdown with YAML frontmatter. The frontmatter
+is the ledger the engine reads; the body is prose the engine never
+reads (definition of done, context, notes).
+
+```markdown
+---
+items:
+  - name: Build the login screen
+    check: The login screen validates and submits on valid input
+    command: npx playwright test tests/login.spec.ts
+    infer:
+      files: ephemeral/captures/login/*.png
+      prompt: Judge whether every state of the login screen looks usable
+    doc: ephemeral/projects/mvp/sprints/SPRINT-0002.md
+  - name: Reject a bad password
+    check: A wrong password shows an inline error and keeps the form
+    command: npx playwright test tests/login-error.spec.ts
+    done: true
+---
+
+# Sprint 2: login
+
+Definition of done in open prose. Anything here is for agents and people.
+```
+
+| Field          | Required     | Description |
+|----------------|--------------|-------------|
+| `name`         | yes          | Identity. Unique within the file; a duplicate is a parse error. |
+| `check`        | yes          | The claim, as observable behavior. Prose for agents: the engine copies it into the frame and the judge prompt and never interprets it. |
+| `command`      | no           | Shell command run from the workdir. Exit 0 passes. |
+| `infer.files`  | with `infer` | One glob or a list of globs, relative to the workdir, naming the evidence the judge inspects. |
+| `infer.prompt` | with `infer` | What the judge is to decide about those files. |
+| `doc`          | no           | Path to a prose document injected with the item. |
+| `checklist`    | no           | Path to a sub-checklist. A loop node inside this loop's body that has no `checklist` field of its own iterates it. |
+| `done`         | no           | Engine-owned. Absent or `false` means open. |
+
+Rules:
+
+- Items are selected in file order: the first item whose `done` is not
+  `true`. A failed item stays open and is therefore re-selected on the
+  next arrival unless something was inserted before it. Planners may
+  append, insert, reorder, or rewrite open items at any time; the loop
+  re-reads on every arrival.
+- An item with neither `command` nor `infer` passes when its lap
+  returns. This is what a chapter item looks like: its validation is
+  the sub-checklist its lap iterated.
+- The engine writes exactly one thing: `done: true` on one item. The
+  markdown body is preserved byte for byte; the frontmatter is
+  re-encoded from the parsed node tree, so key order and comments
+  survive as far as the YAML library allows. The write is atomic, and a
+  rewrite that would not parse back, would alter the body, or would
+  leave the item unmarked never reaches the file.
+- A hand-edited `done: true` is honored without validation. It is the
+  human override, and the file is the truth.
+- An unknown item key, a missing `name` or `check`, an `infer` without
+  `files` or `prompt`, or a `done` that is not a boolean makes the file
+  unparseable, and the arrival returns an Error.
+- Every path in the file (`command` cwd, `infer.files`, `doc`,
+  `checklist`) is relative to the execution's workdir, which inside a
+  parallel branch would be the branch's worktree -- but a loop node
+  may not lie inside a branch (lint `loop_in_parallel`, Section 7.2).
+
+**Arrival.**
+
+```
+LoopHandler:
+    FUNCTION execute(node, offered, scope, graph)
+        -> OneOf<Outcome, Error>:
+        path = resolve_checklist_path(node, scope)
+            -- node.checklist when set; otherwise the `checklist` field
+            -- of the item named by the innermost enclosing loop frame,
+            -- which must carry one. Relative to scope.workdir
+        list = checklist.load(path)          -- unparseable: Error
+        frame = frames.top_for(node)         -- in-memory (below); absent
+                                             -- on the first arrival and
+                                             -- after a resume
+
+        IF frame is present:                 -- a lap just returned
+            item = list.find(frame.item)
+            IF item is absent:               -- renamed or removed by a planner
+                note "item vanished"; frames.pop(node)
+            ELSE IF item.done:               -- hand-marked
+                frames.pop(node)
+            ELSE:
+                result = validate(node, item, scope)     -- below
+                write validation.json and validation.log to
+                    scope.stage_dir
+                IF result.passed:
+                    checklist.mark_done(path, item.name)
+                    frames.pop(node)
+                ELSE:
+                    frame.last_failure = result.summary
+            list = checklist.load(path)      -- re-read after marking
+
+        next, index = list.open()            -- first item not done
+        IF next is absent:
+            frames.pop(node)                 -- if still present
+            write frames.json
+            route = node.on_done
+            notes = "checklist complete"
+        ELSE:
+            IF frame is absent OR frame.item != next.name:
+                frames.push_or_replace(node, Frame{item: next.name,
+                    index, count: size(list.items), lap: 1,
+                    last_failure: unset})
+            ELSE:
+                frame.lap += 1               -- same item, another lap
+            write frames.json
+            route = node.body
+            notes = "item " + index + "/" + count + ": " + next.name +
+                    " (lap " + frame.lap + ")"
+
+        IF route NOT IN offered:
+            -- mechanical chooser: no alternative exists (Section 4.5)
+            RETURN Error("terminal",
+                         route + " has exhausted its visit budget")
+        RETURN Outcome(next=route, notes=notes)
+```
+
+The body's last node routes back to the loop node with an ordinary
+edge. That edge is the lap's "this item is implemented" claim, and the
+engine tests the claim before believing it. `body` and `on_done` are
+the node's routing targets (Section 3.3), so the offered-set mechanism
+applies unchanged: a `body` that has exhausted its own `max_visits`
+while items remain fails the run, as an exhausted successor fails any
+node.
+
+**Validation.** Runs in the loop node's own stage directory,
+`stages/{seq}-{loop_id}/` (Section 5.6). The command runs first; the
+judge runs only if the command passed or is absent.
+
+```
+FUNCTION validate(node, item, scope) -> ValidationResult:
+    IF item.command is set:
+        result = run_shell_command("/bin/sh -c " + item.command,
+                                   cwd=scope.workdir,
+                                   timeout=node.timeout, stop=scope.stop)
+            -- stdout and stderr to validation.log; the process group
+            -- is killed on stop or timeout, exactly as for a tool
+            -- node (Section 4.5)
+        IF result.exit_code != 0:
+            RETURN failed(summary="exit " + result.exit_code + " -- " +
+                                  last_400_chars(validation.log))
+    IF item.infer is set:
+        files = expand_globs(item.infer.files, relative_to=scope.workdir)
+        IF files is empty:
+            RETURN failed(summary="no evidence files")
+        verdict, reason = judge(node, item, files, scope)   -- below
+        IF verdict == "fail":
+            RETURN failed(summary=reason)
+    RETURN passed
+```
+
+The judge is one codergen turn through the configured backend
+(Section 4.3): fidelity `none`, no thread, the loop node's resolved
+model, provider, effort, and `timeout`, and the standard choice schema
+with two offered targets whose conditions are the verdicts -- `pass`
+("The evidence demonstrates the check.") and `fail` ("The evidence
+does not demonstrate the check, or is missing."). The Outcome's `next`
+is the verdict and its `notes` the reason. The turn's user message is
+engine-built:
+
+```
+You are validating one checklist item. Judge only what the evidence
+shows; do not fix anything.
+
+item: <name>
+check: <check>
+<infer.prompt>
+
+Evidence, open and inspect every file:
+- <path>
+- <path>
+```
+
+The judge runs in a coding harness with tools, so it opens images and
+other binary evidence itself; the content-part contract's text-only
+parts (Section 3.9) are no limitation here. The turn writes its own
+`prompt.md` and `response.md` into the loop node's stage directory and
+appends to a run-log segment allocated for it (Section 12.4). In
+simulation mode (no backend) the verdict is `pass`.
+
+`validation.json` is the record of one validation:
+
+```
+{
+    "item":      "<name>",
+    "command":   "<command or absent>",
+    "exit_code": <integer, when a command ran>,
+    "log_tail":  "<last 400 characters of validation.log>",
+    "infer":     { "files": [<expanded paths>],
+                   "verdict": "pass" | "fail",
+                   "notes": "<the judge's reason>" },
+    "passed":    true | false,
+    "summary":   "<what the next lap's frame carries as last validation>"
+}
+```
+
+**The frame.** For every codergen and fan-in turn executed while at
+least one loop frame is active, the engine renders one block per
+active frame, outermost first, innermost last, and hands the rendered
+text down as `ExecutionScope.frame` (Section 4.1); the handler prepends
+it to the node's own prompt (Section 4.3). A block contains only
+engine facts and file contents the engine copied:
+
+```
+<tractor loop="sprint" checklist="ephemeral/projects/mvp/sprints/SPRINT-0002.md" item="1/2" lap="2">
+name: Build the login screen
+check: The login screen validates and submits on valid input
+command: npx playwright test tests/login.spec.ts
+infer:
+  prompt: Judge whether every state of the login screen looks usable
+  files:
+    - ephemeral/captures/login/*.png
+doc: ephemeral/projects/mvp/sprints/SPRINT-0002.md
+last validation: failed -- exit 1 -- <log tail>
+--- doc: ephemeral/projects/mvp/sprints/SPRINT-0002.md ---
+<file contents>
+</tractor>
+```
+
+The item is rendered as compact YAML: absent fields are omitted and
+`done` is never printed. `item` is the 1-based position of the item
+among all items in the file, `lap` how many times this item has been
+dispatched since it was selected. `last validation` appears only after
+a failed lap and carries that validation's `summary`. The `doc` header
+and its contents appear only when the item has a `doc`; an unreadable
+doc renders as `doc: <path> (unreadable: <error>)` rather than failing
+the turn. Supervisors (Section 3.10) do not receive frames. `$goal`
+expansion is unchanged (Section 4.3).
+
+**The frame stack.** The stack is in-memory engine state, guarded for
+concurrent access, and never checkpointed. Arriving at a loop node
+whose frame is not on top of the stack pops everything above it: an
+inner loop that was bypassed by an escalation edge is abandoned.
+Restart is coarse by design: after a resume the stack is empty, so the
+first arrival validates nothing and selects the first open item --
+which is the item the interrupted lap was working on unless a planner
+changed the file.
+
+**Body node-set and lint.** The **body node-set** of a loop node is
+every node reachable from `body` without passing through the loop
+node. It may contain further loop nodes, parallel nodes, and edges to
+`failure` (an escape hatch). It is delimited the way a parallel branch
+is (Section 4.6), and four rules keep it honest (Section 7.2):
+`loop_body_entry` (a body node is entered only from another body node,
+or, for the body root, from its loop node's `body`; `on_done` may not
+name a body node), `loop_body_returns` (the loop node is reachable
+from its body root within the body node-set), `loop_checklist_required`
+(a loop node without `checklist` lies inside another loop's body), and
+`loop_in_parallel` (a loop node never lies inside a parallel branch:
+the frame stack is run-wide and branches run concurrently).
+`edge_target_exists`, `edge_target_unique`, `dead_end`,
+`max_visits_positive`, and `reachability` apply to loop nodes through
+their routing targets and `max_visits`.
+
+**`frames.json`.** `{logs_root}/frames.json` is rewritten whenever the
+stack changes: an array of `{loop, checklist, item, index, count,
+lap}`, outermost first. It is a cache for observers (Section 5.6),
+never read by the engine.
 
 ---
 
@@ -1818,6 +2128,7 @@ Each pipeline execution produces a directory tree for logging, checkpoints, and 
     manifest.json                -- Pipeline metadata (name, goal, start time) and control-surface advertisement (Section 3.9)
     timeline.jsonl               -- Engine event stream as JSONL (Section 10)
     worktrees.jsonl              -- Append-only worktree inventory, one line per branch worktree created; Finalize's cleanup sweep (Section 4.6)
+    frames.json                  -- The current loop frame stack, outermost first; rewritten whenever it changes. An observer cache, never read by the engine (Section 4.8)
     events/
         index.jsonl              -- Append-only segment index: one line per segment created (Section 12.4)
         {seq}-{node_id}.jsonl    -- Run-log segment per backend turn (Section 12.4)
@@ -1831,6 +2142,8 @@ Each pipeline execution produces a directory tree for logging, checkpoints, and 
             steering.jsonl       -- Steering audit records (Section 3.9)
             tool.log             -- Tool nodes: captured stdout/stderr (Section 4.5)
             branches.json        -- Parallel nodes: BranchResult evidence for the fan-in (Section 4.6)
+            validation.log       -- Loop nodes: the validated item's command stdout/stderr (Section 4.8)
+            validation.json      -- Loop nodes: the validation record -- item, exit code, log tail, judge verdict, summary (Section 4.8)
         latest/
             {node_id}            -- Symlink to the node's most recent {seq}-{node_id}/, repointed by the engine after each successful execution (Section 3.5)
     supervisors/
@@ -1880,9 +2193,9 @@ Severity:
 | `start_target`           | ERROR    | The top-level `start` must name an existing walk node -- not a supervisor, not a pseudo-target. |
 | `terminal_reachable`     | ERROR    | At least one routing target `success` must be reachable from the node `start` names: a pipeline that cannot succeed deliberately is an authoring error. |
 | `reachability`           | ERROR    | All walk nodes (every type but `supervisor`) must be reachable from the node `start` names via BFS/DFS traversal. Supervisor nodes are outside the walk (Section 3.10) and are exempt. |
-| `edge_target_exists`     | ERROR    | Every routing target -- an edge's `to`, a tool's `on_success`/`on_error`, a parallel's `branches` entry -- must reference an existing node ID or a terminal pseudo-target (Section 2.6). |
+| `edge_target_exists`     | ERROR    | Every routing target -- an edge's `to`, a tool's `on_success`/`on_error`, a parallel's `branches` entry, a loop's `body`/`on_done` -- must reference an existing node ID or a terminal pseudo-target (Section 2.6). |
 | `edge_target_unique`     | ERROR    | No two edges of one node may share a `to`: the choice schema's enum would carry a duplicate value, and which condition text the model sees for that target would be ambiguous (Section 4.3). (A tool's `on_success` and `on_error` naming one target is fine -- there is no condition pairing to corrupt.) |
-| `dead_end`               | ERROR    | Every walk node must have at least one routing target: a codergen or fan-in node's `edges` must be non-empty, as must a parallel node's `branches` (a tool node always routes -- `on_success` is required). Supervisor nodes route nowhere and are exempt. |
+| `dead_end`               | ERROR    | Every walk node must have at least one routing target: a codergen or fan-in node's `edges` must be non-empty, as must a parallel node's `branches` (a tool node always routes -- `on_success` is required -- and so does a loop node, whose `body` and `on_done` are required). Supervisor nodes route nowhere and are exempt. |
 | `parallel_fan_in`        | ERROR    | Every branch path from a parallel node must converge on a single `parallel.fan_in` node, and no routing target in `branches` or inside the branches may name a pseudo-target: branches converge, they never end the run (Section 4.6). |
 | `branch_disjoint`        | ERROR    | A parallel node's branch node-sets must be pairwise disjoint, except for the shared fan-in (Section 4.6). |
 | `no_nested_parallel`     | ERROR    | A parallel node may not appear inside another parallel node's branches; nested fan-out is out of scope for this version. |
@@ -1896,11 +2209,15 @@ Severity:
 | `max_retries_nonnegative`| ERROR    | `max_retries`, when set (on a node or in `defaults`), must be a nonnegative integer. |
 | `edge_condition_missing` | ERROR    | Every outgoing edge of a node that routes via the choice schema (codergen and `parallel.fan_in`) with more than one outgoing edge must have a `condition` that is non-empty after trimming whitespace -- the conditions are the routing text presented to the model (Section 4.3). An absent, empty, or whitespace-only condition all fail. |
 | `supervises_valid`       | ERROR    | A supervisor's `supervises` array must be non-empty, contain no duplicates, and every entry must name an existing node ID other than the supervisor itself; its `interval` must be positive (Section 3.10). A missing `supervises` is already a parse error -- requiredness is structural (Section 2.7). A supervisor with nothing in its purview is an authoring error, not a quiet no-op. |
-| `supervisor_not_targeted`| ERROR    | No routing target (`to`, `on_success`, `on_error`, `branches`) may name a supervisor node: supervisors are outside the walk and can never be a successor (Section 3.10). |
+| `supervisor_not_targeted`| ERROR    | No routing target (`to`, `on_success`, `on_error`, `branches`, `body`, `on_done`) may name a supervisor node: supervisors are outside the walk and can never be a successor (Section 3.10). |
 | `supervisor_cycle`       | ERROR    | The supervision relation among supervisor nodes (A lists B in `supervises`) must be acyclic; in a cycle, each member's flush turn counts as live activity for the next member's patrol, so the participants could keep one another running indefinitely (Section 3.10). |
 | `fidelity_valid`         | ERROR    | Fidelity mode values must be one of `full`, `compacted`, `none`, or a mode the active implementation defines (Section 5.4). An unsupported mode is rejected, never given accidental runtime semantics (Section 12.1). |
 | `thread_id_collision`    | ERROR    | An explicit `thread_id` must not equal any node ID -- implicit per-node threads and named shared threads are separate namespaces (Section 5.4). |
 | `thread_harness_consistent`| ERROR  | Nodes sharing a resolved thread key under session-reusing fidelity modes (`full`, `compacted`) must resolve to models that route to the same harness (Section 12.1). Thread keys resolve statically (Section 5.4), so this check is fully static. |
+| `loop_body_entry`        | ERROR    | Every incoming route of a loop body node must originate inside the same loop's body node-set; the body root additionally accepts its loop node's `body`. `on_done` may not name a body node -- leaving the loop must leave the body (Section 4.8 defines the body node-set). |
+| `loop_body_returns`      | ERROR    | The loop node must be reachable from its body root within the body node-set: a body that never routes back means no lap could ever be validated (Section 4.8). |
+| `loop_checklist_required`| ERROR    | A loop node without a `checklist` must lie inside another loop node's body, where it iterates the enclosing item's `checklist` field; anywhere else it has nothing to iterate (Section 4.8). |
+| `loop_in_parallel`       | ERROR    | A loop node may not lie inside a parallel node's branch node-set: the frame stack is run-wide and branches run concurrently (Sections 4.6, 4.8). |
 | `fan_in_max_visits`      | WARNING  | `max_visits` on a `parallel.fan_in` node does not bound the loop at the parallel node (the fan-in is reached via the parallel's `next`, not an offered set); it takes effect only inside branch walks, where an exhausted fan-in starves the branches' final offered sets and fails the run (Sections 3.2-3.4). Bound the loop at the parallel node or a downstream node. |
 | `branch_root_max_visits` | WARNING  | `max_visits` on a parallel branch root silently shrinks later fan-outs: an exhausted root is excluded from the branches the fan-out runs (Section 4.6). Bound the loop at the parallel node instead. |
 | `prompt_on_llm_nodes`    | WARNING  | A codergen node's `prompt` should be present and non-empty: absent, the turn runs on the node's label or ID alone (Section 4.3). |
@@ -2010,6 +2327,11 @@ The engine emits typed events during execution for UI, logging, and metrics inte
 
 **Checkpoint events:**
 - `CheckpointSaved(node_id)` -- checkpoint written
+
+**Loop events (Section 4.8):**
+- `LoopItemSelected(node, item, index, count, lap)` -- a loop node selected an open item and dispatched its body; `index` is the item's 1-based position among `count` items, `lap` how many times this item has been dispatched since it was selected
+- `LoopValidated(node, item, passed, summary)` -- a returned lap's item was validated; `summary` is the validation record's summary
+- `LoopCompleted(node, count)` -- no open item remained and the loop routed to `on_done`
 
 **Supervision events (Section 3.10):**
 - `SupervisorFlushed(supervisor, batch, count)` -- a patrol found live in-scope activity and started a flush turn (Section 3.10). `batch` names the newly rotated batch file and `count` its digest lines; when the inbox was empty (all activity still mid-turn), `batch` is absent and `count` is `0` -- no rotation happened
@@ -2435,8 +2757,9 @@ usage       { ... }                  -- OPTIONAL; provider-reported
 
 ### 12.4 Run Log
 
-Each backend turn (codergen and fan-in executions, and supervisor flush
-turns, Section 3.10) appends its events to a segment file, and the run
+Each backend turn (codergen and fan-in executions, supervisor flush
+turns, Section 3.10, and loop infer-judge turns, Section 4.8) appends its
+events to a segment file, and the run
 maintains an index and a live pointer:
 
 - `{logs_root}/events/{seq}-{node_id}.jsonl` -- one segment per backend

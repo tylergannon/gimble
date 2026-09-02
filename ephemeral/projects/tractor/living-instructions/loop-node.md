@@ -154,7 +154,11 @@ FUNCTION loop.execute(node, offered, scope):
 
 The frame stack is a field on the `Runner`, guarded by a mutex. Arriving at
 a loop node whose frame is not on top of the stack pops everything above
-it: an inner loop that was bypassed by an escalation edge is abandoned.
+it. (With the §7 lint rules as written, an edge from an inner body straight
+to the outer loop node is illegal, because the body node-set follows every
+edge except through its own loop node; the pop rule is defensive, not a
+supported shape. If escape edges are wanted later, the node-set definition
+must stop at enclosing loop nodes.)
 Restart is coarse and dumb by design: after a resume the stack is empty,
 the first arrival validates nothing and selects the first open item, which
 is the item the interrupted lap was working on unless a planner changed
