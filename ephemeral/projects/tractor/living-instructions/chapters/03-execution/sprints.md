@@ -32,6 +32,7 @@ items:
         - skills/tractor/SKILL.md
         - src/content/docs/*.md
       prompt: Compare these files with the built-in workflow help and judge whether a caller can choose and run MEDIUM or LARGE, find the allocated logs, answer a material question, and understand that the loop engine alone marks validated items done.
+    done: true
   - name: live plan-to-MEDIUM proof
     check: A real plan workflow creates a MEDIUM plan after a blocking reviewer interview, and the printed medium handoff runs that plan with a real coding harness to completion, leaving every item engine-marked done and per-lap validation evidence in the run logs.
     doc: ephemeral/projects/tractor/living-instructions/chapters/03-execution/SPRINT-06.md
