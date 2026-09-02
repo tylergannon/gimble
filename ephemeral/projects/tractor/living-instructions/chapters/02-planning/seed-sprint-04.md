@@ -5,5 +5,6 @@ Running it with no arguments prints one greeting followed by a newline and has
 no other effects. The exact greeting is intentionally unresolved: it should be
 either `Hello, Tractor!` or `Hello, world!`; ask the reviewer to choose.
 
-Keep this to one implementation sprint. Do not add dependencies, flags, or
-other files.
+Keep this to one implementation sprint and express all implementation and
+validation work as exactly one checklist item. Do not add dependencies, flags,
+or other files.
