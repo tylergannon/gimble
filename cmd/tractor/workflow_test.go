@@ -32,6 +32,11 @@ func TestWorkflowList(t *testing.T) {
 	if !strings.Contains(help, "tractor workflow list") || !strings.Contains(help, "tractor workflow run plan") {
 		t.Fatalf("workflow help does not lead callers from list to run:\n%s", help)
 	}
+	for _, required := range []string{"tractor workflow run medium", "tractor workflow run large", "whole plan", "foreground run"} {
+		if !strings.Contains(help, required) {
+			t.Errorf("workflow help does not contain %q:\n%s", required, help)
+		}
+	}
 
 	listHelp, _, err := executeCommand("workflow", "list", "--help")
 	if err != nil {
@@ -46,7 +51,11 @@ func TestWorkflowList(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, required := range []string{"--project", "--seed", "--workdir", "--logs", "Tractor state root", "interview"} {
+		for _, required := range []string{
+			"--project", "--seed", "--workdir", "--logs", "Tractor state root", "interview",
+			"Size and Next", "Medium runs one checklist loop", "Large plans each chapter",
+			"loop engine validates and marks items", "Logs: <absolute-path>",
+		} {
 			if !strings.Contains(runHelp, required) {
 				t.Errorf("workflow run %s help does not contain %q:\n%s", name, required, runHelp)
 			}

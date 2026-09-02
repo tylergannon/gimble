@@ -1,0 +1,1 @@
+doc_bug: Built-in medium and large workflows were runnable, but README, spec, site, skill, and llms.txt still instructed callers to treat their handoffs as pending -> keep workflow availability changes synchronized across every shipped instruction surface and Cobra help.

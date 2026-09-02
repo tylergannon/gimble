@@ -20,6 +20,7 @@ items:
     check: A caller can list and run plan, medium, or large by project; all three allocate and print a fresh default run directory under Tractor's state root while preserving an explicit logs override.
     doc: ephemeral/projects/tractor/living-instructions/chapters/03-execution/SPRINT-04.md
     command: go build ./... && go vet ./... && sh ephemeral/projects/tractor/living-instructions/chapters/03-execution/check-sprint-04.sh
+    done: true
   - name: execution workflow docs and skill
     check: CLI help, README, reference and site docs, the Tractor skill, and llms.txt accurately teach the directly runnable MEDIUM and LARGE handoffs, their loop shapes, reviewer questions, validation ownership, and log discovery.
     doc: ephemeral/projects/tractor/living-instructions/chapters/03-execution/SPRINT-05.md

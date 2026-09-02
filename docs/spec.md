@@ -555,16 +555,27 @@ does not yet have a settled execution shape. Its invocation is:
 tractor workflow run plan \
   --project <safe-name> \
   --seed <seed-file> \
-  --workdir <repository> \
-  --logs <run-directory>
+  --workdir <repository>
 ```
 
-`--project`, `--seed`, and `--logs` are required. `--project` MUST be one safe
-directory name, not a path. `--workdir` defaults to `.`, MUST resolve to an
-existing directory, and roots repository inspection and planning outputs. A
-relative `--seed` is resolved beneath `--workdir` and MUST name a readable
-regular file. `--logs` is the ordinary pipeline run directory and is resolved
-by the execution engine independently of `--workdir`.
+`--project` is required for every built-in workflow and MUST be one safe
+directory name, not a path. It selects
+`<workdir>/ephemeral/projects/<project>/`, which is both the planning output
+and the execution input. `--seed` is required for `plan`, forbidden for
+`medium` and `large`, and when relative is resolved beneath `--workdir`; it
+MUST name a readable regular file. `--workdir` defaults to `.`, MUST resolve
+to an existing directory, and roots repository inspection and all project
+paths.
+
+`--logs` is optional and MUST name an absent path or an empty run directory. A
+relative override is resolved beneath `--workdir`. Without an override, the command
+allocates a unique directory beneath
+`$XDG_STATE_HOME/tractor/workflow-runs/`, or beneath
+`~/.local/state/tractor/workflow-runs/` when `XDG_STATE_HOME` is unset. The
+command prints `Logs: <absolute-path>` before the foreground runner starts, so
+the caller can discover `timeline.jsonl`, `checkpoint.json`, and `stages/`
+even when using the default. Built-in workflow runs do not resume or reuse a
+log directory.
 
 The workflow uses one long-lived codergen node. It reads the seed and relevant
 repository context, then asks one numbered Markdown or HTML question at a time
@@ -594,9 +605,60 @@ The plan workflow writes exactly these artifacts under
 `tractor workflow run medium --project <project>` for MEDIUM, and
 `tractor workflow run large --project <project>` for LARGE. The workflow
 mechanically validates all three artifacts, then prints their paths, the size,
-and `Next`. A caller executes a named MEDIUM or LARGE handoff only when that
-name is present in `tractor workflow list`; until then the recommendation is a
-pending handoff, not a claim that the execution workflow is available.
+and `Next`. The caller runs the printed command from the same `--workdir`, or
+adds that `--workdir` explicitly. `tractor workflow list` in the same binary
+is the availability authority.
+
+The built-in `medium` workflow executes an existing MEDIUM plan:
+
+```sh
+tractor workflow run medium \
+  --project <safe-name> \
+  --workdir <repository>
+```
+
+It is one checklist loop over
+`ephemeral/projects/<project>/checklist.md`. The loop injects one sprint item
+and its optional `doc` into the implementation turn, receives the turn back,
+then runs that item's command followed by its infer judge. A passing
+validation makes the engine write `done: true`; a failure leaves the item open
+and dispatches another lap. When no item remains, the loop routes the one run
+to success.
+
+The built-in `large` workflow executes an existing LARGE plan:
+
+```sh
+tractor workflow run large \
+  --project <safe-name> \
+  --workdir <repository>
+```
+
+Its outer loop reads the project chapter checklist. For each chapter, a
+planning turn reads the chapter document and populates that chapter item's
+initially empty sprint checklist. A nested loop resolves the sprint checklist
+from the enclosing chapter frame, implements and validates every sprint, and
+returns to the outer loop. A chapter item has no independent validator: it
+passes when its nested sprint checklist returns complete, after which the
+engine marks the chapter done and selects the next one. One foreground run
+therefore covers every chapter and sprint; neither workflow starts a child run
+or executes sprints in parallel.
+
+Both execution workflows configure the project's interview directory and may
+block within the current agent turn. An implementation turn asks only when an
+item has no runnable validator or repeated engine validation exposes a
+material question. The LARGE chapter planner asks only when an answer changes
+sprint scope or validation; when the chapter document settles those details,
+it plans silently. The caller finds each `QuestionAsked` event in the printed
+log directory's `timeline.jsonl` and answers it with `tractor answer` as
+specified in Section 3.1.1.
+
+The loop engine owns selection, command and infer execution, validation
+records, and marking at both levels. Agents MAY edit open item content while
+planning or implementing, but MUST NOT add, remove, or change `done`. On every
+return to a loop, validation runs before another item is selected. The result
+and command output are recorded in `validation.json` and `validation.log`
+inside that loop visit's stage directory (Section 4.8);
+`stages/latest/<loop-id>/` points to the latest successful visit.
 
 ### 3.2 Core Execution Loop
 

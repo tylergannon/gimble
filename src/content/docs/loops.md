@@ -74,6 +74,42 @@ agent never marks items; the file is the only loop state, so a planner
 [`checklist-loop.md`](https://github.com/tylergannon/tractor/blob/main/examples/loops/checklist-loop.md)
 beside it to start.
 
+## Run a planned checklist
+
+Use the planner's exact `Next:` command when the plan is MEDIUM or LARGE:
+
+```sh
+tractor workflow run medium --project my-build
+tractor workflow run large --project my-build
+```
+
+Add `--workdir <repository>` when you are not running from the repository the
+planner used. Both commands first print an absolute `Logs:` path; without
+`--logs <empty-directory>` it is a fresh allocation below Tractor's state
+root. Follow `<printed-logs>/timeline.jsonl` while the foreground command runs.
+
+MEDIUM is one loop over the project's `checklist.md`: one sprint turn returns,
+the engine runs its command and then its infer judge, and only a passing item
+is marked before the next sprint begins. LARGE adds an outer chapter loop. Its
+planning turn fills the current chapter's sprint ledger, the nested loop runs
+and validates every sprint, then the outer loop marks the completed chapter
+and advances. One Tractor run covers the whole execution; neither shape starts
+child runs or parallel sprints.
+
+An implementation turn may ask its reviewer when no runnable validator exists
+or repeated validation exposes a material question. The LARGE chapter planner
+may ask when the chapter document cannot settle sprint scope or validation.
+Find the `QuestionAsked` event in `timeline.jsonl`, open its `question` path,
+and answer it without restarting the run:
+
+```sh
+tractor answer <question-path> "Use the repository's integration gate."
+```
+
+For a failed item, inspect `validation.log` and `validation.json` in the latest
+loop stage. The engine alone runs validators and writes `done: true`; the agent
+never marks its own sprint or chapter complete.
+
 ## Writing node prompts
 
 State the condition the agent is to bring about, never the steps — the

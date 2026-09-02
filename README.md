@@ -119,28 +119,48 @@ Details and caveats: [implementation notes](docs/implementation-notes.md).
 
 When the job is not already a small, settled change, let Tractor interview you
 before choosing a pipeline. Put the initial request in a seed file, then list
-the workflows in your installed binary and run `plan`:
+the workflows in your installed binary and run `plan` from the repository:
 
 ```sh
 tractor workflow list
 tractor workflow run plan \
   --project my-build \
-  --seed seed.md \
-  --workdir . \
-  --logs ./tractor-plan-logs
+  --seed seed.md
 ```
 
-The planner asks numbered questions through `QuestionAsked` events in
-`./tractor-plan-logs/timeline.jsonl`. Open each event's `question` path and
-answer it with `tractor answer <question-path> [text]`. When the interview
-finishes, the command prints paths to `brief.md`, `checklist.md`, and
-`recommendation.md` under `ephemeral/projects/my-build/`, followed by the size
-and next action.
+Before starting, Tractor prints `Logs: <absolute-path>`. By default that fresh
+directory is under `$XDG_STATE_HOME/tractor/workflow-runs/`, or
+`~/.local/state/tractor/workflow-runs/` when `XDG_STATE_HOME` is unset; pass
+`--logs <empty-directory>` to put it elsewhere. Watch its `timeline.jsonl` for
+`QuestionAsked`, open each event's `question` path, and answer it with
+`tractor answer <question-path> [text]`.
+
+When the interview finishes, Tractor prints paths to `brief.md`,
+`checklist.md`, and `recommendation.md` under
+`ephemeral/projects/my-build/`, followed by `Size:` and the exact `Next:`
+command. Run that command from the same repository (or add the same
+`--workdir` used for planning):
+
+```sh
+tractor workflow run medium --project my-build
+# or, for a multi-chapter plan:
+tractor workflow run large --project my-build
+```
 
 SIMPLE means execute the checklist yourself. MEDIUM means more than one sprint
-but fewer than two chapters; LARGE means multiple chapters. For MEDIUM and
-LARGE, use the exact `Next` command only when that workflow appears in
-`tractor workflow list`; `plan` is the only built-in workflow available today.
+but fewer than two chapters: one loop implements and validates every item in
+`checklist.md`. LARGE means multiple chapters: an outer loop plans each chapter
+into its sprint ledger, and a nested loop implements and validates those
+sprints. Each command is one foreground Tractor run for the whole execution;
+it never launches a run per item or chapter.
+
+The execution run may ask a blocking reviewer question when a validator is
+missing, repeated validation exposes a material issue, or a LARGE chapter
+cannot be planned from its document. Answer the resulting `QuestionAsked`
+event exactly as during planning. The loop engine runs each item's `command`
+and then its `infer` judge, writes `validation.log` and `validation.json` in
+the loop stage, and is the only writer of `done: true`. A failed validation
+leaves the item open for the next lap.
 
 ## Start from an example
 

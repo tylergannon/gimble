@@ -22,19 +22,36 @@ tractor workflow list
 tractor workflow run plan \
   --project <safe-project-name> \
   --seed <seed-file> \
-  --workdir <target-repository> \
-  --logs <plan-run-directory>
+  --workdir <target-repository>
 ```
 
-Watch `<plan-run-directory>/timeline.jsonl` for `QuestionAsked`, open each
-event's numbered question path, and answer it with `tractor answer
-<question-path> [text]`. The completed run prints `brief.md`, `checklist.md`,
-and `recommendation.md` beneath `ephemeral/projects/<project>/`, followed by a
-SIMPLE, MEDIUM, or LARGE size and its exact next action. SIMPLE is at most one
-sprint; execute its checklist yourself. MEDIUM is more than one sprint but
-fewer than two chapters. LARGE is multiple chapters. Run a MEDIUM or LARGE
-`Next` command only if that name is present in `tractor workflow list`;
-otherwise it is a pending handoff.
+Capture the absolute directory from the first `Logs:` line. Without `--logs`,
+Tractor allocates it below `$XDG_STATE_HOME/tractor/workflow-runs/` or
+`~/.local/state/tractor/workflow-runs/`; an explicit `--logs` must be fresh.
+Watch its `timeline.jsonl` for `QuestionAsked`, open each event's numbered
+question path, and answer it with `tractor answer <question-path> [text]`.
+The completed run prints `brief.md`, `checklist.md`, and `recommendation.md`
+beneath `ephemeral/projects/<project>/`, followed by a SIMPLE, MEDIUM, or LARGE
+size and its exact `Next:` action.
+
+SIMPLE is at most one sprint; execute its checklist yourself. MEDIUM is more
+than one sprint but fewer than two chapters. LARGE is multiple chapters. Run
+the printed handoff from the same repository, or pass the planning workdir:
+
+```sh
+tractor workflow run medium --project <safe-project-name>
+tractor workflow run large --project <safe-project-name>
+```
+
+MEDIUM runs one checklist loop. LARGE runs an outer chapter loop whose planner
+fills the current chapter's sprint ledger, then a nested loop executes it.
+Each command is one foreground run for the whole plan; neither starts child
+runs or parallel sprints. The workflows may ask a material blocking question
+through `QuestionAsked`; answer it with `tractor answer` and the current turn
+continues. The engine runs each item's command followed by its infer judge,
+records results in the loop stage's `validation.log` and `validation.json`,
+and is the only writer of `done: true`. Failed validation leaves the item open
+for another lap.
 
 ## Start from an example
 

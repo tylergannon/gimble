@@ -20,7 +20,8 @@ func newWorkflowCommand(run pipelineRunner) *cobra.Command {
 		Use:   "workflow",
 		Short: "List and run Tractor's built-in workflows",
 		Long: "List and run workflows embedded in Tractor. Start with 'tractor workflow list'. " +
-			"Use plan to produce a sized project, medium to execute one sprint checklist, or large to plan and execute nested chapter checklists.",
+			"Use plan to produce a sized project, medium to execute one sprint checklist, or large to plan and execute nested chapter checklists. " +
+			"The execution command printed as Next runs the whole plan in one foreground run.",
 		Example: "  tractor workflow list\n" +
 			"  tractor workflow run plan --project demo --seed seed.md\n" +
 			"  tractor workflow run medium --project demo\n" +
@@ -58,9 +59,10 @@ func newWorkflowRunCommand(run pipelineRunner) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "run <name>",
 		Short: "Run a built-in workflow",
-		Long: "Run plan, medium, or large through Tractor's foreground runner. Plan requires --seed and writes brief.md, checklist.md, " +
-			"and recommendation.md. Medium and large execute an existing project and reject --seed. All three configure the project's " +
-			"interview directory, print their absolute logs path before starting, and allocate fresh logs under Tractor's state root unless --logs is set.",
+		Long: "Run plan, medium, or large through Tractor's foreground runner. Plan requires --seed, writes brief.md, checklist.md, " +
+			"and recommendation.md, then prints Size and Next. Medium runs one checklist loop. Large plans each chapter and runs its nested sprint loop. " +
+			"Both execution workflows run the whole project without child runs; the loop engine validates and marks items. All three configure the project's " +
+			"interview directory for blocking questions, print 'Logs: <absolute-path>' before starting, and allocate fresh logs under Tractor's state root unless --logs is set.",
 		Example: "  tractor workflow run plan --project demo --seed seed.md\n" +
 			"  tractor workflow run medium --project demo\n" +
 			"  tractor workflow run large --project demo --workdir /path/to/repo --logs ./tractor-large-logs",

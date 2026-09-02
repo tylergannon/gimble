@@ -1,6 +1,6 @@
 ---
 name: tractor
-description: Plan work or run coding agents as detached pipelines with Tractor — interview a caller and recommend a workflow size, loop until a check actually passes, fan out across Claude/Codex/Gemini, or have a second model review the work. Use when the user needs a plan, does not know which Tractor shape fits, says "don't stop until the tests pass", "loop on this until it works", "keep working while I'm gone", "keep going after I close my laptop", "run this in the background", "try a couple of approaches in parallel", "have another model check this", "get a second opinion from Codex or Gemini" — or asks to start, check on, steer, or stop a Tractor run. Planning starts with the built-in plan workflow; execution starts from copy-and-run examples. Do not use for ordinary settled single-agent work that finishes in this session.
+description: Plan work or run coding agents as detached pipelines with Tractor — interview a caller and recommend a workflow size, execute a MEDIUM or LARGE planning handoff, loop until a check actually passes, fan out across Claude/Codex/Gemini, or have a second model review the work. Use when the user needs a plan, does not know which Tractor shape fits, says "don't stop until the tests pass", "loop on this until it works", "keep working while I'm gone", "keep going after I close my laptop", "run this in the background", "try a couple of approaches in parallel", "have another model check this", "get a second opinion from Codex or Gemini" — or asks to start, check on, steer, or stop a Tractor run. Planning and its sized execution handoffs use built-in workflows; custom goals start from copy-and-run examples. Do not use for ordinary settled single-agent work that finishes in this session.
 ---
 
 # Tractor
@@ -46,22 +46,42 @@ tractor workflow list
 tractor workflow run plan \
   --project <safe-project-name> \
   --seed <seed-file> \
-  --workdir <target-repository> \
-  --logs <plan-run-directory>
+  --workdir <target-repository>
 ```
 
-Watch `<plan-run-directory>/timeline.jsonl`. For every `QuestionAsked` event,
-open its numbered `question` path and answer with `tractor answer
-<question-path> [text]`; the same planning turn continues after each answer.
-On completion, Tractor prints the paths to `brief.md`, `checklist.md`, and
-`recommendation.md` under `ephemeral/projects/<project>/`, plus the size and
-next action.
+Capture the absolute path from the first `Logs:` line. Without `--logs`, it is
+a fresh directory below `$XDG_STATE_HOME/tractor/workflow-runs/` or
+`~/.local/state/tractor/workflow-runs/`; pass `--logs <empty-directory>` when a
+specific location is useful. Watch `<printed-logs>/timeline.jsonl`. For every
+`QuestionAsked` event, open its numbered `question` path and answer with
+`tractor answer <question-path> [text]`; the same planning turn continues
+after each answer. On completion, Tractor prints the paths to `brief.md`,
+`checklist.md`, and `recommendation.md` under
+`ephemeral/projects/<project>/`, plus `Size:` and the exact `Next:` action.
 
 For SIMPLE, execute the checklist yourself. MEDIUM is more than one sprint but
 fewer than two chapters; LARGE is multiple chapters. For MEDIUM or LARGE, run
-the exact `Next` command only if its workflow appears in `tractor workflow
-list`. If it is not listed, report the pending handoff instead of inventing an
-execution workflow.
+the printed `Next:` command from the same repository, or add the same
+`--workdir` used for planning:
+
+```sh
+tractor workflow run medium --project <safe-project-name>
+tractor workflow run large --project <safe-project-name>
+```
+
+MEDIUM is one loop over the plan's `checklist.md`. LARGE is an outer chapter
+loop whose planning turn fills each chapter's sprint ledger, with a nested
+loop that executes those sprints. Each command is one foreground run for the
+whole plan; it does not start a child run per sprint or chapter.
+
+Monitor the execution through the printed logs path. Answer any
+`QuestionAsked` event with `tractor answer` as above: implementation turns ask
+only for a missing validator or a material question exposed by repeated
+validation, while the LARGE planner may ask when the chapter document cannot
+settle sprint scope or validation. Read
+`stages/latest/<loop-id>/validation.log` and `validation.json` when an item is
+re-entered. The loop engine runs the item command and then its infer judge and
+is the only writer of `done: true`; agents never mark items.
 
 ## Writing node prompts
 
