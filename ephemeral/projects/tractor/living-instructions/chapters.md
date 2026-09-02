@@ -7,6 +7,7 @@ items:
     checklist: ephemeral/projects/tractor/living-instructions/chapters/01-ask/sprints.md
     command: >-
       go build ./... && go test ./cmd/tractor/... ./engine/... && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/01-ask/sprints.md)" -ge 3
+    done: true
   - name: Planning workflow
     check: A built-in planning workflow interviews the caller through `tractor ask` and ends with a brief, a loop-format checklist, and a size recommendation.
     doc: ephemeral/projects/tractor/living-instructions/chapters/02-planning/CHAPTER.md

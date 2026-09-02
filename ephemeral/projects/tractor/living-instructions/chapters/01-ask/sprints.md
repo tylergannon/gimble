@@ -21,6 +21,7 @@ items:
         - skills/tractor/SKILL.md
         - src/content/docs/*.md
       prompt: Run `go run ./cmd/tractor ask --help` and `go run ./cmd/tractor answer --help`. Judge whether an agent reading only the listed docs would invoke both commands correctly, including where the interview directory comes from and how the answer arrives. Fail on any claim the docs make that the help text contradicts.
+    done: true
 ---
 
 # Chapter 1 sprints

@@ -64,6 +64,9 @@ func TestParseExample(t *testing.T) {
 	if first.Done {
 		t.Error("first.Done should be false")
 	}
+	if first.DonePresent {
+		t.Error("first.DonePresent should be false")
+	}
 
 	second := list.Items[1]
 	if second.Name != "Reject a bad password" {
@@ -71,6 +74,9 @@ func TestParseExample(t *testing.T) {
 	}
 	if !second.Done {
 		t.Error("second.Done should be true")
+	}
+	if !second.DonePresent {
+		t.Error("second.DonePresent should be true")
 	}
 	if second.Infer != nil {
 		t.Error("second.Infer should be nil")

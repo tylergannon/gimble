@@ -25,6 +25,10 @@ type Item struct {
 	Doc       string
 	Checklist string
 	Done      bool
+	// DonePresent distinguishes an engine-authored done field from an absent
+	// field. Planning artifact validation uses it to reject agent-authored
+	// done: false as well as done: true.
+	DonePresent bool
 }
 
 // Infer describes evidence files and the question a judge answers about them.
@@ -264,6 +268,7 @@ func parseItem(entry *yaml.Node) (Item, error) {
 		case "checklist":
 			item.Checklist, err = scalar(valNode, key)
 		case "done":
+			item.DonePresent = true
 			item.Done, err = boolean(valNode, key)
 		case "infer":
 			item.Infer, err = parseInfer(valNode)

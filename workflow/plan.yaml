@@ -1,0 +1,21 @@
+name: plan
+start: planner
+nodes:
+  - id: planner
+    type: codergen
+    label: Plan the project
+    prompt: The workflow package materializes the planning contract here.
+    fidelity: full
+    thread_id: plan
+    timeout: 1d
+    max_visits: 5
+    edges:
+      - to: validate
+  - id: validate
+    type: tool
+    label: Validate planning artifacts
+    tool_command: "false"
+    on_success: success
+    on_error: planner
+    timeout: 1m
+    max_visits: 5
