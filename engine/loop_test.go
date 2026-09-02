@@ -129,7 +129,7 @@ items:
 		t.Fatalf("result = %#v after %d laps", result, laps)
 	}
 	first := readFile(t, filepath.Join(root, "stages", "000002-implement", "prompt.md"))
-	if strings.Contains(first, "last validation") || !strings.HasPrefix(first, `<tractor loop="items" checklist="sprint.md" item="1/1" lap="1">`) {
+	if strings.Contains(first, "last validation") || !strings.Contains(first, `<iterate loop="items" checklist="sprint.md" item="1/1" lap="1">`) {
 		t.Fatalf("first lap prompt = %q", first)
 	}
 	second := readFile(t, filepath.Join(root, "stages", "000004-implement", "prompt.md"))
@@ -317,8 +317,8 @@ items:
 	}
 	// Stages: 1 outer, 2 plan, 3 inner, 4 work, 5 inner, 6 work, 7 inner, 8 outer, ...
 	work := readFile(t, filepath.Join(root, "stages", "000006-work", "prompt.md"))
-	outerAt := strings.Index(work, `<tractor loop="outer" checklist="outer.md" item="1/2" lap="1">`)
-	innerAt := strings.Index(work, `<tractor loop="inner" checklist="inner-a.md" item="2/2" lap="1">`)
+	outerAt := strings.Index(work, `<iterate loop="outer" checklist="outer.md" item="1/2" lap="1">`)
+	innerAt := strings.Index(work, `<iterate loop="inner" checklist="inner-a.md" item="2/2" lap="1">`)
 	if outerAt < 0 || innerAt < 0 || outerAt > innerAt {
 		t.Fatalf("work prompt = %q", work)
 	}
@@ -326,7 +326,7 @@ items:
 		t.Fatalf("work prompt = %q", work)
 	}
 	plan := readFile(t, filepath.Join(root, "stages", "000009-plan", "prompt.md"))
-	if strings.Contains(plan, `loop="inner"`) || !strings.Contains(plan, `<tractor loop="outer" checklist="outer.md" item="2/2" lap="1">`) {
+	if strings.Contains(plan, `loop="inner"`) || !strings.Contains(plan, `<iterate loop="outer" checklist="outer.md" item="2/2" lap="1">`) {
 		t.Fatalf("second plan prompt = %q", plan)
 	}
 	if _, err := os.Stat(filepath.Join(root, "stages", "000008-outer", "validation.json")); err != nil {
@@ -340,7 +340,7 @@ func TestLoopFrameCarriesDocContents(t *testing.T) {
 		writeDoc bool
 		want     string
 	}{
-		{name: "readable doc", writeDoc: true, want: "  --- doc: notes.md ---\n  Read me carefully.\n</tractor>"},
+		{name: "readable doc", writeDoc: true, want: "  --- doc: notes.md ---\n  Read me carefully.\n</iterate>"},
 		{name: "missing doc", writeDoc: false, want: "doc: notes.md (unreadable: "},
 	}
 	for _, test := range tests {
@@ -641,7 +641,7 @@ items:
 		t.Fatalf("body dispatches = %v", dispatched)
 	}
 	prompt := readFile(t, filepath.Join(root, "stages", "000004-implement", "prompt.md"))
-	if !strings.HasPrefix(prompt, `<tractor loop="items" checklist="sprint.md" item="1/1" lap="1">`) {
+	if !strings.Contains(prompt, `<iterate loop="items" checklist="sprint.md" item="1/1" lap="1">`) {
 		t.Fatalf("resumed body prompt = %q", prompt)
 	}
 	checkpoint = mustCheckpoint(t, root)
@@ -715,8 +715,8 @@ items:
 		t.Fatalf("body dispatches = %v, want %v", dispatched, want)
 	}
 	work := readFile(t, filepath.Join(root, "stages", "000006-work", "prompt.md"))
-	if !strings.Contains(work, `<tractor loop="outer" checklist="outer.md" item="1/1" lap="1">`) ||
-		!strings.Contains(work, `<tractor loop="inner" checklist="inner-a.md" item="1/1" lap="1">`) {
+	if !strings.Contains(work, `<iterate loop="outer" checklist="outer.md" item="1/1" lap="1">`) ||
+		!strings.Contains(work, `<iterate loop="inner" checklist="inner-a.md" item="1/1" lap="1">`) {
 		t.Fatalf("work prompt = %q", work)
 	}
 	for _, file := range []string{"outer.md", "inner-a.md"} {

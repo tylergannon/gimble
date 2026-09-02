@@ -1868,11 +1868,20 @@ active frame, each inner loop's block nested inside its enclosing
 loop's block and indented one level, and hands the rendered text down
 as `ExecutionScope.frame` (Section 4.1); the handler prepends it to
 the node's own prompt (Section 4.3). A block contains only engine
-facts and file contents the engine copied (the item lines are
+facts and file contents the engine copied. A fixed preamble precedes
+the outermost block and says what the blocks are (the item lines are
 indented one level inside their tag; shown flush here for width):
 
 ```
-<tractor loop="sprint" checklist="ephemeral/projects/mvp/sprints/SPRINT-0002.md" item="1/2" lap="2">
+<system-message>
+This is one step of a Tractor run inside a checklist loop. The iterate
+blocks below are the engine's record of where you are: the item selected
+for this lap, the check it must satisfy, the command and judge that will
+validate it when this step ends, and what the previous validation reported.
+Outer blocks enclose inner ones. Paths are relative to the working
+directory. Do only what your prompt asks; the engine marks items done.
+</system-message>
+<iterate loop="sprint" checklist="ephemeral/projects/mvp/sprints/SPRINT-0002.md" item="1/2" lap="2">
 name: Build the login screen
 check: The login screen validates and submits on valid input
 command: npx playwright test tests/login.spec.ts
@@ -1884,7 +1893,7 @@ doc: ephemeral/projects/mvp/sprints/SPRINT-0002.md
 last validation: failed -- exit 1 -- <log tail>
 --- doc: ephemeral/projects/mvp/sprints/SPRINT-0002.md ---
 <file contents>
-</tractor>
+</iterate>
 ```
 
 The item is rendered as compact YAML: absent fields are omitted and

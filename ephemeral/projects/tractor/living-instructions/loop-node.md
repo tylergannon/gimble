@@ -219,10 +219,20 @@ For every codergen and fan-in turn executed while at least one loop frame
 is active, the engine prepends one rendered block per active frame, each
 inner loop's block nested inside its enclosing loop's block and indented
 one level, before the node's own prompt. The block contains only engine
-facts and file contents the engine copied:
+facts and file contents the engine copied, after a fixed preamble that
+says what the blocks are (tag name `iterate` and the preamble per Tyler,
+2026-09-02; `tractor` was a non-helpful name):
 
 ```
-<tractor loop="sprint" checklist="ephemeral/projects/mvp/sprints/SPRINT-0002.md" item="1/2" lap="2">
+<system-message>
+This is one step of a Tractor run inside a checklist loop. The iterate
+blocks below are the engine's record of where you are: the item selected
+for this lap, the check it must satisfy, the command and judge that will
+validate it when this step ends, and what the previous validation reported.
+Outer blocks enclose inner ones. Paths are relative to the working
+directory. Do only what your prompt asks; the engine marks items done.
+</system-message>
+<iterate loop="sprint" checklist="ephemeral/projects/mvp/sprints/SPRINT-0002.md" item="1/2" lap="2">
 name: Build the login screen
 check: The login screen validates and submits on valid input
 command: npx playwright test tests/login.spec.ts
@@ -231,7 +241,7 @@ infer: Judge whether every state of the login screen looks usable
 last validation: failed — exit 1 — <log tail>
 --- doc: ephemeral/projects/mvp/sprints/SPRINT-0002.md ---
 <file contents>
-</tractor>
+</iterate>
 ```
 
 `last validation` appears only after a failed lap. `doc` and its contents

@@ -107,14 +107,25 @@ func (r *Runner) renderFrames(workdir string) string {
 	if len(frames) == 0 {
 		return ""
 	}
-	return renderNested(frames, workdir, 0)
+	return framePreamble + "\n" + renderNested(frames, workdir, 0)
 }
+
+// framePreamble tells the agent what the iterate blocks are. It states
+// engine facts only and never restates the node's own prompt.
+const framePreamble = `<system-message>
+This is one step of a Tractor run inside a checklist loop. The iterate
+blocks below are the engine's record of where you are: the item selected
+for this lap, the check it must satisfy, the command and judge that will
+validate it when this step ends, and what the previous validation reported.
+Outer blocks enclose inner ones. Paths are relative to the working
+directory. Do only what your prompt asks; the engine marks items done.
+</system-message>`
 
 func renderNested(frames []loopFrame, workdir string, depth int) string {
 	indent := strings.Repeat("  ", depth)
 	frame := frames[0]
 	var block strings.Builder
-	fmt.Fprintf(&block, "%s<tractor loop=%q checklist=%q item=\"%d/%d\" lap=\"%d\">\n",
+	fmt.Fprintf(&block, "%s<iterate loop=%q checklist=%q item=\"%d/%d\" lap=\"%d\">\n",
 		indent, frame.loopID, frame.checklist, frame.index, frame.count, frame.lap)
 	for line := range strings.SplitSeq(renderFrameBody(frame, workdir), "\n") {
 		block.WriteString(indent)
@@ -127,7 +138,7 @@ func renderNested(frames []loopFrame, workdir string, depth int) string {
 		block.WriteByte('\n')
 	}
 	block.WriteString(indent)
-	block.WriteString("</tractor>")
+	block.WriteString("</iterate>")
 	return block.String()
 }
 

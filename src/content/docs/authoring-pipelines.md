@@ -258,10 +258,18 @@ Definition of done in open prose.
 
 On every arrival the engine re-reads the file, validates the item the previous lap worked on, writes `done: true` on it when the validation passes, and selects the first open item in file order. An item with neither `command` nor `infer` passes when its lap returns. A hand-edited `done: true` is honored without validation. Paths are relative to the workdir. The validation record and the command's output land in `validation.json` and `validation.log` in the loop node's stage directory.
 
-The selected item reaches the agent as a frame the engine prepends to every codergen and fan-in prompt inside the body. With nested loops the inner loop's block sits inside the outer one, indented, so the prompt's structure mirrors the loops. One level, flush left for width:
+The selected item reaches the agent as a frame the engine prepends to every codergen and fan-in prompt inside the body. With nested loops the inner loop's block sits inside the outer one, indented, so the prompt's structure mirrors the loops. A fixed preamble says what the blocks are. One level, flush left for width:
 
 ```text
-<tractor loop="items" checklist="ephemeral/projects/demo/checklist.md" item="2/2" lap="2">
+<system-message>
+This is one step of a Tractor run inside a checklist loop. The iterate
+blocks below are the engine's record of where you are: the item selected
+for this lap, the check it must satisfy, the command and judge that will
+validate it when this step ends, and what the previous validation reported.
+Outer blocks enclose inner ones. Paths are relative to the working
+directory. Do only what your prompt asks; the engine marks items done.
+</system-message>
+<iterate loop="items" checklist="ephemeral/projects/demo/checklist.md" item="2/2" lap="2">
 name: Document the scripts
 check: NOTES.md tells a newcomer how to run both scripts
 infer:
@@ -272,7 +280,7 @@ doc: docs/writing-notes.md
 last validation: failed -- no evidence files
 --- doc: docs/writing-notes.md ---
 <file contents>
-</tractor>
+</iterate>
 ```
 
 `last validation` appears only after a failed lap; the doc only when the item has one. Because the frame carries the item, the body's prompt can be deictic. The body is delimited like a parallel branch: its nodes are entered only from within it, it must route back to the loop node, and it may not sit inside a parallel branch (the frame stack is run-wide).
