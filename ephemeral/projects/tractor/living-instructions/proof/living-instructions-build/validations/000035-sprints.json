@@ -1,0 +1,8 @@
+{
+  "item": "execution workflow CLI and run directories",
+  "command": "go build ./... \u0026\u0026 go vet ./... \u0026\u0026 sh ephemeral/projects/tractor/living-instructions/chapters/03-execution/check-sprint-04.sh",
+  "exit_code": 0,
+  "log_tail": "s ./tractor-large-logs\n\nFlags:\n  -h, --help             help for run\n      --logs string      fresh run log directory, relative to --workdir (default: Tractor state root)\n      --project string   safe project directory name (required)\n      --seed string      plan seed file, relative to --workdir (required only for plan)\n      --workdir string   workflow workspace (default \".\")\ncheck-sprint-04: ok",
+  "passed": true,
+  "summary": "passed"
+}

@@ -1,0 +1,80 @@
+{
+  "timestamp": "2026-09-02T21:51:26.618456Z",
+  "current_node": "chapters",
+  "next_node": "success",
+  "completed_nodes": [
+    "chapters",
+    "plan",
+    "sprints",
+    "implement",
+    "sprints",
+    "implement",
+    "sprints",
+    "implement",
+    "sprints",
+    "chapters",
+    "plan",
+    "sprints",
+    "implement",
+    "sprints",
+    "implement",
+    "sprints",
+    "implement",
+    "sprints",
+    "implement",
+    "sprints",
+    "implement",
+    "sprints",
+    "implement",
+    "sprints",
+    "chapters",
+    "plan",
+    "sprints",
+    "implement",
+    "sprints",
+    "implement",
+    "sprints",
+    "implement",
+    "sprints",
+    "implement",
+    "sprints",
+    "implement",
+    "sprints",
+    "implement",
+    "sprints",
+    "chapters"
+  ],
+  "node_visits": {
+    "chapters": 4,
+    "implement": 15,
+    "plan": 3,
+    "sprints": 18
+  },
+  "node_attempts": {
+    "chapters": 4,
+    "implement": 15,
+    "plan": 3,
+    "sprints": 18
+  },
+  "seq": 40,
+  "retry_visit": false,
+  "last_stage": "chapters",
+  "last_response": "checklist complete: 3 items done",
+  "sessions": {
+    "\u0000none:implement": {
+      "harness": "codex",
+      "session_id": "01a06407-8de4-7550-a5da-beb0e5591463",
+      "workdir": "/Users/tyler/src/tractor/.claude/worktrees/goal-gates"
+    },
+    "\u0000none:plan": {
+      "harness": "codex",
+      "session_id": "01a063e1-7573-7e30-9403-098df2d0adf8",
+      "workdir": "/Users/tyler/src/tractor/.claude/worktrees/goal-gates"
+    },
+    "\u0000none:sprints": {
+      "harness": "codex",
+      "session_id": "01a06405-0ad5-7af2-b95a-8f145616ef78",
+      "workdir": "/Users/tyler/src/tractor/.claude/worktrees/goal-gates"
+    }
+  }
+}

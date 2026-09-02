@@ -1,0 +1,22 @@
+{
+  "item": "planning docs and skill",
+  "command": "go run ./cmd/tractor workflow --help \u003e/dev/null \u0026\u0026 go run ./cmd/tractor workflow run plan --help \u003e/dev/null \u0026\u0026 test \"$(go run ./cmd/tractor workflow list | grep -c '^plan')\" -eq 1 \u0026\u0026 grep -q 'workflow run plan' README.md \u0026\u0026 grep -q 'workflow run plan' skills/tractor/SKILL.md \u0026\u0026 grep -q 'workflow run plan' llms.txt",
+  "exit_code": 0,
+  "log_tail": "",
+  "infer": {
+    "files": [
+      "README.md",
+      "docs/spec.md",
+      "skills/tractor/SKILL.md",
+      "src/content/docs/authoring-pipelines.md",
+      "src/content/docs/interviews.md",
+      "src/content/docs/loops.md",
+      "src/content/docs/planning.md",
+      "src/content/docs/tractor-vs-attractor.md"
+    ],
+    "verdict": "fail",
+    "notes": "The workflow/list/run-plan help is consistent on starting with plan, required flags, QuestionAsked interviews, and all three outputs; `workflow list` exposes only plan. However, `planning.md:10-13` says every non-small, unsettled job should start with the built-in plan workflow, while `loops.md:57-62` directs far-off goals to a milestone loop with “No upfront plan” and suggests adding a planner node instead. A caller could therefore bypass the required plan workflow. Additionally, llms.txt names SIMPLE/MEDIUM/LARGE but omits their size boundaries."
+  },
+  "passed": false,
+  "summary": "judge: The workflow/list/run-plan help is consistent on starting with plan, required flags, QuestionAsked interviews, and all three outputs; `workflow list` exposes only plan. However, `planning.md:10-13` says every non-small, unsettled job should start with the built-in plan workflow, while `loops.md:57-62` directs far-off goals to a milestone loop with “No upfront plan” and suggests adding a planner node instead. A caller could therefore bypass the required plan workflow. Additionally, llms.txt names SIMPLE/MEDIUM/LARGE but omits their size boundaries."
+}

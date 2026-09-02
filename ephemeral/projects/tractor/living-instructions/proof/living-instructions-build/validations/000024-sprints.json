@@ -1,0 +1,8 @@
+{
+  "item": "live planning proof",
+  "command": "go build ./... \u0026\u0026 go vet ./... \u0026\u0026 go test ./... \u0026\u0026 sh ephemeral/projects/tractor/living-instructions/chapters/02-planning/check-sprint-04.sh",
+  "exit_code": 0,
+  "log_tail": "orkdir/ephemeral/projects/live-planning-proof/brief.md\nChecklist: /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/tmp.S8MNgcoVgA/workdir/ephemeral/projects/live-planning-proof/checklist.md\nRecommendation: /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/tmp.S8MNgcoVgA/workdir/ephemeral/projects/live-planning-proof/recommendation.md\nSize: SIMPLE\nNext: Execute the plan yourself.\ncheck-sprint-04: ok",
+  "passed": true,
+  "summary": "passed"
+}

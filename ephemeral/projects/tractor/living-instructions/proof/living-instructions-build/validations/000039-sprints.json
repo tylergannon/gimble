@@ -1,0 +1,8 @@
+{
+  "item": "live plan-to-MEDIUM proof",
+  "command": "go build ./... \u0026\u0026 go vet ./... \u0026\u0026 go test ./... \u0026\u0026 sh ephemeral/projects/tractor/living-instructions/chapters/03-execution/check-sprint-06.sh",
+  "exit_code": 0,
+  "log_tail": "s_0fp2b8zq3n7m0000gn/T/tmp.2PXZF8VSOb/workdir/ephemeral/projects/live-medium-proof\nWorkflow: medium\nCompleted logs: /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/tmp.2PXZF8VSOb/state/tractor/workflow-runs/medium-live-medium-proof-1457514858\n3bbff39 (HEAD -\u003e main) Implement words count contract\n25daa9e Implement greeting message contract\n7c08b47 Add ambiguous two-package seed\ncheck-sprint-06: ok",
+  "passed": true,
+  "summary": "passed"
+}

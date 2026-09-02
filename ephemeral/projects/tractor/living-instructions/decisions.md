@@ -115,13 +115,47 @@ is a decision Tyler ratified, in his words where they matter. Items marked
     calls entirely.
 23. `tractor steer` and `tractor answer` are CLI subcommands.
 
+## Build decisions (2026-09-02, answered by Claude during the build)
+
+Made while the loop node built items 1, 3, and 4 of the build order below
+(`proof/living-instructions-build/README.md`). Each is an interview file
+under `interview/`; the number is the question id.
+
+26. (0001) `tractor answer` with no text and no stdin fails; no editor mode.
+27. (0002) `tractor ask` has no timeout. Rerunning with the moved path
+    resumes the wait without renumbering.
+28. (0003) The run directory reaches agents as `TRACTOR_RUN_DIR` in the
+    environment only. No preamble field, no `--run` flag until a backend
+    proves it scrubs the environment.
+29. (0004, 0005) Docs-site page `interviews.md` at order 3; the comparison
+    page moves to 4.
+30. (0006) Embedded workflows: `tractor workflow list`, `tractor workflow run
+    <name> --project <build> --seed <path>`. Build name explicit, never
+    derived. Same `--workdir` and `--logs` as `run`.
+31. (0007) The planning interview is one codergen node that asks and then
+    writes the artifacts, followed by a tool node that checks the outputs
+    mechanically and routes back on failure. *Tyler: single node until
+    proven, then discuss.*
+32. (0008) `recommendation.md`: heading, `Size:`, `Rationale:`, `Next:`.
+    Workflow names fixed as `plan`, `medium`, `large`.
+33. (0009) `--project` is the execution workflows' one parameter; paths are
+    resolved at materialization, no new graph substitution.
+34. (0010) The LARGE per-chapter plan node asks only when an answer changes
+    sprint scope or validation.
+35. (0011) A LARGE plan's `checklist.md` is the chapter ledger with `doc`
+    and `checklist` per item; the planner writes chapter docs and empty
+    sprint ledgers; `validate-plan` checks that shape. MEDIUM stays flat.
+36. (0012) `--logs` optional for all workflows; default is a fresh directory
+    under the XDG state root, never under the committed project directory.
+
 ## Build order (revised)
 
-1. Interview file plus `tractor ask` and `tractor answer`. The planning
-   workflow can ship on today's engine with these.
-2. Loop node (this branch; see `loop-node.md`).
+1. Interview file plus `tractor ask` and `tractor answer`. **Done** (chapter 1).
+2. Loop node (this branch; see `loop-node.md`). **Done.**
 3. Built-in planning workflow, embedded, ends with plan and recommendation.
-4. Built-in execution workflows (MEDIUM loop, LARGE nested loops).
+   **Done** (chapter 2); design discussion with Tyler still owed.
+4. Built-in execution workflows (MEDIUM loop, LARGE nested loops). **Done**
+   (chapter 3); LARGE not proven live.
 5. Web client, then audio, then Slack.
 
 ## Rejected

@@ -1,0 +1,22 @@
+{
+  "item": "planning docs and skill",
+  "command": "go run ./cmd/tractor workflow --help \u003e/dev/null \u0026\u0026 go run ./cmd/tractor workflow run plan --help \u003e/dev/null \u0026\u0026 test \"$(go run ./cmd/tractor workflow list | grep -c '^plan')\" -eq 1 \u0026\u0026 grep -q 'workflow run plan' README.md \u0026\u0026 grep -q 'workflow run plan' skills/tractor/SKILL.md \u0026\u0026 grep -q 'workflow run plan' llms.txt",
+  "exit_code": 0,
+  "log_tail": "",
+  "infer": {
+    "files": [
+      "README.md",
+      "docs/spec.md",
+      "skills/tractor/SKILL.md",
+      "src/content/docs/authoring-pipelines.md",
+      "src/content/docs/interviews.md",
+      "src/content/docs/loops.md",
+      "src/content/docs/planning.md",
+      "src/content/docs/tractor-vs-attractor.md"
+    ],
+    "verdict": "pass",
+    "notes": "The source-built CLI help directs callers to list workflows and use plan for an interviewed, sized plan; its run and answer help accurately expose the seed/workdir/log flags, QuestionAsked flow, and answer syntax. `workflow list` currently reports only `plan`, matching the docs. All named files, plus llms.txt, were inspected. Together they consistently identify brief.md, checklist.md, and recommendation.md; define SIMPLE/MEDIUM/LARGE sizing; preserve the same-turn numbered-question interview; and require MEDIUM/LARGE callers to use the exact Next command only when that workflow appears in `tractor workflow list`. No prose contradicts the CLI."
+  },
+  "passed": true,
+  "summary": "passed"
+}

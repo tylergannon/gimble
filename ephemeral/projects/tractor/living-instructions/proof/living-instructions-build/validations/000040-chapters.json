@@ -1,0 +1,8 @@
+{
+  "item": "Execution workflows",
+  "command": "go build ./... \u0026\u0026 go test ./... \u0026\u0026 test \"$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/03-execution/sprints.md)\" -ge 2",
+  "exit_code": 0,
+  "log_tail": "gannon/tractor/harness/claude\t(cached)\nok  \tgithub.com/tylergannon/tractor/harness/codex\t(cached)\n?   \tgithub.com/tylergannon/tractor/harness/codex/schema\t[no test files]\nok  \tgithub.com/tylergannon/tractor/internal/modelalias\t(cached)\nok  \tgithub.com/tylergannon/tractor/internal/runlog\t(cached)\nok  \tgithub.com/tylergannon/tractor/lint\t(cached)\nok  \tgithub.com/tylergannon/tractor/workflow\t(cached)",
+  "passed": true,
+  "summary": "passed"
+}

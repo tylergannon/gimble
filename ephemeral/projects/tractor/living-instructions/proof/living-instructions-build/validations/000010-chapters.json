@@ -1,0 +1,8 @@
+{
+  "item": "Ask and answer",
+  "command": "go build ./... \u0026\u0026 go test ./cmd/tractor/... ./engine/... \u0026\u0026 test \"$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/01-ask/sprints.md)\" -ge 3",
+  "exit_code": 0,
+  "log_tail": "ok  \tgithub.com/tylergannon/tractor/cmd/tractor\t(cached)\nok  \tgithub.com/tylergannon/tractor/engine\t(cached)",
+  "passed": true,
+  "summary": "passed"
+}

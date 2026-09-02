@@ -1,0 +1,8 @@
+{
+  "id": "de53a63f46b8519fe990610ffed94b44",
+  "name": "living-instructions",
+  "goal": "Build Tractor's living instructions one sprint at a time. Chapters are the outer loop, sprints the inner loop. Ask the reviewer through tractor ask whenever a sprint leaves a decision open.",
+  "workdir": "/Users/tyler/src/tractor/.claude/worktrees/goal-gates",
+  "started_at": "2026-09-02T19:35:06.28936Z",
+  "control_socket": "/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/tractor-control-1681369190/control.sock"
+}

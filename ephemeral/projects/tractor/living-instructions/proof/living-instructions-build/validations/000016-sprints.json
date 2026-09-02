@@ -1,0 +1,8 @@
+{
+  "item": "workflow CLI and handoff",
+  "command": "go build ./... \u0026\u0026 go vet ./... \u0026\u0026 sh ephemeral/projects/tractor/living-instructions/chapters/02-planning/check-sprint-02.sh",
+  "exit_code": 0,
+  "log_tail": ".md, and recommendation.md under ephemeral/projects/\u003cproject\u003e/.\n\nUsage:\n  tractor workflow run \u003cname\u003e [flags]\n\nFlags:\n  -h, --help             help for run\n      --logs string      run log directory (required)\n      --project string   safe project directory name (required)\n      --seed string      seed file, relative to --workdir (required)\n      --workdir string   workflow workspace (default \".\")",
+  "passed": true,
+  "summary": "passed"
+}
