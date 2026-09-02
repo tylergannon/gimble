@@ -92,6 +92,14 @@ is a decision Tyler ratified, in his words where they matter. Items marked
 20. Checklists are markdown with YAML frontmatter, so the definition of done
     can be open prose beside the items.
 
+24. The frame block is `<iterate>` tags, nested, after a fixed preamble that
+    says what the blocks are. Its exact contents are hypothesis, not
+    doctrine; breadcrumbs pointing at the iteration files are the standing
+    alternative.
+25. `$goal` stays one string, the run's goal. No `$goal.N`, no `$goal.depth`,
+    no per-frame variables: the frame already carries the lap's goal. Lean
+    on less engineering until use says otherwise.
+
 ## Files
 
 21. Everything lives under `./ephemeral/projects/<build name>/` (e.g.
