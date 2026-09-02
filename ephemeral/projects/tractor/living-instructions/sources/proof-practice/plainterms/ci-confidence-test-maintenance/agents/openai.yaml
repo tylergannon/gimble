@@ -1,0 +1,4 @@
+interface:
+  display_name: "CI Confidence Test Maintenance"
+  short_description: "Review and rebalance real tests"
+  default_prompt: "Use $ci-confidence-test-maintenance to review and rebalance the existing test portfolio after implementation."

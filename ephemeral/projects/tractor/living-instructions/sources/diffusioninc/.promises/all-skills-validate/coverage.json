@@ -1,0 +1,131 @@
+{
+  "schema_version": 2,
+  "subjects": {
+    ".agents/skills/df-chapter-create": {
+      "commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+      "evidence": ".promises/all-skills-validate/evidence/20260826T164547Z-62aafe63-validation.json",
+      "kind": "test",
+      "result": "pass",
+      "reviewed_at": "2026-08-26T16:46:44Z",
+      "run_id": "20260826T164547Z-62aafe63",
+      "summary": ".agents/skills/df-chapter-create is present in the mirrored inventory and covered by repository validation."
+    },
+    ".agents/skills/df-easy-loop-e2e": {
+      "commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+      "evidence": ".promises/all-skills-validate/evidence/20260826T164547Z-62aafe63-validation.json",
+      "kind": "test",
+      "result": "pass",
+      "reviewed_at": "2026-08-26T16:46:44Z",
+      "run_id": "20260826T164547Z-62aafe63",
+      "summary": ".agents/skills/df-easy-loop-e2e is present in the mirrored inventory and covered by repository validation."
+    },
+    ".agents/skills/df-easy-loop-simple": {
+      "commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+      "evidence": ".promises/all-skills-validate/evidence/20260826T164547Z-62aafe63-validation.json",
+      "kind": "test",
+      "result": "pass",
+      "reviewed_at": "2026-08-26T16:46:44Z",
+      "run_id": "20260826T164547Z-62aafe63",
+      "summary": ".agents/skills/df-easy-loop-simple is present in the mirrored inventory and covered by repository validation."
+    },
+    ".agents/skills/df-promise": {
+      "commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+      "evidence": ".promises/all-skills-validate/evidence/20260826T164547Z-62aafe63-validation.json",
+      "kind": "test",
+      "result": "pass",
+      "reviewed_at": "2026-08-26T16:46:44Z",
+      "run_id": "20260826T164547Z-62aafe63",
+      "summary": ".agents/skills/df-promise is present in the mirrored inventory and covered by repository validation."
+    },
+    ".agents/skills/df-semantic-index": {
+      "commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+      "evidence": ".promises/all-skills-validate/evidence/20260826T164547Z-62aafe63-validation.json",
+      "kind": "test",
+      "result": "pass",
+      "reviewed_at": "2026-08-26T16:46:44Z",
+      "run_id": "20260826T164547Z-62aafe63",
+      "summary": ".agents/skills/df-semantic-index is present in the mirrored inventory and covered by repository validation."
+    },
+    ".agents/skills/df-sprint-execute": {
+      "commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+      "evidence": ".promises/all-skills-validate/evidence/20260826T164547Z-62aafe63-validation.json",
+      "kind": "test",
+      "result": "pass",
+      "reviewed_at": "2026-08-26T16:46:45Z",
+      "run_id": "20260826T164547Z-62aafe63",
+      "summary": ".agents/skills/df-sprint-execute is present in the mirrored inventory and covered by repository validation."
+    },
+    ".agents/skills/df-sprint-plan": {
+      "commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+      "evidence": ".promises/all-skills-validate/evidence/20260826T164547Z-62aafe63-validation.json",
+      "kind": "test",
+      "result": "pass",
+      "reviewed_at": "2026-08-26T16:46:45Z",
+      "run_id": "20260826T164547Z-62aafe63",
+      "summary": ".agents/skills/df-sprint-plan is present in the mirrored inventory and covered by repository validation."
+    },
+    ".claude/skills/df-chapter-create": {
+      "commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+      "evidence": ".promises/all-skills-validate/evidence/20260826T164547Z-62aafe63-validation.json",
+      "kind": "test",
+      "result": "pass",
+      "reviewed_at": "2026-08-26T16:46:45Z",
+      "run_id": "20260826T164547Z-62aafe63",
+      "summary": ".claude/skills/df-chapter-create is present in the mirrored inventory and covered by repository validation."
+    },
+    ".claude/skills/df-easy-loop-e2e": {
+      "commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+      "evidence": ".promises/all-skills-validate/evidence/20260826T164547Z-62aafe63-validation.json",
+      "kind": "test",
+      "result": "pass",
+      "reviewed_at": "2026-08-26T16:46:45Z",
+      "run_id": "20260826T164547Z-62aafe63",
+      "summary": ".claude/skills/df-easy-loop-e2e is present in the mirrored inventory and covered by repository validation."
+    },
+    ".claude/skills/df-easy-loop-simple": {
+      "commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+      "evidence": ".promises/all-skills-validate/evidence/20260826T164547Z-62aafe63-validation.json",
+      "kind": "test",
+      "result": "pass",
+      "reviewed_at": "2026-08-26T16:46:45Z",
+      "run_id": "20260826T164547Z-62aafe63",
+      "summary": ".claude/skills/df-easy-loop-simple is present in the mirrored inventory and covered by repository validation."
+    },
+    ".claude/skills/df-promise": {
+      "commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+      "evidence": ".promises/all-skills-validate/evidence/20260826T164547Z-62aafe63-validation.json",
+      "kind": "test",
+      "result": "pass",
+      "reviewed_at": "2026-08-26T16:46:45Z",
+      "run_id": "20260826T164547Z-62aafe63",
+      "summary": ".claude/skills/df-promise is present in the mirrored inventory and covered by repository validation."
+    },
+    ".claude/skills/df-semantic-index": {
+      "commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+      "evidence": ".promises/all-skills-validate/evidence/20260826T164547Z-62aafe63-validation.json",
+      "kind": "test",
+      "result": "pass",
+      "reviewed_at": "2026-08-26T16:46:45Z",
+      "run_id": "20260826T164547Z-62aafe63",
+      "summary": ".claude/skills/df-semantic-index is present in the mirrored inventory and covered by repository validation."
+    },
+    ".claude/skills/df-sprint-execute": {
+      "commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+      "evidence": ".promises/all-skills-validate/evidence/20260826T164547Z-62aafe63-validation.json",
+      "kind": "test",
+      "result": "pass",
+      "reviewed_at": "2026-08-26T16:46:45Z",
+      "run_id": "20260826T164547Z-62aafe63",
+      "summary": ".claude/skills/df-sprint-execute is present in the mirrored inventory and covered by repository validation."
+    },
+    ".claude/skills/df-sprint-plan": {
+      "commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+      "evidence": ".promises/all-skills-validate/evidence/20260826T164547Z-62aafe63-validation.json",
+      "kind": "test",
+      "result": "pass",
+      "reviewed_at": "2026-08-26T16:46:45Z",
+      "run_id": "20260826T164547Z-62aafe63",
+      "summary": ".claude/skills/df-sprint-plan is present in the mirrored inventory and covered by repository validation."
+    }
+  }
+}

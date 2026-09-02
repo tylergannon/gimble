@@ -1,0 +1,4 @@
+interface:
+  display_name: "CI Confidence Test Placement"
+  short_description: "Place coverage at the right layer"
+  default_prompt: "Use $ci-confidence-test-placement to decide where changed-behavior proof belongs before editing tests."

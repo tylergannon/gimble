@@ -1,0 +1,4 @@
+interface:
+  display_name: "Request Adversarial Review"
+  short_description: "Launch a broad independent implementation review"
+  default_prompt: "Use $request-adversarial-review to launch an independent review of this work."

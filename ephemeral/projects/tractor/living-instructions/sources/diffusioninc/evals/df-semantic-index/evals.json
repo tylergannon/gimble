@@ -1,0 +1,23 @@
+{
+  "skill_name": "df-semantic-index",
+  "evals": [
+    {
+      "id": "scratch-build-task-first-router",
+      "prompt": "Use df-semantic-index to upsert FROM ./fixtures/mixed-corpus TO ./docs/research/index. The target index does not exist yet.",
+      "expected_output": "Chooses scratch build mode, inspects the source shape, creates an entrypoint, routing nodes, citation-bearing leaves, housekeeping state, and at least a starter retrieval eval surface.",
+      "files": []
+    },
+    {
+      "id": "incremental-update-preserves-routes",
+      "prompt": "Use df-semantic-index to upsert FROM ./fixtures/mixed-corpus TO ./docs/research/index. The index already exists, but several source files were added and one cited source moved.",
+      "expected_output": "Chooses incremental update mode, preserves useful existing routes, updates only stale or missing coverage, marks or repairs moved citations, refreshes housekeeping metrics, and reports what changed.",
+      "files": []
+    },
+    {
+      "id": "benchmark-and-rebalance",
+      "prompt": "Use df-semantic-index to run retrieval benchmarks and rebalance ./docs/research/index for ./fixtures/mixed-corpus. Important queries are missing expected source leaves.",
+      "expected_output": "Runs or defines retrieval benchmarks, reports success@k or equivalent route-quality metrics, identifies skewed or overfull routing nodes, performs a targeted rebalance, reruns relevant metrics, and reports remaining debt.",
+      "files": []
+    }
+  ]
+}

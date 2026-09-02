@@ -1,0 +1,82 @@
+{
+  "commands": {
+    "python_compile": {
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-m",
+        "py_compile",
+        ".agents/skills/df-chapter-create/scripts/chapter.py",
+        ".agents/skills/df-promise/scripts/promise.py",
+        ".agents/skills/df-semantic-index/scripts/run_evals.py",
+        ".agents/skills/df-semantic-index/scripts/semantic_index_metrics.py",
+        ".agents/skills/df-sprint-plan/scripts/ledger.py",
+        ".claude/skills/df-chapter-create/scripts/chapter.py",
+        ".claude/skills/df-promise/scripts/promise.py",
+        ".claude/skills/df-semantic-index/scripts/run_evals.py",
+        ".claude/skills/df-semantic-index/scripts/semantic_index_metrics.py",
+        ".claude/skills/df-sprint-plan/scripts/ledger.py",
+        "scripts/validate-skills.py"
+      ],
+      "passed": true,
+      "returncode": 0,
+      "stderr": "",
+      "stdout": ""
+    },
+    "validator": {
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "scripts/validate-skills.py"
+      ],
+      "passed": true,
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "Skill naming validation passed"
+    }
+  },
+  "gates": {
+    "inventory": true,
+    "python-compile": true,
+    "validator": true
+  },
+  "generated_at": "2026-08-26T15:49:20.589097Z",
+  "mirrors": {
+    ".agents/skills": [
+      "df-chapter-create",
+      "df-easy-loop-e2e",
+      "df-easy-loop-simple",
+      "df-promise",
+      "df-semantic-index",
+      "df-sprint-execute",
+      "df-sprint-plan"
+    ],
+    ".claude/skills": [
+      "df-chapter-create",
+      "df-easy-loop-e2e",
+      "df-easy-loop-simple",
+      "df-promise",
+      "df-semantic-index",
+      "df-sprint-execute",
+      "df-sprint-plan"
+    ]
+  },
+  "passed": true,
+  "python_helpers": [
+    ".agents/skills/df-chapter-create/scripts/chapter.py",
+    ".agents/skills/df-promise/scripts/promise.py",
+    ".agents/skills/df-semantic-index/scripts/run_evals.py",
+    ".agents/skills/df-semantic-index/scripts/semantic_index_metrics.py",
+    ".agents/skills/df-sprint-plan/scripts/ledger.py",
+    ".claude/skills/df-chapter-create/scripts/chapter.py",
+    ".claude/skills/df-promise/scripts/promise.py",
+    ".claude/skills/df-semantic-index/scripts/run_evals.py",
+    ".claude/skills/df-semantic-index/scripts/semantic_index_metrics.py",
+    ".claude/skills/df-sprint-plan/scripts/ledger.py",
+    "scripts/validate-skills.py"
+  ],
+  "repository": ".",
+  "schema_version": 1,
+  "skill_counts": {
+    ".agents/skills": 7,
+    ".claude/skills": 7
+  }
+}

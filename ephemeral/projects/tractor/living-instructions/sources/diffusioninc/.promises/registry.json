@@ -1,0 +1,11 @@
+{
+  "promises": [
+    {
+      "contract": ".promises/all-skills-validate/contract.json",
+      "id": "all-skills-validate",
+      "name": "All skills validate",
+      "readme": "README.md"
+    }
+  ],
+  "schema_version": 2
+}

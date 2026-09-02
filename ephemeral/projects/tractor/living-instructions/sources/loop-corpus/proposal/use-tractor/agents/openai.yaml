@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use Tractor"
+  short_description: "Design and run small Tractor loops"
+  default_prompt: "Use $use-tractor to choose and run a small Tractor pipeline for this task."

@@ -1,0 +1,46 @@
+{
+  "active_run": null,
+  "id": "all-skills-validate",
+  "last_fulfillment": {
+    "approval_ref": null,
+    "dirty_subject_at_start": [],
+    "fulfilled_at": "2026-08-26T16:46:45Z",
+    "gates": {
+      "inventory": "pass",
+      "python-compile": "pass",
+      "validator": "pass"
+    },
+    "mechanism_fingerprint": "315bfba6276c3272b5ef7dc3988dc408645fbf4ac0252615e2f4cef33daf2b31",
+    "metrics": {
+      "cost_accounting": "runtime-total",
+      "cost_usd": 0.0,
+      "steps": 17,
+      "steps_source": "event-log",
+      "token_accounting": "unavailable",
+      "tokens": null,
+      "tool_calls": 1,
+      "tool_calls_source": "event-log",
+      "wall_accounting": "active-segments",
+      "wall_seconds": 58.0
+    },
+    "run_id": "20260826T164547Z-62aafe63",
+    "subject_fingerprint": "b122fd82909452022f1986fcff8be396bf6486e9f97fe97cc734086a992b25ba",
+    "summary": "Both mirrors contain the same seven skills; the repository validator passed; and all eleven bundled Python helpers compiled at commit d0cdcd6.",
+    "validated_commit": "d0cdcd6bec6bf2b538208a63cb6e555218c6b556",
+    "verifier": "tools/run-validation.py"
+  },
+  "last_run": "20260826T164547Z-62aafe63",
+  "lifetime_metrics": {
+    "cost_complete": false,
+    "cost_usd_known": 0.0,
+    "runs": 2,
+    "steps": 35,
+    "tokens_complete": false,
+    "tokens_known": 0,
+    "tool_calls": 2,
+    "wall_seconds": 94.0
+  },
+  "schema_version": 2,
+  "status": "fulfilled",
+  "updated_at": "2026-08-26T16:46:45Z"
+}
