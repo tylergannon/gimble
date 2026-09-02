@@ -98,6 +98,19 @@ when new authoritative information arrives or the run is leaving scope; a
 complete goal up front beats frequent correction. `stop_run` asks a run to
 stop; calling it again after the graceful window forces it.
 
+An agent inside a run can ask its caller a blocking question by writing one
+question per Markdown or HTML file and running:
+
+```sh
+TRACTOR_INTERVIEW_DIR=ephemeral/projects/<build>/interview tractor ask question.md
+```
+
+The command moves the question to a numbered file, records `QuestionAsked`
+when `TRACTOR_RUN_DIR` is available, and prints the answer once another
+process runs `tractor answer <numbered-question> [text]`. Answers may come
+from stdin; an existing answer is never overwritten. If a shell session ends
+while waiting, rerun `tractor ask` with the numbered question path to resume.
+
 ## When a loop misbehaves
 
 | Symptom | Fix |

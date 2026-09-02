@@ -131,6 +131,24 @@ Copy one into a git repo, change the goal and the check, run it:
 The [spec](docs/spec.md) is the sole normative definition of Tractor's
 Attractor variant; where anything else disagrees with it, the spec governs.
 
+## Ask and answer inside a run
+
+An agent can leave a Markdown or HTML question in an interview directory and
+block until its caller answers. `TRACTOR_RUN_DIR` lets `ask` also append a
+`QuestionAsked` event to the run timeline.
+
+```sh
+TRACTOR_INTERVIEW_DIR=ephemeral/projects/my-build/interview \
+TRACTOR_RUN_DIR=/path/to/run \
+tractor ask question.md
+
+tractor answer ephemeral/projects/my-build/interview/0001.md "Use the simpler option."
+```
+
+`tractor ask --help` documents the polling behavior and the `--into` override.
+`tractor answer` also accepts the answer on stdin and refuses to replace an
+existing answer file.
+
 ## License
 
 [MIT](LICENSE).
