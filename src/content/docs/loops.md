@@ -54,12 +54,12 @@ different lab inherits none of the author's framing.
 judge run each result before merging the winner. The judge is told to
 decide on demonstrated behavior, not on the reports.
 
-**Milestone loop** is for far-off goals: a chooser looks at the goal and
-the repository _as it is now_, names the smallest next step that ends in
-something runnable, an implementer does it, a command checks it, repeat.
-No upfront plan to go stale. When you want to read and approve a plan
-before the tokens burn, add a planner node in front — the two shapes differ
-by exactly one node.
+**Milestone loop** is an execution shape for far-off goals after the built-in
+planning workflow has established the brief and recommended a long-running
+loop. A chooser looks at that contract and the repository _as it is now_, names
+the smallest next step that ends in something runnable, an implementer does it,
+a command checks it, repeat. The approved brief stays authoritative while the
+chooser avoids a detailed upfront implementation plan going stale.
 
 **Checklist loop** is for work that is already a list of claims. A `loop`
 node iterates a markdown file whose YAML frontmatter lists items, each
