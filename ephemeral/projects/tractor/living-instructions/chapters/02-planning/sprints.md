@@ -22,6 +22,7 @@ items:
         - skills/tractor/SKILL.md
         - src/content/docs/*.md
       prompt: Run the workflow help commands and judge whether a caller reading only these files would start with plan, answer its interview correctly, find all three outputs, and follow the size recommendation without the prose contradicting the CLI.
+    done: true
   - name: live planning proof
     check: A real plan workflow run against a small seed asks the reviewer at least one material question, consumes the answer in the same agent turn, completes, and produces a brief, a loop-format checklist, and a SIMPLE recommendation.
     doc: ephemeral/projects/tractor/living-instructions/chapters/02-planning/SPRINT-04.md
