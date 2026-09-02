@@ -10,6 +10,7 @@ items:
     check: Every harness turn and tool node started by a run sees TRACTOR_RUN_DIR; `ask` appends QuestionAsked to that run's timeline; a live pipeline whose agent asks a question completes once the question is answered.
     doc: ephemeral/projects/tractor/living-instructions/chapters/01-ask/SPRINT-02.md
     command: go build ./... && go vet ./... && go test ./engine/... ./harness/... ./cmd/tractor/... && sh ephemeral/projects/tractor/living-instructions/chapters/01-ask/check-sprint-02.sh
+    done: true
   - name: docs and skill
     check: The spec, the docs site, the skill bundle, and llms.txt teach ask and answer accurately enough that an agent reading only them uses the commands correctly.
     doc: ephemeral/projects/tractor/living-instructions/chapters/01-ask/SPRINT-03.md

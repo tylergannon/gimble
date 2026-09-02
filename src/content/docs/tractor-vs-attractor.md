@@ -2,7 +2,7 @@
 title: Tractor vs. upstream Attractor
 description: Tractor keeps Attractor's declarative graph and orchestration intent, but replaces several foundational contracts to fit real coding-agent harnesses.
 eyebrow: Specification comparison
-order: 3
+order: 4
 sourceLabel: Upstream strongdm/attractor at fb57a55
 sourceUrl: https://github.com/strongdm/attractor/blob/fb57a55ed97372a27ac90102f436947e29f48426/attractor-spec.md
 ---
@@ -121,11 +121,11 @@ Upstream has a first-class interviewer interface, question and answer models, ti
 
 Tractor does not define a human node. Authors choose the primitive that matches the decision:
 
-- a codergen node can contact a person through Slack, email, or another harness tool and interpret the response;
+- a codergen node can block within one turn on `tractor ask`, then interpret the caller's file-shaped answer;
 - a tool node can run a deterministic program that blocks for an answer; or
 - an external operator can watch events and steer an active agent turn.
 
-This avoids standardizing a second interaction protocol while being explicit about the tradeoff: external delivery is not transactional, and retries can duplicate a contact attempt.
+The interview transport is deliberately small: numbered Markdown or HTML questions, adjacent answer files, and a `QuestionAsked` timeline event. The agent keeps its context; the graph never routes to the caller.
 
 ## Supervision moves outside the walk
 

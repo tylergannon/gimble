@@ -134,12 +134,11 @@ Attractor variant; where anything else disagrees with it, the spec governs.
 ## Ask and answer inside a run
 
 An agent can leave a Markdown or HTML question in an interview directory and
-block until its caller answers. `TRACTOR_RUN_DIR` lets `ask` also append a
-`QuestionAsked` event to the run timeline.
+block until its caller answers. Inside a run, Tractor sets `TRACTOR_RUN_DIR`
+so `ask` also appends a `QuestionAsked` event to the timeline.
 
 ```sh
 TRACTOR_INTERVIEW_DIR=ephemeral/projects/my-build/interview \
-TRACTOR_RUN_DIR=/path/to/run \
 tractor ask question.md
 
 tractor answer ephemeral/projects/my-build/interview/0001.md "Use the simpler option."

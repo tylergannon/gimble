@@ -126,11 +126,11 @@ LLM nodes can set `llm_provider`, `llm_model`, `reasoning_effort`, `timeout`, `m
 
 Tractor maintains these Fable aliases:
 
-| Alias | Provider model |
-|---|---|
-| `fable` | `claude-fable-5-1` (current default) |
-| `fable-5.1` | `claude-fable-5-1` |
-| `fable-5` | `claude-fable-5` |
+| Alias       | Provider model                       |
+| ----------- | ------------------------------------ |
+| `fable`     | `claude-fable-5-1` (current default) |
+| `fable-5.1` | `claude-fable-5-1`                   |
+| `fable-5`   | `claude-fable-5`                     |
 
 Aliases supply their provider and are maintained upgrade policy. Use a provider-native model ID when a pipeline must remain pinned independently of that policy; raw IDs continue to pass through unchanged. If `llm_provider` is present with an alias, it must match the alias's provider.
 
@@ -246,15 +246,15 @@ items:
 Definition of done in open prose.
 ```
 
-| Item field | What it does |
-| --- | --- |
-| `name` | Identity, unique within the file. |
-| `check` | The claim as observable behavior. Prose for agents; the engine never interprets it. |
-| `command` | Shell command run from the workdir. Exit 0 passes. |
+| Item field                    | What it does                                                                                                    |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `name`                        | Identity, unique within the file.                                                                               |
+| `check`                       | The claim as observable behavior. Prose for agents; the engine never interprets it.                             |
+| `command`                     | Shell command run from the workdir. Exit 0 passes.                                                              |
 | `infer.files`, `infer.prompt` | Globs naming evidence files and what a cheap judge is to decide about them. Runs only after the command passes. |
-| `doc` | A prose document injected with the item. |
-| `checklist` | A sub-checklist; a `loop` node inside this loop's body with no `checklist` of its own iterates it. |
-| `done` | Engine-owned. Absent or `false` means open. |
+| `doc`                         | A prose document injected with the item.                                                                        |
+| `checklist`                   | A sub-checklist; a `loop` node inside this loop's body with no `checklist` of its own iterates it.              |
+| `done`                        | Engine-owned. Absent or `false` means open.                                                                     |
 
 On every arrival the engine re-reads the file, validates the item the previous lap worked on, writes `done: true` on it when the validation passes, and selects the first open item in file order. An item with neither `command` nor `infer` passes when its lap returns. A hand-edited `done: true` is honored without validation. Paths are relative to the workdir. The validation record and the command's output land in `validation.json` and `validation.log` in the loop node's stage directory.
 

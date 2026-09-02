@@ -72,7 +72,12 @@ The execution engine does not know about handler internals.
 
 **Checkpoint and resume.** After each top-level node completes, the execution engine saves a serializable checkpoint. If the process crashes, execution resumes from the last checkpoint.
 
-**Human-in-the-loop.** Pipeline authors use ordinary nodes when a workflow needs human input. The node contacts the person with its own tools, or blocks in a tool command, and routes on the answer. An external operator can also supervise any run through its event and steering surfaces (Section 6). This supports approval gates, code review, and manual override.
+**Human-in-the-loop.** Pipeline authors use ordinary nodes when a workflow
+needs human input. A codergen node asks its caller through the blocking file
+transport, or a tool node blocks in its own command; either remains in one
+node visit and routes after the answer arrives. An external operator can also
+supervise any run through its event and steering surfaces (Section 6). This
+supports approval gates, code review, and manual override.
 
 **Routing decisions are made by the node's occupant, never by the
 engine.** For an LLM node, the engine forwards the conditions
@@ -418,7 +423,7 @@ forever (Section 3.4).
   "start": "review_gate",
   "nodes": [
     { "id": "review_gate", "type": "codergen",
-      "prompt": "Ask Tyler on Slack whether these changes ship. Poll for his reply with exponential backoff. Route on his answer.",
+      "prompt": "Ask the caller with tractor ask whether these changes ship. Route on the answer.",
       "edges": [
         { "to": "ship_it", "condition": "Approved" },
         { "to": "fixes", "condition": "Fixes requested" }
@@ -431,11 +436,11 @@ forever (Section 3.4).
 }
 ```
 
-`review_gate` is an ordinary codergen node: the agent conducts the
-interview with its own tools and the human's decision arrives through
-the same choice schema as every other routing decision. A deterministic
-variant is a `tool` node whose command blocks until a response arrives
-and exits 0 or nonzero (Section 4.4).
+`review_gate` is an ordinary codergen node: the agent blocks within its turn
+on the file transport of Section 3.1.1, interprets the printed answer, and
+then chooses a successor through the ordinary choice schema. A deterministic
+variant is a `tool` node whose own command blocks until a response arrives and
+exits 0 or nonzero (Section 4.4).
 
 **A supervisor patrolling a loop (Section 3.10):**
 
@@ -499,6 +504,41 @@ PARSE -> VALIDATE -> INITIALIZE -> EXECUTE -> FINALIZE
    nothing is in flight still ends the run at the next dispatch point,
    writing no new checkpoint there (Section 3.7). Only after any
    failure checkpoint lands are sessions closed and files released.
+
+#### 3.1.1 Blocking Interviews
+
+An agent MAY stop within one node visit to ask its caller a file-shaped
+question. The agent writes one Markdown or HTML file and runs:
+
+```sh
+tractor ask <path>
+```
+
+`ask` resolves the interview directory from `--into <directory>` when that
+flag is present, otherwise from `TRACTOR_INTERVIEW_DIR`. It moves a new
+question into that directory as the next numbered `.md` or `.html` file,
+appends `QuestionAsked(question)` to the run timeline, and waits until a
+non-empty `<number>.answer.md` file exists beside it. It then prints that
+file's contents to stdout. The engine sets `TRACTOR_RUN_DIR` to the current
+`{logs_root}` for every harness turn and tool command so `ask` can find
+`timeline.jsonl`; callers supply `TRACTOR_INTERVIEW_DIR` through the agent's
+operating instructions or use `--into`.
+
+The caller watches `timeline.jsonl` for `QuestionAsked`, opens the path in its
+`question` field, and answers with:
+
+```sh
+tractor answer <question-path> [text]
+```
+
+When `[text]` is absent, `answer` reads the answer from stdin. It writes the
+answer file beside the question and MUST refuse to overwrite an existing
+answer. If the shell running `ask` ends while waiting, the agent resumes by
+running `tractor ask` again with the numbered question path and the same
+interview directory. A resumed ask waits for the same answer without
+renumbering the question or emitting another `QuestionAsked` event. The node
+keeps its context while blocked; the answer does not route the graph, and the
+node chooses its successor only after its turn continues.
 
 ### 3.2 Core Execution Loop
 
@@ -1403,20 +1443,12 @@ pattern built from the primitives that already exist, chosen by how much
 judgment versus determinism the decision needs:
 
 - **Agent-conducted interview (judgment, N-way).** A codergen node whose
-  prompt says to contact the person -- through whatever tools its harness
-  has (a Slack MCP server, email, a CLI notifier) -- wait for their
-  answer, and route on it through the ordinary choice schema
-  (Section 4.3). The agent owns the waiting and the interpretation, and
-  the whole wait happens *inside one backend turn* -- polling with
-  exponential backoff via its shell, not engine turns or retry
-  attempts. How long a harness can actually hold one turn open --
-  process lifetime, inference cost of the polling loop, tool-session
-  authentication -- is an implementation limit the backend contracts do
-  not guarantee and authors must validate against their harness; where
-  those limits bind, the deterministic block below is the robust
-  choice. The exchange lands in the run log like any
-  other turn. This is a *soft* gate: the schema constrains which target
-  the agent names, not whether it reported the human faithfully.
+  prompt says to write a Markdown or HTML question and run `tractor ask`
+  (Section 3.1.1), wait for the caller's file-shaped answer, interpret it,
+  and route through the ordinary choice schema (Section 4.3). The whole
+  wait happens *inside one backend turn*, not engine turns or retry
+  attempts. This is a *soft* gate: the schema constrains which target the
+  agent names, not whether it interpreted the caller faithfully.
 - **Deterministic block (mechanical, two-way).** A `tool` node running a
   program that sends the message, blocks until a response arrives, and
   exits 0 or nonzero (Section 4.5). No model in the loop, exit-code
@@ -1430,28 +1462,17 @@ to be stated rather than discovered:
   it bounds the whole backend turn (or tool command), and expiry
   interrupts the attempt and fails the run (Sections 2.5, 3.7). Leave
   it unset or generous.
-- **Contact is not transactional.** The engine guarantees neither
-  delivery nor deduplication. An execution may be retried, crash-replayed,
-  or resumed (Sections 3.5, 5.3), so an externally visible contact
-  attempt may happen zero times (the agent failed before sending, or
-  never sent), once, or several times -- and the engine supplies no
-  cross-execution decision identity to key on: a re-execution of the
-  same decision and a loop legitimately revisiting the node for a *new*
-  decision look identical in `ExecutionScope`. No generic deduplication
-  recipe exists within that scope. Authors whose workflow carries an
-  external stable identity (a ticket number, a PR URL, a thread the
-  channel itself threads) can correlate channel-specifically; that is
-  mitigation, not a guarantee, and it is the author's. As evidence, the
-  contact channel is the only record that spans every replay path;
-  a reused session's memory (Section 5.4) and a workspace marker
-  (Section 5.5) hold only at the top level where the workdir is stable,
-  and nothing survives into a replayed fan-out's fresh worktrees and
-  rebound sessions (Section 4.6). The run log is evidence, not a
-  delivery ledger.
+- **Question identity belongs to the files.** Resuming `ask` with an existing
+  numbered question preserves that identity and emits no second event. A
+  retried or replayed node that creates a new source question gets a new
+  number; the engine does not correlate it with an earlier decision. The
+  caller treats each `QuestionAsked` event as a distinct waiting question.
 
-The external operator is the other half of the story: a supervisor --
-human at a frontend, or a coding agent -- watches the event stream and
-steers the run (Sections 3.9, 10). Section 6 develops the pattern.
+The caller is the other half of the interview: a person at a frontend or a
+coding agent watches the event stream, opens the numbered question, and runs
+`tractor answer` (Section 3.1.1). An external operator MAY also steer a live
+turn through the independent control surface (Sections 3.9, 10). Section 6
+summarizes the pattern.
 
 ### 4.5 Tool Handler
 
@@ -2190,14 +2211,14 @@ Each pipeline execution produces a directory tree for logging, checkpoints, and 
 
 ## 6. Human-in-the-Loop (Authoring Pattern)
 
-A decision that needs a human is an ordinary node: a codergen node
-interviews the person with its own tools, or a `tool` node blocks in
-a program and routes on its exit code (Section 4.4). Outside the run,
-an operator watches the event stream (Section 10) and the run
-directory (Section 5.6) and steers the live turn (Section 3.9).
-Implementations MAY ship a console convenience that watches events
-and answers a blocking tool via its own channel; that is an
-implementation's frontend, not this specification's contract.
+A decision that needs a person or calling agent remains inside an ordinary
+node visit. A codergen node uses the blocking `tractor ask` transport
+(Section 3.1.1), keeps its context while the caller writes the answer, and
+then continues its turn. A tool node MAY instead block in its own program and
+route on the program's exit code (Section 4.4). Outside the run, an operator
+can also watch the event stream (Section 10) and steer a live turn (Section
+3.9). None of these mechanisms adds a human node or routes the graph to the
+caller.
 
 ## 7. Validation and Linting
 
@@ -2367,6 +2388,9 @@ The engine emits typed events during execution for UI, logging, and metrics inte
 - `LoopItemSelected(node, item, index, count, lap)` -- a loop node selected an open item and dispatched its body; `index` is the item's 1-based position among `count` items, `lap` how many times this item has been dispatched since it was selected
 - `LoopValidated(node, item, passed, summary)` -- a returned lap's item was validated; `summary` is the validation record's summary
 - `LoopCompleted(node, count)` -- no open item remained and the loop routed to `on_done`
+
+**Interview events (Section 3.1.1):**
+- `QuestionAsked(question)` -- an agent moved a new numbered question into its interview directory and is waiting; `question` is the path the caller opens and passes to `tractor answer`
 
 **Supervision events (Section 3.10):**
 - `SupervisorFlushed(supervisor, batch, count)` -- a patrol found live in-scope activity and started a flush turn (Section 3.10). `batch` names the newly rotated batch file and `count` its digest lines; when the inbox was empty (all activity still mid-turn), `batch` is absent and `count` is `0` -- no rotation happened
