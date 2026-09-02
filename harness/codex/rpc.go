@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -322,6 +321,5 @@ func defaultProcessConfig() processConfig {
 	return processConfig{
 		command: "codex",
 		args:    []string{"app-server", "--stdio"},
-		env:     os.Environ(),
 	}
 }

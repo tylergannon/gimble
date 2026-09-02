@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"maps"
 	"math/rand/v2"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -235,6 +237,23 @@ func (r *Runner) Stop() {
 
 // Run initializes or restores durable state and walks the graph to completion or failure.
 func (r *Runner) Run() (RunResult, error) {
+	logsRoot, err := filepath.Abs(r.config.LogsRoot)
+	if err != nil {
+		return RunResult{}, fmt.Errorf("resolve logs root: %w", err)
+	}
+	r.config.LogsRoot = logsRoot
+	previousRunDir, hadRunDir := os.LookupEnv("TRACTOR_RUN_DIR")
+	if err := os.Setenv("TRACTOR_RUN_DIR", logsRoot); err != nil {
+		return RunResult{}, fmt.Errorf("set TRACTOR_RUN_DIR: %w", err)
+	}
+	defer func() {
+		if hadRunDir {
+			_ = os.Setenv("TRACTOR_RUN_DIR", previousRunDir)
+		} else {
+			_ = os.Unsetenv("TRACTOR_RUN_DIR")
+		}
+	}()
+
 	state := newEngineState()
 	currentID := r.startID
 	if r.resumeCheckpoint != nil {

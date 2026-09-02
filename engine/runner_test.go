@@ -61,6 +61,51 @@ func TestRunnerCompletesLinearGraphAndWritesFinalCheckpoint(t *testing.T) {
 	assertJSONFile(t, filepath.Join(root, "stages", "000001-work", "outcome.json"), harness.Outcome{Notes: strings.Repeat("ø", 205)})
 }
 
+func TestRunnerExportsAbsoluteLogsRootToToolNode(t *testing.T) {
+	workdir := t.TempDir()
+	logsRoot := filepath.Join(t.TempDir(), "run")
+	currentDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	relativeLogsRoot, err := filepath.Rel(currentDir, logsRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TRACTOR_RUN_DIR", "outer-run")
+	pipeline := testGraph(
+		toolNode(`printf '%s' "$TRACTOR_RUN_DIR" > observed-run-dir`, "done"),
+		exitNode("done"),
+	)
+	runner, err := NewRunner(pipeline, NewRegistry(), RunnerConfig{
+		LogsRoot: relativeLogsRoot,
+		Workdir:  workdir,
+		Validate: func(graph.Graph) error { return nil },
+		Backend:  &scriptedBackend{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := runner.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted {
+		t.Fatalf("status = %s, want %s", result.Status, RunCompleted)
+	}
+	observed, err := os.ReadFile(filepath.Join(workdir, "observed-run-dir"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(observed) != logsRoot {
+		t.Fatalf("TRACTOR_RUN_DIR = %q, want %q", observed, logsRoot)
+	}
+	if got := os.Getenv("TRACTOR_RUN_DIR"); got != "outer-run" {
+		t.Fatalf("restored TRACTOR_RUN_DIR = %q, want outer-run", got)
+	}
+}
+
 func TestRunnerLoopsUntilTargetVisitBudgetIsExhausted(t *testing.T) {
 	root := t.TempDir()
 	pipeline := testGraph(

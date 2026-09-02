@@ -5,6 +5,7 @@ items:
     check: "`tractor ask` moves a question file into the interview directory, blocks until its answer file exists, and prints the answer; `tractor answer` writes that file; the sprint asked the reviewer at least one real question through the new command."
     doc: ephemeral/projects/tractor/living-instructions/chapters/01-ask/SPRINT-01.md
     command: go build ./... && go vet ./... && go test ./cmd/tractor/... && sh ephemeral/projects/tractor/living-instructions/chapters/01-ask/check-sprint-01.sh && test -f ephemeral/projects/tractor/living-instructions/interview/0001.answer.md
+    done: true
   - name: run directory reaches agents
     check: Every harness turn and tool node started by a run sees TRACTOR_RUN_DIR; `ask` appends QuestionAsked to that run's timeline; a live pipeline whose agent asks a question completes once the question is answered.
     doc: ephemeral/projects/tractor/living-instructions/chapters/01-ask/SPRINT-02.md

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,6 +30,7 @@ type nativeConfig struct {
 	outputSchema    any
 	fresh           bool
 	stderr          io.Writer
+	env             map[string]string
 }
 
 type nativeSession interface {
@@ -339,6 +341,9 @@ func (a *Adapter) open(ctx context.Context, config nativeConfig) (nativeSession,
 		return nil, errors.New("claude adapter is closed")
 	}
 	config.stderr = a.stderr
+	if runDir, ok := os.LookupEnv("TRACTOR_RUN_DIR"); ok {
+		config.env = map[string]string{"TRACTOR_RUN_DIR": runDir}
+	}
 	factory := a.factory
 	a.mu.Unlock()
 	return factory(ctx, config)
