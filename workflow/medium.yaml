@@ -1,0 +1,20 @@
+name: medium
+start: sprints
+nodes:
+  - id: sprints
+    type: loop
+    label: Execute planned sprints
+    checklist: checklist.md
+    body: implement
+    on_done: success
+    max_visits: 40
+
+  - id: implement
+    type: codergen
+    label: Implement the current sprint
+    prompt: The workflow package materializes the execution contract here.
+    fidelity: full
+    thread_id: medium
+    timeout: 1d
+    edges:
+      - to: sprints

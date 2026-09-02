@@ -39,6 +39,11 @@ func newWorkflowListCommand() *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			for _, definition := range workflowlib.List() {
+				// The execution-workflow CLI sprint will add the arguments and
+				// lifecycle needed to expose registered execution definitions.
+				if definition.Name != workflowlib.PlanName {
+					continue
+				}
 				if _, err := fmt.Fprintf(command.OutOrStdout(), "%s\t%s\n", definition.Name, definition.Description); err != nil {
 					return fmt.Errorf("print built-in workflows: %w", err)
 				}
@@ -115,7 +120,8 @@ func runWorkflow(command *cobra.Command, run pipelineRunner, name, project, seed
 	}
 
 	pipeline, err := workflowlib.Build(name, workflowlib.Parameters{
-		Project: project, Seed: absoluteSeed, Workdir: absoluteWorkdir, Executable: executable,
+		Project: project, Workdir: absoluteWorkdir, Executable: executable,
+		Plan: workflowlib.PlanParameters{Seed: absoluteSeed},
 	})
 	if err != nil {
 		return err

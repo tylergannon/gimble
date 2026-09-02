@@ -23,21 +23,33 @@ const (
 //go:embed plan.yaml
 var planDefinition []byte
 
+//go:embed medium.yaml
+var mediumDefinition []byte
+
 // Definition is the caller-facing identity of an embedded workflow.
 type Definition struct {
 	Name        string
 	Description string
 }
 
-// Parameters are the explicit values used to materialize a workflow graph.
+// Parameters are the common values used to materialize a workflow graph.
 type Parameters struct {
 	Project    string
-	Seed       string
 	Workdir    string
 	Executable string
+	Plan       PlanParameters
+}
+
+// PlanParameters are inputs used only by the planning workflow.
+type PlanParameters struct {
+	Seed string
 }
 
 var definitions = map[string]Definition{
+	MediumName: {
+		Name:        MediumName,
+		Description: "Run every sprint in a planning checklist through engine-owned validation.",
+	},
 	PlanName: {
 		Name:        PlanName,
 		Description: "Interview the caller and write a planning brief, checklist, and size recommendation.",
@@ -61,16 +73,27 @@ func Build(name string, params Parameters) (*graph.Graph, error) {
 	if _, ok := definitions[name]; !ok {
 		return nil, fmt.Errorf("unknown built-in workflow %q", name)
 	}
-	if name != PlanName {
-		return nil, fmt.Errorf("built-in workflow %q is not runnable", name)
-	}
 	if err := validateParameters(params); err != nil {
 		return nil, err
+	}
+	switch name {
+	case PlanName:
+		return buildPlan(params)
+	case MediumName:
+		return buildMedium(params)
+	default:
+		return nil, fmt.Errorf("built-in workflow %q is not runnable", name)
+	}
+}
+
+func buildPlan(params Parameters) (*graph.Graph, error) {
+	if strings.TrimSpace(params.Plan.Seed) == "" {
+		return nil, errors.New("seed is required")
 	}
 
 	pipeline, err := graph.ParseYAML(planDefinition)
 	if err != nil {
-		return nil, fmt.Errorf("parse embedded workflow %q: %w", name, err)
+		return nil, fmt.Errorf("parse embedded workflow %q: %w", PlanName, err)
 	}
 	planner, ok := pipeline.NodeByID("planner")
 	if !ok {
@@ -94,12 +117,40 @@ func Build(name string, params Parameters) (*graph.Graph, error) {
 	return pipeline, nil
 }
 
+func buildMedium(params Parameters) (*graph.Graph, error) {
+	pipeline, err := graph.ParseYAML(mediumDefinition)
+	if err != nil {
+		return nil, fmt.Errorf("parse embedded workflow %q: %w", MediumName, err)
+	}
+	loopNode, ok := pipeline.NodeByID("sprints")
+	if !ok {
+		return nil, errors.New("embedded workflow medium has no sprints node")
+	}
+	sprints, ok := loopNode.(*graph.LoopNode)
+	if !ok {
+		return nil, errors.New("embedded workflow medium sprints is not a loop node")
+	}
+	implementNode, ok := pipeline.NodeByID("implement")
+	if !ok {
+		return nil, errors.New("embedded workflow medium has no implement node")
+	}
+	implement, ok := implementNode.(*graph.CodergenNode)
+	if !ok {
+		return nil, errors.New("embedded workflow medium implement is not a codergen node")
+	}
+
+	projectDir := filepath.Join(params.Workdir, "ephemeral", "projects", params.Project)
+	sprints.Checklist.Value = filepath.Join(projectDir, ChecklistFile)
+	implement.Prompt.Value = mediumPrompt(params, projectDir)
+	return pipeline, nil
+}
+
 func validateParameters(params Parameters) error {
 	if err := ValidateProject(params.Project); err != nil {
 		return err
 	}
 	for name, value := range map[string]string{
-		"seed": params.Seed, "workdir": params.Workdir, "executable": params.Executable,
+		"workdir": params.Workdir, "executable": params.Executable,
 	} {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("%s is required", name)
@@ -182,8 +233,33 @@ Never write a done field in the top-level checklist or a chapter's sprint ledger
 - LARGE: tractor workflow run large --project %s
 
 Before finishing, reread all three artifacts against this contract. If the following validator sends you back, retain the interview context, inspect its mechanical failure, and repair the artifacts without restarting the interview.`,
-		strconv.Quote(params.Project), strconv.Quote(params.Seed), strconv.Quote(params.Workdir),
+		strconv.Quote(params.Project), strconv.Quote(params.Plan.Seed), strconv.Quote(params.Workdir),
 		strconv.Quote(params.Executable), strconv.Quote(projectDir), questionCommand, params.Project, params.Project)
+}
+
+func mediumPrompt(params Parameters, projectDir string) string {
+	briefPath := filepath.Join(projectDir, BriefFile)
+	checklistPath := filepath.Join(projectDir, ChecklistFile)
+	interviewDir := filepath.Join(projectDir, "interview")
+	questionCommand := "TRACTOR_INTERVIEW_DIR=" + shellQuote(interviewDir) + " " + shellQuote(params.Executable) + " ask <question-file>"
+	return fmt.Sprintf(`You are Tractor's built-in MEDIUM execution workflow. Complete the whole current sprint in this one turn.
+
+Inputs:
+- Project: %s
+- Repository workdir: %s
+- Project brief: %s
+- Sprint checklist: %s
+- Interview directory: %s
+
+The loop engine has injected the current <iterate> frame above this prompt, including the selected checklist item and its item document when one exists. Read the project brief, the current frame, and that item document before editing. Work only on the current sprint and inspect enough repository context to complete its entire contract.
+
+Implement the whole current sprint, including its code, tests, and named documentation. Run the sprint's validator command yourself before returning. The loop engine runs validation again after this turn and is the only owner of checklist marking: never add, remove, or edit a done field. Commit the completed sprint before returning.
+
+Use a blocking reviewer question only when the current sprint has no runnable validator or when a repeated engine validation failure raises a material question. In that case write one Markdown or HTML question beneath the project root and run %s. Read the returned answer and continue in this same turn. Do not ask for routine implementation choices.
+
+Do not start a child Tractor run and do not add a failure-escalation mechanism.`,
+		strconv.Quote(params.Project), strconv.Quote(params.Workdir), strconv.Quote(briefPath),
+		strconv.Quote(checklistPath), strconv.Quote(interviewDir), questionCommand)
 }
 
 func validatorCommand(params Parameters) string {

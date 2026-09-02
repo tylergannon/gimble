@@ -5,6 +5,7 @@ items:
     check: The plan workflow emits and mechanically validates a flat multi-sprint checklist for MEDIUM and a chapter ledger with chapter docs and empty per-chapter sprint ledgers for LARGE.
     doc: ephemeral/projects/tractor/living-instructions/chapters/03-execution/SPRINT-01.md
     command: go build ./... && go vet ./... && sh ephemeral/projects/tractor/living-instructions/chapters/03-execution/check-sprint-01.sh
+    done: true
   - name: embedded MEDIUM workflow
     check: The named medium workflow materializes the selected project's checklist path without new graph substitution and runs every planned sprint through one validating loop until the engine marks the checklist complete.
     doc: ephemeral/projects/tractor/living-instructions/chapters/03-execution/SPRINT-02.md

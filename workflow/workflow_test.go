@@ -1,27 +1,32 @@
 package workflow
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/tylergannon/tractor/checklist"
+	"github.com/tylergannon/tractor/engine"
 	"github.com/tylergannon/tractor/graph"
+	"github.com/tylergannon/tractor/harness"
 	"github.com/tylergannon/tractor/lint"
 )
 
 func TestBuiltInPlan(t *testing.T) {
 	listed := List()
-	if len(listed) != 1 || listed[0].Name != PlanName || listed[0].Description == "" {
+	if len(listed) != 2 || listed[1].Name != PlanName || listed[1].Description == "" {
 		t.Fatalf("List = %#v", listed)
 	}
 
 	params := Parameters{
 		Project:    "quote-test",
-		Seed:       "seed's brief.md",
 		Workdir:    "/tmp/work dir",
 		Executable: "/tmp/tractor's binary",
+		Plan:       PlanParameters{Seed: "seed's brief.md"},
 	}
 	pipeline, err := Build(PlanName, params)
 	if err != nil {
@@ -61,7 +66,7 @@ func TestBuiltInPlan(t *testing.T) {
 	if validator.OnSuccess != graph.Success || !validator.OnError.Present || validator.OnError.Value != "planner" {
 		t.Fatalf("validator routes = success %q, error %#v", validator.OnSuccess, validator.OnError)
 	}
-	if strings.Contains(validator.ToolCommand, params.Seed) {
+	if strings.Contains(validator.ToolCommand, params.Plan.Seed) {
 		t.Fatal("validator command unexpectedly contains the seed")
 	}
 	for _, required := range []string{"'/tmp/tractor'\\''s binary'", "--project 'quote-test'", "--workdir '/tmp/work dir'"} {
@@ -87,6 +92,174 @@ func TestBuiltInPlan(t *testing.T) {
 	t.Cleanup(func() { planDefinition = originalDefinition })
 	if _, err := Build(PlanName, params); err == nil {
 		t.Fatal("Build accepted an invalid embedded definition")
+	}
+}
+
+func TestBuiltInMedium(t *testing.T) {
+	listed := List()
+	if len(listed) != 2 || listed[0].Name != MediumName || listed[1].Name != PlanName {
+		t.Fatalf("List = %#v", listed)
+	}
+	for _, definition := range listed {
+		if definition.Description == "" {
+			t.Fatalf("workflow %q has no description", definition.Name)
+		}
+	}
+
+	params := Parameters{
+		Project:    "medium-demo",
+		Workdir:    "/tmp/work dir",
+		Executable: "/tmp/tractor's binary",
+	}
+	pipeline, err := Build(MediumName, params)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if pipeline.Name != MediumName || pipeline.Start != "sprints" || len(pipeline.Nodes) != 2 {
+		t.Fatalf("graph identity/shape = %#v", pipeline)
+	}
+
+	sprints := mustNode[*graph.LoopNode](t, pipeline, "sprints")
+	wantRoot := filepath.Join(params.Workdir, "ephemeral", "projects", params.Project)
+	if !sprints.Checklist.Present || sprints.Checklist.Value != filepath.Join(wantRoot, ChecklistFile) {
+		t.Fatalf("sprints checklist = %#v", sprints.Checklist)
+	}
+	if sprints.Body != "implement" || sprints.OnDone != graph.Success || !sprints.MaxVisits.Present || sprints.MaxVisits.Value != 40 {
+		t.Fatalf("sprints lifecycle = %#v", sprints)
+	}
+
+	implement := mustNode[*graph.CodergenNode](t, pipeline, "implement")
+	if !reflect.DeepEqual(implement.Edges, []graph.Edge{{To: "sprints"}}) || implement.MaxVisits.Present {
+		t.Fatalf("implement routing/budget = edges %#v, max visits %#v", implement.Edges, implement.MaxVisits)
+	}
+	if implement.Fidelity.Value != "full" || implement.ThreadID.Value != MediumName {
+		t.Fatalf("implement context = fidelity %q, thread %q", implement.Fidelity.Value, implement.ThreadID.Value)
+	}
+	prompt := implement.Prompt.Value
+	for _, required := range []string{
+		filepath.Join(wantRoot, BriefFile), filepath.Join(wantRoot, ChecklistFile), filepath.Join(wantRoot, "interview"),
+		"current <iterate> frame", "item document", "Complete the whole current sprint", "Run the sprint's validator command yourself",
+		"never add, remove, or edit a done field", "Commit the completed sprint", "repeated engine validation failure",
+		"TRACTOR_INTERVIEW_DIR=", "ask <question-file>", "Do not start a child Tractor run", "do not add a failure-escalation mechanism",
+	} {
+		if !strings.Contains(prompt, required) {
+			t.Errorf("implement prompt does not contain %q", required)
+		}
+	}
+	if diagnostics, err := lint.ValidateOrError(*pipeline); err != nil {
+		t.Fatalf("embedded graph lint: %v (%#v)", err, diagnostics)
+	}
+
+	unsafe := params
+	unsafe.Project = "../escape"
+	if _, err := Build(MediumName, unsafe); err == nil {
+		t.Fatal("Build accepted unsafe project")
+	}
+
+	originalDefinition := mediumDefinition
+	mediumDefinition = []byte("not a pipeline")
+	t.Cleanup(func() { mediumDefinition = originalDefinition })
+	if _, err := Build(MediumName, params); err == nil {
+		t.Fatal("Build accepted an invalid embedded definition")
+	}
+}
+
+func TestMediumRunsPlanningChecklist(t *testing.T) {
+	workdir := t.TempDir()
+	logsRoot := filepath.Join(t.TempDir(), "run")
+	projectRoot := filepath.Join(workdir, "ephemeral", "projects", "demo")
+	checklistPath := filepath.Join(projectRoot, ChecklistFile)
+	const body = "\n\n# Planned work\n\nKeep this body byte-for-byte.\n"
+	writeFile(t, filepath.Join(projectRoot, BriefFile), "# Brief\n\nExecute both planned sprints.\n")
+	writeFile(t, checklistPath, `---
+items:
+  - name: First sprint
+    check: The first command ran.
+    command: "printf 'first\\n' >> executed.log"
+  - name: Second sprint
+    check: The second command ran.
+    command: "printf 'second\\n' >> executed.log"
+---`+body)
+
+	pipeline, err := Build(MediumName, Parameters{
+		Project: "demo", Workdir: workdir, Executable: "/tmp/tractor",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := make([]string, 0, 2)
+	registry := engine.NewRegistry()
+	registry.Register("codergen", engine.HandlerFunc(func(_ graph.Node, _ []graph.Edge, scope engine.ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+		for _, name := range []string{"First sprint", "Second sprint"} {
+			if strings.Contains(scope.Frame, "name: "+name) {
+				selected = append(selected, name)
+				return harness.Outcome{Notes: "implemented " + name}, nil
+			}
+		}
+		t.Fatalf("codergen frame did not select a planned sprint: %s", scope.Frame)
+		return harness.Outcome{}, nil
+	}))
+	runner, err := engine.NewRunner(*pipeline, registry, engine.RunnerConfig{
+		LogsRoot: logsRoot,
+		Workdir:  workdir,
+		Validate: func(candidate graph.Graph) error {
+			_, err := lint.ValidateOrError(candidate)
+			return err
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := runner.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != engine.RunCompleted || result.FailureReason != "" {
+		t.Fatalf("result = %#v", result)
+	}
+	if !reflect.DeepEqual(selected, []string{"First sprint", "Second sprint"}) {
+		t.Fatalf("selected items = %#v", selected)
+	}
+	if got := readFile(t, filepath.Join(workdir, "executed.log")); got != "first\nsecond\n" {
+		t.Fatalf("executed commands = %q", got)
+	}
+
+	list, err := checklist.Load(checklistPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if list.Body != body {
+		t.Fatalf("markdown body = %q, want %q", list.Body, body)
+	}
+	for _, item := range list.Items {
+		if !item.Done {
+			t.Fatalf("item %q is not done", item.Name)
+		}
+	}
+	if got := strings.Count(readFile(t, checklistPath), "done: true"); got != 2 {
+		t.Fatalf("done fields = %d, want 2", got)
+	}
+
+	recordPaths, err := filepath.Glob(filepath.Join(logsRoot, "stages", "*-sprints", "validation.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recordPaths) != 2 {
+		t.Fatalf("validation records = %v", recordPaths)
+	}
+	for _, path := range recordPaths {
+		var record struct {
+			Item     string `json:"item"`
+			Command  string `json:"command"`
+			ExitCode int    `json:"exit_code"`
+			Passed   bool   `json:"passed"`
+		}
+		if err := json.Unmarshal([]byte(readFile(t, path)), &record); err != nil {
+			t.Fatalf("decode %s: %v", path, err)
+		}
+		if !record.Passed || record.ExitCode != 0 || record.Item == "" || record.Command == "" {
+			t.Fatalf("validation record %s = %#v", path, record)
+		}
 	}
 }
 
@@ -429,6 +602,15 @@ func writeFile(t *testing.T, path, contents string) {
 	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func readFile(t *testing.T, path string) string {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
 }
 
 func removeFile(t *testing.T, path string) {
