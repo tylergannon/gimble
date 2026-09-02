@@ -258,7 +258,7 @@ Definition of done in open prose.
 
 On every arrival the engine re-reads the file, validates the item the previous lap worked on, writes `done: true` on it when the validation passes, and selects the first open item in file order. An item with neither `command` nor `infer` passes when its lap returns. A hand-edited `done: true` is honored without validation. Paths are relative to the workdir. The validation record and the command's output land in `validation.json` and `validation.log` in the loop node's stage directory.
 
-The selected item reaches the agent as a frame the engine prepends to every codergen and fan-in prompt inside the body, outermost loop first:
+The selected item reaches the agent as a frame the engine prepends to every codergen and fan-in prompt inside the body. With nested loops the inner loop's block sits inside the outer one, indented, so the prompt's structure mirrors the loops. One level, flush left for width:
 
 ```text
 <tractor loop="items" checklist="ephemeral/projects/demo/checklist.md" item="2/2" lap="2">

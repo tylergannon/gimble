@@ -1864,10 +1864,12 @@ not run:
 
 **The frame.** For every codergen and fan-in turn executed while at
 least one loop frame is active, the engine renders one block per
-active frame, outermost first, innermost last, and hands the rendered
-text down as `ExecutionScope.frame` (Section 4.1); the handler prepends
-it to the node's own prompt (Section 4.3). A block contains only
-engine facts and file contents the engine copied:
+active frame, each inner loop's block nested inside its enclosing
+loop's block and indented one level, and hands the rendered text down
+as `ExecutionScope.frame` (Section 4.1); the handler prepends it to
+the node's own prompt (Section 4.3). A block contains only engine
+facts and file contents the engine copied (the item lines are
+indented one level inside their tag; shown flush here for width):
 
 ```
 <tractor loop="sprint" checklist="ephemeral/projects/mvp/sprints/SPRINT-0002.md" item="1/2" lap="2">

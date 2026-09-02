@@ -340,7 +340,7 @@ func TestLoopFrameCarriesDocContents(t *testing.T) {
 		writeDoc bool
 		want     string
 	}{
-		{name: "readable doc", writeDoc: true, want: "--- doc: notes.md ---\nRead me carefully.\n</tractor>"},
+		{name: "readable doc", writeDoc: true, want: "  --- doc: notes.md ---\n  Read me carefully.\n</tractor>"},
 		{name: "missing doc", writeDoc: false, want: "doc: notes.md (unreadable: "},
 	}
 	for _, test := range tests {

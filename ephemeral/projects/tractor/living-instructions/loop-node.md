@@ -207,10 +207,19 @@ Runs in the loop node's own stage directory, `stages/{seq}-{loop}/`.
 
 ## 6. Frame injection
 
+**Hypothesis, not doctrine (Tyler, 2026-09-02).** What the frame carries
+and how it is shaped is to be tested by use. Two candidates: (a) the
+rendered block below, inner loops nested inside outer ones so the
+structure is explicit; (b) breadcrumbs only, a few paths pointing at the
+current iteration files, with the agent reading them itself. v1 ships
+(a) because it needs no agent discipline; if chapter docs make it fat,
+switch to (b) without ceremony.
+
 For every codergen and fan-in turn executed while at least one loop frame
-is active, the engine prepends one rendered block per active frame,
-outermost first, innermost last, before the node's own prompt. The block
-contains only engine facts and file contents the engine copied:
+is active, the engine prepends one rendered block per active frame, each
+inner loop's block nested inside its enclosing loop's block and indented
+one level, before the node's own prompt. The block contains only engine
+facts and file contents the engine copied:
 
 ```
 <tractor loop="sprint" checklist="ephemeral/projects/mvp/sprints/SPRINT-0002.md" item="1/2" lap="2">

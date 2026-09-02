@@ -98,42 +98,56 @@ func (r *Runner) snapshotFrames() []loopFrame {
 	return append([]loopFrame(nil), r.frames...)
 }
 
-// renderFrames renders every active frame, outermost first, for prompt
-// injection. Doc files are read relative to workdir at render time so edits
-// made during a lap reach the next turn. Empty when no loop is active.
+// renderFrames renders every active frame for prompt injection, nested
+// outermost to innermost so the block structure mirrors the loops. Doc
+// files are read relative to workdir at render time so edits made during a
+// lap reach the next turn. Empty when no loop is active.
 func (r *Runner) renderFrames(workdir string) string {
 	frames := r.snapshotFrames()
 	if len(frames) == 0 {
 		return ""
 	}
-	blocks := make([]string, len(frames))
-	for index, frame := range frames {
-		blocks[index] = renderFrame(frame, workdir)
-	}
-	return strings.Join(blocks, "\n\n")
+	return renderNested(frames, workdir, 0)
 }
 
-func renderFrame(frame loopFrame, workdir string) string {
+func renderNested(frames []loopFrame, workdir string, depth int) string {
+	indent := strings.Repeat("  ", depth)
+	frame := frames[0]
 	var block strings.Builder
-	fmt.Fprintf(&block, "<tractor loop=%q checklist=%q item=\"%d/%d\" lap=\"%d\">\n",
-		frame.loopID, frame.checklist, frame.index, frame.count, frame.lap)
-	block.WriteString(frame.rendered)
-	block.WriteByte('\n')
+	fmt.Fprintf(&block, "%s<tractor loop=%q checklist=%q item=\"%d/%d\" lap=\"%d\">\n",
+		indent, frame.loopID, frame.checklist, frame.index, frame.count, frame.lap)
+	for line := range strings.SplitSeq(renderFrameBody(frame, workdir), "\n") {
+		block.WriteString(indent)
+		block.WriteString("  ")
+		block.WriteString(line)
+		block.WriteByte('\n')
+	}
+	if len(frames) > 1 {
+		block.WriteString(renderNested(frames[1:], workdir, depth+1))
+		block.WriteByte('\n')
+	}
+	block.WriteString(indent)
+	block.WriteString("</tractor>")
+	return block.String()
+}
+
+// renderFrameBody renders the lines between a frame's tags: the item, the
+// last failed validation if any, and the item's doc.
+func renderFrameBody(frame loopFrame, workdir string) string {
+	var body strings.Builder
+	body.WriteString(frame.rendered)
 	if frame.lastFailure != "" {
-		fmt.Fprintf(&block, "last validation: failed — %s\n", frame.lastFailure)
+		fmt.Fprintf(&body, "\nlast validation: failed — %s", frame.lastFailure)
 	}
 	if frame.doc != "" {
 		contents, err := os.ReadFile(resolveWorkdirPath(workdir, frame.doc))
 		if err != nil {
-			fmt.Fprintf(&block, "doc: %s (unreadable: %v)\n", frame.doc, err)
+			fmt.Fprintf(&body, "\ndoc: %s (unreadable: %v)", frame.doc, err)
 		} else {
-			fmt.Fprintf(&block, "--- doc: %s ---\n", frame.doc)
-			block.WriteString(strings.TrimRight(string(contents), "\n"))
-			block.WriteByte('\n')
+			fmt.Fprintf(&body, "\n--- doc: %s ---\n%s", frame.doc, strings.TrimRight(string(contents), "\n"))
 		}
 	}
-	block.WriteString("</tractor>")
-	return block.String()
+	return body.String()
 }
 
 // writeFrames rewrites {logs_root}/frames.json from the current stack.
