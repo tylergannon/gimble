@@ -33,7 +33,7 @@ func newRootCommand() *cobra.Command {
 		SilenceUsage:      true,
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	}
-	root.AddCommand(newAskCommand(), newAnswerCommand(), newValidateCommand(), newRunCommand(), newPrintSchemaCommand(), newMCPCommand(), newMCPRunnerCommand(), newPluginCommand())
+	root.AddCommand(newAskCommand(), newAnswerCommand(), newValidateCommand(), newRunCommand(), newWorkflowCommand(runPipeline), newPrintSchemaCommand(), newMCPCommand(), newMCPRunnerCommand(), newPluginCommand())
 	return root
 }
 

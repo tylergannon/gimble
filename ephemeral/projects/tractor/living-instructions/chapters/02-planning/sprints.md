@@ -5,6 +5,7 @@ items:
     check: The binary contains a named plan workflow whose single long-lived agent interviews through tractor ask, writes the three fixed planning artifacts, and is re-entered when mechanical artifact validation fails.
     doc: ephemeral/projects/tractor/living-instructions/chapters/02-planning/SPRINT-01.md
     command: go build ./... && go vet ./... && sh ephemeral/projects/tractor/living-instructions/chapters/02-planning/check-sprint-01.sh
+    done: true
   - name: workflow CLI and handoff
     check: A caller can list built-in workflows and run plan with an explicit project, seed file, workdir, and logs directory; completion prints the artifact paths, size, and next action.
     doc: ephemeral/projects/tractor/living-instructions/chapters/02-planning/SPRINT-02.md
