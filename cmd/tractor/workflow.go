@@ -20,9 +20,11 @@ func newWorkflowCommand(run pipelineRunner) *cobra.Command {
 		Use:   "workflow",
 		Short: "List and run Tractor's built-in workflows",
 		Long: "List and run workflows embedded in Tractor. Start with 'tractor workflow list'. " +
-			"Use the plan workflow when you need to turn a seed into an interviewed, sized plan.",
+			"Use plan to produce a sized project, medium to execute one sprint checklist, or large to plan and execute nested chapter checklists.",
 		Example: "  tractor workflow list\n" +
-			"  tractor workflow run plan --project demo --seed seed.md --logs ./tractor-plan-logs",
+			"  tractor workflow run plan --project demo --seed seed.md\n" +
+			"  tractor workflow run medium --project demo\n" +
+			"  tractor workflow run large --project demo",
 		Args: cobra.NoArgs,
 	}
 	command.AddCommand(newWorkflowListCommand(), newWorkflowRunCommand(run), newWorkflowValidatePlanCommand())
@@ -33,17 +35,12 @@ func newWorkflowListCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List available built-in workflows",
-		Long:  "List the built-in workflows available in this Tractor binary. Start with plan when you need to turn a seed into an interviewed, sized plan.",
+		Long:  "List every runnable built-in workflow in this Tractor binary. Run one with 'tractor workflow run <name>'.",
 		Example: "  tractor workflow list\n" +
-			"  tractor workflow run plan --project demo --seed seed.md --logs ./tractor-plan-logs",
+			"  tractor workflow run plan --project demo --seed seed.md",
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			for _, definition := range workflowlib.List() {
-				// The execution-workflow CLI sprint will add the arguments and
-				// lifecycle needed to expose registered execution definitions.
-				if definition.Name != workflowlib.PlanName {
-					continue
-				}
 				if _, err := fmt.Fprintf(command.OutOrStdout(), "%s\t%s\n", definition.Name, definition.Description); err != nil {
 					return fmt.Errorf("print built-in workflows: %w", err)
 				}
@@ -61,25 +58,26 @@ func newWorkflowRunCommand(run pipelineRunner) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "run <name>",
 		Short: "Run a built-in workflow",
-		Long: "Run a workflow embedded in Tractor. The plan workflow reads --seed relative to --workdir, " +
-			"interviews the caller through numbered QuestionAsked events, and writes brief.md, checklist.md, " +
-			"and recommendation.md under ephemeral/projects/<project>/.",
-		Example: "  tractor workflow run plan --project demo --seed seed.md --logs ./tractor-plan-logs\n" +
-			"  tractor workflow run plan --project demo --seed notes/seed.md --workdir /path/to/repo --logs /tmp/demo-plan",
+		Long: "Run plan, medium, or large through Tractor's foreground runner. Plan requires --seed and writes brief.md, checklist.md, " +
+			"and recommendation.md. Medium and large execute an existing project and reject --seed. All three configure the project's " +
+			"interview directory, print their absolute logs path before starting, and allocate fresh logs under Tractor's state root unless --logs is set.",
+		Example: "  tractor workflow run plan --project demo --seed seed.md\n" +
+			"  tractor workflow run medium --project demo\n" +
+			"  tractor workflow run large --project demo --workdir /path/to/repo --logs ./tractor-large-logs",
 		Args: cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
 			return runWorkflow(command, run, args[0], project, seed, workdir, logsRoot)
 		},
 	}
 	command.Flags().StringVar(&project, "project", "", "safe project directory name (required)")
-	command.Flags().StringVar(&seed, "seed", "", "seed file, relative to --workdir (required)")
+	command.Flags().StringVar(&seed, "seed", "", "plan seed file, relative to --workdir (required only for plan)")
 	command.Flags().StringVar(&workdir, "workdir", ".", "workflow workspace")
-	command.Flags().StringVar(&logsRoot, "logs", "", "run log directory (required)")
+	command.Flags().StringVar(&logsRoot, "logs", "", "fresh run log directory, relative to --workdir (default: Tractor state root)")
 	return command
 }
 
 func runWorkflow(command *cobra.Command, run pipelineRunner, name, project, seed, workdir, logsRoot string) error {
-	if name != workflowlib.PlanName {
+	if !registeredWorkflow(name) {
 		return fmt.Errorf("unknown built-in workflow %q", name)
 	}
 	if strings.TrimSpace(project) == "" {
@@ -88,20 +86,22 @@ func runWorkflow(command *cobra.Command, run pipelineRunner, name, project, seed
 	if err := workflowlib.ValidateProject(project); err != nil {
 		return fmt.Errorf("invalid --project: %w", err)
 	}
-	if strings.TrimSpace(seed) == "" {
-		return fmt.Errorf("--seed is required")
-	}
-	if strings.TrimSpace(logsRoot) == "" {
-		return fmt.Errorf("--logs is required")
-	}
 
 	absoluteWorkdir, err := absoluteDirectory(workdir)
 	if err != nil {
 		return fmt.Errorf("invalid --workdir: %w", err)
 	}
-	absoluteSeed, err := readableSeed(absoluteWorkdir, seed)
-	if err != nil {
-		return err
+	var absoluteSeed string
+	if name == workflowlib.PlanName {
+		if strings.TrimSpace(seed) == "" {
+			return fmt.Errorf("--seed is required for plan")
+		}
+		absoluteSeed, err = readableSeed(absoluteWorkdir, seed)
+		if err != nil {
+			return err
+		}
+	} else if strings.TrimSpace(seed) != "" {
+		return fmt.Errorf("--seed is only valid for plan")
 	}
 	executable, err := os.Executable()
 	if err != nil {
@@ -126,6 +126,13 @@ func runWorkflow(command *cobra.Command, run pipelineRunner, name, project, seed
 	if err != nil {
 		return err
 	}
+	logsRoot, err = workflowLogsRoot(logsRoot, absoluteWorkdir, name, project)
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(command.OutOrStdout(), "Logs: %s\n", logsRoot); err != nil {
+		return fmt.Errorf("print workflow logs: %w", err)
+	}
 	interviewDir := filepath.Join(projectDir, "interview")
 	if err := withEnvironment(interviewDirectoryEnv, interviewDir, func() error {
 		return run(command, *pipeline, absoluteWorkdir, logsRoot, false)
@@ -133,11 +140,54 @@ func runWorkflow(command *cobra.Command, run pipelineRunner, name, project, seed
 		return err
 	}
 
-	recommendation, err := workflowlib.ValidatePlanArtifacts(absoluteWorkdir, project)
-	if err != nil {
-		return fmt.Errorf("read completed plan handoff: %w", err)
+	if name == workflowlib.PlanName {
+		recommendation, err := workflowlib.ValidatePlanArtifacts(absoluteWorkdir, project)
+		if err != nil {
+			return fmt.Errorf("read completed plan handoff: %w", err)
+		}
+		return printWorkflowHandoff(command, projectDir, recommendation)
 	}
-	return printWorkflowHandoff(command, projectDir, recommendation)
+	return printExecutionHandoff(command, projectDir, name, logsRoot)
+}
+
+func registeredWorkflow(name string) bool {
+	for _, definition := range workflowlib.List() {
+		if definition.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func workflowLogsRoot(configured, workdir, name, project string) (string, error) {
+	if strings.TrimSpace(configured) != "" {
+		path := configured
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(workdir, path)
+		}
+		absolute, err := filepath.Abs(path)
+		if err != nil {
+			return "", fmt.Errorf("resolve --logs: %w", err)
+		}
+		if err := requireFreshLogsRoot(absolute); err != nil {
+			return "", err
+		}
+		return absolute, nil
+	}
+
+	stateRoot, err := tractorStateRoot()
+	if err != nil {
+		return "", err
+	}
+	runsRoot := filepath.Join(stateRoot, "workflow-runs")
+	if err := os.MkdirAll(runsRoot, 0o700); err != nil {
+		return "", fmt.Errorf("create workflow runs directory: %w", err)
+	}
+	logsRoot, err := os.MkdirTemp(runsRoot, name+"-"+project+"-")
+	if err != nil {
+		return "", fmt.Errorf("allocate workflow logs: %w", err)
+	}
+	return logsRoot, nil
 }
 
 func readableSeed(workdir, seed string) (string, error) {
@@ -196,6 +246,13 @@ func printWorkflowHandoff(command *cobra.Command, projectDir string, recommendat
 	}
 	if _, err := fmt.Fprintf(command.OutOrStdout(), "Size: %s\nNext: %s\n", recommendation.Size, recommendation.Next); err != nil {
 		return fmt.Errorf("print workflow handoff: %w", err)
+	}
+	return nil
+}
+
+func printExecutionHandoff(command *cobra.Command, projectDir, name, logsRoot string) error {
+	if _, err := fmt.Fprintf(command.OutOrStdout(), "Project: %s\nWorkflow: %s\nCompleted logs: %s\n", projectDir, name, logsRoot); err != nil {
+		return fmt.Errorf("print workflow completion: %w", err)
 	}
 	return nil
 }

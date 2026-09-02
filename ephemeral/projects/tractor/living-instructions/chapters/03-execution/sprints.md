@@ -15,6 +15,7 @@ items:
     check: The named large workflow runs a project chapter ledger through a material planning turn and a nested sprint loop, using each chapter item's own checklist until both ledger levels are engine-marked complete.
     doc: ephemeral/projects/tractor/living-instructions/chapters/03-execution/SPRINT-03.md
     command: go build ./... && go vet ./... && sh ephemeral/projects/tractor/living-instructions/chapters/03-execution/check-sprint-03.sh
+    done: true
   - name: execution workflow CLI and run directories
     check: A caller can list and run plan, medium, or large by project; all three allocate and print a fresh default run directory under Tractor's state root while preserving an explicit logs override.
     doc: ephemeral/projects/tractor/living-instructions/chapters/03-execution/SPRINT-04.md

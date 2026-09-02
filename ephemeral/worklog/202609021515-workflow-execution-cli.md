@@ -1,0 +1,3 @@
+decision: Sprint 4 exposes every registered built-in workflow through one shared foreground runner; plan alone validates a seed and execution workflows complete by reporting project, workflow, and logs.
+decision: Default workflow logs must share the MCP run store state-root selection while using a separate collision-safe workflow-runs subtree.
+correction: The prior workflow CLI forwarded relative --logs to the generic runner, which resolved it from the process directory; sprint 4's explicit contract resolves workflow overrides from --workdir and rejects non-empty destinations before entering the runner.
