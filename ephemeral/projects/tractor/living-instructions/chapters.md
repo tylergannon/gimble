@@ -14,6 +14,7 @@ items:
     checklist: ephemeral/projects/tractor/living-instructions/chapters/02-planning/sprints.md
     command: >-
       go build ./... && go test ./... && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/02-planning/sprints.md)" -ge 2
+    done: true
   - name: Execution workflows
     check: Built-in MEDIUM and LARGE execution workflows run a planning output to completion on the loop node.
     doc: ephemeral/projects/tractor/living-instructions/chapters/03-execution/CHAPTER.md

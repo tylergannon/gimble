@@ -27,6 +27,7 @@ items:
     check: A real plan workflow run against a small seed asks the reviewer at least one material question, consumes the answer in the same agent turn, completes, and produces a brief, a loop-format checklist, and a SIMPLE recommendation.
     doc: ephemeral/projects/tractor/living-instructions/chapters/02-planning/SPRINT-04.md
     command: go build ./... && go vet ./... && go test ./... && sh ephemeral/projects/tractor/living-instructions/chapters/02-planning/check-sprint-04.sh
+    done: true
 ---
 
 # Chapter 2 sprints
