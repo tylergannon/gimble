@@ -26,6 +26,9 @@ var planDefinition []byte
 //go:embed medium.yaml
 var mediumDefinition []byte
 
+//go:embed large.yaml
+var largeDefinition []byte
+
 // Definition is the caller-facing identity of an embedded workflow.
 type Definition struct {
 	Name        string
@@ -46,6 +49,10 @@ type PlanParameters struct {
 }
 
 var definitions = map[string]Definition{
+	LargeName: {
+		Name:        LargeName,
+		Description: "Plan and execute every chapter through nested engine-owned checklists.",
+	},
 	MediumName: {
 		Name:        MediumName,
 		Description: "Run every sprint in a planning checklist through engine-owned validation.",
@@ -81,9 +88,63 @@ func Build(name string, params Parameters) (*graph.Graph, error) {
 		return buildPlan(params)
 	case MediumName:
 		return buildMedium(params)
+	case LargeName:
+		return buildLarge(params)
 	default:
 		return nil, fmt.Errorf("built-in workflow %q is not runnable", name)
 	}
+}
+
+func buildLarge(params Parameters) (*graph.Graph, error) {
+	pipeline, err := graph.ParseYAML(largeDefinition)
+	if err != nil {
+		return nil, fmt.Errorf("parse embedded workflow %q: %w", LargeName, err)
+	}
+	chapters, err := pipelineLoopNode(pipeline, LargeName, "chapters")
+	if err != nil {
+		return nil, err
+	}
+	plan, err := pipelineCodergenNode(pipeline, LargeName, "plan")
+	if err != nil {
+		return nil, err
+	}
+	if _, err := pipelineLoopNode(pipeline, LargeName, "sprints"); err != nil {
+		return nil, err
+	}
+	implement, err := pipelineCodergenNode(pipeline, LargeName, "implement")
+	if err != nil {
+		return nil, err
+	}
+
+	projectDir := filepath.Join(params.Workdir, "ephemeral", "projects", params.Project)
+	chapters.Checklist.Value = filepath.Join(projectDir, ChecklistFile)
+	plan.Prompt.Value = largePlanPrompt(params, projectDir)
+	implement.Prompt.Value = largeImplementPrompt(params, projectDir)
+	return pipeline, nil
+}
+
+func pipelineLoopNode(pipeline *graph.Graph, workflowName, id string) (*graph.LoopNode, error) {
+	node, ok := pipeline.NodeByID(id)
+	if !ok {
+		return nil, fmt.Errorf("embedded workflow %s has no %s node", workflowName, id)
+	}
+	typed, ok := node.(*graph.LoopNode)
+	if !ok {
+		return nil, fmt.Errorf("embedded workflow %s %s is not a loop node", workflowName, id)
+	}
+	return typed, nil
+}
+
+func pipelineCodergenNode(pipeline *graph.Graph, workflowName, id string) (*graph.CodergenNode, error) {
+	node, ok := pipeline.NodeByID(id)
+	if !ok {
+		return nil, fmt.Errorf("embedded workflow %s has no %s node", workflowName, id)
+	}
+	typed, ok := node.(*graph.CodergenNode)
+	if !ok {
+		return nil, fmt.Errorf("embedded workflow %s %s is not a codergen node", workflowName, id)
+	}
+	return typed, nil
 }
 
 func buildPlan(params Parameters) (*graph.Graph, error) {
@@ -252,6 +313,56 @@ Inputs:
 - Interview directory: %s
 
 The loop engine has injected the current <iterate> frame above this prompt, including the selected checklist item and its item document when one exists. Read the project brief, the current frame, and that item document before editing. Work only on the current sprint and inspect enough repository context to complete its entire contract.
+
+Implement the whole current sprint, including its code, tests, and named documentation. Run the sprint's validator command yourself before returning. The loop engine runs validation again after this turn and is the only owner of checklist marking: never add, remove, or edit a done field. Commit the completed sprint before returning.
+
+Use a blocking reviewer question only when the current sprint has no runnable validator or when a repeated engine validation failure raises a material question. In that case write one Markdown or HTML question beneath the project root and run %s. Read the returned answer and continue in this same turn. Do not ask for routine implementation choices.
+
+Do not start a child Tractor run and do not add a failure-escalation mechanism.`,
+		strconv.Quote(params.Project), strconv.Quote(params.Workdir), strconv.Quote(briefPath),
+		strconv.Quote(checklistPath), strconv.Quote(interviewDir), questionCommand)
+}
+
+func largePlanPrompt(params Parameters, projectDir string) string {
+	briefPath := filepath.Join(projectDir, BriefFile)
+	checklistPath := filepath.Join(projectDir, ChecklistFile)
+	interviewDir := filepath.Join(projectDir, "interview")
+	questionCommand := "TRACTOR_INTERVIEW_DIR=" + shellQuote(interviewDir) + " " + shellQuote(params.Executable) + " ask <question-file>"
+	return fmt.Sprintf(`You are Tractor's built-in LARGE execution workflow. Plan the current chapter in this one turn.
+
+Inputs:
+- Project: %s
+- Repository workdir: %s
+- Project brief: %s
+- Chapter checklist: %s
+- Interview directory: %s
+
+The loop engine has injected the current outer <iterate> frame above this prompt. It contains the chapter document and the path of that chapter's sprint checklist. Read the project brief, the current frame, and the chapter document before planning.
+
+Load the sprint checklist named by the current chapter item. If it already contains open sprints with non-empty item documents that cover the chapter contract, leave it unchanged and finish. Otherwise plan the whole chapter as one-turn implementation sprints. Ask one blocking reviewer question at a time only when its answer changes sprint scope or validation; write a Markdown or HTML question beneath the project root and run %s. Read the returned answer and continue in this same turn. When the chapter document settles the work, plan silently.
+
+Write one sprint document per sprint beside the chapter's sprint checklist, then append the sprint items to that checklist. Every sprint item must have a stable name, an observable check, a real command or infer validator, and a doc path. Each sprint must fit one implementation turn and collectively the open sprints must cover the chapter. Never add, remove, or edit a done field: the loop engine alone owns checklist marking. Commit the completed chapter plan before returning.
+
+Do not implement a sprint, start a child Tractor run, or add a repeated-failure escalation route.`,
+		strconv.Quote(params.Project), strconv.Quote(params.Workdir), strconv.Quote(briefPath),
+		strconv.Quote(checklistPath), strconv.Quote(interviewDir), questionCommand)
+}
+
+func largeImplementPrompt(params Parameters, projectDir string) string {
+	briefPath := filepath.Join(projectDir, BriefFile)
+	checklistPath := filepath.Join(projectDir, ChecklistFile)
+	interviewDir := filepath.Join(projectDir, "interview")
+	questionCommand := "TRACTOR_INTERVIEW_DIR=" + shellQuote(interviewDir) + " " + shellQuote(params.Executable) + " ask <question-file>"
+	return fmt.Sprintf(`You are Tractor's built-in LARGE execution workflow. Complete the whole current sprint in this one turn.
+
+Inputs:
+- Project: %s
+- Repository workdir: %s
+- Project brief: %s
+- Chapter checklist: %s
+- Interview directory: %s
+
+The loop engine has injected nested <iterate> frames above this prompt: the outer frame is the current chapter and the inner frame is the current sprint. Read the project brief, both frames, the chapter document, and the sprint document before editing. Work only on the current sprint and inspect enough repository context to complete its entire contract.
 
 Implement the whole current sprint, including its code, tests, and named documentation. Run the sprint's validator command yourself before returning. The loop engine runs validation again after this turn and is the only owner of checklist marking: never add, remove, or edit a done field. Commit the completed sprint before returning.
 

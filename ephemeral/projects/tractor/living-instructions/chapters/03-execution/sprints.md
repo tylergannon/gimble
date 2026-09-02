@@ -10,6 +10,7 @@ items:
     check: The named medium workflow materializes the selected project's checklist path without new graph substitution and runs every planned sprint through one validating loop until the engine marks the checklist complete.
     doc: ephemeral/projects/tractor/living-instructions/chapters/03-execution/SPRINT-02.md
     command: go build ./... && go vet ./... && sh ephemeral/projects/tractor/living-instructions/chapters/03-execution/check-sprint-02.sh
+    done: true
   - name: embedded LARGE workflow
     check: The named large workflow runs a project chapter ledger through a material planning turn and a nested sprint loop, using each chapter item's own checklist until both ledger levels are engine-marked complete.
     doc: ephemeral/projects/tractor/living-instructions/chapters/03-execution/SPRINT-03.md

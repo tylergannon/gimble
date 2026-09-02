@@ -18,7 +18,7 @@ import (
 
 func TestBuiltInPlan(t *testing.T) {
 	listed := List()
-	if len(listed) != 2 || listed[1].Name != PlanName || listed[1].Description == "" {
+	if len(listed) != 3 || listed[2].Name != PlanName || listed[2].Description == "" {
 		t.Fatalf("List = %#v", listed)
 	}
 
@@ -97,7 +97,7 @@ func TestBuiltInPlan(t *testing.T) {
 
 func TestBuiltInMedium(t *testing.T) {
 	listed := List()
-	if len(listed) != 2 || listed[0].Name != MediumName || listed[1].Name != PlanName {
+	if len(listed) != 3 || listed[0].Name != LargeName || listed[1].Name != MediumName || listed[2].Name != PlanName {
 		t.Fatalf("List = %#v", listed)
 	}
 	for _, definition := range listed {
@@ -162,6 +162,257 @@ func TestBuiltInMedium(t *testing.T) {
 	if _, err := Build(MediumName, params); err == nil {
 		t.Fatal("Build accepted an invalid embedded definition")
 	}
+}
+
+func TestBuiltInLarge(t *testing.T) {
+	params := Parameters{
+		Project:    "large-demo",
+		Workdir:    "/tmp/work dir",
+		Executable: "/tmp/tractor's binary",
+	}
+	pipeline, err := Build(LargeName, params)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if pipeline.Name != LargeName || pipeline.Start != "chapters" || len(pipeline.Nodes) != 4 {
+		t.Fatalf("graph identity/shape = %#v", pipeline)
+	}
+
+	wantRoot := filepath.Join(params.Workdir, "ephemeral", "projects", params.Project)
+	chapters := mustNode[*graph.LoopNode](t, pipeline, "chapters")
+	if !chapters.Checklist.Present || chapters.Checklist.Value != filepath.Join(wantRoot, ChecklistFile) {
+		t.Fatalf("chapters checklist = %#v", chapters.Checklist)
+	}
+	if chapters.Body != "plan" || chapters.OnDone != graph.Success || !chapters.MaxVisits.Present || chapters.MaxVisits.Value != 40 {
+		t.Fatalf("chapters lifecycle = %#v", chapters)
+	}
+
+	plan := mustNode[*graph.CodergenNode](t, pipeline, "plan")
+	if !reflect.DeepEqual(plan.Edges, []graph.Edge{{To: "sprints"}}) || plan.MaxVisits.Present {
+		t.Fatalf("plan routing/budget = edges %#v, max visits %#v", plan.Edges, plan.MaxVisits)
+	}
+	if plan.Fidelity.Value != "full" || plan.ThreadID.Value != "large-plan" {
+		t.Fatalf("plan context = fidelity %q, thread %q", plan.Fidelity.Value, plan.ThreadID.Value)
+	}
+	assertLongTimeout(t, "plan", plan.Timeout.Value)
+	for _, required := range []string{
+		filepath.Join(wantRoot, BriefFile), filepath.Join(wantRoot, ChecklistFile), filepath.Join(wantRoot, "interview"),
+		"current outer <iterate> frame", "chapter document", "already contains open sprints", "leave it unchanged",
+		"one blocking reviewer question at a time", "When the chapter document settles the work, plan silently",
+		"one sprint document per sprint", "real command or infer validator", "Never add, remove, or edit a done field",
+		"Commit the completed chapter plan", "Do not implement a sprint", "start a child Tractor run",
+	} {
+		if !strings.Contains(plan.Prompt.Value, required) {
+			t.Errorf("plan prompt does not contain %q", required)
+		}
+	}
+
+	sprints := mustNode[*graph.LoopNode](t, pipeline, "sprints")
+	if sprints.Checklist.Present {
+		t.Fatalf("nested sprints checklist must resolve from the chapter item: %#v", sprints.Checklist)
+	}
+	if sprints.Body != "implement" || sprints.OnDone != "chapters" || !sprints.MaxVisits.Present || sprints.MaxVisits.Value != 40 {
+		t.Fatalf("sprints lifecycle = %#v", sprints)
+	}
+
+	implement := mustNode[*graph.CodergenNode](t, pipeline, "implement")
+	if !reflect.DeepEqual(implement.Edges, []graph.Edge{{To: "sprints"}}) || implement.MaxVisits.Present {
+		t.Fatalf("implement routing/budget = edges %#v, max visits %#v", implement.Edges, implement.MaxVisits)
+	}
+	if implement.Fidelity.Value != "full" || implement.ThreadID.Value != "large-implement" {
+		t.Fatalf("implement context = fidelity %q, thread %q", implement.Fidelity.Value, implement.ThreadID.Value)
+	}
+	assertLongTimeout(t, "implement", implement.Timeout.Value)
+	for _, required := range []string{
+		filepath.Join(wantRoot, BriefFile), filepath.Join(wantRoot, ChecklistFile), filepath.Join(wantRoot, "interview"),
+		"nested <iterate> frames", "outer frame is the current chapter", "inner frame is the current sprint",
+		"chapter document", "sprint document", "Complete the whole current sprint", "Run the sprint's validator command yourself",
+		"never add, remove, or edit a done field", "Commit the completed sprint", "repeated engine validation failure",
+		"TRACTOR_INTERVIEW_DIR=", "ask <question-file>", "Do not start a child Tractor run", "do not add a failure-escalation mechanism",
+	} {
+		if !strings.Contains(implement.Prompt.Value, required) {
+			t.Errorf("implement prompt does not contain %q", required)
+		}
+	}
+
+	if diagnostics, err := lint.ValidateOrError(*pipeline); err != nil {
+		t.Fatalf("embedded graph lint: %v (%#v)", err, diagnostics)
+	}
+
+	unsafe := params
+	unsafe.Project = "../escape"
+	if _, err := Build(LargeName, unsafe); err == nil {
+		t.Fatal("Build accepted unsafe project")
+	}
+
+	originalDefinition := largeDefinition
+	largeDefinition = []byte("not a pipeline")
+	t.Cleanup(func() { largeDefinition = originalDefinition })
+	if _, err := Build(LargeName, params); err == nil {
+		t.Fatal("Build accepted an invalid embedded definition")
+	}
+}
+
+func TestLargeRunsNestedPlanningChecklist(t *testing.T) {
+	workdir := t.TempDir()
+	logsRoot := filepath.Join(t.TempDir(), "run")
+	projectRoot := filepath.Join(workdir, "ephemeral", "projects", "demo")
+	chapterChecklistPath := filepath.Join(projectRoot, ChecklistFile)
+	writeFile(t, filepath.Join(projectRoot, BriefFile), "# Brief\n\nDeliver all three chapters.\n")
+
+	chapters := []string{"Foundation", "Delivery", "Existing"}
+	chapterSlugs := []string{"foundation", "delivery", "existing"}
+	var chapterLedger strings.Builder
+	chapterLedger.WriteString("---\nitems:\n")
+	for index, chapter := range chapters {
+		slug := chapterSlugs[index]
+		chapterLedger.WriteString("  - name: " + chapter + " chapter\n")
+		chapterLedger.WriteString("    check: The " + strings.ToLower(chapter) + " chapter is complete.\n")
+		chapterLedger.WriteString("    doc: ephemeral/projects/demo/chapters/" + slug + ".md\n")
+		chapterLedger.WriteString("    checklist: ephemeral/projects/demo/chapters/" + slug + "-sprints.md\n")
+		writeFile(t, filepath.Join(projectRoot, "chapters", slug+".md"), "# "+chapter+" chapter\n\nDeliver "+strings.ToLower(chapter)+".\n")
+		writeFile(t, filepath.Join(projectRoot, "chapters", slug+"-sprints.md"), emptyChecklist)
+	}
+	chapterLedger.WriteString("---\n\n# Chapters\n")
+	writeFile(t, chapterChecklistPath, chapterLedger.String())
+
+	existingLedgerPath := filepath.Join(projectRoot, "chapters", "existing-sprints.md")
+	existingLedger := `---
+items:
+  - name: Existing sprint
+    check: The existing sprint command ran.
+    command: "printf 'existing\\n' >> execution.log"
+    doc: ephemeral/projects/demo/chapters/existing-sprint.md
+---
+
+# Existing plan
+`
+	writeFile(t, filepath.Join(projectRoot, "chapters", "existing-sprint.md"), "# Existing sprint\n\nRun the existing work.\n")
+	writeFile(t, existingLedgerPath, existingLedger)
+
+	pipeline, err := Build(LargeName, Parameters{
+		Project: "demo", Workdir: workdir, Executable: "/tmp/tractor",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planningOrder := make([]string, 0, len(chapters))
+	implementationOrder := make([]string, 0, 5)
+	registry := engine.NewRegistry()
+	registry.Register("codergen", engine.HandlerFunc(func(node graph.Node, _ []graph.Edge, scope engine.ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+		switch node.Base().ID {
+		case "plan":
+			chapter, slug, index := selectedChapter(t, scope.Frame, chapters, chapterSlugs)
+			if strings.Contains(scope.Frame, `loop="sprints"`) {
+				t.Fatalf("planner received an inner frame: %s", scope.Frame)
+			}
+			if !strings.Contains(scope.Frame, "Deliver "+strings.ToLower(chapter)+".") || !strings.Contains(scope.Frame, "checklist: ephemeral/projects/demo/chapters/"+slug+"-sprints.md") {
+				t.Fatalf("planner frame for %s lacks its chapter doc or checklist: %s", chapter, scope.Frame)
+			}
+			if got := readFile(t, filepath.Join(projectRoot, BriefFile)); !strings.Contains(got, "Deliver all three chapters") {
+				t.Fatalf("planner could not read brief: %q", got)
+			}
+			assertChapterMarkingPrefix(t, chapterChecklistPath, index)
+			planningOrder = append(planningOrder, chapter)
+
+			ledgerPath := filepath.Join(projectRoot, "chapters", slug+"-sprints.md")
+			list, loadErr := checklist.Load(ledgerPath)
+			if loadErr != nil {
+				t.Fatal(loadErr)
+			}
+			if chapter == "Existing" {
+				if len(list.Items) != 1 || list.Items[0].Done || list.Items[0].Doc == "" || readFile(t, ledgerPath) != existingLedger {
+					t.Fatalf("existing open documented plan was not preserved: %#v", list.Items)
+				}
+				return harness.Outcome{Notes: "existing plan covers chapter"}, nil
+			}
+			if len(list.Items) != 0 {
+				t.Fatalf("%s sprint ledger did not begin empty: %#v", chapter, list.Items)
+			}
+			writePlannedSprints(t, projectRoot, slug, chapter)
+			return harness.Outcome{Notes: "planned " + chapter}, nil
+
+		case "implement":
+			chapter, slug, chapterIndex := selectedChapter(t, scope.Frame, chapters, chapterSlugs)
+			if got := strings.Count(scope.Frame, "<iterate "); got != 2 {
+				t.Fatalf("implementer frame count = %d, want outer and inner: %s", got, scope.Frame)
+			}
+			if !strings.Contains(scope.Frame, `loop="chapters"`) || !strings.Contains(scope.Frame, `loop="sprints"`) {
+				t.Fatalf("implementer did not receive both loop levels: %s", scope.Frame)
+			}
+			if !strings.Contains(scope.Frame, "--- doc: ephemeral/projects/demo/chapters/"+slug+".md ---") {
+				t.Fatalf("implementer did not receive chapter document: %s", scope.Frame)
+			}
+			assertChapterMarkingPrefix(t, chapterChecklistPath, chapterIndex)
+			ledgerPath := filepath.Join(projectRoot, "chapters", slug+"-sprints.md")
+			list, loadErr := checklist.Load(ledgerPath)
+			if loadErr != nil {
+				t.Fatal(loadErr)
+			}
+			current, currentIndex, ok := list.Open()
+			if !ok || !strings.Contains(scope.Frame, "name: "+current.Name) {
+				t.Fatalf("implementer frame does not select open sprint %#v: %s", current, scope.Frame)
+			}
+			for index, item := range list.Items {
+				if item.Done != (index < currentIndex) {
+					t.Fatalf("%s item %q done=%v before index %d", chapter, item.Name, item.Done, currentIndex)
+				}
+			}
+			if current.Doc == "" || !strings.Contains(scope.Frame, "--- doc: "+current.Doc+" ---") {
+				t.Fatalf("implementer did not receive sprint document for %q: %s", current.Name, scope.Frame)
+			}
+			if chapter == "Existing" && readFile(t, ledgerPath) != existingLedger {
+				t.Fatal("planner rewrote the existing open documented sprint ledger")
+			}
+			implementationOrder = append(implementationOrder, current.Name)
+			return harness.Outcome{Notes: "implemented " + current.Name}, nil
+		default:
+			t.Fatalf("unexpected codergen node %q", node.Base().ID)
+			return harness.Outcome{}, nil
+		}
+	}))
+	runner, err := engine.NewRunner(*pipeline, registry, engine.RunnerConfig{
+		LogsRoot: logsRoot,
+		Workdir:  workdir,
+		Validate: func(candidate graph.Graph) error {
+			_, err := lint.ValidateOrError(candidate)
+			return err
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := runner.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != engine.RunCompleted || result.FailureReason != "" {
+		t.Fatalf("result = %#v", result)
+	}
+	if !reflect.DeepEqual(planningOrder, chapters) {
+		t.Fatalf("planning order = %#v", planningOrder)
+	}
+	wantImplementationOrder := []string{
+		"Foundation sprint 1", "Foundation sprint 2",
+		"Delivery sprint 1", "Delivery sprint 2",
+		"Existing sprint",
+	}
+	if !reflect.DeepEqual(implementationOrder, wantImplementationOrder) {
+		t.Fatalf("implementation order = %#v", implementationOrder)
+	}
+	if got := readFile(t, filepath.Join(workdir, "execution.log")); got != "foundation-1\nfoundation-2\ndelivery-1\ndelivery-2\nexisting\n" {
+		t.Fatalf("executed commands = %q", got)
+	}
+
+	assertAllDone(t, chapterChecklistPath, 3)
+	for index, slug := range chapterSlugs {
+		want := 2
+		if index == 2 {
+			want = 1
+		}
+		assertAllDone(t, filepath.Join(projectRoot, "chapters", slug+"-sprints.md"), want)
+	}
+	assertNestedValidationOrder(t, logsRoot, chapters)
 }
 
 func TestMediumRunsPlanningChecklist(t *testing.T) {
@@ -579,6 +830,133 @@ func writeValidPlan(t *testing.T, size string) (string, string) {
 
 func recommendationText(size, rationale, next string) string {
 	return "# Recommendation\nSize: " + size + "\nRationale: " + rationale + "\nNext: " + next + "\n"
+}
+
+func assertLongTimeout(t *testing.T, node string, value graph.Duration) {
+	t.Helper()
+	timeout, err := value.Parse()
+	if err != nil || timeout < 12*time.Hour {
+		t.Fatalf("%s timeout = %q, %v", node, value, err)
+	}
+}
+
+func selectedChapter(t *testing.T, frame string, chapters, slugs []string) (string, string, int) {
+	t.Helper()
+	for index, chapter := range chapters {
+		if strings.Contains(frame, "name: "+chapter+" chapter") {
+			return chapter, slugs[index], index
+		}
+	}
+	t.Fatalf("frame does not select a chapter: %s", frame)
+	return "", "", -1
+}
+
+func assertChapterMarkingPrefix(t *testing.T, path string, completed int) {
+	t.Helper()
+	list, err := checklist.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, item := range list.Items {
+		if item.Done != (index < completed) {
+			t.Fatalf("chapter %q done=%v with completed prefix %d", item.Name, item.Done, completed)
+		}
+	}
+}
+
+func writePlannedSprints(t *testing.T, projectRoot, slug, chapter string) {
+	t.Helper()
+	var ledger strings.Builder
+	ledger.WriteString("---\nitems:\n")
+	for number := 1; number <= 2; number++ {
+		name := chapter + " sprint " + string(rune('0'+number))
+		doc := "ephemeral/projects/demo/chapters/" + slug + "-sprint-" + string(rune('0'+number)) + ".md"
+		ledger.WriteString("  - name: " + name + "\n")
+		ledger.WriteString("    check: The " + strings.ToLower(name) + " command ran.\n")
+		ledger.WriteString("    command: \"printf '" + slug + "-" + string(rune('0'+number)) + "\\\\n' >> execution.log\"\n")
+		ledger.WriteString("    doc: " + doc + "\n")
+		writeFile(t, filepath.Join(projectRoot, "chapters", slug+"-sprint-"+string(rune('0'+number))+".md"), "# "+name+"\n\nImplement "+strings.ToLower(name)+".\n")
+	}
+	ledger.WriteString("---\n\n# " + chapter + " sprints\n")
+	writeFile(t, filepath.Join(projectRoot, "chapters", slug+"-sprints.md"), ledger.String())
+}
+
+func assertAllDone(t *testing.T, path string, want int) {
+	t.Helper()
+	list, err := checklist.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Items) != want {
+		t.Fatalf("%s item count = %d, want %d", path, len(list.Items), want)
+	}
+	for _, item := range list.Items {
+		if !item.Done {
+			t.Fatalf("%s item %q is not done", path, item.Name)
+		}
+	}
+	if got := strings.Count(readFile(t, path), "done: true"); got != want {
+		t.Fatalf("%s done fields = %d, want %d", path, got, want)
+	}
+}
+
+func assertNestedValidationOrder(t *testing.T, logsRoot string, chapters []string) {
+	t.Helper()
+	type record struct {
+		Item    string `json:"item"`
+		Command string `json:"command"`
+		Passed  bool   `json:"passed"`
+	}
+	outerPaths, err := filepath.Glob(filepath.Join(logsRoot, "stages", "*-chapters", "validation.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(outerPaths) != len(chapters) {
+		t.Fatalf("outer validation records = %v", outerPaths)
+	}
+	outerStages := make(map[string]string, len(chapters))
+	for index, path := range outerPaths {
+		var got record
+		if err := json.Unmarshal([]byte(readFile(t, path)), &got); err != nil {
+			t.Fatalf("decode %s: %v", path, err)
+		}
+		wantItem := chapters[index] + " chapter"
+		if !got.Passed || got.Command != "" || got.Item != wantItem {
+			t.Fatalf("outer validation %s = %#v, want item %q", path, got, wantItem)
+		}
+		outerStages[chapters[index]] = filepath.Base(filepath.Dir(path))
+	}
+
+	innerPaths, err := filepath.Glob(filepath.Join(logsRoot, "stages", "*-sprints", "validation.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(innerPaths) != 5 {
+		t.Fatalf("inner validation records = %v", innerPaths)
+	}
+	for _, path := range innerPaths {
+		var got record
+		if err := json.Unmarshal([]byte(readFile(t, path)), &got); err != nil {
+			t.Fatalf("decode %s: %v", path, err)
+		}
+		if !got.Passed || got.Command == "" {
+			t.Fatalf("inner validation %s = %#v", path, got)
+		}
+		chapter := ""
+		for _, candidate := range chapters {
+			if strings.HasPrefix(got.Item, candidate+" sprint") {
+				chapter = candidate
+				break
+			}
+		}
+		if chapter == "" {
+			t.Fatalf("inner validation has unknown item %q", got.Item)
+		}
+		innerStage := filepath.Base(filepath.Dir(path))
+		if innerStage >= outerStages[chapter] {
+			t.Fatalf("inner item %q stage %s was not validated before chapter stage %s", got.Item, innerStage, outerStages[chapter])
+		}
+	}
 }
 
 func mustNode[T graph.Node](t *testing.T, pipeline *graph.Graph, id string) T {
