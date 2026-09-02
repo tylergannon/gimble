@@ -173,8 +173,11 @@ Runs in the loop node's own stage directory, `stages/{seq}-{loop}/`.
 
 1. **Command.** If present: `/bin/sh -c`, cwd the workdir, stdout and
    stderr to `validation.log`, process group killed on stop or timeout,
-   exactly like a tool node. Exit 0 passes. Nonzero fails with the last
-   400 characters of the log as the summary.
+   exactly like a tool node. Exit 0 passes. Nonzero fails with an excerpt
+   of the log as the summary: the whole trimmed log up to 2000 characters,
+   otherwise its first 600 and last 1400 joined by one
+   `… (N runes omitted) …` line, so a check's stated reason survives the
+   diagnostics it dumps afterwards.
 2. **Infer.** Only if the command passed or is absent, and `infer` is
    present. The globs are expanded relative to the workdir. No match is a
    failure ("no evidence files"). The judge is one codergen turn through
@@ -238,13 +241,16 @@ check: The login screen validates and submits on valid input
 command: npx playwright test tests/login.spec.ts
 infer: Judge whether every state of the login screen looks usable
   files: ephemeral/captures/login/*.png
-last validation: failed — exit 1 — <log tail>
+last validation: failed — exit 1 — <log excerpt>
+validation log: <absolute path of that lap's validation.log>
 --- doc: ephemeral/projects/mvp/sprints/SPRINT-0002.md ---
 <file contents>
 </iterate>
 ```
 
-`last validation` appears only after a failed lap. `doc` and its contents
+`last validation` appears only after a failed lap; `validation log` follows
+it with the absolute path of that lap's `validation.log`, so the agent can
+read the whole log, and both clear once the item passes. `doc` and its contents
 appear only when the item has one; an unreadable doc renders as
 `doc: <path> (unreadable: <error>)` rather than failing the turn. The
 rendered text travels in `ExecutionScope.Frame`; the codergen handler

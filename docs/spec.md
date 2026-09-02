@@ -1889,6 +1889,7 @@ LoopHandler:
                     frames.pop(node)
                 ELSE:
                     frame.last_failure = result.summary
+                    frame.last_failure_log = scope.stage_dir/validation.log
             list = checklist.load(path)      -- re-read after marking
 
         next, index = list.open()            -- first item not done
@@ -1901,7 +1902,7 @@ LoopHandler:
             IF frame is absent OR frame.item != next.name:
                 frames.push_or_replace(node, Frame{item: next.name,
                     index, count: size(list.items), lap: 1,
-                    last_failure: unset})
+                    last_failure: unset, last_failure_log: unset})
             ELSE:
                 frame.lap += 1               -- same item, another lap
             write frames.json
@@ -1939,7 +1940,11 @@ FUNCTION validate(node, item, scope) -> ValidationResult:
             -- node (Section 4.5)
         IF result.exit_code != 0:
             RETURN failed(summary="exit " + result.exit_code + " -- " +
-                                  last_400_chars(validation.log))
+                                  excerpt(validation.log))
+                -- the whole trimmed log up to 2000 runes; beyond that
+                -- its first 600 and last 1400 runes joined by one
+                -- line, "… (N runes omitted) …", so a check's stated
+                -- reason survives the diagnostics dumped after it
     IF item.infer is set:
         files, invalid = expand_globs(item.infer.files, relative_to=scope.workdir)
             -- Go path.Match syntax, matched inside the workdir; regular
@@ -1994,7 +1999,7 @@ not run:
     "item":      "<name>",
     "command":   "<command, or "" when the item has none>",
     "exit_code": <integer; 0 when no command ran>,
-    "log_tail":  "<last 400 characters of validation.log; "" when no command ran>",
+    "log_tail":  "<last 2000 characters of validation.log; "" when no command ran>",
     "infer":     { "files": [<expanded paths>],
                    "verdict": "pass" | "fail",
                    "notes": "<the judge's reason>" },   -- only when infer ran
@@ -2031,7 +2036,8 @@ infer:
   files:
     - ephemeral/captures/login/*.png
 doc: ephemeral/projects/mvp/sprints/SPRINT-0002.md
-last validation: failed -- exit 1 -- <log tail>
+last validation: failed -- exit 1 -- <log excerpt>
+validation log: <absolute path of that lap's validation.log>
 --- doc: ephemeral/projects/mvp/sprints/SPRINT-0002.md ---
 <file contents>
 </iterate>
@@ -2041,7 +2047,10 @@ The item is rendered as compact YAML: absent fields are omitted and
 `done` is never printed. `item` is the 1-based position of the item
 among all items in the file, `lap` how many times this item has been
 dispatched since it was selected. `last validation` appears only after
-a failed lap and carries that validation's `summary`. The `doc` header
+a failed lap and carries that validation's `summary`; `validation log`
+follows it with the absolute path of the `validation.log` the summary
+was excerpted from, so the agent can read the whole log. Both clear
+once the item passes. The `doc` header
 and its contents appear only when the item has a `doc`; an unreadable
 doc renders as `doc: <path> (unreadable: <error>)` rather than failing
 the turn. Supervisors (Section 3.10) do not receive frames. `$goal`

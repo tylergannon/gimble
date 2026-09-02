@@ -10,16 +10,17 @@ import (
 // loopFrame is one active loop's current item. The stack lives only in
 // memory: the checklist file is the truth, and nothing here is checkpointed.
 type loopFrame struct {
-	loopID        string
-	checklist     string // as authored or resolved from the enclosing item, relative to the workdir
-	item          string
-	itemChecklist string // the item's own checklist field, for a nested loop without one
-	rendered      string // Item.Render() output captured at push time
-	doc           string // the item's doc path, read at render time
-	index         int    // 1-based
-	count         int
-	lap           int
-	lastFailure   string
+	loopID         string
+	checklist      string // as authored or resolved from the enclosing item, relative to the workdir
+	item           string
+	itemChecklist  string // the item's own checklist field, for a nested loop without one
+	rendered       string // Item.Render() output captured at push time
+	doc            string // the item's doc path, read at render time
+	index          int    // 1-based
+	count          int
+	lap            int
+	lastFailure    string
+	lastFailureLog string // absolute path of the validation.log behind lastFailure
 }
 
 // frameRecord is the observer-facing shape written to frames.json.
@@ -68,13 +69,15 @@ func (r *Runner) pushOrReplaceFrame(frame loopFrame) {
 	r.frames = append(r.frames, frame)
 }
 
-// setFrameFailure records the summary of a failed validation on the loop's frame.
-func (r *Runner) setFrameFailure(loopID, summary string) {
+// setFrameFailure records the summary of a failed validation and the path
+// of its log on the loop's frame.
+func (r *Runner) setFrameFailure(loopID, summary, logPath string) {
 	r.framesMu.Lock()
 	defer r.framesMu.Unlock()
 	for index := range r.frames {
 		if r.frames[index].loopID == loopID {
 			r.frames[index].lastFailure = summary
+			r.frames[index].lastFailureLog = logPath
 			return
 		}
 	}
@@ -143,12 +146,15 @@ func renderNested(frames []loopFrame, workdir string, depth int) string {
 }
 
 // renderFrameBody renders the lines between a frame's tags: the item, the
-// last failed validation if any, and the item's doc.
+// last failed validation and its log path if any, and the item's doc.
 func renderFrameBody(frame loopFrame, workdir string) string {
 	var body strings.Builder
 	body.WriteString(frame.rendered)
 	if frame.lastFailure != "" {
 		fmt.Fprintf(&body, "\nlast validation: failed — %s", frame.lastFailure)
+		if frame.lastFailureLog != "" {
+			fmt.Fprintf(&body, "\nvalidation log: %s", frame.lastFailureLog)
+		}
 	}
 	if frame.doc != "" {
 		contents, err := os.ReadFile(resolveWorkdirPath(workdir, frame.doc))

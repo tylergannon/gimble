@@ -109,6 +109,21 @@ func logTail(path string, maxRunes int) (string, error) {
 	return string(tail), nil
 }
 
+// logExcerpt returns the trimmed file contents when they fit in head+tail
+// runes, and otherwise the first head runes and the last tail runes joined
+// by a line saying how many were omitted.
+func logExcerpt(path string, head, tail int) (string, error) {
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	text := []rune(strings.TrimSpace(string(contents)))
+	if len(text) <= head+tail {
+		return string(text), nil
+	}
+	return fmt.Sprintf("%s\n… (%d runes omitted) …\n%s", string(text[:head]), len(text)-head-tail, string(text[len(text)-tail:])), nil
+}
+
 // shellFailureMessage phrases a runShell infrastructure error for a
 // terminal error, naming the kind of command (tool, validation) that ran.
 func shellFailureMessage(what string, err error) string {

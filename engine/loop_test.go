@@ -96,8 +96,9 @@ func TestLoopCompletesThreeItemChecklistInThreeLaps(t *testing.T) {
 	}
 }
 
-// Claim 2: a failing command re-enters the item with the failure in the
-// frame; once the command passes the item is marked and the loop advances.
+// Claim 2: a failing command re-enters the item with the failure and its
+// log path in the frame; once the command passes the item is marked, the
+// loop advances, and the next item's frame carries neither.
 func TestLoopReentersFailedItemWithLastValidation(t *testing.T) {
 	root, workdir := t.TempDir(), t.TempDir()
 	writeFile(t, filepath.Join(workdir, "sprint.md"), `---
@@ -105,6 +106,9 @@ items:
   - name: Flag
     check: The flag file exists
     command: test -f flag
+  - name: Next
+    check: Nothing to check
+    command: "true"
 ---
 `)
 	pipeline := testGraph(
@@ -125,18 +129,23 @@ items:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != RunCompleted || laps != 2 {
+	if result.Status != RunCompleted || laps != 3 {
 		t.Fatalf("result = %#v after %d laps", result, laps)
 	}
 	first := readFile(t, filepath.Join(root, "stages", "000002-implement", "prompt.md"))
-	if strings.Contains(first, "last validation") || !strings.Contains(first, `<iterate loop="items" checklist="sprint.md" item="1/1" lap="1">`) {
+	if strings.Contains(first, "last validation") || !strings.Contains(first, `<iterate loop="items" checklist="sprint.md" item="1/2" lap="1">`) {
 		t.Fatalf("first lap prompt = %q", first)
 	}
 	second := readFile(t, filepath.Join(root, "stages", "000004-implement", "prompt.md"))
-	for _, want := range []string{`lap="2"`, "last validation: failed — exit 1", "name: Flag", "command: test -f flag", "\n\nimplement"} {
+	failedLog := filepath.Join(root, "stages", "000003-items", "validation.log")
+	for _, want := range []string{`lap="2"`, "last validation: failed — exit 1", "\n  validation log: " + failedLog + "\n", "name: Flag", "command: test -f flag", "\n\nimplement"} {
 		if !strings.Contains(second, want) {
 			t.Fatalf("second lap prompt %q lacks %q", second, want)
 		}
+	}
+	third := readFile(t, filepath.Join(root, "stages", "000006-implement", "prompt.md"))
+	if strings.Contains(third, "last validation") || strings.Contains(third, "validation log:") || !strings.Contains(third, `item="2/2" lap="1"`) {
+		t.Fatalf("prompt after the pass = %q", third)
 	}
 	var failed validationRecord
 	readJSON(t, filepath.Join(root, "stages", "000003-items", "validation.json"), &failed)

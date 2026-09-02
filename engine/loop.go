@@ -42,7 +42,13 @@ type inferRecord struct {
 	Notes   string   `json:"notes"`
 }
 
-const validationLogTailRunes = 400
+// validationLogTailRunes bounds the record's log_tail; the head and tail
+// bounds shape the failure summary the next lap's frame carries.
+const (
+	validationLogTailRunes     = 2000
+	validationSummaryHeadRunes = 600
+	validationSummaryTailRunes = 1400
+)
 
 func (h *loopHandler) Execute(node graph.Node, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph) (harness.Outcome, *harness.Error) {
 	loop, ok := node.(*graph.LoopNode)
@@ -92,7 +98,7 @@ func (h *loopHandler) Execute(node graph.Node, offered []graph.Edge, scope Execu
 				}
 				h.runner.popFrame(loop.ID)
 			} else {
-				h.runner.setFrameFailure(loop.ID, record.Summary)
+				h.runner.setFrameFailure(loop.ID, record.Summary, filepath.Join(scope.StageDir, "validation.log"))
 			}
 		}
 		list, err = checklist.Load(absolutePath)
@@ -117,21 +123,22 @@ func (h *loopHandler) Execute(node graph.Node, offered []graph.Edge, scope Execu
 	}
 
 	current, stillFramed := h.runner.frameFor(loop.ID)
-	lap, lastFailure := 1, ""
+	lap, lastFailure, lastFailureLog := 1, "", ""
 	if stillFramed && current.item == next.Name {
-		lap, lastFailure = current.lap+1, current.lastFailure
+		lap, lastFailure, lastFailureLog = current.lap+1, current.lastFailure, current.lastFailureLog
 	}
 	h.runner.pushOrReplaceFrame(loopFrame{
-		loopID:        loop.ID,
-		checklist:     listPath,
-		item:          next.Name,
-		itemChecklist: next.Checklist,
-		rendered:      next.Render(),
-		doc:           next.Doc,
-		index:         index + 1,
-		count:         len(list.Items),
-		lap:           lap,
-		lastFailure:   lastFailure,
+		loopID:         loop.ID,
+		checklist:      listPath,
+		item:           next.Name,
+		itemChecklist:  next.Checklist,
+		rendered:       next.Render(),
+		doc:            next.Doc,
+		index:          index + 1,
+		count:          len(list.Items),
+		lap:            lap,
+		lastFailure:    lastFailure,
+		lastFailureLog: lastFailureLog,
 	})
 	if err := h.runner.writeFrames(); err != nil {
 		return harness.Outcome{}, terminalError(fmt.Sprintf("write frames: %v", err))
@@ -202,7 +209,11 @@ func (h *loopHandler) validate(loop *graph.LoopNode, item checklist.Item, scope 
 		record.ExitCode = exitCode
 		record.LogTail = tail
 		if exitCode != 0 {
-			record.Summary = fmt.Sprintf("exit %d — %s", exitCode, tail)
+			excerpt, err := logExcerpt(logPath, validationSummaryHeadRunes, validationSummaryTailRunes)
+			if err != nil {
+				return record, terminalError(fmt.Sprintf("read validation log: %v", err))
+			}
+			record.Summary = fmt.Sprintf("exit %d — %s", exitCode, excerpt)
 			return record, nil
 		}
 	} else if err := os.WriteFile(logPath, nil, 0o644); err != nil {
