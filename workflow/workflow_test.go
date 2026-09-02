@@ -47,7 +47,10 @@ func TestBuiltInPlan(t *testing.T) {
 		"tractor's binary", "seed's brief.md", "Ask one Markdown or HTML question at a time",
 		"intent, scope and non-goals, constraints, and the Definition of success",
 		"two passes", "brief.md", "checklist.md", "recommendation.md", "Never write a done field",
-		"Size: SIMPLE|MEDIUM|LARGE", "tractor workflow run medium", "tractor workflow run large",
+		"Size: SIMPLE|MEDIUM|LARGE", "SIMPLE: zero or one flat implementation sprint",
+		"MEDIUM: more than one flat implementation sprint", "LARGE: more than one chapter item",
+		"items: []", "unique doc path", "unique checklist path", "contains no traversal",
+		"tractor workflow run medium", "tractor workflow run large",
 	} {
 		if !strings.Contains(prompt, required) {
 			t.Errorf("planner prompt does not contain %q", required)
@@ -110,9 +113,6 @@ func TestPlanArtifacts(t *testing.T) {
 		"invalid checklist": func(root string) {
 			writeFile(t, filepath.Join(root, ChecklistFile), "not frontmatter\n")
 		},
-		"no checklist items": func(root string) {
-			writeFile(t, filepath.Join(root, ChecklistFile), "---\nitems: []\n---\n")
-		},
 		"agent done true": func(root string) {
 			writeFile(t, filepath.Join(root, ChecklistFile), strings.Replace(validChecklist, "    command:", "    done: true\n    command:", 1))
 		},
@@ -137,6 +137,155 @@ func TestPlanArtifacts(t *testing.T) {
 	}
 }
 
+func TestPlanExecutionShapes(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		for _, size := range []string{"SIMPLE", "MEDIUM", "LARGE"} {
+			t.Run(size, func(t *testing.T) {
+				workdir, _ := writeValidPlan(t, size)
+				if _, err := ValidatePlanArtifacts(workdir, "demo"); err != nil {
+					t.Fatalf("ValidatePlanArtifacts: %v", err)
+				}
+			})
+		}
+		t.Run("SIMPLE empty", func(t *testing.T) {
+			workdir, root := writeValidPlan(t, "SIMPLE")
+			writeFile(t, filepath.Join(root, ChecklistFile), emptyChecklist)
+			if _, err := ValidatePlanArtifacts(workdir, "demo"); err != nil {
+				t.Fatalf("ValidatePlanArtifacts: %v", err)
+			}
+		})
+	})
+
+	tests := map[string]struct {
+		size   string
+		mutate func(t *testing.T, workdir, root string)
+	}{
+		"SIMPLE too many items": {
+			size: "SIMPLE",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, ChecklistFile), mediumChecklist)
+			},
+		},
+		"SIMPLE nested item": {
+			size: "SIMPLE",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, ChecklistFile), strings.Replace(validChecklist, "    command:", "    checklist: ephemeral/projects/demo/sprints.md\n    command:", 1))
+			},
+		},
+		"MEDIUM too few items": {
+			size: "MEDIUM",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, ChecklistFile), validChecklist)
+			},
+		},
+		"MEDIUM nested item": {
+			size: "MEDIUM",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, ChecklistFile), strings.Replace(mediumChecklist, "    command:", "    checklist: ephemeral/projects/demo/sprints.md\n    command:", 1))
+			},
+		},
+		"LARGE too few chapters": {
+			size: "LARGE",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, ChecklistFile), strings.Replace(largeChecklist, largeChapterTwo, "", 1))
+			},
+		},
+		"LARGE missing doc path": {
+			size: "LARGE",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, ChecklistFile), strings.Replace(largeChecklist, "    doc: ephemeral/projects/demo/chapters/one.md\n", "", 1))
+			},
+		},
+		"LARGE missing checklist path": {
+			size: "LARGE",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, ChecklistFile), strings.Replace(largeChecklist, "    checklist: ephemeral/projects/demo/chapters/one-sprints.md\n", "", 1))
+			},
+		},
+		"LARGE missing doc file": {
+			size: "LARGE",
+			mutate: func(t *testing.T, _, root string) {
+				removeFile(t, filepath.Join(root, "chapters", "two.md"))
+			},
+		},
+		"LARGE missing checklist file": {
+			size: "LARGE",
+			mutate: func(t *testing.T, _, root string) {
+				removeFile(t, filepath.Join(root, "chapters", "two-sprints.md"))
+			},
+		},
+		"LARGE traversal path": {
+			size: "LARGE",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, ChecklistFile), strings.Replace(largeChecklist, "ephemeral/projects/demo/chapters/one.md", "ephemeral/projects/demo/../outside.md", 1))
+			},
+		},
+		"LARGE absolute path": {
+			size: "LARGE",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, ChecklistFile), strings.Replace(largeChecklist, "ephemeral/projects/demo/chapters/one-sprints.md", filepath.Join(root, "chapters", "one-sprints.md"), 1))
+			},
+		},
+		"LARGE symlink escape": {
+			size: "LARGE",
+			mutate: func(t *testing.T, workdir, root string) {
+				outside := filepath.Join(workdir, "outside.md")
+				writeFile(t, outside, "# Outside\n")
+				link := filepath.Join(root, "chapters", "escape.md")
+				if err := os.Symlink(outside, link); err != nil {
+					t.Fatal(err)
+				}
+				writeFile(t, filepath.Join(root, ChecklistFile), strings.Replace(largeChecklist, "ephemeral/projects/demo/chapters/one.md", "ephemeral/projects/demo/chapters/escape.md", 1))
+			},
+		},
+		"LARGE duplicate doc paths": {
+			size: "LARGE",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, ChecklistFile), strings.Replace(largeChecklist, "ephemeral/projects/demo/chapters/two.md", "ephemeral/projects/demo/chapters/one.md", 1))
+			},
+		},
+		"LARGE duplicate checklist paths": {
+			size: "LARGE",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, ChecklistFile), strings.Replace(largeChecklist, "ephemeral/projects/demo/chapters/two-sprints.md", "ephemeral/projects/demo/chapters/one-sprints.md", 1))
+			},
+		},
+		"LARGE empty chapter doc": {
+			size: "LARGE",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, "chapters", "one.md"), "")
+			},
+		},
+		"LARGE non-empty sprint ledger": {
+			size: "LARGE",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, "chapters", "one-sprints.md"), validChecklist)
+			},
+		},
+		"LARGE top-level done": {
+			size: "LARGE",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, ChecklistFile), strings.Replace(largeChecklist, "    doc:", "    done: false\n    doc:", 1))
+			},
+		},
+		"LARGE nested done": {
+			size: "LARGE",
+			mutate: func(t *testing.T, _, root string) {
+				writeFile(t, filepath.Join(root, "chapters", "one-sprints.md"), strings.Replace(validChecklist, "    command:", "    done: true\n    command:", 1))
+			},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			workdir, root := writeValidPlan(t, test.size)
+			test.mutate(t, workdir, root)
+			if _, err := ValidatePlanArtifacts(workdir, "demo"); err == nil {
+				t.Fatal("invalid execution shape passed validation")
+			}
+		})
+	}
+}
+
 func TestRecommendation(t *testing.T) {
 	tests := []struct {
 		size string
@@ -148,10 +297,7 @@ func TestRecommendation(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.size, func(t *testing.T) {
-			workdir := t.TempDir()
-			root := filepath.Join(workdir, "ephemeral", "projects", "demo")
-			writeFile(t, filepath.Join(root, BriefFile), "brief\n")
-			writeFile(t, filepath.Join(root, ChecklistFile), validChecklist)
+			workdir, root := writeValidPlan(t, test.size)
 			path := filepath.Join(root, RecommendationFile)
 			writeFile(t, path, recommendationText(test.size, "Because the scope fits.", test.next))
 
@@ -197,6 +343,66 @@ items:
 
 # Plan
 `
+
+const emptyChecklist = `---
+items: []
+---
+`
+
+const mediumChecklist = `---
+items:
+  - name: implement first behavior
+    check: The first behavior is observable.
+    command: go test ./...
+  - name: implement second behavior
+    check: The second behavior is observable.
+    command: go test ./...
+---
+`
+
+const largeChapterTwo = `  - name: chapter two
+    check: The second chapter is complete.
+    doc: ephemeral/projects/demo/chapters/two.md
+    checklist: ephemeral/projects/demo/chapters/two-sprints.md
+`
+
+const largeChecklist = `---
+items:
+  - name: chapter one
+    check: The first chapter is complete.
+    doc: ephemeral/projects/demo/chapters/one.md
+    checklist: ephemeral/projects/demo/chapters/one-sprints.md
+` + largeChapterTwo + `---
+`
+
+func writeValidPlan(t *testing.T, size string) (string, string) {
+	t.Helper()
+	workdir := t.TempDir()
+	root := filepath.Join(workdir, "ephemeral", "projects", "demo")
+	writeFile(t, filepath.Join(root, BriefFile), "# Brief\n")
+
+	var checklistContents, next string
+	switch size {
+	case "SIMPLE":
+		checklistContents = validChecklist
+		next = "Execute the plan yourself."
+	case "MEDIUM":
+		checklistContents = mediumChecklist
+		next = "tractor workflow run medium --project demo"
+	case "LARGE":
+		checklistContents = largeChecklist
+		next = "tractor workflow run large --project demo"
+		for _, chapter := range []string{"one", "two"} {
+			writeFile(t, filepath.Join(root, "chapters", chapter+".md"), "# Chapter "+chapter+"\n")
+			writeFile(t, filepath.Join(root, "chapters", chapter+"-sprints.md"), emptyChecklist)
+		}
+	default:
+		t.Fatalf("unsupported test size %q", size)
+	}
+	writeFile(t, filepath.Join(root, ChecklistFile), checklistContents)
+	writeFile(t, filepath.Join(root, RecommendationFile), recommendationText(size, "Fits the execution shape.", next))
+	return workdir, root
+}
 
 func recommendationText(size, rationale, next string) string {
 	return "# Recommendation\nSize: " + size + "\nRationale: " + rationale + "\nNext: " + next + "\n"

@@ -151,7 +151,7 @@ Read the seed file and inspect relevant repository context before interviewing. 
 
 Ask one Markdown or HTML question at a time. Write each question beneath the planning output root and run %s. The command uses the interview directory configured by the workflow runner and blocks until the answer arrives. Read each returned answer and continue in this same context.
 
-When the contract is clear, write exactly these planning artifacts beneath the output root and nowhere outside it:
+When the contract is clear, write these three fixed top-level planning artifacts beneath the output root and nowhere outside it. A LARGE plan also writes the chapter documents and sprint ledgers described below:
 
 1. brief.md — the agreed intent, scope, non-goals, constraints, and observable Definition of success.
 2. checklist.md — Markdown with YAML frontmatter in the loop checklist format. The frontmatter is an items list in this shape:
@@ -164,14 +164,19 @@ When the contract is clear, write exactly these planning artifacts beneath the o
          prompt: <what a judge decides from those files>
        doc: <optional prose document path>
        checklist: <optional nested checklist path>
-   Every item has name and check. Add a real command and/or infer wherever the repository makes one knowable. Paths are relative to the repository workdir. Never write a done field; that field belongs to the loop engine. Keep every item small enough for one agent turn. The Markdown body may hold context and notes that the engine does not parse.
+   Every item has name and check. Add a real command and/or infer wherever the repository makes one knowable. Every generated path is relative to the repository workdir, resolves beneath the planning output root, and contains no traversal. Never write a done field; that field belongs to the loop engine. The Markdown body may hold context and notes that the engine does not parse.
 3. recommendation.md — exactly this four-line non-empty field contract:
    # Recommendation
    Size: SIMPLE|MEDIUM|LARGE
    Rationale: <short rationale>
    Next: <next action>
 
-Use SIMPLE for at most one sprint, MEDIUM for more than one sprint but fewer than two chapters, and LARGE for multiple chapters. The exact Next value is:
+Match checklist.md and its supporting files to the recommendation size:
+- SIMPLE: zero or one flat implementation sprint. An item must not carry a nested checklist, and each item is small enough for one agent turn.
+- MEDIUM: more than one flat implementation sprint. Items must not carry nested checklists, and each item is small enough for one agent turn.
+- LARGE: more than one chapter item. Every chapter item carries a unique doc path to a non-empty chapter document and a unique checklist path to that chapter's initially empty sprint ledger. Write both supporting files beneath the planning output root. Each empty sprint ledger is a valid Markdown checklist with an items: [] frontmatter list. A chapter may require multiple agent turns; the implementation sprints later written to its ledger must each fit one agent turn.
+
+Never write a done field in the top-level checklist or a chapter's sprint ledger. Use SIMPLE for at most one sprint, MEDIUM for more than one sprint but fewer than two chapters, and LARGE for multiple chapters. The exact Next value is:
 - SIMPLE: Execute the plan yourself.
 - MEDIUM: tractor workflow run medium --project %s
 - LARGE: tractor workflow run large --project %s
