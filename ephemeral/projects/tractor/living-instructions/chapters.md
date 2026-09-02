@@ -21,6 +21,7 @@ items:
     checklist: ephemeral/projects/tractor/living-instructions/chapters/03-execution/sprints.md
     command: >-
       go build ./... && go test ./... && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/03-execution/sprints.md)" -ge 2
+    done: true
 ---
 
 # Living instructions: the chapter ledger

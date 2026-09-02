@@ -37,6 +37,7 @@ items:
     check: A real plan workflow creates a MEDIUM plan after a blocking reviewer interview, and the printed medium handoff runs that plan with a real coding harness to completion, leaving every item engine-marked done and per-lap validation evidence in the run logs.
     doc: ephemeral/projects/tractor/living-instructions/chapters/03-execution/SPRINT-06.md
     command: go build ./... && go vet ./... && go test ./... && sh ephemeral/projects/tractor/living-instructions/chapters/03-execution/check-sprint-06.sh
+    done: true
 ---
 
 # Chapter 3 sprints
