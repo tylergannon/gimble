@@ -12,6 +12,7 @@ import (
 	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/harness"
 	"github.com/tylergannon/tractor/internal/runlog"
+	"github.com/tylergannon/tractor/lint"
 )
 
 // ExecutionScope is the engine-owned context for one handler execution.
@@ -250,9 +251,24 @@ func (r *Runner) Run() (RunResult, error) {
 		currentID = r.resumeCheckpoint.NextNode
 		r.lastCheckpoint = *r.resumeCheckpoint
 	}
+	// The loop frame stack is in-memory only, so a continuation inside a
+	// loop body would run frameless. Rewind to the outermost enclosing loop,
+	// whose arrival validates nothing and selects the first open item.
+	rewoundFrom := ""
+	if r.resumeCheckpoint != nil {
+		if loopID, ok := lint.OutermostLoop(r.graph, currentID); ok {
+			rewoundFrom, currentID = currentID, loopID
+			state.clearRetryVisit()
+		}
+	}
 	store, err := openRunStore(r.config.LogsRoot, state)
 	if err != nil {
 		return RunResult{}, err
+	}
+	if rewoundFrom != "" {
+		if err := store.appendTimeline(timelineEvent{"type": "ResumeRewound", "from": rewoundFrom, "to": currentID}); err != nil {
+			return RunResult{}, err
+		}
 	}
 	allocator, err := runlog.New(r.config.LogsRoot)
 	if err != nil {

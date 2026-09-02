@@ -443,9 +443,25 @@ func afterMarkerLine(data []byte, pos int) (int, bool) {
 	return end, true
 }
 
+// writeAtomic replaces the file at path by renaming a temp file over it. A
+// symlink is followed so the target is rewritten and the link survives; the
+// existing file's permission bits are preserved (0644 only when the file did
+// not exist).
 func writeAtomic(path string, data []byte) error {
-	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*.tmp")
+	target := path
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		target = resolved
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("checklist %s: %w", path, err)
+	}
+	mode := os.FileMode(0o644)
+	if info, err := os.Stat(target); err == nil {
+		mode = info.Mode().Perm()
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("checklist %s: %w", path, err)
+	}
+	dir := filepath.Dir(target)
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(target)+".*.tmp")
 	if err != nil {
 		return fmt.Errorf("checklist %s: %w", path, err)
 	}
@@ -458,7 +474,7 @@ func writeAtomic(path string, data []byte) error {
 	if _, err := tmp.Write(data); err != nil {
 		return fail(err)
 	}
-	if err := tmp.Chmod(0o644); err != nil {
+	if err := tmp.Chmod(mode); err != nil {
 		return fail(err)
 	}
 	if err := tmp.Sync(); err != nil {
@@ -468,7 +484,7 @@ func writeAtomic(path string, data []byte) error {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("checklist %s: %w", path, err)
 	}
-	if err := os.Rename(tmpPath, path); err != nil {
+	if err := os.Rename(tmpPath, target); err != nil {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("checklist %s: %w", path, err)
 	}

@@ -297,6 +297,58 @@ func TestMarkDoneRoundTripsCRLFBody(t *testing.T) {
 	}
 }
 
+func TestMarkDoneThroughSymlinkMarksTarget(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "real.md")
+	if err := os.WriteFile(target, []byte(example), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link.md")
+	if err := os.Symlink("real.md", link); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := MarkDone(link, "Build the login screen"); err != nil {
+		t.Fatalf("MarkDone: %v", err)
+	}
+
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("link was replaced by a regular file")
+	}
+	real, err := Load(target)
+	if err != nil {
+		t.Fatalf("Load target: %v", err)
+	}
+	if !real.Items[0].Done {
+		t.Error("target was not marked done")
+	}
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 2 {
+		t.Errorf("unexpected directory contents: %v", entries)
+	}
+}
+
+func TestMarkDonePreservesFileMode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "private.md")
+	if err := os.WriteFile(path, []byte(example), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := MarkDone(path, "Build the login screen"); err != nil {
+		t.Fatalf("MarkDone: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Errorf("mode = %o, want 600", info.Mode().Perm())
+	}
+}
+
 func TestParseErrors(t *testing.T) {
 	cases := map[string]struct {
 		src  string

@@ -66,6 +66,7 @@ func (a *analysis) builtInDiagnostics() []Diagnostic {
 		a.branchEntry,
 		a.loopBodyEntry,
 		a.loopBodyReturns,
+		a.loopBodyExit,
 		a.loopChecklistRequired,
 		a.loopInParallel,
 		a.maxVisitsPositive,

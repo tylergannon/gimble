@@ -1686,7 +1686,7 @@ Definition of done in open prose. Anything here is for agents and people.
 | `name`         | yes          | Identity. Unique within the file; a duplicate is a parse error. |
 | `check`        | yes          | The claim, as observable behavior. Prose for agents: the engine copies it into the frame and the judge prompt and never interprets it. |
 | `command`      | no           | Shell command run from the workdir. Exit 0 passes. |
-| `infer.files`  | with `infer` | One glob or a list of globs, relative to the workdir, naming the evidence the judge inspects. |
+| `infer.files`  | with `infer` | One glob or a list of globs naming the evidence the judge inspects. Go `path.Match` syntax (`*`, `?`, `[...]`; `**` is not recursive), matched relative to the workdir; an absolute or `..`-prefixed pattern fails the validation. Directories are skipped and a file matched by several globs is listed once. |
 | `infer.prompt` | with `infer` | What the judge is to decide about those files. |
 | `doc`          | no           | Path to a prose document injected with the item. |
 | `checklist`    | no           | Path to a sub-checklist. A loop node inside this loop's body that has no `checklist` field of its own iterates it. |
@@ -1800,7 +1800,12 @@ FUNCTION validate(node, item, scope) -> ValidationResult:
             RETURN failed(summary="exit " + result.exit_code + " -- " +
                                   last_400_chars(validation.log))
     IF item.infer is set:
-        files = expand_globs(item.infer.files, relative_to=scope.workdir)
+        files, invalid = expand_globs(item.infer.files, relative_to=scope.workdir)
+            -- Go path.Match syntax, matched inside the workdir; regular
+            -- files only, deduplicated, workdir-relative, in glob order.
+            -- Absolute, `..`-prefixed, and malformed patterns are invalid
+        IF invalid is not empty:
+            RETURN failed(summary="invalid evidence pattern: " + invalid)
         IF files is empty:
             RETURN failed(summary="no evidence files")
         verdict, reason = judge(node, item, files, scope)   -- below
@@ -1838,17 +1843,20 @@ parts (Section 3.9) are no limitation here. The turn writes its own
 appends to a run-log segment allocated for it (Section 12.4). In
 simulation mode (no backend) the verdict is `pass`.
 
-`validation.json` is the record of one validation:
+`validation.json` is the record of one validation. `command`,
+`exit_code`, and `log_tail` are always present -- empty or zero when
+the item has no command; only `infer` is omitted, when the judge did
+not run:
 
 ```
 {
     "item":      "<name>",
-    "command":   "<command or absent>",
-    "exit_code": <integer, when a command ran>,
-    "log_tail":  "<last 400 characters of validation.log>",
+    "command":   "<command, or "" when the item has none>",
+    "exit_code": <integer; 0 when no command ran>,
+    "log_tail":  "<last 400 characters of validation.log; "" when no command ran>",
     "infer":     { "files": [<expanded paths>],
                    "verdict": "pass" | "fail",
-                   "notes": "<the judge's reason>" },
+                   "notes": "<the judge's reason>" },   -- only when infer ran
     "passed":    true | false,
     "summary":   "<what the next lap's frame carries as last validation>"
 }
@@ -1891,21 +1899,32 @@ expansion is unchanged (Section 4.3).
 concurrent access, and never checkpointed. Arriving at a loop node
 whose frame is not on top of the stack pops everything above it: an
 inner loop that was bypassed by an escalation edge is abandoned.
-Restart is coarse by design: after a resume the stack is empty, so the
-first arrival validates nothing and selects the first open item --
-which is the item the interrupted lap was working on unless a planner
-changed the file.
+Restart is coarse by design. On resume the stack is empty, so a
+continuation inside a loop body would run frameless; the engine
+therefore rewinds: when the checkpoint's `next_node` lies in some
+loop's body node-set (a nested loop node included), the walk resumes
+at the outermost enclosing loop instead, the checkpoint's `retry_visit`
+is dropped so that arrival counts as an ordinary visit, and a
+`ResumeRewound {from, to}` timeline event records the jump
+(Section 5.3). That arrival validates nothing and selects the first
+open item -- which is the item the interrupted lap was working on
+unless a planner changed the file. A continuation outside every loop
+body resumes where it points.
 
 **Body node-set and lint.** The **body node-set** of a loop node is
 every node reachable from `body` without passing through the loop
 node. It may contain further loop nodes, parallel nodes, and edges to
-`failure` (an escape hatch). It is delimited the way a parallel branch
-is (Section 4.6), and four rules keep it honest (Section 7.2):
-`loop_body_entry` (a body node is entered only from another body node,
-or, for the body root, from its loop node's `body`; `on_done` may not
-name a body node), `loop_body_returns` (the loop node is reachable
-from its body root within the body node-set), `loop_checklist_required`
-(a loop node without `checklist` lies inside another loop's body), and
+`failure` (an escape hatch). Body nodes may not route to `success`:
+the only way out of a loop body to `success` is the loop's own
+`on_done`, so an agent can never end the run with items open. It is
+delimited the way a parallel branch is (Section 4.6), and five rules
+keep it honest (Section 7.2): `loop_body_entry` (a body node is
+entered only from another body node, or, for the body root, from its
+loop node's `body`; neither `on_done` nor the graph's `start` may name
+a body node), `loop_body_returns` (`body` names a node, and the loop
+node is reachable from it within the body node-set), `loop_body_exit`
+(no body node routes to `success`), `loop_checklist_required` (a loop
+node without `checklist` lies inside another loop's body), and
 `loop_in_parallel` (a loop node never lies inside a parallel branch:
 the frame stack is run-wide and branches run concurrently).
 `edge_target_exists`, `edge_target_unique`, `dead_end`,
@@ -2030,7 +2049,11 @@ the run is over, and resuming it is a no-op.
 survive a dead process. It continues at `next_node`: after a success
 checkpoint that is the already-resolved successor, never re-derived
 or re-asked; after a failure checkpoint it is the failed node,
-retried with the visit increment skipped once (`retry_visit`). Work
+retried with the visit increment skipped once (`retry_visit`). One
+exception: a `next_node` inside a loop body rewinds to the outermost
+enclosing loop node, `retry_visit` is dropped, and a `ResumeRewound`
+event is recorded, because the loop frame stack is never checkpointed
+(Section 4.8). Work
 lost mid-execution of `next_node` is simply re-run -- the only re-run
 resume ever pays, and an accepted one (Section 12.2, note 10). A
 resumed run never reuses an existing stage identity: the stage-dir
@@ -2214,8 +2237,9 @@ Severity:
 | `fidelity_valid`         | ERROR    | Fidelity mode values must be one of `full`, `compacted`, `none`, or a mode the active implementation defines (Section 5.4). An unsupported mode is rejected, never given accidental runtime semantics (Section 12.1). |
 | `thread_id_collision`    | ERROR    | An explicit `thread_id` must not equal any node ID -- implicit per-node threads and named shared threads are separate namespaces (Section 5.4). |
 | `thread_harness_consistent`| ERROR  | Nodes sharing a resolved thread key under session-reusing fidelity modes (`full`, `compacted`) must resolve to models that route to the same harness (Section 12.1). Thread keys resolve statically (Section 5.4), so this check is fully static. |
-| `loop_body_entry`        | ERROR    | Every incoming route of a loop body node must originate inside the same loop's body node-set; the body root additionally accepts its loop node's `body`. `on_done` may not name a body node -- leaving the loop must leave the body (Section 4.8 defines the body node-set). |
-| `loop_body_returns`      | ERROR    | The loop node must be reachable from its body root within the body node-set: a body that never routes back means no lap could ever be validated (Section 4.8). |
+| `loop_body_entry`        | ERROR    | Every incoming route of a loop body node must originate inside the same loop's body node-set; the body root additionally accepts its loop node's `body`. `on_done` may not name a body node -- leaving the loop must leave the body -- and the graph's `start` may not name one either (a nested loop node included): a body entered from outside runs without a frame (Section 4.8 defines the body node-set). |
+| `loop_body_returns`      | ERROR    | `body` must name a node, not `success` or `failure`, and the loop node must be reachable from that node within the body node-set: a body that never routes back means no lap could ever be validated (Section 4.8). |
+| `loop_body_exit`         | ERROR    | No routing target of a loop body node may be `success`: the only way out of a loop body to `success` is the loop's own `on_done`, which fires only when no item is open. Edges to `failure` from body nodes stay legal (Section 4.8). |
 | `loop_checklist_required`| ERROR    | A loop node without a `checklist` must lie inside another loop node's body, where it iterates the enclosing item's `checklist` field; anywhere else it has nothing to iterate (Section 4.8). |
 | `loop_in_parallel`       | ERROR    | A loop node may not lie inside a parallel node's branch node-set: the frame stack is run-wide and branches run concurrently (Sections 4.6, 4.8). |
 | `fan_in_max_visits`      | WARNING  | `max_visits` on a `parallel.fan_in` node does not bound the loop at the parallel node (the fan-in is reached via the parallel's `next`, not an offered set); it takes effect only inside branch walks, where an exhausted fan-in starves the branches' final offered sets and fails the run (Sections 3.2-3.4). Bound the loop at the parallel node or a downstream node. |

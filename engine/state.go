@@ -78,6 +78,15 @@ func (s *engineState) checkpoint(currentNode, nextNode string, retryVisit bool, 
 	}
 }
 
+// clearRetryVisit drops a restored retry flag so the next visit is counted
+// as an ordinary one: used when resume rewinds to a node other than the
+// checkpoint's continuation.
+func (s *engineState) clearRetryVisit() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.retryVisit = false
+}
+
 func (s *engineState) beginVisit(nodeID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

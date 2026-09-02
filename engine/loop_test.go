@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	jsonschema "github.com/tylergannon/go-gen-jsonschema"
 	"github.com/tylergannon/tractor/checklist"
@@ -533,6 +535,329 @@ items:
 	if result.Status != RunFailed || result.FailureReason != "validation command timed out" {
 		t.Fatalf("result = %#v", result)
 	}
+}
+
+func TestLoopValidationCommandStoppedByOperator(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "sprint.md"), `---
+items:
+  - name: Slow
+    check: Finishes eventually
+    command: touch validating && sleep 30
+---
+`)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+	runner := newLoopRunner(t, pipeline, registry, root, workdir, nil)
+
+	type runResponse struct {
+		result RunResult
+		err    error
+	}
+	finished := make(chan runResponse, 1)
+	go func() {
+		result, err := runner.Run()
+		finished <- runResponse{result, err}
+	}()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, err := os.Stat(filepath.Join(workdir, "validating")); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("validation command never started")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	stopped := time.Now()
+	runner.Stop()
+	select {
+	case response := <-finished:
+		if response.err != nil {
+			t.Fatal(response.err)
+		}
+		if response.result.Status != RunFailed || response.result.FailureReason != "validation command stopped by operator" {
+			t.Fatalf("result = %#v", response.result)
+		}
+		if elapsed := time.Since(stopped); elapsed > 5*time.Second {
+			t.Fatalf("stop took %s", elapsed)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("run did not return after stop")
+	}
+}
+
+// Finding 1(a): a checkpoint whose continuation is a body node (a failure
+// checkpoint with retry_visit) resumes at the loop node, so the body runs
+// with a frame.
+func TestResumeInsideLoopBodyRewindsToLoop(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "sprint.md"), `---
+items:
+  - name: Only
+    check: It works
+    command: "true"
+---
+`)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	crashing := NewRegistry()
+	crashing.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+		return harness.Outcome{}, terminalError("harness died")
+	}))
+	result, err := newLoopRunner(t, pipeline, crashing, root, workdir, nil).Run()
+	if err != nil || result.Status != RunFailed {
+		t.Fatalf("initial result=%#v err=%v", result, err)
+	}
+	checkpoint := mustCheckpoint(t, root)
+	if checkpoint.CurrentNode != "implement" || checkpoint.NextNode != "implement" || !checkpoint.RetryVisit {
+		t.Fatalf("failure checkpoint = %#v", checkpoint)
+	}
+
+	var dispatched []string
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+		dispatched = append(dispatched, filepath.Base(scope.StageDir))
+	}))
+	result, err = newLoopResumeRunner(t, pipeline, registry, root, workdir).Run()
+	if err != nil || result.Status != RunCompleted {
+		t.Fatalf("resumed result=%#v err=%v", result, err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "stages", "000003-items")); err != nil {
+		t.Fatalf("resumed run did not start at the loop node: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "stages", "000003-items", "validation.json")); !os.IsNotExist(err) {
+		t.Fatalf("rewound arrival validated something: %v", err)
+	}
+	if len(dispatched) != 1 || dispatched[0] != "000004-implement" {
+		t.Fatalf("body dispatches = %v", dispatched)
+	}
+	prompt := readFile(t, filepath.Join(root, "stages", "000004-implement", "prompt.md"))
+	if !strings.HasPrefix(prompt, `<tractor loop="items" checklist="sprint.md" item="1/1" lap="1">`) {
+		t.Fatalf("resumed body prompt = %q", prompt)
+	}
+	checkpoint = mustCheckpoint(t, root)
+	if checkpoint.NodeVisits["items"] != 3 || checkpoint.NodeVisits["implement"] != 2 || checkpoint.RetryVisit {
+		t.Fatalf("resumed counters = %#v", checkpoint)
+	}
+	if item, _, _ := mustChecklist(t, filepath.Join(workdir, "sprint.md")).Find("Only"); !item.Done {
+		t.Fatal("item was not marked done")
+	}
+	assertResumeRewound(t, root, "implement", "items")
+}
+
+// Finding 1(b): a continuation at a nested loop node rewinds to the outer
+// loop, whose arrival resolves the inner checklist again.
+func TestResumeAtNestedLoopRewindsToOuterLoop(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "outer.md"), `---
+items:
+  - name: Chapter A
+    check: Chapter A is delivered
+    checklist: inner-a.md
+---
+`)
+	writeFile(t, filepath.Join(workdir, "inner-a.md"), `---
+items:
+  - name: Sprint 1
+    check: Sprint 1 holds
+    command: "true"
+---
+`)
+	pipeline := testGraph(
+		startNode("start", "outer"),
+		loopNode("outer", "outer.md", "plan", graph.Success, 0),
+		customNode("plan", "task", []graph.Edge{{To: "inner"}}, 0),
+		loopNode("inner", "", "work", "outer", 0),
+		customNode("work", "task", []graph.Edge{{To: "inner"}}, 0),
+	)
+	var initial *Runner
+	stopping := NewRegistry()
+	stopping.Register("codergen", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+		if node.Base().ID != "plan" {
+			t.Fatalf("unexpected initial dispatch: %s", node.Base().ID)
+		}
+		initial.Stop()
+		return harness.Outcome{Notes: "planned"}, nil
+	}))
+	initial = newLoopRunner(t, pipeline, stopping, root, workdir, nil)
+	result, err := initial.Run()
+	if err != nil || result.Status != RunFailed {
+		t.Fatalf("initial result=%#v err=%v", result, err)
+	}
+	checkpoint := mustCheckpoint(t, root)
+	if checkpoint.CurrentNode != "plan" || checkpoint.NextNode != "inner" || checkpoint.RetryVisit {
+		t.Fatalf("checkpoint = %#v", checkpoint)
+	}
+
+	var dispatched []string
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+		dispatched = append(dispatched, filepath.Base(scope.StageDir))
+	}))
+	result, err = newLoopResumeRunner(t, pipeline, registry, root, workdir).Run()
+	if err != nil || result.Status != RunCompleted {
+		t.Fatalf("resumed result=%#v err=%v", result, err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "stages", "000003-outer")); err != nil {
+		t.Fatalf("resumed run did not start at the outer loop: %v", err)
+	}
+	// 3 outer, 4 plan, 5 inner, 6 work, 7 inner, 8 outer -> success
+	if want := []string{"000004-plan", "000006-work"}; !reflect.DeepEqual(dispatched, want) {
+		t.Fatalf("body dispatches = %v, want %v", dispatched, want)
+	}
+	work := readFile(t, filepath.Join(root, "stages", "000006-work", "prompt.md"))
+	if !strings.Contains(work, `<tractor loop="outer" checklist="outer.md" item="1/1" lap="1">`) ||
+		!strings.Contains(work, `<tractor loop="inner" checklist="inner-a.md" item="1/1" lap="1">`) {
+		t.Fatalf("work prompt = %q", work)
+	}
+	for _, file := range []string{"outer.md", "inner-a.md"} {
+		for _, item := range mustChecklist(t, filepath.Join(workdir, file)).Items {
+			if !item.Done {
+				t.Fatalf("%s item %q is not done", file, item.Name)
+			}
+		}
+	}
+	assertResumeRewound(t, root, "inner", "outer")
+}
+
+func TestResumeOutsideLoopDoesNotRewind(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "sprint.md"), `---
+items:
+  - name: Only
+    check: It works
+    command: "true"
+---
+`)
+	pipeline := testGraph(
+		startNode("start", "pre"),
+		customNode("pre", "task", []graph.Edge{{To: "items"}}, 0),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	var initial *Runner
+	stopping := NewRegistry()
+	stopping.Register("codergen", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+		initial.Stop()
+		return harness.Outcome{Notes: "prepared"}, nil
+	}))
+	initial = newLoopRunner(t, pipeline, stopping, root, workdir, nil)
+	if result, err := initial.Run(); err != nil || result.Status != RunFailed {
+		t.Fatalf("initial result=%#v err=%v", result, err)
+	}
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+	if result, err := newLoopResumeRunner(t, pipeline, registry, root, workdir).Run(); err != nil || result.Status != RunCompleted {
+		t.Fatalf("resumed result=%#v err=%v", result, err)
+	}
+	for _, event := range mustTimeline(t, root) {
+		if event["type"] == "ResumeRewound" {
+			t.Fatalf("resume outside a loop rewound: %v", event)
+		}
+	}
+}
+
+// Finding 4: evidence globs match relative to the workdir, so metacharacters
+// in the workdir path are inert; directories are skipped; duplicates across
+// globs collapse; absolute and escaping patterns are reported, not matched.
+func TestMatchEvidence(t *testing.T) {
+	workdir := filepath.Join(t.TempDir(), "run[1]")
+	writeFile(t, filepath.Join(workdir, "notes.md"), "notes")
+	writeFile(t, filepath.Join(workdir, "captures", "a.png"), "a")
+	writeFile(t, filepath.Join(workdir, "captures", "b.png"), "b")
+	writeFile(t, filepath.Join(workdir, "captures", "sub", "c.png"), "c")
+
+	tests := []struct {
+		name        string
+		globs       []string
+		wantFiles   []string
+		wantInvalid []string
+	}{
+		{name: "metacharacter workdir", globs: []string{"notes.md"}, wantFiles: []string{"notes.md"}},
+		{name: "directories skipped", globs: []string{"captures/*"}, wantFiles: []string{filepath.Join("captures", "a.png"), filepath.Join("captures", "b.png")}},
+		{name: "overlapping globs deduplicate", globs: []string{"captures/*.png", "captures/a.png"}, wantFiles: []string{filepath.Join("captures", "a.png"), filepath.Join("captures", "b.png")}},
+		{name: "no match", globs: []string{"missing/*.png"}, wantFiles: []string{}},
+		{name: "invalid patterns", globs: []string{"/etc/*", "../notes.md", "captures/../notes.md", "[", "notes.md"}, wantFiles: []string{"notes.md"}, wantInvalid: []string{"/etc/*", "../notes.md", "captures/../notes.md", "["}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			files, invalid := matchEvidence(workdir, test.globs)
+			if !reflect.DeepEqual(files, test.wantFiles) || !reflect.DeepEqual(invalid, test.wantInvalid) {
+				t.Fatalf("matchEvidence = %v, %v; want %v, %v", files, invalid, test.wantFiles, test.wantInvalid)
+			}
+		})
+	}
+}
+
+func TestLoopInferRecordsInvalidPatternAsFailure(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "sprint.md"), `---
+items:
+  - name: Screens
+    check: Every screen looks usable
+    infer:
+      files: ../captures/*.png
+      prompt: Judge the screens
+---
+`)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 1),
+	)
+	backend := &scriptedBackend{}
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunFailed || len(backend.turns) != 0 {
+		t.Fatalf("result = %#v after %d judge turns", result, len(backend.turns))
+	}
+	var record validationRecord
+	readJSON(t, filepath.Join(root, "stages", "000003-items", "validation.json"), &record)
+	if record.Passed || record.Summary != "invalid evidence pattern (must be relative to the workdir): ../captures/*.png" || record.Infer == nil || record.Infer.Verdict != "fail" {
+		t.Fatalf("validation = %#v infer=%#v", record, record.Infer)
+	}
+}
+
+func assertResumeRewound(t *testing.T, root, from, to string) {
+	t.Helper()
+	for _, event := range mustTimeline(t, root) {
+		if event["type"] != "ResumeRewound" {
+			continue
+		}
+		if event["from"] != from || event["to"] != to {
+			t.Fatalf("ResumeRewound = %v, want from %q to %q", event, from, to)
+		}
+		return
+	}
+	t.Fatal("timeline has no ResumeRewound event")
+}
+
+func newLoopResumeRunner(t *testing.T, pipeline graph.Graph, registry *Registry, root, workdir string) *Runner {
+	t.Helper()
+	runner, err := ResumeRunner(pipeline, registry, RunnerConfig{
+		LogsRoot:     root,
+		Workdir:      workdir,
+		Validate:     func(graph.Graph) error { return nil },
+		DefaultModel: "gpt-5.3-codex",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return runner
 }
 
 func TestFanInPrependsFrame(t *testing.T) {

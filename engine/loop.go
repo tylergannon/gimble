@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -209,7 +210,12 @@ func (h *loopHandler) validate(loop *graph.LoopNode, item checklist.Item, scope 
 	}
 
 	if item.Infer != nil {
-		files := matchEvidence(scope.Workdir, item.Infer.Files)
+		files, invalid := matchEvidence(scope.Workdir, item.Infer.Files)
+		if len(invalid) > 0 {
+			record.Infer = &inferRecord{Files: files, Verdict: "fail", Notes: "invalid evidence pattern: " + strings.Join(invalid, ", ")}
+			record.Summary = "invalid evidence pattern (must be relative to the workdir): " + strings.Join(invalid, ", ")
+			return record, nil
+		}
 		if len(files) == 0 {
 			record.Infer = &inferRecord{Files: []string{}, Verdict: "fail", Notes: "no evidence files matched"}
 			record.Summary = "no evidence files matched " + strings.Join(item.Infer.Files, ", ")
@@ -280,24 +286,40 @@ func judgePrompt(item checklist.Item, files []string) string {
 	return prompt.String()
 }
 
-// matchEvidence expands each glob relative to workdir and returns the
-// matches as workdir-relative paths, in glob order.
-func matchEvidence(workdir string, globs []string) []string {
-	files := []string{}
+// matchEvidence expands each glob relative to workdir (Go path.Match
+// syntax; ** is not recursive) and returns the regular files it matched as
+// workdir-relative paths, in glob order, without duplicates. Patterns that
+// are absolute, escape the workdir, or fail to parse are returned as
+// invalid rather than matched. Matching through fs.Glob keeps
+// metacharacters in the workdir path itself inert.
+func matchEvidence(workdir string, globs []string) (files, invalid []string) {
+	files = []string{}
+	seen := map[string]struct{}{}
+	fsys := os.DirFS(workdir)
 	for _, pattern := range globs {
-		matches, err := filepath.Glob(resolveWorkdirPath(workdir, pattern))
+		if filepath.IsAbs(pattern) || !fs.ValidPath(pattern) {
+			invalid = append(invalid, pattern)
+			continue
+		}
+		matches, err := fs.Glob(fsys, pattern)
 		if err != nil {
+			invalid = append(invalid, pattern)
 			continue
 		}
 		for _, match := range matches {
-			if relative, err := filepath.Rel(workdir, match); err == nil {
-				files = append(files, relative)
-			} else {
-				files = append(files, match)
+			info, err := fs.Stat(fsys, match)
+			if err != nil || info.IsDir() {
+				continue
 			}
+			relative := filepath.FromSlash(match)
+			if _, dup := seen[relative]; dup {
+				continue
+			}
+			seen[relative] = struct{}{}
+			files = append(files, relative)
 		}
 	}
-	return files
+	return files, invalid
 }
 
 func loopTimeout(loop *graph.LoopNode) (time.Duration, bool, error) {

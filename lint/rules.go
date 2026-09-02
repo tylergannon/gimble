@@ -327,6 +327,10 @@ func (a *analysis) loopBodyEntry() []Diagnostic {
 			diagnostics = append(diagnostics, edgeDiagnostic("loop_body_entry",
 				fmt.Sprintf("on_done must not name a body node %q", loop.OnDone), loop.ID, loop.OnDone))
 		}
+		if _, inside := block.nodes[a.graph.Start]; inside {
+			diagnostics = append(diagnostics, diagnostic("loop_body_entry", SeverityError,
+				fmt.Sprintf("start must not name loop body node %q; start at the loop or before it", a.graph.Start), a.graph.Start))
+		}
 		for _, node := range a.graph.Nodes {
 			id := node.Base().ID
 			if _, member := block.nodes[id]; !member {
@@ -349,6 +353,11 @@ func (a *analysis) loopBodyReturns() []Diagnostic {
 	var diagnostics []Diagnostic
 	for _, block := range a.loopBlocks() {
 		loop := block.node
+		if graph.IsPseudoTarget(loop.Body) {
+			diagnostics = append(diagnostics, diagnostic("loop_body_returns", SeverityError,
+				fmt.Sprintf("loop body must name a node, not %q", loop.Body), loop.ID))
+			continue
+		}
 		if _, exists := a.byID[loop.Body]; !exists {
 			continue
 		}
@@ -362,6 +371,30 @@ func (a *analysis) loopBodyReturns() []Diagnostic {
 		if !returns {
 			diagnostics = append(diagnostics, diagnostic("loop_body_returns", SeverityError,
 				fmt.Sprintf("loop body never routes back to %q; no lap could be validated", loop.ID), loop.ID))
+		}
+	}
+	return diagnostics
+}
+
+// loopBodyExit: no routing target of a body node may be success. The only
+// way out of a loop body to success is the loop's own on_done; failure
+// stays legal as an escape hatch.
+func (a *analysis) loopBodyExit() []Diagnostic {
+	var diagnostics []Diagnostic
+	for _, block := range a.loopBlocks() {
+		loop := block.node
+		for _, node := range a.graph.Nodes {
+			id := node.Base().ID
+			if _, member := block.nodes[id]; !member {
+				continue
+			}
+			for _, outgoing := range a.out[id] {
+				if outgoing.edge.To != graph.Success {
+					continue
+				}
+				diagnostics = append(diagnostics, edgeDiagnostic("loop_body_exit",
+					fmt.Sprintf("loop body node %q may not route to success; route back to loop %q and let on_done end the run", id, loop.ID), id, graph.Success))
+			}
 		}
 	}
 	return diagnostics
