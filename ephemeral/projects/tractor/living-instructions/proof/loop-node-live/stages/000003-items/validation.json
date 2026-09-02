@@ -1,0 +1,8 @@
+{
+  "item": "greet script",
+  "command": "test \"$(sh greet.sh)\" = GREETING_2d171d08",
+  "exit_code": 0,
+  "log_tail": "",
+  "passed": true,
+  "summary": "passed"
+}

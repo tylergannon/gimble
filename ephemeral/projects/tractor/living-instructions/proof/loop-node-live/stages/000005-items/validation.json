@@ -1,0 +1,8 @@
+{
+  "item": "line count",
+  "command": "test \"$(cat count.txt)\" = \"$(wc -l \u003c greet.sh | tr -d ' ')\"",
+  "exit_code": 0,
+  "log_tail": "",
+  "passed": true,
+  "summary": "passed"
+}

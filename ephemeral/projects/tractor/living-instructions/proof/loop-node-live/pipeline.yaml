@@ -1,0 +1,25 @@
+name: checklist-loop-proof
+goal: Work through the checklist until every item is demonstrated.
+start: items
+
+defaults:
+  timeout: 600s
+  fidelity: none
+  max_retries: 1
+  llm_provider: anthropic
+  llm_model: claude-sonnet-5
+  reasoning_effort: low
+
+nodes:
+  - id: items
+    type: loop
+    checklist: ephemeral/projects/demo/checklist.md
+    body: implement
+    on_done: success
+    max_visits: 8
+
+  - id: implement
+    type: codergen
+    prompt: Implement the current checklist item so that its check holds.
+    edges:
+      - to: items

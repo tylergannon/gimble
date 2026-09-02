@@ -309,6 +309,34 @@ Frame persistence across restarts. Rendering the frame stack in run status
 Human attestation as an item field. Item-level `checklist` at more than one
 level is supported by construction but untested beyond two levels.
 
+## 10a. Implementation notes (2026-09-02)
+
+Built on this branch as `graph.LoopNode`, package `checklist`,
+`engine/loop.go`, `engine/frames.go`, `engine/shell.go` (the shell core
+shared with the tool handler), and four lint rules. Small choices the note
+left open, as implemented:
+
+- `validation.json` always carries `command`, `exit_code`, `log_tail`
+  (empty or zero when the item has no command); `infer` is present only
+  when the judge ran. `summary` on a pass is the string `passed`. An item
+  with no command still gets an empty `validation.log`.
+- A vanished item is reported as an `item vanished: <name>;` prefix on the
+  arrival's outcome notes.
+- The item text in a frame is captured at push time; only the `doc` file
+  is re-read at render time.
+- A fresh item starts with no `last validation` line even if the previous
+  item had failed.
+- `max_visits: N` on the loop node allows N−1 laps; the failure surfaces as
+  the body's "every successor has exhausted its visit budget" before the
+  body would run again.
+- The judge's `prompt.md` and `response.md` land in the loop node's stage
+  directory, beside `validation.json`.
+- Timeline events: `LoopItemSelected {node,item,index,count,lap}`,
+  `LoopValidated {node,item,passed,summary}`, `LoopCompleted {node,count}`.
+
+Proof: unit tests for §11 claims 1–6 in the respective packages; the live
+run for claim 7 is recorded in `proof/loop-node-live/`.
+
 ## 11. Claims to demonstrate before this merges
 
 1. A loop over a three-item checklist whose commands all exit 0 completes
