@@ -319,6 +319,95 @@ func (a *analysis) branchEntry() []Diagnostic {
 	return diagnostics
 }
 
+func (a *analysis) loopBodyEntry() []Diagnostic {
+	var diagnostics []Diagnostic
+	for _, block := range a.loopBlocks() {
+		loop := block.node
+		if _, inside := block.nodes[loop.OnDone]; inside {
+			diagnostics = append(diagnostics, edgeDiagnostic("loop_body_entry",
+				fmt.Sprintf("on_done must not name a body node %q", loop.OnDone), loop.ID, loop.OnDone))
+		}
+		for _, node := range a.graph.Nodes {
+			id := node.Base().ID
+			if _, member := block.nodes[id]; !member {
+				continue
+			}
+			for _, incoming := range a.in[id] {
+				_, inside := block.nodes[incoming.from]
+				fromLoop := id == loop.Body && incoming.from == loop.ID
+				if !inside && !fromLoop {
+					diagnostics = append(diagnostics, edgeDiagnostic("loop_body_entry",
+						fmt.Sprintf("loop body node %q may only be entered from its own body", id), incoming.from, id))
+				}
+			}
+		}
+	}
+	return diagnostics
+}
+
+func (a *analysis) loopBodyReturns() []Diagnostic {
+	var diagnostics []Diagnostic
+	for _, block := range a.loopBlocks() {
+		loop := block.node
+		if _, exists := a.byID[loop.Body]; !exists {
+			continue
+		}
+		returns := false
+		for _, incoming := range a.in[loop.ID] {
+			if _, inside := block.nodes[incoming.from]; inside {
+				returns = true
+				break
+			}
+		}
+		if !returns {
+			diagnostics = append(diagnostics, diagnostic("loop_body_returns", SeverityError,
+				fmt.Sprintf("loop body never routes back to %q; no lap could be validated", loop.ID), loop.ID))
+		}
+	}
+	return diagnostics
+}
+
+func (a *analysis) loopChecklistRequired() []Diagnostic {
+	var diagnostics []Diagnostic
+	for _, node := range a.graph.Nodes {
+		loop, ok := node.(*graph.LoopNode)
+		if !ok || (loop.Checklist.Present && strings.TrimSpace(loop.Checklist.Value) != "") {
+			continue
+		}
+		nested := false
+		for _, block := range a.loopBlocks() {
+			if _, inside := block.nodes[loop.ID]; inside && block.node != loop {
+				nested = true
+				break
+			}
+		}
+		if !nested {
+			diagnostics = append(diagnostics, diagnostic("loop_checklist_required", SeverityError,
+				"loop node has no checklist and is not inside another loop's body", loop.ID))
+		}
+	}
+	return diagnostics
+}
+
+func (a *analysis) loopInParallel() []Diagnostic {
+	var diagnostics []Diagnostic
+	for _, block := range a.parallelBlocks() {
+		if !block.converged {
+			continue
+		}
+		for _, node := range a.graph.Nodes {
+			if _, inside := block.union[node.Base().ID]; !inside {
+				continue
+			}
+			if _, loop := node.(*graph.LoopNode); loop {
+				diagnostics = append(diagnostics, diagnostic("loop_in_parallel", SeverityError,
+					fmt.Sprintf("loop node is nested inside branches of %q", block.node.ID), node.Base().ID))
+			}
+		}
+	}
+	return diagnostics
+}
+
 func (a *analysis) maxVisitsPositive() []Diagnostic {
 	var diagnostics []Diagnostic
 	for _, node := range a.graph.Nodes {

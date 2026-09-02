@@ -21,6 +21,9 @@ type analysis struct {
 
 	parallelReady bool
 	parallels     []*parallelBlock
+
+	loopReady bool
+	loops     []*loopBlock
 }
 
 func newAnalysis(g graph.Graph, opts options) *analysis {
@@ -61,6 +64,10 @@ func (a *analysis) builtInDiagnostics() []Diagnostic {
 		a.threadBranchBoundary,
 		a.fanInEntry,
 		a.branchEntry,
+		a.loopBodyEntry,
+		a.loopBodyReturns,
+		a.loopChecklistRequired,
+		a.loopInParallel,
 		a.maxVisitsPositive,
 		a.maxParallelPositive,
 		a.maxRetriesNonnegative,
@@ -172,6 +179,52 @@ func (a *analysis) analyzeParallel(node *graph.ParallelNode) *parallelBlock {
 		}
 	}
 	return block
+}
+
+// loopBlock is one loop node with its body node-set: every node reachable
+// from the loop's body root by routing edges without passing through the
+// loop node itself. Pseudo-targets and missing targets are not nodes.
+type loopBlock struct {
+	node  *graph.LoopNode
+	nodes map[string]struct{}
+}
+
+func (a *analysis) loopBlocks() []*loopBlock {
+	if a.loopReady {
+		return a.loops
+	}
+	a.loopReady = true
+	for _, node := range a.graph.Nodes {
+		loop, ok := node.(*graph.LoopNode)
+		if !ok {
+			continue
+		}
+		a.loops = append(a.loops, &loopBlock{node: loop, nodes: a.loopBodyNodes(loop)})
+	}
+	return a.loops
+}
+
+func (a *analysis) loopBodyNodes(loop *graph.LoopNode) map[string]struct{} {
+	nodes := map[string]struct{}{}
+	stack := []string{loop.Body}
+	for len(stack) > 0 {
+		id := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if id == loop.ID || graph.IsPseudoTarget(id) {
+			continue
+		}
+		if _, exists := a.byID[id]; !exists {
+			continue
+		}
+		if _, seen := nodes[id]; seen {
+			continue
+		}
+		nodes[id] = struct{}{}
+		for _, edge := range slices.Backward(a.out[id]) {
+			stack = append(stack, edge.edge.To)
+		}
+	}
+	return nodes
 }
 
 func (a *analysis) walkToFirstFanIn(root string) branchAnalysis {

@@ -492,6 +492,74 @@
               "supervises"
             ],
             "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "LoopNode iterates a checklist file: on every arrival it validates the previous lap's item, marks it done when the validation passes, injects the first open item as the lap's frame, and dispatches the body. With no open item left it routes to on_done.",
+            "properties": {
+              "body": {
+                "description": "Body is the entry node of one lap.",
+                "type": "string"
+              },
+              "checklist": {
+                "description": "Checklist is the checklist path, relative to the workdir. Optional only when this loop node lies inside another loop's body, in which case it iterates the enclosing item's checklist field.",
+                "type": "string"
+              },
+              "id": {
+                "not": {
+                  "enum": [
+                    "success",
+                    "failure"
+                  ]
+                },
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "llm_model": {
+                "description": "LLMModel selects the model used by the infer judge.",
+                "type": "string"
+              },
+              "llm_provider": {
+                "description": "LLMProvider selects the provider used by the infer judge.",
+                "type": "string"
+              },
+              "max_visits": {
+                "description": "MaxVisits bounds arrivals at the loop node, laps plus one.",
+                "type": "integer"
+              },
+              "on_done": {
+                "description": "OnDone is the target when no open item remains: a node ID or success/failure.",
+                "type": "string"
+              },
+              "reasoning_effort": {
+                "description": "ReasoningEffort sets the reasoning effort of the infer judge.",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "type": "string"
+              },
+              "timeout": {
+                "description": "Timeout bounds one item's validation command and the infer judge turn.",
+                "pattern": "^[0-9]+(ms|s|m|h|d)$",
+                "type": "string"
+              },
+              "type": {
+                "const": "loop",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "body",
+              "on_done"
+            ],
+            "type": "object"
           }
         ]
       },

@@ -71,6 +71,7 @@ func TestParseAcceptsEveryNodeShape(t *testing.T) {
 		`{"id":"f","type":"parallel.fan_in","prompt":"p","edges":[{"to":"success"}]}`,
 		`{"id":"t","type":"tool","tool_command":"true","on_success":"success","on_error":"failure","timeout":"2h"}`,
 		`{"id":"s","type":"supervisor","prompt":"watch","supervises":["c"]}`,
+		`{"id":"l","type":"loop","checklist":"list.md","body":"c","on_done":"success","max_visits":3,"timeout":"1m","llm_model":"m","llm_provider":"p","reasoning_effort":"low"}`,
 	}
 	for _, node := range tests {
 		document := `{"start":"c","nodes":[` + node + `]}`
@@ -167,6 +168,9 @@ func TestParseRejectsStructuralViolations(t *testing.T) {
 		"missing branches":          `{"start":"x","nodes":[{"id":"x","type":"parallel"}]}`,
 		"missing supervisor prompt": `{"start":"x","nodes":[{"id":"x","type":"supervisor","supervises":["x"]}]}`,
 		"missing supervises":        `{"start":"x","nodes":[{"id":"x","type":"supervisor","prompt":"watch"}]}`,
+		"missing loop body":         `{"start":"x","nodes":[{"id":"x","type":"loop","on_done":"success"}]}`,
+		"missing loop on_done":      `{"start":"x","nodes":[{"id":"x","type":"loop","body":"x"}]}`,
+		"loop unknown field":        `{"start":"x","nodes":[{"id":"x","type":"loop","body":"x","on_done":"success","prompt":"no"}]}`,
 		"unknown top field":         `{"start":"x","nodes":[],"extra":1}`,
 		"unknown defaults":          `{"start":"x","defaults":{"max_visits":1},"nodes":[]}`,
 		"null":                      `{"start":"x","name":null,"nodes":[]}`,
@@ -255,6 +259,58 @@ nodes:
 	}
 }
 
+func TestParseLoopNode(t *testing.T) {
+	document := `
+defaults:
+  timeout: 15m
+  llm_model: default-model
+  llm_provider: openai
+  reasoning_effort: low
+start: items
+nodes:
+  - id: items
+    type: loop
+    checklist: ephemeral/checklist.md
+    body: implement
+    on_done: success
+    max_visits: 40
+  - id: bare
+    type: loop
+    body: implement
+    on_done: items
+    timeout: 1m
+    llm_model: cheap
+    llm_provider: anthropic
+    reasoning_effort: high
+  - id: implement
+    type: codergen
+    prompt: Implement the current item.
+    edges:
+      - to: items
+`
+	pipeline, err := ParseYAML([]byte(document))
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := mustNode[*LoopNode](t, pipeline, "items")
+	if items.NodeType() != "loop" || items.Checklist.Value != "ephemeral/checklist.md" || items.Body != "implement" || items.OnDone != Success || items.MaxVisits.Value != 40 {
+		t.Fatalf("loop = %#v", items)
+	}
+	if items.Timeout.Value != "15m" || items.LLMModel.Value != "default-model" || items.LLMProvider.Value != "openai" || items.ReasoningEffort.Value != "low" {
+		t.Fatalf("loop defaults = %#v", items)
+	}
+	bare := mustNode[*LoopNode](t, pipeline, "bare")
+	if bare.Checklist.Present || bare.MaxVisits.Present || bare.Timeout.Value != "1m" || bare.LLMModel.Value != "cheap" || bare.LLMProvider.Value != "anthropic" || bare.ReasoningEffort.Value != "high" {
+		t.Fatalf("explicit loop fields = %#v", bare)
+	}
+	if !reflect.DeepEqual(RoutingTargets(items), []string{"implement", Success}) || !reflect.DeepEqual(RoutingTargets(bare), []string{"implement", "items"}) {
+		t.Fatalf("routing targets = %v, %v", RoutingTargets(items), RoutingTargets(bare))
+	}
+	if ChoiceEdges(items) != nil || !MaxVisits(items).Present || MaxVisits(items).Value != 40 || MaxVisits(bare).Present {
+		t.Fatalf("loop accessors = %v, %v", ChoiceEdges(items), MaxVisits(items))
+	}
+}
+
 func TestDurationSyntaxAndParsing(t *testing.T) {
 	for value, want := range map[string]time.Duration{
 		"250ms": 250 * time.Millisecond,
@@ -290,7 +346,7 @@ func TestGraphSchemaIsCommittedAndClosed(t *testing.T) {
 	}
 	properties := root["properties"].(map[string]any)
 	options := properties["nodes"].(map[string]any)["items"].(map[string]any)["anyOf"].([]any)
-	if len(options) != 5 {
+	if len(options) != 6 {
 		t.Fatalf("node union has %d cases", len(options))
 	}
 	for _, raw := range options {

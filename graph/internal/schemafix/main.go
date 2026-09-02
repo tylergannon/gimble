@@ -37,7 +37,7 @@ func fixSchema(check bool) error {
 	nodes := object(properties["nodes"])
 	items := object(nodes["items"])
 	options, ok := items["anyOf"].([]any)
-	if !ok || len(options) != 5 {
+	if !ok || len(options) != 6 {
 		return fmt.Errorf("unexpected node union shape")
 	}
 	for _, raw := range options {
@@ -57,6 +57,8 @@ func fixSchema(check bool) error {
 			required = append(required, "tool_command", "on_success")
 		case "supervisor":
 			required = append(required, "prompt", "supervises")
+		case "loop":
+			required = append(required, "body", "on_done")
 		}
 		option["required"] = required
 	}

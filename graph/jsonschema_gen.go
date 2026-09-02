@@ -198,6 +198,12 @@ func __jsonUnmarshal__graph__Node__Graph__Nodes(data []byte) (Node, error) {
 			return nil, err
 		}
 		return &obj, nil
+	case "loop":
+		var obj LoopNode
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return &obj, nil
 	default:
 		return nil, fmt.Errorf("unknown discriminator: %s", discriminator)
 	}
