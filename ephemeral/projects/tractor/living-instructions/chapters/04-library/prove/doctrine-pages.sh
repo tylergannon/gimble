@@ -1,5 +1,5 @@
 #!/bin/sh
-# Sprint 3 definition of done: doctrine pages and skeletons exist, are
+# Proves: doctrine pages and skeletons exist, are
 # cited, and carry no template delimiters.
 set -eu
 cd "$(git rev-parse --show-toplevel)"
@@ -18,4 +18,4 @@ if grep -rl '{{' "$lib/doctrine" "$lib/templates"; then
   echo "template delimiters found in content"; exit 1
 fi
 go test -run 'TestLibraryNoOrphans|TestLibraryRendersAll' ./workflow/... -count=1
-echo "check-sprint-03: ok"
+echo "doctrine-pages.sh: ok"

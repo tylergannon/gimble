@@ -45,9 +45,9 @@ the sprint 1 byte-equality snapshot is updated in the same commit, with
 the diff reviewed as content: nothing an agent is told may be lost, only
 moved.
 
-## Check script
+## Proof script
 
-`check-sprint-03.sh`: every page in the table exists; no file under
+`prove/doctrine-pages.sh`: every page in the table exists; no file under
 `doctrine/` or `templates/` contains `{{`; every page ends with a
 `Source:` line; `go test -run 'TestLibraryNoOrphans|TestLibraryRendersAll'
 ./workflow/...` passes. The `infer` judge on the ledger item reads the

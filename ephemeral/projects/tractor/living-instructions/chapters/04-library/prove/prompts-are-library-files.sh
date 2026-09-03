@@ -1,5 +1,5 @@
 #!/bin/sh
-# Sprint 1 definition of done: prompts live in the library, Build is unchanged.
+# Proves: prompts live in the library, Build is unchanged.
 set -eu
 cd "$(git rev-parse --show-toplevel)"
 
@@ -25,4 +25,4 @@ grep -q 'text/template' workflow/*.go || { echo "text/template not used"; exit 1
 # The byte-equality snapshot test exists and passes.
 ls workflow/testdata/*.snap* >/dev/null 2>&1 || ls workflow/testdata/* >/dev/null 2>&1 || { echo "no snapshot testdata"; exit 1; }
 go test -run 'Snapshot|Golden|ByteEqual' ./workflow/... -count=1
-echo "check-sprint-01: ok"
+echo "prompts-are-library-files.sh: ok"

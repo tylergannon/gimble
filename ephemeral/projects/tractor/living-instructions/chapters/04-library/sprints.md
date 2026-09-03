@@ -4,15 +4,15 @@ items:
   - name: prompts become library files
     check: "`workflow/library/` holds the three graphs and the four prompts as embedded files rendered with `text/template` under non-default delimiters; `Build` returns the same graphs it returned before, byte for byte in every prompt and command; no prompt body remains in a Go string."
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/SPRINT-01.md
-    command: go build ./... && go vet ./... && go test ./workflow/... ./cmd/tractor/... && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/check-sprint-01.sh
+    command: go build ./... && go vet ./... && go test ./workflow/... ./cmd/tractor/... && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/prompts-are-library-files.sh
   - name: show, render test, orphan walk
     check: "`tractor workflow show <name>` prints each node's prompt and command as `Build` materialized them for the given parameters; `--stage <dir>` diffs against a stage's prompt.md with the frame stripped; a test renders every template with representative parameters and a test walks the embedded tree and fails on a doctrine or template file no prompt references, proven against a synthetic orphan."
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/SPRINT-02.md
-    command: go build ./... && go vet ./... && go test ./workflow/... ./cmd/tractor/... && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/check-sprint-02.sh
+    command: go build ./... && go vet ./... && go test ./workflow/... ./cmd/tractor/... && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/show-and-orphan-walk.sh
   - name: doctrine pages and skeletons
     check: "The doctrine pages and artifact skeletons the three existing prompts can cite exist under the library, each a page or less with a provenance pointer into `sources/`, and the migrated prompts include them so the orphan walk passes; the pages say what decisions 37 to 59 say, in the library's voice."
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/SPRINT-03.md
-    command: go build ./... && go test ./workflow/... && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/check-sprint-03.sh
+    command: go build ./... && go test ./workflow/... && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/doctrine-pages.sh
     infer:
       files:
         - workflow/library/doctrine/*.md

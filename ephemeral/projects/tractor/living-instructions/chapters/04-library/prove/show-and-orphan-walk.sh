@@ -1,5 +1,5 @@
 #!/bin/sh
-# Sprint 2 definition of done: show, render test, orphan walk.
+# Proves: show, render test, orphan walk.
 set -eu
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
@@ -43,4 +43,4 @@ if "$tmp/tractor" workflow show plan --project demo --seed "$tmp/seed.md" --work
 fi
 
 go test -run 'TestLibraryRendersAll|TestLibraryNoOrphans' ./workflow/... -count=1
-echo "check-sprint-02: ok"
+echo "show-and-orphan-walk.sh: ok"

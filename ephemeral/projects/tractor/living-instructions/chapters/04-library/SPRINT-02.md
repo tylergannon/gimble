@@ -47,13 +47,16 @@ one uncited page and asserts the walk reports it by name. This needs the
 The walk is written from scratch; no surveyed tool has one
 (`research/prompt-libraries/goose.md` has the inverse and still drifted).
 
-## Check script
+## Proof script
 
-`check-sprint-02.sh`: builds the binary, runs `workflow show plan` and
+`prove/show-and-orphan-walk.sh`: builds the binary, runs `workflow show plan` and
 `workflow show large` against a scratch workdir and asserts the output
-names every node in the graph and contains the project name; runs
-`workflow show --stage` against a fixture stage directory committed
-beside this doc and asserts exit 0; runs the two tests by name.
+names every node in the graph and contains the project name; builds a
+stage directory at check time from the committed frame preamble
+(`fixtures/frame-preamble.txt`), a synthetic iterate block, and the
+prompt `show --raw` printed, and asserts `--stage` exits 0 on it and 1
+after one byte is appended; runs the two tests by name. `--raw` prints
+one node's prompt with no header, for exactly this use.
 
 ## Ask the reviewer
 
