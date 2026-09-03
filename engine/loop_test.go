@@ -784,6 +784,7 @@ func TestMatchEvidence(t *testing.T) {
 	writeFile(t, filepath.Join(workdir, "captures", "a.png"), "a")
 	writeFile(t, filepath.Join(workdir, "captures", "b.png"), "b")
 	writeFile(t, filepath.Join(workdir, "captures", "sub", "c.png"), "c")
+	writeFile(t, filepath.Join(workdir, "captures", "sub", "deep", "d.png"), "d")
 
 	tests := []struct {
 		name        string
@@ -793,9 +794,11 @@ func TestMatchEvidence(t *testing.T) {
 	}{
 		{name: "metacharacter workdir", globs: []string{"notes.md"}, wantFiles: []string{"notes.md"}},
 		{name: "directories skipped", globs: []string{"captures/*"}, wantFiles: []string{filepath.Join("captures", "a.png"), filepath.Join("captures", "b.png")}},
+		{name: "doublestar recursive", globs: []string{"captures/**/*.png"}, wantFiles: []string{filepath.Join("captures", "a.png"), filepath.Join("captures", "b.png"), filepath.Join("captures", "sub", "c.png"), filepath.Join("captures", "sub", "deep", "d.png")}},
+		{name: "leading dot slash", globs: []string{"./captures/*.png"}, wantFiles: []string{filepath.Join("captures", "a.png"), filepath.Join("captures", "b.png")}},
 		{name: "overlapping globs deduplicate", globs: []string{"captures/*.png", "captures/a.png"}, wantFiles: []string{filepath.Join("captures", "a.png"), filepath.Join("captures", "b.png")}},
 		{name: "no match", globs: []string{"missing/*.png"}, wantFiles: []string{}},
-		{name: "invalid patterns", globs: []string{"/etc/*", "../notes.md", "captures/../notes.md", "[", "notes.md"}, wantFiles: []string{"notes.md"}, wantInvalid: []string{"/etc/*", "../notes.md", "captures/../notes.md", "["}},
+		{name: "invalid patterns", globs: []string{"/etc/*", "../notes.md", "./../notes.md", "captures/../notes.md", "[", "notes.md"}, wantFiles: []string{"notes.md"}, wantInvalid: []string{"/etc/*", "../notes.md", "./../notes.md", "captures/../notes.md", "["}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

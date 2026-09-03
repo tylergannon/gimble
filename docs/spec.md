@@ -1707,7 +1707,7 @@ Definition of done in open prose. Anything here is for agents and people.
 | `name`         | yes          | Identity. Unique within the file; a duplicate is a parse error. |
 | `check`        | yes          | The claim, as observable behavior. Prose for agents: the engine copies it into the frame and the judge prompt and never interprets it. |
 | `command`      | no           | Shell command run from the workdir. Exit 0 passes. |
-| `infer.files`  | with `infer` | One glob or a list of globs naming the evidence the judge inspects. Go `path.Match` syntax (`*`, `?`, `[...]`; `**` is not recursive), matched relative to the workdir; an absolute or `..`-prefixed pattern fails the validation. Directories are skipped and a file matched by several globs is listed once. |
+| `infer.files`  | with `infer` | One glob or a list of globs naming the evidence the judge inspects. Glob syntax supports `*`, `?`, and `[...]` within one path segment, while `**` matches zero or more directories. Patterns are matched relative to the workdir and may start with `./`; absolute patterns or patterns containing a `..` path segment fail the validation. Directories are skipped and a file matched by several globs is listed once. |
 | `infer.prompt` | with `infer` | What the judge is to decide about those files. |
 | `doc`          | no           | Path to a prose document injected with the item. |
 | `checklist`    | no           | Path to a sub-checklist. A loop node inside this loop's body that has no `checklist` field of its own iterates it. |

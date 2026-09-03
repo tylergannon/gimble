@@ -1,0 +1,35 @@
+name: issues-34-35-frames-and-visits
+goal: |
+  The conditions described in ephemeral/projects/tractor/issues-32-37/ISSUE-34.md
+  and ephemeral/projects/tractor/issues-32-37/ISSUE-35.md both hold in this
+  repository: a nested loop's max_visits counts arrivals per activation and
+  resets with its body node-set when the enclosing loop selects a new item,
+  and resume rebuilds the loop frame stack from the checklist files and
+  re-enters at the innermost enclosing loop instead of rewinding to the
+  outermost one. Both issues need the same lint body-node-set lookup exposed
+  to the engine, which is why they are done together. The tests and
+  documentation both briefs name cover the new behavior, and
+  `go build ./... && go test -count=1 ./...` exits 0.
+start: implement
+
+defaults:
+  timeout: 2400s
+  fidelity: none
+  max_retries: 1
+  llm_provider: openai
+  llm_model: gpt-5.6-sol
+  reasoning_effort: high
+
+nodes:
+  - id: implement
+    type: codergen
+    max_visits: 4
+    prompt: $goal
+    edges:
+      - to: check
+
+  - id: check
+    type: tool
+    tool_command: go build ./... && go test -count=1 ./...
+    on_success: success
+    on_error: implement

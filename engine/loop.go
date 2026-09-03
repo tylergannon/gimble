@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bmatcuk/doublestar/v4"
 	jsonschema "github.com/tylergannon/go-gen-jsonschema"
 	"github.com/tylergannon/tractor/checklist"
 	"github.com/tylergannon/tractor/graph"
@@ -297,22 +298,23 @@ func judgePrompt(item checklist.Item, files []string) string {
 	return prompt.String()
 }
 
-// matchEvidence expands each glob relative to workdir (Go path.Match
-// syntax; ** is not recursive) and returns the regular files it matched as
-// workdir-relative paths, in glob order, without duplicates. Patterns that
-// are absolute, escape the workdir, or fail to parse are returned as
-// invalid rather than matched. Matching through fs.Glob keeps
-// metacharacters in the workdir path itself inert.
+// matchEvidence expands each glob relative to workdir (doublestar syntax;
+// ** matches zero or more directories) and returns the regular files it
+// matched as workdir-relative paths, in glob order, without duplicates. A
+// leading ./ is ignored. Patterns that are absolute, escape the workdir, or
+// fail to parse are returned as invalid rather than matched. Matching through
+// an fs.FS keeps metacharacters in the workdir path itself inert.
 func matchEvidence(workdir string, globs []string) (files, invalid []string) {
 	files = []string{}
 	seen := map[string]struct{}{}
 	fsys := os.DirFS(workdir)
 	for _, pattern := range globs {
-		if filepath.IsAbs(pattern) || !fs.ValidPath(pattern) {
+		normalized := strings.TrimPrefix(pattern, "./")
+		if filepath.IsAbs(pattern) || !fs.ValidPath(normalized) {
 			invalid = append(invalid, pattern)
 			continue
 		}
-		matches, err := fs.Glob(fsys, pattern)
+		matches, err := doublestar.Glob(fsys, normalized)
 		if err != nil {
 			invalid = append(invalid, pattern)
 			continue

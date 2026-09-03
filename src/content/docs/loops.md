@@ -69,8 +69,12 @@ validates the item the previous lap worked on — runs its command, then
 asks the judge — marks it `done: true` itself when that passes, and
 injects the first open item into the body's prompt as a frame: the item,
 its command, the last failure, and the item's `doc` if it has one. The
-agent never marks items; the file is the only loop state, so a planner
-(or a person) can append, reorder, or hand-mark items between laps. Copy
+evidence globs support `*`, `?`, and `[...]` within a path segment and
+`**` across zero or more directories. They are relative to the workdir;
+a leading `./` is accepted, while absolute paths and `..` path segments
+are rejected. The agent never marks items; the file is the only loop
+state, so a planner (or a person) can append, reorder, or hand-mark items
+between laps. Copy
 [`checklist-loop.md`](https://github.com/tylergannon/tractor/blob/main/examples/loops/checklist-loop.md)
 beside it to start.
 
