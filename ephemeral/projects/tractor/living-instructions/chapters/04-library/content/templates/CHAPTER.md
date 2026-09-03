@@ -1,6 +1,6 @@
 # Chapter <n>: <title>
 
-Status: <active | done>
+Status: <planned | active | done>
 
 <One paragraph: what exists when this chapter is done, and which
 promises it serves.>

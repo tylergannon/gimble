@@ -68,8 +68,8 @@ not appear anywhere else in a prompt.
 
 ## Not in this sprint
 
-`show`, the render-all and orphan tests (sprint 2), new content (sprint
-3), docs (sprint 4), `models.yaml` (chapter 5).
+`show` (sprint 2), the render-all and orphan tests (sprint 3), new
+content (sprint 4), docs (sprint 5), `models.yaml` (chapter 5).
 
 ## Ask the reviewer
 

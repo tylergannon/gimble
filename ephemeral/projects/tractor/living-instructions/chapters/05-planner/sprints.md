@@ -23,14 +23,14 @@ re-entry) edits open items after every lap (decision 44).
    leaves under `research/`, `INDEX.md`, `findings.md`. Proof: nested run
    on a seed with a planted source; leaves, index entry, and one finding
    exist; the timeline shows the branches.
-4. The index quality tool node and the `halt` tool node with the loop's
+4. The `index_gate` tool node and the `halt` tool node with the loop's
    routes. Proof: the halt command under the three states of P2's
    design, and one nested run whose halt routes back once.
-5. `brief`: elicit then prune, batched question files with `Promise:`
-   lines, promise list, exclusions, open plan entries. Proof: P1.
-6. The observer and the shared proof library (`validation/observer.sh`,
+5. The observer and the shared proof library (`validation/observer.sh`,
    `validation/lib/`). Proof: a nested run answered end to end by the
    observer with its tree beside the run directory.
+6. `brief`: elicit then prune, batched question files with `Promise:`
+   lines, promise list, exclusions, open plan entries. Proof: P1.
 7. The brief/research loop end to end. Proof: P2.
 8. `decompose` for MEDIUM and LARGE with the chapter and sprint
    skeletons. Proof: `validate-plan` shape rules pass on both sizes from

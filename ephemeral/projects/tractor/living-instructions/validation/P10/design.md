@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 10; answers `review-9.md`.
+Archetype: scenario, twice. Lap 11; answers `review-10.md`.
 
 ## Story
 
@@ -58,13 +58,18 @@ that answer is byte-identical to the final package outside
 is the one permitted difference); `validate-plan` accepts the package;
 `recommendation.md` names `medium` or `large`; `check.log` shows the
 `Next:` line and the identical command executed; the execution run
-directory named by that command's `Logs:` line has a `timeline.jsonl`
-ending with `PipelineCompleted` after a `StageCompleted` with `next:
-success`; the approved package was what ran: every sprint item in A0
+directory named by that command's `Logs:` line is a different directory
+from the plan run's, its `manifest.json` carries a different run id and
+a `workflow` name of `medium` or `large` matching the handoff, its
+`timeline.jsonl` opens with `PipelineStarted` naming that workflow and
+ends with `PipelineCompleted` after a `StageCompleted` with `next:
+success` (an execution run of the execution workflow, not the plan run
+reported twice); the approved package was what ran: every sprint item in A0
 is either present in the final sprint ledger(s) with its `name`,
 `check`, `command`, and `infer` unchanged and `done: true`, with
-exactly one `LoopValidated` `passed: true` naming it and a loop stage's
-`validation.json` naming it, or was changed, renamed, or removed across
+exactly one `LoopValidated` `passed: true` naming it in the execution
+run's own timeline and a loop stage's `validation.json` in that run
+naming it, or was changed, renamed, or removed across
 a `replan` stage while still open (not `done: true` in the copy before
 that stage) with that stage's `response.md` naming it (decision 44:
 replan edits open items with a reason; an item whose fields change

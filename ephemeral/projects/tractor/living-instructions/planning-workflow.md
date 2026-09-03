@@ -70,12 +70,12 @@ nothing.
 takes a segment of the open plan entries and writes leaf files under
 `research/` with pinned revisions, licenses, integration points, and
 bounded comparisons ("like X but only Y"; never an adoption frame). The
-fan-in updates `research/INDEX.md` (the routing tree; incremental after
+fan-in updates `research/INDEX.md` (the routing index; incremental after
 the first pass) and writes `research/findings.md`: any promise the
 research thinks should change, with evidence. Research never edits the
 brief and may add a plan entry only through a finding the brief accepts. A
-tool node after the fan-in checks the index against the quality bar and
-routes to the halt check.
+tool node, `index_gate`, after the fan-in checks the index against the
+quality bar and routes to `halt`.
 
 **halt** (tool). Exits 0 when `research/findings.md` is empty and
 `research/plan.md` has no open entry; routes to `decompose`. Otherwise
@@ -161,7 +161,7 @@ summary and the seven pass outcomes. Yes routes to `success`. No routes to
 
 | Size | Path through the graph | Next |
 |---|---|---|
-| SIMPLE | intake, one research lap, brief, one validation lap, review, approve | "Execute the plan yourself." |
+| SIMPLE | the full graph; `decompose` writes a one-item sprint ledger, the validation loop runs one lap, the review loop runs the holistic pass only | "Execute the plan yourself." |
 | MEDIUM | full graph; decompose into sprints | `tractor workflow run medium --project <build>` |
 | LARGE | full graph; decompose into chapters | `tractor workflow run large --project <build>` |
 
@@ -184,7 +184,8 @@ sprint that finds the chapter wrong asks the human.
 
 **verify** (codergen, other provider than the coder, fresh context, tools):
 runs once per chapter after its sprint loop exits. Reads the validation
-design and the holdout path, operates the software itself, captures its
+design and any holdout path the design recorded (a scenario chapter has
+none), operates the software itself, captures its
 own evidence under the run directory, and routes pass to the chapters
 loop or fail to the sprint loop (or to a human question). A chapter is
 *proven* only through this leg; its item carries the required checks as
@@ -282,7 +283,7 @@ materialization. Initial table:
 | `verify` | claude, claude-fable-5-1, high | not the provider of the coder |
 | supervisors | codex, gpt-5.6-sol, high | not the provider of the node watched (all watched nodes are claude) |
 | `assemble`, `replan`, `infer` judges | claude, `sonnet` alias, medium | |
-| `halt`, the index quality gate | tool nodes; no model | |
+| `halt`, `index_gate` | tool nodes; no model | |
 | answerer | human, or the calling agent | |
 
 ## 7. Not in this version
@@ -300,9 +301,9 @@ Fan-out drafts of chapter docs. Any engine change. The web client.
    `max_visits`, on a seed whose research produces one promise-changing
    finding; the finding is asked, not applied.
 3. Every promise in `promises.md` ends `done: true` in the validation
-   ledger after a `review` turn routed pass, and at least one universal
-   promise has a holdout outside the workdir and outside the run
-   directory.
+   ledger after a `review` turn routed pass. (No holdout in this
+   project's proof; a universal promise over a set the verifier checks
+   exhaustively needs none, decision 42 as amended.)
 4. A validation design that a reviewer rejects is re-entered with the
    reviewer's notes available (read from their files under
    `validation/<promise>/`) and later passes.

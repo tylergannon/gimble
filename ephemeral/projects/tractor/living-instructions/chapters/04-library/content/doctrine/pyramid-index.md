@@ -19,4 +19,4 @@ do not repeat the body's detail in the index.
 Use it on chapter docs always, on briefs and research indexes when
 they pass a screen, and never on sprint docs, which are read whole.
 
-Source: sources/diffusioninc/.claude/skills/df-chapter-create/SKILL.md ("Pyramid Index"); research/INDEX.md (the routing tree, the same idea over a directory).
+Source: sources/diffusioninc/.claude/skills/df-chapter-create/SKILL.md ("Pyramid Index"); planning-workflow.md section 3 (the research index, the same idea over a directory).

@@ -187,8 +187,10 @@ planner node is withdrawn.
 42. **Two validation archetypes.** Universal ("for every case in a set"):
     withhold a sample as the holdout; the coder sees the rest, the verifier
     sees all. Scenario (a user story): no holdout; the proof is captures
-    judged against the story. Holdouts are always considered, never
-    universal.
+    judged against the story. A holdout is always considered and belongs
+    only to the universal archetype; a universal promise over a set the
+    verifier checks exhaustively needs none (amendment proposed in
+    interview 0014, question 4, pending Tyler's answer).
 43. **Holdout storage, simple.** Under the XDG state root in a directory
     named by a random token, written by the design lap, referenced only
     from the verifier's prompt. Not in the workdir, not under the run

@@ -23,7 +23,7 @@ items:
       go build ./... && go test ./... && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/03-execution/sprints.md)" -ge 2
     done: true
   - name: The library
-    check: Every prompt, doctrine page, and skeleton the built-in workflows use is an embedded library file with a render test, an orphan walk, and a `workflow show` command; `Build` returns what it returned before.
+    check: Every prompt, doctrine page, and skeleton the built-in workflows use is an embedded library file with a render test, an orphan walk, and a `workflow show` command; `Build` returns what it returned before the migration, and every later content edit is a reviewed change to the snapshot.
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/CHAPTER.md
     checklist: ephemeral/projects/tractor/living-instructions/chapters/04-library/sprints.md
     command: >-

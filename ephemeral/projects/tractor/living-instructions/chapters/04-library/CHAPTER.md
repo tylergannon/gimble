@@ -21,20 +21,21 @@ and `workflow`-package Go, never engine code. Promise P8.
   - Doctrine pages and artifact skeletons the current prompts can cite,
     written by Claude, wired by the coder.
   - Docs, spec, skill bundle, and `llms.txt` teach the library and `show`.
-- L2: sprints 1 to 4 in `sprints.md`; anchors in
+- L2: sprints 1 to 5 in `sprints.md`; anchors in
   `research/workflow-package-inventory/migration-inventory.md`.
 
 ## Vector
 
 Decisions 53, 54, 59. Research R1 (prior art: crush, goose, codex,
-gemini-cli) and R5 (the exact seams). Go supplies data values to
-templates and nothing else; provider names are explicit; delimiters are
+gemini-cli) and R5 (the exact seams). Go supplies data values and the
+rendering functions `quote` and `shell` to templates and nothing else; provider names are explicit; delimiters are
 non-default because doctrine contains `{{`.
 
 ## Review posture
 
-`Build`'s outputs are pinned by the existing tests; a sprint that changes
-what a prompt says has failed, not refactored. The orphan walk is written
+`Build`'s outputs are pinned by the snapshot test; in sprint 1 a change
+to what a prompt says is a failed refactor, and from sprint 4 on a
+change is a reviewed diff of the snapshot, committed with the content. The orphan walk is written
 from scratch (no surveyed tool has one) and must be proven to fail on a
 synthetic orphan.
 

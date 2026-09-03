@@ -96,22 +96,25 @@ this comes first.
    embedded, rendered with `text/template`; `Build` unchanged from the
    outside; existing tests pass. Check: no `fmt.Sprintf` prompt remains;
    `go test ./workflow/...`.
-2. `tractor workflow show <name> [--project …]`; render test that every
-   template renders and every doctrine and template file is referenced.
-   Check: `show plan` output equals a real run's `prompt.md` minus frames.
-3. Doctrine pages, distilled from `sources/` one page each with a
+2. `tractor workflow show <name> [--project …]` with `--node --raw`,
+   `--values`, and `--stage`. Check: `show` equals a program that calls
+   `Build` directly, for every node.
+3. Render test that every template renders and orphan walk that every
+   doctrine page is referenced by a rendered prompt, both proven against
+   injected defects. Check: the proof script's mutations bite.
+4. Doctrine pages, distilled from `sources/` one page each with a
    provenance pointer, and the artifact skeletons. Written by Claude, not
    the coder (see question 5). Check: the pages the four
    existing prompts can cite (the subset of `planning-workflow.md` §6a
    listed in `SPRINT-03.md`) exist; `infer` judge that each page is under
    a screen and cites its source under `sources/` or in `decisions.md`.
-4. Docs and skill. Check: the chapter 1 sprint 3 pattern.
+5. Docs and skill. Check: the chapter 1 sprint 3 pattern.
 
 ### Chapter 5: the planner
 
 Promises P1 to P5, P7. Backlog sketch: `models.yaml` and per-role model
 resolution; intake node and first research plan; research branches,
-fan-in, index, quality tool node; brief node with elicit-then-prune and
+fan-in, index, `index_gate`; brief node with elicit-then-prune and
 batched questions; the halt tool node and the loop; decompose for MEDIUM
 and LARGE; validation ledger generation and the `design` node with both
 archetypes and the holdout writer; the `review` node with its pass and
@@ -149,7 +152,7 @@ Batched, with a recommendation each (decision 39).
    subagents as reviewers and research branches, and automate portions
    as they are built.
 5. **Doctrine authorship.** Claude writes the doctrine pages and skeletons
-   as chapter 4 sprint 3, from the extractions already made; the coder
+   as chapter 4 sprint 4, from the extractions already made; the coder
    wires them. Recommend yes; the pages are the design, and writing them
    through a coder adds a lossy hop.
 6. **Verdict file.** Withdrawn. Review and verification are codergen

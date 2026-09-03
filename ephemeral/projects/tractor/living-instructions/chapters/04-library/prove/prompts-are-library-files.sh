@@ -1,7 +1,8 @@
 #!/bin/sh
 # Proves: prompts live in the library, Build is unchanged. This is the
 # sprint's tripwire; the proof that Build renders the library files is
-# show-and-orphan-walk.sh (sentinel mutation and the Build dumper).
+# show-equals-build.sh and orphan-walk-and-render.sh (the Build dumper
+# and the sentinel mutations).
 set -eu
 cd "$(git rev-parse --show-toplevel)"
 

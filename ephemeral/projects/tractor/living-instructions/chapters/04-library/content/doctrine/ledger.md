@@ -32,7 +32,7 @@ Rules you must keep:
   re-planned after every lap.
 - Paths in the file are relative to the workdir.
 
-Name a proof script for what it proves (`prove/show-and-orphan-walk.sh`),
+Name a proof script for what it proves (`prove/show-equals-build.sh`),
 never for the sprint that ran it.
 
 Source: loop-node.md section 2; decisions.md 15, 44.
