@@ -23,19 +23,19 @@ items:
       go build ./... && go test ./... && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/03-execution/sprints.md)" -ge 2
     done: true
   - name: The library
-    check: Every prompt body, doctrine page, supervisor brief, pass, and skeleton the built-in workflows use is an embedded library file rendered from data values, the two value functions `quote` and `shell`, and the two composition actions `include` and `doctrine`, every doctrine page is rendered by some agent-facing file, and `workflow show` prints every node's payload as `Build` materialized it with `--stage` diffing a real stage (P8); `Build` returns what it returned before the migration, and every later content edit is a reviewed change to the snapshot.
+    check: Every prompt body, doctrine page, supervisor brief, pass, and skeleton the built-in workflows use is an embedded library file rendered from data values, the two value functions `quote` and `shell`, and the two composition actions `include` and `doctrine`, every doctrine page is rendered by some agent-facing file, and `workflow show` prints every node's payload as `Build` materialized it with `--stage` diffing a real stage (P8, except its pass leg, proven in chapter 5, and its real-stage leg, proven in chapter 6); `Build` returns what it returned before the migration, and every later content edit is a reviewed change to the snapshot.
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/CHAPTER.md
     checklist: ephemeral/projects/tractor/living-instructions/chapters/04-library/sprints.md
     command: >-
       go build ./... && go vet ./... && golangci-lint run ./... && go test ./... && test -d workflow/library && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/04-library/sprints.md)" -ge 5 && test "$(grep -c '"type":"LoopValidated".*"node":"sprints".*"passed":true' "$TRACTOR_RUN_DIR/timeline.jsonl")" -ge 5
   - name: The planner
-    check: The `plan` workflow is the v2 graph with the brief/research loop, the validation design loop, the seven-pass review loop, and four supervisors, all as library content with `models.yaml` roles; P1 to P5 and P7 demonstrated by nested runs.
+    check: The `plan` workflow is the v2 graph with the brief/research loop, the validation design loop, the seven-pass review loop, and four supervisors, all as library content with `models.yaml` roles; P1 to P5 and P7 demonstrated by nested runs, and P8's pass leg (passes are library files).
     doc: ephemeral/projects/tractor/living-instructions/chapters/05-planner/CHAPTER.md
     checklist: ephemeral/projects/tractor/living-instructions/chapters/05-planner/sprints.md
     command: >-
       go build ./... && go vet ./... && golangci-lint run ./... && go test ./... && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/05-planner/sprints.md)" -ge 14 && test "$(grep -c '"type":"LoopValidated".*"node":"sprints".*"passed":true' "$TRACTOR_RUN_DIR/timeline.jsonl")" -ge 14
   - name: Execution and the live proof
-    check: "`medium` and `large` carry `replan`, `large` carries `verify` with the holdout handoff, two seeds run end to end through plan and execution, and the proof record is written; P6, P9, P10."
+    check: "`medium` and `large` carry `replan`, `large` carries `verify` with the holdout handoff, two seeds run end to end through plan and execution, and the proof record is written; P6, P9, P10, and P8's real-stage leg (`show --stage` against recorded stages of the seed runs)."
     doc: ephemeral/projects/tractor/living-instructions/chapters/06-execution/CHAPTER.md
     checklist: ephemeral/projects/tractor/living-instructions/chapters/06-execution/sprints.md
     command: >-

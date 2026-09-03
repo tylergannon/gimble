@@ -6,7 +6,7 @@ The `plan` workflow becomes the graph in `planning-workflow.md` §2: intake,
 the brief/research loop with its tool-node halt, decompose, the
 validation design loop, assemble, the plan review loop, approve; four
 supervisors; `models.yaml`. Every node is content in the library from
-chapter 4. Promises P1 to P5, P7, and the chapter 5 portion of P9.
+chapter 4. Promises P1 to P5, P7, P8's pass leg (passes are library files, sprint 11), and the chapter 5 portion of P9.
 
 ## Pyramid index
 

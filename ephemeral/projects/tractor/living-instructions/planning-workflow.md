@@ -182,7 +182,8 @@ built-in passes, in order:
    between criteria (research F2).
 
 **approve** (codergen, one `tractor ask`). Shows the human the package
-summary and the seven pass outcomes. Yes routes to `success`. No routes to
+summary and every outcome in `plan-review/ledger.md` (the seven
+built-in passes and any the project added). Yes routes to `success`. No routes to
 `brief` with the reason as the only open question.
 
 ## 4. Sizes
@@ -220,8 +221,8 @@ scenarios has none),
 operates the software itself, captures its
 own evidence under the run directory, and routes pass to the chapters
 loop or fail to the sprint loop (or to a human question). A chapter is
-*proven* only through this leg; its item carries the required checks as
-`command` and nothing else. Sprint items are *demonstrated* by their own
+*proven* only through this leg; its item carries the required checks and the
+engine-count guards as `command` (§3, decompose) and no `infer`. Sprint items are *demonstrated* by their own
 `command` and `infer`.
 
 ## 6. Project layout
@@ -354,7 +355,13 @@ Fan-out drafts of chapter docs. Any engine change. The web client.
    no chapters and proves nothing here).
 7. `scope_cop` delivers at least one steer during the run, recorded in the
    timeline, and the steered turn's output changes.
-8. `show --stage` reports no diff against a stage built to the engine's
-   frame shape (chapter 4) and against recorded stages of real runs
-   (chapter 6), and the orphan walk fails when a doctrine page is added
-   that no rendered agent-facing file cites.
+8. Every prompt body, doctrine page, supervisor brief, pass, and skeleton
+   is a library file and Go supplies templates only data values, `quote`,
+   `shell`, `include`, and `doctrine`; every doctrine page is cited by an
+   agent-facing library file some node renders (the orphan walk fails when
+   a page is added that none cites); `workflow show` prints every node's
+   payload as `Build` materialized it and the library file each prompt
+   came from; `show --stage` reports no diff against a stage built to the
+   engine's frame shape (chapter 4) and against recorded stages of real
+   runs (chapter 6); each leg proven by chapter 4's proof scripts against
+   injected defects with an `infer` judge over their logs.

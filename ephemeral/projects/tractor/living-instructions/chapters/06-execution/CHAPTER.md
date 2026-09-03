@@ -6,7 +6,8 @@ Status: planned
 gains `verify` at chapter exit, reading the holdout from outside the
 workdir and routing pass or fail. Two seeds go end to end through `plan`
 and then `medium` or `large`, and the proof record is written. Promises
-P6, P9, P10.
+P6, P9, P10, and P8's real-stage leg (`show --stage` against recorded
+stages of the seed runs, backlog item 4).
 
 ## Pyramid index
 
@@ -17,7 +18,8 @@ P6, P9, P10.
     items only.
   - `verify`: other provider than the coder, fresh context, tools; reads
     the validation design and, for a universal promise with a holdout,
-    the path the run's private workflow state carries; routes pass to the
+    the path `$XDG_STATE_HOME/tractor/holdouts/<build>.path` records
+    (declaration §4, decision 43); routes pass to the
     chapter loop, fail to the sprint loop or a human question.
   - Holdout handoff from the design lap to the `verify` prompt.
   - Two known seeds planned and executed end to end; proof record under

@@ -5,7 +5,11 @@ items: []
 
 # Chapter 6 sprints
 
-Empty ledger; written when the chapter is entered, re-planned each lap.
+Empty ledger; written when the chapter is entered. The run that builds
+this chapter was materialized before `replan` existed, so within it the
+plan node edits this backlog when it runs (decision 44); `replan` first
+re-plans in runs started after item 1 lands (the seed runs of items 3
+and 4 are the first).
 
 ## Backlog sketch, in order
 
