@@ -31,7 +31,7 @@ Any `plan` run the check makes itself at check time
   and each designing node's binding keys (the NUL-prefixed `none:<id>`
   for a no-thread node, else its thread id).
 
-## Validator
+## Verifier
 
 `command`: `prove/p3-independent-review.sh`: the validation loop node's
 `checklist`, as `show` prints it, is the package's

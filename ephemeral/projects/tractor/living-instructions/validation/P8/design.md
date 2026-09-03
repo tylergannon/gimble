@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 25; answers `review-24.md` and pass 4's third lap.
+Lap 26; answers `review-25.md` and pass 4's fourth lap.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -69,7 +69,7 @@ pass leg of the check below is empty until then and runs then.
   stage's `prompt.md`.
 - At chapter 6: the same run's `stages/<seq>-<node>/prompt.md`.
 
-## Validator
+## Verifier
 
 `command`: the three sprint scripts, then at chapter 5
 `prove/p8-passes-are-files.sh`, then at chapter 6
@@ -101,13 +101,17 @@ output and carries every payload, not only headers). Equality: for every node of
   `<iterate>` blocks (an outer chapters frame and an inner sprints
   frame, the shape `large` records) plus the dumper's output exits 0,
   and, after one random byte at a random offset within the prompt body
-  (past the frame the check itself wrote) is changed, exits exactly 1
-  with a diff on stdout that names the perturbed line (an exit of 2, a
-  panic, or silence is a fail; the log records the offset, the exit
+  (past the frame the check itself wrote) is changed, exits exactly 1 with a diff on stdout that names the perturbed line
+  (the perturbing byte is a printable ASCII character different from
+  the original, so the stage stays valid text; an exit of 2, a panic,
+  or silence is a fail; the log records the offset, the exit
   status, and the diff; a comparator that recognises a fixed suffix
   cannot pass; a byte in the frame is never the probe, since a correct
   `--stage` ignores the frame).
-  Content: each prompt-bearing node's header names its library file;
+  Content: each prompt-bearing node (a node whose kind, as the check's
+  dumper lists it from `Build`, is codergen, supervisor, fan-in, or
+  parallel-with-prompt; never a whitespace heuristic) has a header that
+  names its library file;
   with a distinct sentinel appended to every file under `prompts/`,
   `supervisors/`, `passes/`, and `templates/`, each node's `show --raw`
   contains the sentinel of the file its header names and contains no
@@ -124,8 +128,10 @@ output and carries every payload, not only headers). Equality: for every node of
   once per listed set; a page no listed set renders is an orphan by
   the library's own definition, whatever text names it).
   A citation counts for the orphan walk only from a file some node
-  renders (the walk's own rule, sprint 3); an unused prompt or
-  supervisor file may exist and is not a defect. Rendering is the whole of `Build`: `show --raw` for each node equals
+  renders (the walk's own rule, sprint 3), and the render test requires
+  every file under `prompts/`, `supervisors/`, and `passes/` to render
+  under some listed parameter set, so an unused agent-facing file fails
+  the render test by name. Rendering is the whole of `Build`: `show --raw` for each node equals
   the check's own standalone `workflow.Render` of the node's header
   file, so `Build` adds nothing to what the library file renders; the
   check computes the data values itself and requires `show --values`

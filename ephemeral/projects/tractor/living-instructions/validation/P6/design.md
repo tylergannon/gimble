@@ -32,7 +32,7 @@ Archetype: scenario. Lap 12; answers `review-11.md`.
   stage's `response.md`, every agent segment of the run (every
   `tool_call` with its arguments), and the interview files.
 
-## Validator
+## Verifier
 
 `command`: `prove/p6-verify-before-done.sh <package> <large run dir>`:
 `validate-plan` accepted the package and C0 has at least two items; the

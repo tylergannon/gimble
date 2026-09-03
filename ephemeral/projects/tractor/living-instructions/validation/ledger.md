@@ -50,8 +50,8 @@ carry no `command`: the pass edge is the verdict (decision 57). Reviews
 are kept as `review-N.md` beside each design; lap N+1 answers review N.
 
 Each `design.md` has: archetype; the story a verifier follows; the
-evidence captured and where; the validator (the ledger `command` and
-`infer` the promise's sprint will carry, or the proof script by name);
+evidence captured and where; the verifier (the ledger `command` and `infer` the promise's sprint
+will carry, or the proof script by name; the declaration's word);
 and what the design does not prove.
 
 ## Rules every scenario follows

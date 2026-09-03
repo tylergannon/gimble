@@ -22,7 +22,7 @@ uses, through `validation/lib/run-plan.sh`).
   for every planner node (`intake`, `brief`, `decompose`, `design`,
   `assemble`).
 
-## Validator
+## Verifier
 
 `command`: `prove/p5-seven-passes.sh`: the plan-review loop's
 `checklist` is the package's `plan-review/ledger.md`; its items include

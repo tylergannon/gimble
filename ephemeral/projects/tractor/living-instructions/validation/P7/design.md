@@ -26,7 +26,7 @@ Archetype: scenario. Lap 7; answers `review-6.md`.
   it) and every `tool_call` with its arguments and paired `tool_result`.
 - The package at the end; `answers.log` and the answer files.
 
-## Validator
+## Verifier
 
 `command`: `prove/p7-steer.sh`: a `SupervisorVerdict` with
 `supervisor: scope_cop`, `verdict: steer`, `delivered: true`, and a

@@ -47,7 +47,7 @@ seed, comparing stdout, stderr, and exit status exactly.
 - The scratch repositories at the end, and `probes.log` (each example's
   command, expected, actual).
 
-## Validator
+## Verifier
 
 `command`: `prove/p10-end-to-end.sh`: `git show
 6dec5dc8cd23e6f340e838beb9c0c2a442dffef4:ephemeral/projects/tractor/living-instructions/seeds/<name>.md`

@@ -30,6 +30,11 @@ yaml_ids() { awk '/^  - id:/{print $3}' "workflow/library/workflows/$1.yaml" | s
 # built_ids WORKFLOW: every node id Build returns, from the check's dumper.
 built_ids() {
   if [ "$1" = plan ]; then "$tmp/bin/builddump" list "$1" "$tmp/demo" "$tmp/bin/tractor" "$seed"
+  else "$tmp/bin/builddump" list "$1" "$tmp/demo" "$tmp/bin/tractor" ""; fi | awk '{print $1}' | sort
+}
+# built_kinds WORKFLOW: "id kind" per node, from Build.
+built_kinds() {
+  if [ "$1" = plan ]; then "$tmp/bin/builddump" list "$1" "$tmp/demo" "$tmp/bin/tractor" "$seed"
   else "$tmp/bin/builddump" list "$1" "$tmp/demo" "$tmp/bin/tractor" ""; fi | sort
 }
 workflows="$(ls workflow/library/workflows/*.yaml | xargs -n1 basename | sed 's/\.yaml$//')"
@@ -87,7 +92,22 @@ func main() {
 			os.Exit(2)
 		}
 		for _, n := range g.Nodes {
-			fmt.Println(n.Base().ID)
+			kind := "other"
+			switch n.(type) {
+			case *graph.CodergenNode:
+				kind = "codergen"
+			case *graph.SupervisorNode:
+				kind = "supervisor"
+			case *graph.FanInNode:
+				kind = "fanin"
+			case *graph.ParallelNode:
+				kind = "parallel"
+			case *graph.ToolNode:
+				kind = "tool"
+			case *graph.LoopNode:
+				kind = "loop"
+			}
+			fmt.Println(n.Base().ID, kind)
 		}
 		return
 	}

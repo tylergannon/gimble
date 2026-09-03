@@ -59,7 +59,8 @@ frame="$(wc -c < "$tmp/stage/frame.txt" | tr -d ' ')"
 body=$(( size - frame ))
 [ "$body" -gt 0 ] || { echo "stage probe: empty body"; exit 1; }
 pos=$(( frame + $(od -An -N2 -tu2 /dev/urandom | tr -d ' ') % body ))
-byte="$(od -An -N1 -tx1 /dev/urandom | tr -d ' \n')"
+# A printable ASCII byte (0x21..0x7e) so the stage stays valid text.
+byte="$(printf '%02x' $(( 33 + $(od -An -N1 -tu1 /dev/urandom | tr -d ' ') % 94 )))"
 printf "\\$(printf '%03o' "0x$byte")" | dd of="$tmp/stage/prompt.md" bs=1 seek="$pos" conv=notrunc 2>/dev/null
 if cmp -s "$tmp/stage/prompt.md" "$tmp/stage/prompt.md.orig"; then
   printf 'x' >> "$tmp/stage/prompt.md"; echo "stage probe: random byte equalled the original; appended instead"

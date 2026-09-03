@@ -54,7 +54,7 @@ Archetype: scenario, judged by inference. Lap 14; answers `review-13.md`.
 - The holdout root as the software renders it: `show large --node
   verify --raw` for the reader's project, produced by the check.
 
-## Validator
+## Verifier
 
 `command`: `prove/p9-docs.sh`: the reader run completed; the reader's
 own timeline has a `QuestionAsked` answered through the observer, and

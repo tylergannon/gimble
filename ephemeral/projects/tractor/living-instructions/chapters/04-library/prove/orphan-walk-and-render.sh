@@ -49,15 +49,13 @@ printf '# uncited\n\nNo prompt cites this page.\n' > "$mlib/doctrine/$orphan.md"
 closure_lib="$mlib"
 for wf in $workflows; do
   built_ids "$wf" | while read -r node; do
+    kindname="$(built_kinds "$wf" | awk -v n="$node" '$1==n{print $2}')"
     file="$(shown_file "$tmp/bin/mutated" "$wf" "$node")"
-    # A node whose payload is a prompt (Build prints one that is not a
-    # command or checklist path) must name its library file.
-    if "$tmp/bin/builddump" "$wf" "$node" "$tmp/demo" "$tmp/bin/tractor" "$([ "$wf" = plan ] && printf '%s' "$seed")" 2>/dev/null | grep -q '[[:space:]]'; then
-      case "$(yaml_nodes "$wf" | awk -v n="$node" '$1==n{print $2}')" in
-        tool|loop) ;;
-        *) test -n "$file" || { echo "content: $wf/$node header names no library file"; exit 1; } ;;
-      esac
-    fi
+    # A prompt-bearing node, by its kind as Build reports it, must name
+    # its library file.
+    case "$(built_kinds "$wf" | awk -v n="$node" '$1==n{print $2}')" in
+      codergen|supervisor|fanin|parallel) test -n "$file" || { echo "content: $wf/$node ($kindname) header names no library file"; exit 1; } ;;
+    esac
     [ -n "$file" ] || continue
     show_raw "$tmp/bin/mutated" "$wf" "$node" > "$tmp/mut.txt"
     grep -q "^$stamp FILE $file\$" "$tmp/mut.txt" || { echo "content: $wf/$node does not render $file"; exit 1; }
@@ -104,6 +102,7 @@ done
 : > "$tmp/seen-templates.txt"
 for wf in $workflows; do
   built_ids "$wf" | while read -r node; do
+    kindname="$(built_kinds "$wf" | awk -v n="$node" '$1==n{print $2}')"
     file="$(shown_file "$tmp/bin/mutated" "$wf" "$node")"
     [ -n "$file" ] || continue
     show_raw "$tmp/bin/mutated" "$wf" "$node" | grep "^$stamp FILE templates/" | sed "s/^$stamp FILE //"

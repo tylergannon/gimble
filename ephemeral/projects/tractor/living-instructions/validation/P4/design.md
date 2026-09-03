@@ -33,7 +33,7 @@ Archetype: scenario. Lap 10; answers `review-9.md`.
   after the marking stage.
 - `validation/ledger.md` after the marking stage.
 
-## Validator
+## Verifier
 
 `command`: `prove/p4-reentry.sh`: the item under test is the one bound
 to X (a ledger item serving no promise is not it) and its `doc` names

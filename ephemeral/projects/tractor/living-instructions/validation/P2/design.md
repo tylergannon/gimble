@@ -50,7 +50,7 @@ Archetype: scenario. Lap 14; answers `review-13.md`.
   citing question's answer. `answers.log` with tokens.
 - The question and answer files; the final `promises.md` and `brief.md`.
 
-## Validator
+## Verifier
 
 `command`: `prove/p2-halt.sh`: the graph is the loop decision 46
 describes: `halt` routes to `decompose` on success and to `brief` on

@@ -6,7 +6,8 @@ before the chapter's run starts, and committed under
 coder's turn copies them into `workflow/library/doctrine/` and
 `workflow/library/templates/`, adds the `doctrine` includes to the
 four migrated prompts, updates the snapshot, and runs the proof
-script. The pages are the design; the sprint is the wiring.
+script. The pages are the design; the sprint is the wiring, and the proof
+script compares every installed file byte for byte with `content/`.
 
 ## Pages
 

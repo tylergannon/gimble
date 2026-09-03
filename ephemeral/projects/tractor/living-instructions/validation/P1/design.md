@@ -39,7 +39,7 @@ Archetype: scenario. Lap 12; answers `review-11.md`.
 - `interview/NNNN.md` and `.answer.md`; the generated seed.
 - `brief.md` from the package at the end.
 
-## Validator
+## Verifier
 
 `command`: `prove/p1-elicitation.sh`: the run completed
 (`PipelineCompleted` present, last `StageCompleted` has `next: success`);
