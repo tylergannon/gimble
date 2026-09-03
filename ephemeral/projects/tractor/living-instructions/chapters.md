@@ -22,6 +22,24 @@ items:
     command: >-
       go build ./... && go test ./... && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/03-execution/sprints.md)" -ge 2
     done: true
+  - name: The library
+    check: Every prompt, doctrine page, and skeleton the built-in workflows use is an embedded library file with a render test, an orphan walk, and a `workflow show` command; `Build` returns what it returned before.
+    doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/CHAPTER.md
+    checklist: ephemeral/projects/tractor/living-instructions/chapters/04-library/sprints.md
+    command: >-
+      go build ./... && go test ./... && test -d workflow/library && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/04-library/sprints.md)" -ge 4
+  - name: The planner
+    check: The `plan` workflow is the v2 graph with the brief/research loop, the validation design loop, the seven-pass review loop, and four supervisors, all as library content with `models.yaml` roles; P1 to P5 and P7 demonstrated by nested runs.
+    doc: ephemeral/projects/tractor/living-instructions/chapters/05-planner/CHAPTER.md
+    checklist: ephemeral/projects/tractor/living-instructions/chapters/05-planner/sprints.md
+    command: >-
+      go build ./... && go test ./... && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/05-planner/sprints.md)" -ge 7
+  - name: Execution and the live proof
+    check: "`medium` and `large` carry `replan`, `large` carries `verify` with the holdout handoff, two seeds run end to end through plan and execution, and the proof record is written; P6, P9, P10."
+    doc: ephemeral/projects/tractor/living-instructions/chapters/06-execution/CHAPTER.md
+    checklist: ephemeral/projects/tractor/living-instructions/chapters/06-execution/sprints.md
+    command: >-
+      go build ./... && go test ./... && test -f ephemeral/projects/tractor/living-instructions/proof/planning-v2/README.md && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/06-execution/sprints.md)" -ge 4
 ---
 
 # Living instructions: the chapter ledger

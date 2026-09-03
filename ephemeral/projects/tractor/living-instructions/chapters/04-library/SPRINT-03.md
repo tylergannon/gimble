@@ -1,0 +1,54 @@
+# Sprint 3: doctrine pages and skeletons
+
+Written by Claude, not the coder (interview 0013 round, question 5). The
+pages are the design; the coder's part is limited to the `include`
+wiring if the func map from sprint 1 needs adjusting.
+
+## Pages
+
+Only pages the three existing prompts can cite now. Pages for nodes that
+do not exist yet (validation archetypes, reviewer independence, prior
+art, research leaf) come with their prompts in chapter 5, so the orphan
+walk stays green.
+
+| Page | Cited by | Distilled from |
+|---|---|---|
+| `doctrine/promises.md` | planner | decision 37; `sources/diffusioninc/.claude/skills/df-promise/SKILL.md` |
+| `doctrine/elicit-then-prune.md` | planner | decision 38; spec-authoring stopping rule; grilling |
+| `doctrine/question-files.md` | planner, both implement prompts | decisions 26–29, 39; `BUILD.md` |
+| `doctrine/promise-adjacent-seams.md` | planner | decision 40; nlspec methodology (Parnas test) |
+| `doctrine/proof-not-theater.md` | both implement prompts | decision 41; proof-of-work; research R2 findings |
+| `doctrine/vertical-slices.md` | planner, large plan | slice-design; wisdom.md |
+| `doctrine/chapter-doc.md` | large plan | df-chapter-create; chapters 1–4 `CHAPTER.md` |
+| `doctrine/sprint-doc.md` | large plan, planner | df-sprint-plan; chapter 1 sprint docs |
+| `doctrine/pyramid-index.md` | large plan | df-chapter-create |
+| `doctrine/ledger.md` | planner, both implement prompts | `loop-node.md` §2; decision 15, 44 |
+
+Each page: under about sixty lines, one idea, positive phrasing, a
+`Source:` line at the end pointing into `sources/` or `decisions.md`. No
+`{{` anywhere. Written in the library's voice, which is the voice of
+`BUILD.md`: tells the agent what to do and why in as few words as hold.
+
+## Skeletons
+
+`templates/brief.md`, `templates/promises.md`, `templates/recommendation.md`,
+`templates/CHAPTER.md`, `templates/SPRINT.md`, `templates/ledger.md`. Each
+is the artifact with its fixed parts filled and its variable parts as
+prose placeholders in angle brackets. The planner prompt cites the first
+three; the large plan prompt cites the rest.
+
+## Prompt edits
+
+The three migrated prompts gain `doctrine` includes where they currently
+paraphrase a page, and lose the paraphrase. This changes prompt text, so
+the sprint 1 byte-equality snapshot is updated in the same commit, with
+the diff reviewed as content: nothing an agent is told may be lost, only
+moved.
+
+## Check script
+
+`check-sprint-03.sh`: every page in the table exists; no file under
+`doctrine/` or `templates/` contains `{{`; every page ends with a
+`Source:` line; `go test -run 'TestLibraryNoOrphans|TestLibraryRendersAll'
+./workflow/...` passes. The `infer` judge on the ledger item reads the
+pages against decisions 37–59.
