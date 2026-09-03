@@ -129,7 +129,7 @@ The interview transport is deliberately small: numbered Markdown or HTML questio
 
 ## Supervision moves outside the walk
 
-Upstream's manager loop is a handler that executes a child graph repeatedly and uses an LLM to decide whether to stop. Tractor instead adds `supervisor` nodes that never participate in traversal. Its `loop` node is the nearer relative of the manager loop, and it stops mechanically: it iterates a checklist file and marks an item done only after the item's command exits 0 and its judge passes.
+Upstream's manager loop is a handler that executes a child graph repeatedly and uses an LLM to decide whether to stop. Tractor instead adds `supervisor` nodes that never participate in traversal. Its `loop` node is the nearer relative of the manager loop: it validates checklist items mechanically, then asks an evaluator after each passing lap whether the checklist body's definition of done is satisfied or the ledger should supply another item.
 
 A supervisor declares which nodes it watches. While any are active, the engine periodically builds a digest from their events and asks the supervisor for one of two verdicts: `ok`, or `steer` with a target and message. This makes supervision longitudinal and advisory; it can correct live work without becoming another success gate.
 

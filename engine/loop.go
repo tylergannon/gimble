@@ -22,9 +22,9 @@ const (
 )
 
 // loopHandler iterates a checklist file: after every lap it validates the
-// framed item and every done item, reconciles done in both directions, selects
-// the first open item as the next lap's frame, and dispatches the body. With no
-// open item left it routes to on_done.
+// framed item and every done item, reconciles done in both directions, and
+// asks an evaluator whether the checklist body's definition of done is met.
+// A not-done verdict re-reads the ledger and dispatches its first open item.
 type loopHandler struct {
 	runner *Runner
 	state  *engineState
@@ -82,6 +82,8 @@ func (h *loopHandler) Execute(node graph.Node, offered []graph.Edge, scope Execu
 	}
 
 	notes := ""
+	var evaluationRecords []validationRecord
+	evaluateAfterPass := false
 	if hasFrame {
 		item, _, found := list.Find(frame.item)
 		switch {
@@ -132,6 +134,8 @@ func (h *loopHandler) Execute(node graph.Node, offered []graph.Edge, scope Execu
 					return harness.Outcome{}, terminalError(err.Error())
 				}
 				h.runner.popFrame(loop.ID)
+				evaluationRecords = records
+				evaluateAfterPass = true
 			} else {
 				// A hand-marked framed item is only trusted for this lap. Keep it
 				// open unless the whole validation set passed.
@@ -147,19 +151,60 @@ func (h *loopHandler) Execute(node graph.Node, offered []graph.Edge, scope Execu
 		}
 	}
 
+	_, _, open := list.Open()
+	if evaluateAfterPass || !open {
+		if err := h.runner.writeFrames(); err != nil {
+			return harness.Outcome{}, terminalError(fmt.Sprintf("write frames: %v", err))
+		}
+		verdict, evaluateErr := h.evaluate(loop, listPath, list, evaluationRecords, scope, pipeline)
+		if evaluateErr != nil {
+			return harness.Outcome{}, evaluateErr
+		}
+		if err := h.store.appendTimeline(timelineEvent{
+			"type": "LoopEvaluated", "node": loop.ID, "verdict": verdict.Next, "notes": verdict.Notes,
+		}); err != nil {
+			return harness.Outcome{}, terminalError(err.Error())
+		}
+
+		// The evaluator is allowed to edit the checklist, so no decision uses
+		// the copy loaded before its turn.
+		list, err = checklist.Load(absolutePath)
+		if err != nil {
+			return harness.Outcome{}, terminalError(err.Error())
+		}
+		switch verdict.Next {
+		case "done":
+			h.runner.popFrame(loop.ID)
+			if err := h.runner.writeFrames(); err != nil {
+				return harness.Outcome{}, terminalError(fmt.Sprintf("write frames: %v", err))
+			}
+			if !offeredTarget(offered, loop.OnDone) {
+				return harness.Outcome{}, terminalError(fmt.Sprintf("loop on_done %q has exhausted its visit budget", loop.OnDone))
+			}
+			if err := h.store.appendTimeline(timelineEvent{"type": "LoopCompleted", "node": loop.ID, "count": len(list.Items)}); err != nil {
+				return harness.Outcome{}, terminalError(err.Error())
+			}
+			return harness.Outcome{Next: loop.OnDone, Notes: fmt.Sprintf("%sevaluator decided done: %s", notes, verdict.Notes)}, nil
+		case "not_done":
+			if _, _, open = list.Open(); !open {
+				return harness.Outcome{}, terminalError(fmt.Sprintf("loop evaluator returned not_done but checklist %q has no open item", listPath))
+			}
+		case "":
+			return harness.Outcome{}, terminalError("loop evaluator returned no verdict")
+		default:
+			return harness.Outcome{}, terminalError(fmt.Sprintf("loop evaluator returned invalid verdict %q", verdict.Next))
+		}
+	}
+
 	next, index, open := list.Open()
 	if !open {
+		// Defensive invariant: either this arrival already had an open item or a
+		// not-done evaluator verdict was checked above.
 		h.runner.popFrame(loop.ID)
 		if err := h.runner.writeFrames(); err != nil {
 			return harness.Outcome{}, terminalError(fmt.Sprintf("write frames: %v", err))
 		}
-		if !offeredTarget(offered, loop.OnDone) {
-			return harness.Outcome{}, terminalError(fmt.Sprintf("loop on_done %q has exhausted its visit budget", loop.OnDone))
-		}
-		if err := h.store.appendTimeline(timelineEvent{"type": "LoopCompleted", "node": loop.ID, "count": len(list.Items)}); err != nil {
-			return harness.Outcome{}, terminalError(err.Error())
-		}
-		return harness.Outcome{Next: loop.OnDone, Notes: fmt.Sprintf("%schecklist complete: %d items done", notes, len(list.Items))}, nil
+		return harness.Outcome{}, terminalError(fmt.Sprintf("loop evaluator returned not_done but checklist %q has no open item", listPath))
 	}
 
 	current, stillFramed := h.runner.frameFor(loop.ID)
@@ -274,7 +319,7 @@ func (h *loopHandler) validate(loop *graph.LoopNode, item checklist.Item, logPat
 			record.Summary = "no evidence files matched " + strings.Join(item.Infer.Files, ", ")
 			return record, nil
 		}
-		outcome, runErr := h.judge(loop, item, files, scope, pipeline)
+		outcome, runErr := h.judge(loop, item, files, strings.TrimSuffix(logPath, ".log"), scope, pipeline)
 		if runErr != nil {
 			return record, runErr
 		}
@@ -296,7 +341,7 @@ func (h *loopHandler) validate(loop *graph.LoopNode, item checklist.Item, logPat
 
 // judge runs one codergen turn that decides whether the evidence files
 // demonstrate the item's check.
-func (h *loopHandler) judge(loop *graph.LoopNode, item checklist.Item, files []string, scope ExecutionScope, pipeline *graph.Graph) (harness.Outcome, *harness.Error) {
+func (h *loopHandler) judge(loop *graph.LoopNode, item checklist.Item, files []string, artifactPrefix string, scope ExecutionScope, pipeline *graph.Graph) (harness.Outcome, *harness.Error) {
 	config := h.runner.config
 	handler := NewCodergenHandler(CodergenConfig{
 		Backend:                config.Backend,
@@ -327,7 +372,8 @@ func (h *loopHandler) judge(loop *graph.LoopNode, item checklist.Item, files []s
 		}
 		turnScope.RunLog = segment.Path
 	}
-	return handler.executeTurn(loop, fields, offered, turnScope, &judgePipeline, judgePrompt(item, files))
+	return handler.executeTurnAt(loop, fields, offered, turnScope, &judgePipeline, judgePrompt(item, files),
+		artifactPrefix+"-prompt.md", artifactPrefix+"-response.md")
 }
 
 func judgePrompt(item checklist.Item, files []string) string {
@@ -338,6 +384,87 @@ func judgePrompt(item checklist.Item, files []string) string {
 	for _, file := range files {
 		prompt.WriteString("\n- ")
 		prompt.WriteString(file)
+	}
+	return prompt.String()
+}
+
+// evaluate runs one coding-harness turn that compares the checklist body's
+// definition of done with the workspace. Unlike the infer judge, its model
+// selection follows the pipeline defaults unless the evaluator-specific loop
+// fields override them.
+func (h *loopHandler) evaluate(loop *graph.LoopNode, listPath string, list *checklist.Checklist, records []validationRecord, scope ExecutionScope, pipeline *graph.Graph) (harness.Outcome, *harness.Error) {
+	config := h.runner.config
+	handler := NewCodergenHandler(CodergenConfig{
+		Backend:                config.Backend,
+		DefaultModel:           config.DefaultModel,
+		DefaultProvider:        config.DefaultProvider,
+		DefaultReasoningEffort: config.DefaultReasoningEffort,
+	})
+	fields := &graph.LLMNodeFields{
+		Fidelity:        jsonschema.Optional[string]{Present: true, Value: string(harness.FidelityNone)},
+		Timeout:         loop.Timeout,
+		LLMModel:        loop.EvaluatorLLMModel,
+		LLMProvider:     loop.EvaluatorLLMProvider,
+		ReasoningEffort: loop.EvaluatorReasoningEffort,
+	}
+	offered := []graph.Edge{
+		{To: "done", Condition: "The checklist definition of done is satisfied in the workspace."},
+		{To: "not_done", Condition: "The definition of done is not yet satisfied; continue with the first open checklist item."},
+	}
+	if config.Backend == nil {
+		// Simulation preserves the old useful traversal behavior while still
+		// exercising the real two-target choice schema and artifact writes.
+		if _, _, open := list.Open(); open {
+			offered[0], offered[1] = offered[1], offered[0]
+		}
+	}
+	turnScope := scope
+	turnScope.RunLog = ""
+	if config.Backend != nil {
+		segment, err := h.runner.runLogs.Allocate(loop.ID)
+		if err != nil {
+			return harness.Outcome{}, terminalError(fmt.Sprintf("allocate run log: %v", err))
+		}
+		turnScope.RunLog = segment.Path
+	}
+	return handler.executeTurnAt(loop, fields, offered, turnScope, pipeline,
+		evaluatorPrompt(listPath, list, records),
+		filepath.Join(scope.StageDir, "evaluator-prompt.md"),
+		filepath.Join(scope.StageDir, "evaluator-response.md"))
+}
+
+func evaluatorPrompt(listPath string, list *checklist.Checklist, records []validationRecord) string {
+	byItem := make(map[string]validationRecord, len(records))
+	for _, record := range records {
+		byItem[record.Item] = record
+	}
+
+	var prompt strings.Builder
+	prompt.WriteString("You are evaluating a checklist loop. Decide from the workspace and the checklist's prose definition of done whether the loop is done.\n")
+	fmt.Fprintf(&prompt, "You may inspect the workspace and edit %s as ordinary work. If the definition is not met, leave at least one open item in the file by appending, reordering, or rewriting open items. Never rewrite a done item. If the existing first open item is already the right next step, leave the checklist unchanged.\n\n", listPath)
+	prompt.WriteString("Checklist body (the definition of done):\n<definition-of-done>")
+	prompt.WriteString(list.Body)
+	if !strings.HasSuffix(list.Body, "\n") {
+		prompt.WriteByte('\n')
+	}
+	prompt.WriteString("</definition-of-done>\n\nItems and their last validation results:\n")
+	if len(list.Items) == 0 {
+		prompt.WriteString("(no items)\n")
+	}
+	for index, item := range list.Items {
+		status := "open"
+		if item.Done {
+			status = "done"
+		}
+		fmt.Fprintf(&prompt, "\nItem %d (%s):\n%s\n", index+1, status, item.Render())
+		if record, ok := byItem[item.Name]; ok {
+			fmt.Fprintf(&prompt, "last validation: passed=%t; summary=%s; log=%s\n", record.Passed, record.Summary, record.LogPath)
+			if record.Infer != nil {
+				fmt.Fprintf(&prompt, "infer verdict: %s; notes=%s; files=%s\n", record.Infer.Verdict, record.Infer.Notes, strings.Join(record.Infer.Files, ", "))
+			}
+		} else {
+			prompt.WriteString("last validation: not run on this arrival\n")
+		}
 	}
 	return prompt.String()
 }

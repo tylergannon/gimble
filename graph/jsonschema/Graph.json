@@ -495,7 +495,7 @@
           },
           {
             "additionalProperties": false,
-            "description": "LoopNode iterates a checklist file: on every arrival it validates the previous lap's item, marks it done when the validation passes, injects the first open item as the lap's frame, and dispatches the body. With no open item left it routes to on_done.",
+            "description": "LoopNode iterates a checklist file: on every arrival it validates the previous lap's item, then an evaluator decides whether the definition of done is met or another open item should be dispatched.",
             "properties": {
               "body": {
                 "description": "Body is the entry node of one lap.",
@@ -503,6 +503,23 @@
               },
               "checklist": {
                 "description": "Checklist is the checklist path, relative to the workdir. Optional only when this loop node lies inside another loop's body, in which case it iterates the enclosing item's checklist field.",
+                "type": "string"
+              },
+              "evaluator_llm_model": {
+                "description": "EvaluatorLLMModel selects the model used by the loop evaluator.",
+                "type": "string"
+              },
+              "evaluator_llm_provider": {
+                "description": "EvaluatorLLMProvider selects the provider used by the loop evaluator.",
+                "type": "string"
+              },
+              "evaluator_reasoning_effort": {
+                "description": "EvaluatorReasoningEffort sets the loop evaluator's reasoning effort.",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
                 "type": "string"
               },
               "id": {
@@ -531,7 +548,7 @@
                 "type": "integer"
               },
               "on_done": {
-                "description": "OnDone is the target when no open item remains: a node ID or success/failure.",
+                "description": "OnDone is the target when the evaluator decides the loop is done: a node ID or success/failure.",
                 "type": "string"
               },
               "reasoning_effort": {
@@ -544,7 +561,7 @@
                 "type": "string"
               },
               "timeout": {
-                "description": "Timeout bounds one item's validation command and the infer judge turn.",
+                "description": "Timeout bounds one item's validation command, the infer judge turn, and the evaluator turn.",
                 "pattern": "^[0-9]+(ms|s|m|h|d)$",
                 "type": "string"
               },

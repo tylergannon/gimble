@@ -53,17 +53,18 @@ items:
       files: NOTES.md
       prompt: Judge whether a newcomer could run both scripts from these notes alone
 ---
-Prose below the frontmatter is for agents and people; the engine never reads it.
+Prose below the frontmatter is the definition of done the evaluator reads.
 ```
 
-On every arrival the loop re-reads the file, validates the previous lap's
-item (its command, then its `infer` judge), writes `done: true` on it, and
-injects the first open item into the body's prompt as a frame: name,
-check, command, the last failure, and the item's `doc` if it has one.
-Agents never mark items; a hand-edited `done: true` is honored as the
-human override. Paths are relative to the workdir. `max_visits` on the
-loop node is the budget, and `validation.log` in the loop node's stage
-directory says why an item stayed open.
+On every lap return the loop re-reads the file and validates the framed item
+plus every done item (command, then `infer` judge). After a passing set, an
+evaluator reads the definition of done and either exits or re-reads the ledger
+and injects its first open item into the body's prompt as a frame: name, check,
+command, the last failure, and the item's `doc` if it has one. The evaluator
+may append, reorder, or rewrite open items. Agents never mark items; a
+hand-edited `done: true` requests validation rather than bypassing it. Paths
+are relative to the workdir. `max_visits` on the loop node is the budget, and
+`validation.json` plus its per-item log paths say why an item stayed open.
 
 ## When a loop misbehaves
 

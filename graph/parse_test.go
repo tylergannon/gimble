@@ -71,7 +71,7 @@ func TestParseAcceptsEveryNodeShape(t *testing.T) {
 		`{"id":"f","type":"parallel.fan_in","prompt":"p","edges":[{"to":"success"}]}`,
 		`{"id":"t","type":"tool","tool_command":"true","on_success":"success","on_error":"failure","timeout":"2h"}`,
 		`{"id":"s","type":"supervisor","prompt":"watch","supervises":["c"]}`,
-		`{"id":"l","type":"loop","checklist":"list.md","body":"c","on_done":"success","max_visits":3,"timeout":"1m","llm_model":"m","llm_provider":"p","reasoning_effort":"low"}`,
+		`{"id":"l","type":"loop","checklist":"list.md","body":"c","on_done":"success","max_visits":3,"timeout":"1m","llm_model":"m","llm_provider":"p","reasoning_effort":"low","evaluator_llm_model":"em","evaluator_llm_provider":"ep","evaluator_reasoning_effort":"high"}`,
 	}
 	for _, node := range tests {
 		document := `{"start":"c","nodes":[` + node + `]}`
@@ -171,6 +171,7 @@ func TestParseRejectsStructuralViolations(t *testing.T) {
 		"missing loop body":         `{"start":"x","nodes":[{"id":"x","type":"loop","on_done":"success"}]}`,
 		"missing loop on_done":      `{"start":"x","nodes":[{"id":"x","type":"loop","body":"x"}]}`,
 		"loop unknown field":        `{"start":"x","nodes":[{"id":"x","type":"loop","body":"x","on_done":"success","prompt":"no"}]}`,
+		"loop evaluator effort":     `{"start":"x","nodes":[{"id":"x","type":"loop","body":"x","on_done":"success","evaluator_reasoning_effort":"extreme"}]}`,
 		"unknown top field":         `{"start":"x","nodes":[],"extra":1}`,
 		"unknown defaults":          `{"start":"x","defaults":{"max_visits":1},"nodes":[]}`,
 		"null":                      `{"start":"x","name":null,"nodes":[]}`,
@@ -282,6 +283,9 @@ nodes:
     llm_model: cheap
     llm_provider: anthropic
     reasoning_effort: high
+    evaluator_llm_model: evaluator-model
+    evaluator_llm_provider: gemini
+    evaluator_reasoning_effort: medium
   - id: implement
     type: codergen
     prompt: Implement the current item.
@@ -296,11 +300,11 @@ nodes:
 	if items.NodeType() != "loop" || items.Checklist.Value != "ephemeral/checklist.md" || items.Body != "implement" || items.OnDone != Success || items.MaxVisits.Value != 40 {
 		t.Fatalf("loop = %#v", items)
 	}
-	if items.Timeout.Value != "15m" || items.LLMModel.Present || items.LLMProvider.Present || items.ReasoningEffort.Present {
+	if items.Timeout.Value != "15m" || items.LLMModel.Present || items.LLMProvider.Present || items.ReasoningEffort.Present || items.EvaluatorLLMModel.Value != "default-model" || items.EvaluatorLLMProvider.Value != "openai" || items.EvaluatorReasoningEffort.Value != "low" {
 		t.Fatalf("loop defaults = %#v", items)
 	}
 	bare := mustNode[*LoopNode](t, pipeline, "bare")
-	if bare.Checklist.Present || bare.MaxVisits.Present || bare.Timeout.Value != "1m" || bare.LLMModel.Value != "cheap" || bare.LLMProvider.Value != "anthropic" || bare.ReasoningEffort.Value != "high" {
+	if bare.Checklist.Present || bare.MaxVisits.Present || bare.Timeout.Value != "1m" || bare.LLMModel.Value != "cheap" || bare.LLMProvider.Value != "anthropic" || bare.ReasoningEffort.Value != "high" || bare.EvaluatorLLMModel.Value != "evaluator-model" || bare.EvaluatorLLMProvider.Value != "gemini" || bare.EvaluatorReasoningEffort.Value != "medium" {
 		t.Fatalf("explicit loop fields = %#v", bare)
 	}
 	if !reflect.DeepEqual(RoutingTargets(items), []string{"implement", Success}) || !reflect.DeepEqual(RoutingTargets(bare), []string{"implement", "items"}) {

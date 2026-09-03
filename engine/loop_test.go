@@ -83,7 +83,7 @@ func TestLoopCompletesThreeItemChecklistInThreeLaps(t *testing.T) {
 	}
 	assertTextFile(t, filepath.Join(root, "frames.json"), "[]\n")
 	events := mustTimeline(t, root)
-	validated, completed := 0, 0
+	validated, evaluated, completed := 0, 0, 0
 	for _, event := range events {
 		switch event["type"] {
 		case "LoopValidated":
@@ -91,12 +91,14 @@ func TestLoopCompletesThreeItemChecklistInThreeLaps(t *testing.T) {
 				t.Fatalf("validation did not pass: %v", event)
 			}
 			validated++
+		case "LoopEvaluated":
+			evaluated++
 		case "LoopCompleted":
 			completed++
 		}
 	}
-	if validated != 3 || completed != 1 {
-		t.Fatalf("timeline has %d LoopValidated and %d LoopCompleted", validated, completed)
+	if validated != 3 || evaluated != 3 || completed != 1 {
+		t.Fatalf("timeline has %d LoopValidated, %d LoopEvaluated, and %d LoopCompleted", validated, evaluated, completed)
 	}
 }
 
@@ -264,6 +266,7 @@ items:
 	backend := &scriptedBackend{outcomes: []harness.Outcome{
 		{Next: "fail", Notes: "the button is missing"},
 		{Next: "pass", Notes: "all screens usable"},
+		{Next: "done", Notes: "the definition is met"},
 	}}
 	laps := 0
 	registry := NewRegistry()
@@ -277,8 +280,8 @@ items:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != RunCompleted || laps != 2 || len(backend.turns) != 2 {
-		t.Fatalf("result = %#v after %d laps and %d judge turns", result, laps, len(backend.turns))
+	if result.Status != RunCompleted || laps != 2 || len(backend.turns) != 3 {
+		t.Fatalf("result = %#v after %d laps and %d internal turns", result, laps, len(backend.turns))
 	}
 	first := readValidationRecords(t, filepath.Join(root, "stages", "000003-items", "validation.json"))[0]
 	if first.Passed || first.Infer == nil || first.Infer.Verdict != "fail" || first.Summary != "judge: the button is missing" {
@@ -291,7 +294,7 @@ items:
 	if !second.Passed || second.Infer == nil || second.Infer.Verdict != "pass" || second.Infer.Notes != "all screens usable" {
 		t.Fatalf("second validation = %#v infer=%#v", second, second.Infer)
 	}
-	judgePrompt := readFile(t, filepath.Join(root, "stages", "000003-items", "prompt.md"))
+	judgePrompt := readFile(t, filepath.Join(root, "stages", "000003-items", "validation-001-prompt.md"))
 	for _, want := range []string{"item: Screens", "check: Every screen looks usable", "Judge whether the screens look usable", "\n- captures/shot.png"} {
 		if !strings.Contains(judgePrompt, want) {
 			t.Fatalf("judge prompt %q lacks %q", judgePrompt, want)
@@ -306,6 +309,11 @@ items:
 	}
 	if item, _, _ := mustChecklist(t, filepath.Join(workdir, "sprint.md")).Find("Screens"); !item.Done {
 		t.Fatal("item was not marked done")
+	}
+	for _, name := range []string{"validation-001-prompt.md", "validation-001-response.md", "evaluator-prompt.md", "evaluator-response.md"} {
+		if _, err := os.Stat(filepath.Join(root, "stages", "000005-items", name)); err != nil {
+			t.Fatalf("distinct judge/evaluator artifact %s: %v", name, err)
+		}
 	}
 }
 
@@ -359,7 +367,10 @@ items:
 			pipeline.Defaults.LLMModel = optional("pipeline-model")
 			pipeline.Defaults.LLMProvider = optional("openai")
 			pipeline.Defaults.ReasoningEffort = optional("high")
-			backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "pass", Notes: "acceptable"}}}
+			backend := &scriptedBackend{outcomes: []harness.Outcome{
+				{Next: "pass", Notes: "acceptable"},
+				{Next: "done", Notes: "the definition is met"},
+			}}
 			registry := NewRegistry()
 			registry.Register("codergen", HandlerFunc(func(_ graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 				return harness.Outcome{Notes: "worked"}, nil
@@ -369,15 +380,393 @@ items:
 			if err != nil {
 				t.Fatal(err)
 			}
-			if result.Status != RunCompleted || len(backend.turns) != 1 {
-				t.Fatalf("result = %#v after %d judge turns", result, len(backend.turns))
+			if result.Status != RunCompleted || len(backend.turns) != 2 {
+				t.Fatalf("result = %#v after %d internal turns", result, len(backend.turns))
 			}
 			turn := backend.turns[0]
 			if turn.Model != test.wantModel || turn.Provider != test.wantProvider || turn.ReasoningEffort != test.wantEffort {
 				t.Fatalf("judge selection = model %q provider %q effort %q; want %q, %q, %q", turn.Model, turn.Provider, turn.ReasoningEffort, test.wantModel, test.wantProvider, test.wantEffort)
 			}
+			evaluator := backend.turns[1]
+			if evaluator.Model != "pipeline-model" || evaluator.Provider != "openai" || evaluator.ReasoningEffort != "high" {
+				t.Fatalf("evaluator selection = model %q provider %q effort %q; want pipeline defaults", evaluator.Model, evaluator.Provider, evaluator.ReasoningEffort)
+			}
 			t.Logf("judge selection: model=%s provider=%s reasoning_effort=%s", turn.Model, turn.Provider, turn.ReasoningEffort)
 		})
+	}
+}
+
+func TestLoopEvaluatorPopulatesEmptyLedgerAndContinues(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	path := filepath.Join(workdir, "sprint.md")
+	writeFile(t, path, `---
+items: []
+---
+
+# Definition of done
+
+The generated proof exists.
+`)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	backend := &scriptedBackend{
+		outcomes: []harness.Outcome{
+			{Next: "not_done", Notes: "added the missing work"},
+			{Next: "done", Notes: "the proof now exists"},
+		},
+		before: func(index int, _ harness.CodergenTurn) {
+			if index == 0 {
+				writeFile(t, path, `---
+items:
+  - name: Generate proof
+    check: The generated proof exists
+    command: "true"
+---
+
+# Definition of done
+
+The generated proof exists.
+`)
+			}
+		},
+	}
+	dispatches := 0
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) { dispatches++ }))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || dispatches != 1 || len(backend.turns) != 2 {
+		t.Fatalf("result = %#v after %d body dispatches and %d evaluator turns", result, dispatches, len(backend.turns))
+	}
+	if item, _, ok := mustChecklist(t, path).Find("Generate proof"); !ok || !item.Done {
+		t.Fatalf("generated item was not completed: %#v", mustChecklist(t, path).Items)
+	}
+	firstPrompt := readFile(t, filepath.Join(root, "stages", "000001-items", "evaluator-prompt.md"))
+	for _, want := range []string{"The generated proof exists.", "(no items)", "edit sprint.md"} {
+		if !strings.Contains(firstPrompt, want) {
+			t.Fatalf("evaluator prompt %q lacks %q", firstPrompt, want)
+		}
+	}
+	if !strings.Contains(string(backend.turns[0].OutputSchema), `"enum":["done","not_done"]`) {
+		t.Fatalf("evaluator schema = %s", backend.turns[0].OutputSchema)
+	}
+}
+
+func TestLoopPassingLapEvaluatorAgreesAndAdvancesUnchanged(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	path := filepath.Join(workdir, "sprint.md")
+	writeFile(t, path, `---
+items:
+  - name: First
+    check: First works
+    command: "true"
+  - name: Second
+    check: Second works
+    command: "true"
+---
+
+Both claims hold.
+`)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	backend := &scriptedBackend{outcomes: []harness.Outcome{
+		{Next: "not_done", Notes: "Second is still open"},
+		{Next: "done", Notes: "both claims hold"},
+	}}
+	var selected []string
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+		for _, name := range []string{"First", "Second"} {
+			if strings.Contains(scope.Frame, "name: "+name+"\n") {
+				selected = append(selected, name)
+			}
+		}
+	}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || !reflect.DeepEqual(selected, []string{"First", "Second"}) {
+		t.Fatalf("result = %#v, selected = %v", result, selected)
+	}
+	list := mustChecklist(t, path)
+	if got := []string{list.Items[0].Name, list.Items[1].Name}; !reflect.DeepEqual(got, []string{"First", "Second"}) {
+		t.Fatalf("evaluator changed item order: %v", got)
+	}
+	prompt := readFile(t, filepath.Join(root, "stages", "000003-items", "evaluator-prompt.md"))
+	for _, want := range []string{"Both claims hold.", "Item 1 (done):", "last validation: passed=true", "Item 2 (open):"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("evaluator prompt %q lacks %q", prompt, want)
+		}
+	}
+}
+
+func TestLoopEvaluatorReordersOpenItemsForNextLap(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	path := filepath.Join(workdir, "sprint.md")
+	writeFile(t, path, threeItemChecklist)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	backend := &scriptedBackend{
+		outcomes: []harness.Outcome{
+			{Next: "not_done", Notes: "Third should run before Second"},
+			{Next: "not_done", Notes: "Second remains"},
+			{Next: "done", Notes: "all claims hold"},
+		},
+		before: func(index int, _ harness.CodergenTurn) {
+			if index == 0 {
+				writeFile(t, path, `---
+items:
+  - name: First
+    check: The first thing works
+    command: "true"
+    done: true
+  - name: Third
+    check: The third thing works
+    command: "true"
+  - name: Second
+    check: The second thing works
+    command: "true"
+---
+
+# Sprint
+
+Definition of done, in prose the evaluator reads.
+`)
+			}
+		},
+	}
+	var selected []string
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+		for _, name := range []string{"First", "Second", "Third"} {
+			if strings.Contains(scope.Frame, "name: "+name+"\n") {
+				selected = append(selected, name)
+			}
+		}
+	}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || !reflect.DeepEqual(selected, []string{"First", "Third", "Second"}) {
+		t.Fatalf("result = %#v, selected = %v", result, selected)
+	}
+}
+
+func TestLoopAllItemsDoneEvaluatorAddsItemAndContinues(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	path := filepath.Join(workdir, "sprint.md")
+	writeFile(t, path, `---
+items:
+  - name: Initial
+    check: Initial claim
+    command: "true"
+---
+
+Initial and follow-up claims hold.
+`)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	backend := &scriptedBackend{
+		outcomes: []harness.Outcome{
+			{Next: "not_done", Notes: "added a follow-up"},
+			{Next: "done", Notes: "both claims hold"},
+		},
+		before: func(index int, _ harness.CodergenTurn) {
+			if index == 0 {
+				writeFile(t, path, `---
+items:
+  - name: Initial
+    check: Initial claim
+    command: "true"
+    done: true
+  - name: Follow-up
+    check: Follow-up claim
+    command: "true"
+---
+
+Initial and follow-up claims hold.
+`)
+			}
+		},
+	}
+	dispatches := 0
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) { dispatches++ }))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || dispatches != 2 {
+		t.Fatalf("result = %#v after %d dispatches", result, dispatches)
+	}
+	if item, _, ok := mustChecklist(t, path).Find("Follow-up"); !ok || !item.Done {
+		t.Fatalf("follow-up item was not completed: %#v", mustChecklist(t, path).Items)
+	}
+}
+
+func TestLoopEvaluatorNotDoneWithoutOpenItemIsTerminal(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "sprint.md"), "---\nitems: []\n---\n\nNothing is done.\n")
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "not_done", Notes: "work remains"}}}
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) { t.Fatal("body dispatched") }))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunFailed || result.FailureReason != `loop evaluator returned not_done but checklist "sprint.md" has no open item` {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestLoopEvaluatorDoneRoutesToOnDone(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "sprint.md"), "---\nitems: []\n---\n\nThe empty goal is satisfied.\n")
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", "finish", 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+		customNode("finish", "task", []graph.Edge{{To: graph.Success}}, 0),
+	)
+	backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "done", Notes: "goal met"}}}
+	var dispatched []string
+	registry := NewRegistry()
+	registry.Register("codergen", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+		dispatched = append(dispatched, node.Base().ID)
+		return harness.Outcome{Notes: "finished"}, nil
+	}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || !reflect.DeepEqual(dispatched, []string{"finish"}) {
+		t.Fatalf("result = %#v, dispatched = %v", result, dispatched)
+	}
+	found := false
+	for _, event := range mustTimeline(t, root) {
+		if event["type"] == "LoopEvaluated" && event["verdict"] == "done" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("timeline has no done LoopEvaluated verdict")
+	}
+}
+
+func TestLoopEvaluatorUsesPipelineDefaultModelNotInferJudgeDefault(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "sprint.md"), "---\nitems: []\n---\n\nDone.\n")
+	loop := loopNode("items", "sprint.md", "implement", graph.Success, 0)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loop,
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	pipeline.Defaults.LLMModel = optional("pipeline-model")
+	pipeline.Defaults.LLMProvider = optional("openai")
+	pipeline.Defaults.ReasoningEffort = optional("low")
+	backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "done", Notes: "done"}}}
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || len(backend.turns) != 1 {
+		t.Fatalf("result = %#v after %d evaluator turns", result, len(backend.turns))
+	}
+	turn := backend.turns[0]
+	if turn.Model != "pipeline-model" || turn.Provider != "openai" || turn.ReasoningEffort != "low" || turn.Model == "gemini-3.8-flash-medium" {
+		t.Fatalf("evaluator selection = model %q provider %q effort %q", turn.Model, turn.Provider, turn.ReasoningEffort)
+	}
+}
+
+func TestLoopEvaluatorExplicitModelSelectionWins(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "sprint.md"), "---\nitems: []\n---\n\nDone.\n")
+	loop := loopNode("items", "sprint.md", "implement", graph.Success, 0)
+	loop.EvaluatorLLMModel = optional("claude-haiku-4-5")
+	loop.EvaluatorLLMProvider = optional("anthropic")
+	loop.EvaluatorReasoningEffort = optional("medium")
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loop,
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	pipeline.Defaults.LLMModel = optional("pipeline-model")
+	pipeline.Defaults.LLMProvider = optional("openai")
+	pipeline.Defaults.ReasoningEffort = optional("low")
+	backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "done", Notes: "done"}}}
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || len(backend.turns) != 1 {
+		t.Fatalf("result = %#v after %d evaluator turns", result, len(backend.turns))
+	}
+	turn := backend.turns[0]
+	if turn.Model != "claude-haiku-4-5" || turn.Provider != "anthropic" || turn.ReasoningEffort != "medium" {
+		t.Fatalf("evaluator selection = model %q provider %q effort %q", turn.Model, turn.Provider, turn.ReasoningEffort)
+	}
+}
+
+func TestLoopEvaluatorDoesNotRunAfterFailedValidation(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "sprint.md"), `---
+items:
+  - name: Failing
+    check: The check passes
+    command: "false"
+---
+
+The check passes.
+`)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 1),
+	)
+	backend := &scriptedBackend{}
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunFailed || len(backend.turns) != 0 {
+		t.Fatalf("result = %#v after %d evaluator turns", result, len(backend.turns))
 	}
 }
 
@@ -1084,10 +1473,15 @@ type scriptedBackend struct {
 	fakeBackend
 	outcomes []harness.Outcome
 	turns    []harness.CodergenTurn
+	before   func(index int, turn harness.CodergenTurn)
 }
 
 func (b *scriptedBackend) Run(turn harness.CodergenTurn) (harness.Outcome, *harness.Error) {
+	index := len(b.turns)
 	b.turns = append(b.turns, turn)
+	if b.before != nil {
+		b.before(index, turn)
+	}
 	if len(b.outcomes) == 0 {
 		return harness.Outcome{}, terminalError("scripted backend has no outcome left")
 	}

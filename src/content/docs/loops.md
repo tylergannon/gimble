@@ -64,14 +64,27 @@ by exactly one node.
 **Checklist loop** is for work that is already a list of claims. A `loop`
 node iterates a markdown file whose YAML frontmatter lists items, each
 with a `check`, optionally a `command`, and optionally an `infer` judge
-over evidence files. On every lap return the engine re-reads the file and
-validates the framed item plus every item already marked done, in file
-order — command, then judge, for each. The framed item becomes `done: true`
-only when the whole set passes; any failed item becomes `done: false` and
-is eligible for selection again. Each result and its distinct command-log
-path are recorded in `validation.json`, and the next frame lists every
-failure. The first open item is injected into the body's prompt with its
-command, the last failures, and its `doc` if it has one. The
+over evidence files. The markdown body is the prose definition of done.
+On every lap return the engine re-reads the file and validates the framed
+item plus every item already marked done, in file order — command, then
+judge, for each. The framed item becomes `done: true` only when the whole
+set passes; any failed item becomes `done: false` and is eligible for
+selection again. Failed validation immediately re-enters through the ledger.
+
+After every passing validation set, a separate evaluator reads the definition
+of done, the items and their results, and the workspace. It also runs when an
+arrival has no open item, including an empty ledger's first arrival. `done`
+routes to `on_done`; `not_done` re-reads the checklist and dispatches its first
+open item. The evaluator can append, reorder, or rewrite open items before that
+selection. Returning `not_done` without leaving an open item is a terminal
+error.
+
+Each validation result and its distinct command-log path are recorded in
+`validation.json`, and the next frame lists every failure. Infer turns write
+per-item prompt and response files; the evaluator writes its own prompt and
+response files, so turns in one loop stage do not overwrite each other. The
+first open item is injected into the body's prompt with its command, the last
+failures, and its `doc` if it has one. The
 evidence globs support `*`, `?`, and `[...]` within a path segment and
 `**` across zero or more directories. They are relative to the workdir;
 a leading `./` is accepted, while absolute paths and `..` path segments
@@ -86,8 +99,12 @@ The infer judge selects its model independently of pipeline `defaults`.
 By default it uses `flash` (`gemini-3.8-flash-medium`) on the `gemini`
 provider at medium effort. Set `llm_model`, `llm_provider`, and
 `reasoning_effort` independently on the loop node when a different judge
-is warranted. The loop's `timeout` still inherits from pipeline
-`defaults`.
+is warranted. The evaluator has a separate `evaluator_llm_model`,
+`evaluator_llm_provider`, and `evaluator_reasoning_effort` selection. Those
+fields default to the pipeline defaults, so the evaluator normally uses the
+same model as the working agent, never the judge's Flash default. The loop's
+`timeout` still inherits from pipeline `defaults` and bounds both internal
+turns.
 
 ## Writing node prompts
 
@@ -123,6 +140,7 @@ you.
 | Builds everything, nothing runs until the end       | Steer the chooser to vertical slices: "the step is done when you can run something that proves it." Stack-order plans (schema → services → API → UI) are the model's default tic; say no to them in the prompt. |
 | A long run starts believing its own stale plans     | Per-lap plans are working notes, not authority; they live with the run, the code is the record. Don't commit them.                                                                                              |
 | Item never gets marked                              | The engine marks the framed item only when it and every previously done item pass; read `validation.json` and the per-item log paths it names in the loop node's stage directory.                              |
+| Evaluator says not done but the run fails           | A `not_done` verdict must leave at least one open checklist item. Read `evaluator-response.md`; add or reopen a legitimate item rather than returning an empty plan.                                               |
 
 Every run leaves its evidence — prompts, responses, routing decisions,
 collected artifacts — in a browsable run directory, so when a loop

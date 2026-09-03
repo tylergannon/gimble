@@ -10,9 +10,11 @@ is built to. Expect it to be reworked after Tyler reviews the result.
 A `loop` node iterates a checklist file. On every lap return it re-reads the
 file and validates the framed item plus every item already marked done, in
 file order. It marks the framed item done only when the whole set passes and
-unmarks every failed item. It then selects the first item not yet done,
-injects it as the frame for the lap, and dispatches the body. When no item is
-left it routes to `on_done`.
+unmarks every failed item. After every passing set, an evaluator reads the
+checklist's prose definition of done and the workspace. `done` routes to
+`on_done`; `not_done` re-reads the checklist, selects its first open item,
+injects it as the frame for the lap, and dispatches the body. The evaluator
+also runs on an arrival with no open item, including an empty first arrival.
 
 The engine owns selection, validation, marking, and injection. It never
 stores loop state anywhere durable: the checklist file is the truth, and the
@@ -22,7 +24,7 @@ engine caches, injects, and forgets (memo §9a.3). Agents never write the
 ## 2. The checklist file
 
 Markdown with YAML frontmatter. The frontmatter is the ledger; the body is
-prose the engine never reads (definition of done, context, notes).
+the prose definition of done read by the evaluator (plus any context or notes).
 
 ```markdown
 ---
@@ -74,9 +76,9 @@ Rules:
   unmarks it and makes it eligible for selection again.
 - Items are selected in file order: the first item whose `done` is not
   `true`. A failed item stays open and is therefore re-selected on the next
-  arrival unless a planner inserted something before it. Planners may
-  append, insert, reorder, or rewrite open items at any time; the loop
-  re-reads on every arrival.
+  arrival without an evaluator turn unless a planner inserted something before
+  it. Planners and the evaluator may append, insert, reorder, or rewrite open
+  items; the loop re-reads after evaluation and on every arrival.
 - Paths in the file (`command` cwd, `infer.files`, `doc`, `checklist`) are
   relative to the run workdir, which inside a parallel branch is the
   branch's worktree.
@@ -102,19 +104,20 @@ before replacing the file.
 |---|---|---|---|
 | `checklist` | string | unset | Checklist path, relative to the workdir. Optional only when this loop node lies inside another loop's body, in which case it iterates the enclosing item's `checklist` field. |
 | `body` | string | required | Entry node of the lap. |
-| `on_done` | string | required | Target when no open item remains: a node ID or `success`/`failure`. |
+| `on_done` | string | required | Target when the evaluator returns `done`: a node ID or `success`/`failure`. |
 | `max_visits` | integer | unset | Arrivals at the loop node, laps plus one. The only loop ceiling. |
-| `timeout` | duration | inherited | Ceiling on one item's `command`. Also the infer turn's timeout. |
+| `timeout` | duration | inherited | Ceiling on one item's `command`, an infer turn, or an evaluator turn. |
 | `llm_model`, `llm_provider`, `reasoning_effort` | string | `flash` / `gemini` / `medium` | The infer judge, selected independently of pipeline `defaults` (issue #37). `flash` resolves to `gemini-3.8-flash-medium`. |
+| `evaluator_llm_model`, `evaluator_llm_provider`, `evaluator_reasoning_effort` | string | pipeline defaults | The evaluator's independent selection. It normally uses the same model as the working agent, never the infer judge's Flash default. |
 
 Routing targets of a loop node are `body` and `on_done`, so the existing
 `edge_target_exists` and `dead_end` rules cover them and the offered-set
-mechanism applies: if `body` has exhausted its own `max_visits` while items
-remain, the arrival fails the run with a terminal error, the same way an
-exhausted successor fails any node today.
+mechanism applies: if `body` has exhausted its own `max_visits` while the
+evaluator says work remains, the arrival fails the run with a terminal error,
+the same way an exhausted successor fails any node today.
 
-The chooser table (spec §3.3) gains a row: `loop` | the checklist | an open
-item remains → `body`; none → `on_done`. No prose is interpreted.
+The chooser table (spec §3.3) gains a row: `loop` | its evaluator | `done` →
+`on_done`; `not_done` → the first open item and `body`.
 
 The body's last node routes back to the loop node with an ordinary edge.
 That edge is the lap's "I think this item is implemented" claim, and the
@@ -126,6 +129,8 @@ engine tests the claim before believing it.
 FUNCTION loop.execute(node, offered, scope):
     list = checklist.Load(resolve_checklist_path(node))
     frame = frames.top_for(node)              -- in-memory, may be absent
+    evaluate = false
+    results = []
 
     IF frame is present:                      -- a lap just returned
         item = list.find(frame.item)
@@ -145,18 +150,28 @@ FUNCTION loop.execute(node, offered, scope):
             IF every result passed:
                 checklist.MarkDone(path, item.name)
                 frames.pop(node)
+                evaluate = true
             ELSE:
                 checklist.UnmarkDone(path, item.name)
                 frame.last_failures = every failed result's item, summary,
                     and log path
         list = checklist.Load(path)           -- re-read after marking
 
-    next = list.Open()
-    IF next is absent:
-        frames.pop(node)                      -- if still present
-        write frames.json
-        RETURN Outcome{next: node.on_done, notes: "checklist complete"}
+    IF evaluate OR list.Open() is absent:
+        verdict = evaluator(node, path, list, results, scope)
+            -- one coding-harness call; may edit open checklist items
+        append LoopEvaluated with verdict and notes
+        list = checklist.Load(path)           -- re-read evaluator edits
+        IF verdict is done:
+            frames.pop(node)
+            write frames.json
+            RETURN Outcome{next: node.on_done,
+                notes: "evaluator decided done"}
+        IF list.Open() is absent:
+            RETURN terminal Error(
+                "evaluator returned not_done but checklist has no open item")
 
+    next = list.Open()
     IF frame is absent OR frame.item != next.name:
         frames.push_or_replace(node, {item: next.name, index, count, lap: 1,
             last_failures: frame.last_failures})
@@ -165,6 +180,15 @@ FUNCTION loop.execute(node, offered, scope):
     write frames.json
     RETURN Outcome{next: node.body, notes: "item i/n: name (lap k)"}
 ```
+
+The evaluator runs after each passing validation set, before either the next
+item or `on_done` is chosen. It also runs whenever an arrival has no open item.
+It does not run after a failed set: the failed ledger item is re-entered
+directly. Its prompt contains the checklist body, all items and their last
+validation results, and the checklist path; the coding harness supplies the
+workspace and editing tools. The choice schema has exactly two targets,
+`done` and `not_done`. A `not_done` evaluator may append, reorder, or rewrite
+open items, and must leave at least one open item.
 
 The frame stack is a field on the `Runner`, guarded by a mutex. Arriving at
 a loop node whose frame is not on top of the stack pops everything above
@@ -306,13 +330,17 @@ and `reachability` apply to loop nodes through `RoutingTargets` and
 frames.json                       -- current frame stack, observer cache (§6)
 stages/{seq}-{loop_id}/
     validation-{item_position}.log -- one command log per validated item
+    validation-{item_position}-prompt.md -- that item's infer prompt, when used
+    validation-{item_position}-response.md -- that item's infer response
     validation.json               -- the ordered validation list (§5)
+    evaluator-prompt.md            -- definition-of-done evaluator prompt
+    evaluator-response.md          -- evaluator verdict and notes
     outcome.json                  -- as for every node
 ```
 
-The infer judge's turn writes its own `prompt.md` and `response.md` into
-the same stage directory and allocates a run-log segment like a codergen
-node.
+The evaluator and every infer judge allocate separate run-log segments. Their
+distinct artifact names ensure that turns in one loop stage do not overwrite
+one another.
 
 ## 9. Example
 
@@ -378,10 +406,10 @@ left open, as implemented:
 - `max_visits: N` on the loop node allows N−1 laps; the failure surfaces as
   the body's "every successor has exhausted its visit budget" before the
   body would run again.
-- The judge's `prompt.md` and `response.md` land in the loop node's stage
-  directory, beside `validation.json`.
+- Infer judges and the evaluator use the distinct stage artifact names in §8.
 - Timeline events: `LoopItemSelected {node,item,index,count,lap}`,
-  `LoopValidated {node,passed,validations}`, `LoopCompleted {node,count}`.
+  `LoopValidated {node,passed,validations}`,
+  `LoopEvaluated {node,verdict,notes}`, `LoopCompleted {node,count}`.
 
 Proof: unit tests for §11 claims 1–6 in the respective packages; the live
 run for claim 7 is recorded in `proof/loop-node-live/`.

@@ -191,7 +191,7 @@ table in Section 2.5 is the complete list of what it admits.
 | `parallel`        | Parallel fan-out. Executes multiple branches concurrently (Section 4.6). |
 | `parallel.fan_in` | Parallel fan-in. Consolidates branch results and chooses what follows (Section 4.7). |
 | `tool`            | External tool execution (shell command). Routes on exit code (Section 4.5). |
-| `loop`            | Checklist iteration. Re-reads a checklist file on every arrival, validates the previous lap's framed item plus every done item, and dispatches the body with the first open item as the lap's frame; routes to `on_done` when no open item remains (Section 4.8). |
+| `loop`            | Checklist iteration. Re-reads a checklist file on every arrival, validates the previous lap's framed item plus every done item, and after every passing lap asks an evaluator whether the prose definition of done is met or another open item should be dispatched (Section 4.8). |
 | `supervisor`      | In-graph supervision. Outside the walk: observes a set of nodes through engine-fed digests and coaches them through targeted steering (Section 3.10). |
 
 **`codergen` and `parallel.fan_in` fields** (both run LLM turns; the
@@ -234,18 +234,23 @@ fan-in's turn evaluates branch evidence):
 |--------------------|----------|---------------|-------------|
 | `checklist`        | String   | unset         | Path of the checklist file, relative to the execution's workdir (Section 4.8). May be omitted only when this node lies inside another loop node's body; it then iterates the `checklist` field of the item the enclosing loop's frame names (lint `loop_checklist_required`, Section 7.2). |
 | `body`             | String   | required      | Entry node of one lap: a node ID. Section 4.8 defines the body node-set it roots. |
-| `on_done`          | String   | required      | Target followed when no open item remains: a node ID or a terminal pseudo-target. |
+| `on_done`          | String   | required      | Target followed when the evaluator returns `done`: a node ID or a terminal pseudo-target. |
 | `max_visits`       | Integer  | unset         | Visit budget (Section 3.4): arrivals at the loop node, laps plus one. The only loop ceiling. Unset means unlimited. |
-| `timeout`          | Duration | inherited     | Maximum duration of one item's validation command; also the infer judge turn's timeout (Section 4.8). |
+| `timeout`          | Duration | inherited     | Maximum duration of one item's validation command; also the infer judge and loop evaluator turns' timeout (Section 4.8). |
 | `llm_model`        | String   | `flash`       | LLM model identifier for the infer judge (Section 8). The alias resolves to `gemini-3.8-flash-medium`. |
 | `llm_provider`     | String   | `gemini`      | LLM provider key for the infer judge. Auto-detected from an explicit model when omitted. |
 | `reasoning_effort` | String   | `medium`      | LLM reasoning effort of the infer judge: `low`, `medium`, `high` (Section 8). |
+| `evaluator_llm_model` | String | inherited   | Model for the loop evaluator. Defaults to the pipeline's normal model, independently of the infer judge. |
+| `evaluator_llm_provider` | String | inherited | Provider for the loop evaluator. |
+| `evaluator_reasoning_effort` | String | inherited | Reasoning effort for the loop evaluator: `low`, `medium`, `high`. |
 
-Only `timeout` resolves through `defaults` (Section 2.7). The infer
-judge's model, provider, and reasoning effort resolve from the loop node
-or the judge defaults above, independently of pipeline `defaults`. A loop node has no `prompt`,
-`fidelity`, or `thread_id`: the judge turn's prompt is engine-built,
-and it runs with fidelity `none` on no thread (Section 4.8).
+`timeout` and the evaluator fields resolve through `defaults` (Section 2.7).
+The infer judge's model, provider, and reasoning effort resolve from the
+loop node or the judge defaults above, independently of pipeline `defaults`.
+The evaluator fields are a separate slot: when omitted, they use the same
+pipeline or system defaults as a working codergen node. A loop node has no
+configurable `prompt`, `fidelity`, or `thread_id`: both internal prompts are
+engine-built, and both turns run with fidelity `none` on no thread (Section 4.8).
 
 **`supervisor` fields** (Section 3.10):
 
@@ -309,7 +314,7 @@ the first value found:
 
 The loop infer judge is the exception for model selection: its
 `llm_model`, `llm_provider`, and `reasoning_effort` do not inherit from
-this object (Section 2.5).
+this object. The loop evaluator's separately named fields do (Section 2.5).
 
 `defaults` admits exactly six fields -- the ones whose node tables say
 "inherited" plus the two global execution knobs:
@@ -711,10 +716,12 @@ FUNCTION offered_successors(node, graph, node_visits) -> List<Target>:
 | `codergen`         | the agent      | `next` in the choice schema, a string enum of offered target IDs whose property description maps each ID to its route meaning (Section 4.3) |
 | `tool`             | the exit code  | zero follows `on_success`, nonzero follows `on_error` (Section 4.5) |
 | `parallel`         | nobody         | all offered branches execute; `next` names the fan-in (Section 4.6) |
-| `loop`             | the checklist  | an open item remains -> `body`; none -> `on_done` (Section 4.8) |
+| `loop`             | its evaluator  | `done` -> `on_done`; `not_done` -> first open checklist item and `body` (Section 4.8) |
 
-The loop node is the second mechanical chooser (after `tool`): the
-engine reads the checklist's item order and `done` flags, never prose.
+The loop's route is chosen by an internal evaluator turn after every passing
+lap and whenever an arrival has no open item. A `not_done` verdict still uses
+the ledger mechanically to select the first open item; a `done` verdict routes
+to `on_done` even if the ledger still has open items.
 
 - **Validation.** The engine verifies `next` names an allowed successor --
   an offered target, or the designated fan-in when the node is a parallel
@@ -1481,10 +1488,9 @@ summarizes the pattern.
 
 ### 4.5 Tool Handler
 
-Executes an external shell command and routes on its exit code. This is the
-first mechanical chooser (the loop node, Section 4.8, is the second): the only
-branching signal a command produces is its
-exit status, so that is the only branching the tool node offers.
+Executes an external shell command and routes on its exit code. This is a
+mechanical chooser: the only branching signal a command produces is its exit
+status, so that is the only branching the tool node offers.
 
 ```
 ToolHandler:
@@ -1676,17 +1682,23 @@ Iterates a checklist file. On every arrival the handler re-reads the
 file. After a lap returns, it validates every item already marked done
 plus the framed item, in file order. Only when the whole set passes does
 it mark the framed item done. Any failed item is set back to `done: false`.
-It then selects the first item not yet done, injects it as the lap's frame,
-and dispatches `body`. When no open item remains it routes to `on_done`.
-The engine owns selection, validation, marking, and injection; agents may
-edit the file, but an edited `done` value never bypasses validation. The
-checklist file is the only durable loop state: the engine caches,
-injects, and forgets. Nothing about the loop is checkpointed
-(Section 5.3).
+After every passing validation set, an evaluator turn reads the checklist
+body, the items and their validation results, and the workspace. The same
+turn runs on any arrival with no open item, including an empty ledger's first
+arrival. Its `done` verdict routes to `on_done`; its `not_done` verdict makes
+the handler re-read the file and dispatch the first open item. A `not_done`
+verdict that leaves no open item is a terminal Error. Failed validation never
+runs the evaluator and re-enters through the ledger as before.
+
+The engine owns validation, marking, selection, and injection. The evaluator
+may append, reorder, or rewrite open items as ordinary workspace edits, but an
+edited `done` value never bypasses validation. The checklist file is the only
+durable loop state: the engine caches, injects, and forgets. Nothing about the
+loop is checkpointed (Section 5.3).
 
 **The checklist file.** Markdown with YAML frontmatter. The frontmatter
-is the ledger the engine reads; the body is prose the engine never
-reads (definition of done, context, notes).
+is the ledger the engine reads mechanically; the body is the prose definition
+of done read by the evaluator (and may also carry context and notes).
 
 ```markdown
 ---
@@ -1722,11 +1734,11 @@ Definition of done in open prose. Anything here is for agents and people.
 
 Rules:
 
-- Items are selected in file order: the first item whose `done` is not
-  `true`. A failed item stays open and is therefore re-selected on the
-  next arrival unless something was inserted before it. Planners may
-  append, insert, reorder, or rewrite open items at any time; the loop
-  re-reads on every arrival.
+- After a `not_done` verdict, items are selected in file order: the first item
+  whose `done` is not `true`. A failed item stays open and is therefore
+  re-selected without an evaluator turn unless something was inserted before
+  it. Planners and the evaluator may append, insert, reorder, or rewrite open
+  items; the loop re-reads after the evaluator and on every arrival.
 - An item with neither `command` nor `infer` passes when its lap
   returns. This is what a chapter item looks like: its validation is
   the sub-checklist its lap iterated.
@@ -1763,6 +1775,9 @@ LoopHandler:
         frame = frames.top_for(node)         -- in-memory (below); absent
                                              -- on the first arrival and
                                              -- after a resume
+        evaluate = false
+        results = []
+        route = unset
 
         IF frame is present:                 -- a lap just returned
             item = list.find(frame.item)
@@ -1784,32 +1799,41 @@ LoopHandler:
                 IF all_passed(results):
                     checklist.mark_done(path, item.name)
                     frames.pop(node)
+                    evaluate = true
                 ELSE:
                     checklist.unmark_done(path, item.name)
                     frame.last_failures = every failed result, including
                         its item, summary, and validation log path
             list = checklist.load(path)      -- re-read after marking
 
-        next, index = list.open()            -- first item not done
-        IF next is absent:
-            frames.pop(node)                 -- if still present
-            write frames.json
-            route = node.on_done
-            notes = "checklist complete"
-        ELSE:
+        IF evaluate OR list.open() is absent:
+            verdict = evaluate(node, path, list, results, scope)
+                -- one coding-harness turn; may edit the checklist
+            append LoopEvaluated(node, verdict, verdict.notes)
+            list = checklist.load(path)      -- re-read after evaluator edits
+            IF verdict is done:
+                frames.pop(node)
+                write frames.json
+                route = node.on_done
+                notes = "evaluator decided done"
+            IF verdict is not_done AND list.open() is absent:
+                RETURN Error("terminal",
+                    "evaluator returned not_done but checklist has no open item")
+
+        IF route is unset:
+            next, index = list.open()         -- first item not done
             IF frame is absent OR frame.item != next.name:
                 frames.push_or_replace(node, Frame{item: next.name,
                     index, count: size(list.items), lap: 1,
                     last_failures: frame.last_failures})
             ELSE:
-                frame.lap += 1               -- same item, another lap
+                frame.lap += 1                -- same failed item, another lap
             write frames.json
             route = node.body
             notes = "item " + index + "/" + count + ": " + next.name +
                     " (lap " + frame.lap + ")"
 
         IF route NOT IN offered:
-            -- mechanical chooser: no alternative exists (Section 4.5)
             RETURN Error("terminal",
                          route + " has exhausted its visit budget")
         RETURN Outcome(next=route, notes=notes)
@@ -1820,8 +1844,9 @@ edge. That edge is the lap's "this item is implemented" claim, and the
 engine tests the claim before believing it. `body` and `on_done` are
 the node's routing targets (Section 3.3), so the offered-set mechanism
 applies unchanged: a `body` that has exhausted its own `max_visits`
-while items remain fails the run, as an exhausted successor fails any
-node.
+while the evaluator says work remains fails the run, as an exhausted
+successor fails any node. An exhausted `on_done` target also fails after a
+`done` verdict.
 
 **Validation.** Runs in the loop node's own stage directory,
 `stages/{seq}-{loop_id}/` (Section 5.6). Each item gets a distinct
@@ -1885,10 +1910,12 @@ Evidence, open and inspect every file:
 
 The judge runs in a coding harness with tools, so it opens images and
 other binary evidence itself; the content-part contract's text-only
-parts (Section 3.9) are no limitation here. The turn writes its own
-`prompt.md` and `response.md` into the loop node's stage directory and
-appends to a run-log segment allocated for it (Section 12.4). In
-simulation mode (no backend) the verdict is `pass`.
+parts (Section 3.9) are no limitation here. A judge for checklist position
+`NNN` writes `validation-NNN-prompt.md` and
+`validation-NNN-response.md` into the loop node's stage directory, so several
+infer items in one validation set cannot overwrite one another. It appends to
+a run-log segment allocated for the turn (Section 12.4). In simulation mode
+(no backend) the verdict is `pass`.
 
 `validation.json` records the whole set in file order. Each entry's
 `command`, `exit_code`, `log_path`, and `log_tail` are always present --
@@ -1913,6 +1940,29 @@ the judge did not run:
     ]
 }
 ```
+
+**Evaluation.** One coding-harness turn runs after every passing validation
+set and on an arrival with no open item. It does not run after a failed set.
+The prompt contains the checklist path and body, every item and its done/open
+state, and each result from the arrival's validation set; the evaluator also
+receives the workspace and may inspect it with tools. It may leave the ledger
+unchanged or append, reorder, and rewrite open items. When it returns
+`not_done`, it must leave an open item for the engine to select.
+
+The evaluator uses the standard choice schema with two targets: `done` when
+the prose definition is satisfied in the workspace, and `not_done` when work
+remains. `done` routes to `on_done`. `not_done` reloads the checklist and
+dispatches the first open item; if none exists, the handler returns a terminal
+Error. A `LoopEvaluated` timeline event records the verdict and notes.
+
+The evaluator's `evaluator_llm_model`, `evaluator_llm_provider`, and
+`evaluator_reasoning_effort` are independent of the infer judge fields. They
+fall back to the pipeline and system defaults, so the evaluator normally runs
+on the same model as the working agent. Like the judge, it uses fidelity
+`none`, no thread, and the loop `timeout`. Its artifacts are
+`evaluator-prompt.md` and `evaluator-response.md`, distinct from every infer
+judge artifact, and it allocates its own run-log segment. In simulation mode,
+it returns `not_done` while an item is open and `done` when none is open.
 
 **The frame.** For every codergen and fan-in turn executed while at
 least one loop frame is active, the engine renders one block per
@@ -1984,7 +2034,7 @@ every node reachable from `body` without passing through the loop
 node. It may contain further loop nodes, parallel nodes, and edges to
 `failure` (an escape hatch). Body nodes may not route to `success`:
 the only way out of a loop body to `success` is the loop's own
-`on_done`, so an agent can never end the run with items open. It is
+evaluator-controlled `on_done`, so a body agent cannot bypass the evaluator. It is
 delimited the way a parallel branch is (Section 4.6), and five rules
 keep it honest (Section 7.2): `loop_body_entry` (a body node is
 entered only from another body node, or, for the body root, from its
@@ -2234,7 +2284,11 @@ Each pipeline execution produces a directory tree for logging, checkpoints, and 
             tool.log             -- Tool nodes: captured stdout/stderr (Section 4.5)
             branches.json        -- Parallel nodes: BranchResult evidence for the fan-in (Section 4.6)
             validation-{item_position}.log -- Loop nodes: one command log per validated item (Section 4.8)
+            validation-{item_position}-prompt.md   -- Loop nodes: one infer-judge prompt per validated item
+            validation-{item_position}-response.md -- Loop nodes: its infer-judge response
             validation.json      -- Loop nodes: ordered validation list -- item, log path, result, judge verdict, summary (Section 4.8)
+            evaluator-prompt.md  -- Loop nodes: definition-of-done evaluator prompt
+            evaluator-response.md -- Loop nodes: evaluator verdict and notes
         latest/
             {node_id}            -- Symlink to the node's most recent {seq}-{node_id}/, repointed by the engine after each successful execution (Section 3.5)
     supervisors/
@@ -2307,7 +2361,7 @@ Severity:
 | `thread_harness_consistent`| ERROR  | Nodes sharing a resolved thread key under session-reusing fidelity modes (`full`, `compacted`) must resolve to models that route to the same harness (Section 12.1). Thread keys resolve statically (Section 5.4), so this check is fully static. |
 | `loop_body_entry`        | ERROR    | Every incoming route of a loop body node must originate inside the same loop's body node-set; the body root additionally accepts its loop node's `body`. `on_done` may not name a body node -- leaving the loop must leave the body -- and the graph's `start` may not name one either (a nested loop node included): a body entered from outside runs without a frame (Section 4.8 defines the body node-set). |
 | `loop_body_returns`      | ERROR    | `body` must name a node, not `success` or `failure`, and the loop node must be reachable from that node within the body node-set: a body that never routes back means no lap could ever be validated (Section 4.8). |
-| `loop_body_exit`         | ERROR    | No routing target of a loop body node may be `success`: the only way out of a loop body to `success` is the loop's own `on_done`, which fires only when no item is open. Edges to `failure` from body nodes stay legal (Section 4.8). |
+| `loop_body_exit`         | ERROR    | No routing target of a loop body node may be `success`: the only way out of a loop body to `success` is the loop's own evaluator-controlled `on_done`. Edges to `failure` from body nodes stay legal (Section 4.8). |
 | `loop_checklist_required`| ERROR    | A loop node without a `checklist` must lie inside another loop node's body, where it iterates the enclosing item's `checklist` field; anywhere else it has nothing to iterate (Section 4.8). |
 | `loop_in_parallel`       | ERROR    | A loop node may not lie inside a parallel node's branch node-set: the frame stack is run-wide and branches run concurrently (Sections 4.6, 4.8). |
 | `fan_in_max_visits`      | WARNING  | `max_visits` on a `parallel.fan_in` node does not bound the loop at the parallel node (the fan-in is reached via the parallel's `next`, not an offered set); it takes effect only inside branch walks, where an exhausted fan-in starves the branches' final offered sets and fails the run (Sections 3.2-3.4). Bound the loop at the parallel node or a downstream node. |
@@ -2423,7 +2477,8 @@ The engine emits typed events during execution for UI, logging, and metrics inte
 **Loop events (Section 4.8):**
 - `LoopItemSelected(node, item, index, count, lap)` -- a loop node selected an open item and dispatched its body; `index` is the item's 1-based position among `count` items, `lap` how many times this item has been dispatched since it was selected
 - `LoopValidated(node, passed, validations)` -- a returned lap's full validation set ran in file order; `passed` is true only when every entry passed
-- `LoopCompleted(node, count)` -- no open item remained and the loop routed to `on_done`
+- `LoopEvaluated(node, verdict, notes)` -- the evaluator returned `done` or `not_done` after a passing lap or an arrival with no open item
+- `LoopCompleted(node, count)` -- the evaluator returned `done` and the loop routed to `on_done`
 
 **Interview events (Section 3.1.1):**
 - `QuestionAsked(question)` -- an agent moved a new numbered question into its interview directory and is waiting; `question` is the path the caller opens and passes to `tractor answer`
