@@ -25,7 +25,7 @@ those.
 1. **`done: true` on the framed item skips validation.** `engine/loop.go`
    Execute: `case item.Done: popFrame`. Prompt-only guard against the body
    agent flipping the flag. Test `TestLoopHonorsHandMarkedItemWithoutValidating`
-   locks it in. Tyler: "This is fucking insane." See ruling below.
+   locks it in. Tyler rejected this outright. See ruling below.
 2. **Empty checklist validates as complete.** No open item → on_done. Nested:
    a chapter item with no command passes when its inner loop finds zero
    sprints. The "baby bear" reviewer (decision 14) was never built.
