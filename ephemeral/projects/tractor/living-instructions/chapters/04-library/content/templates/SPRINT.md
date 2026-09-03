@@ -1,5 +1,7 @@
 # Sprint <n>: <title>
 
+Promises: <ids from promises.md this sprint demonstrates, or the leg of one>
+
 <One paragraph: the slice, and what is exercisable at its end.>
 
 ## Read first

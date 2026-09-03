@@ -20,7 +20,8 @@ stages of the seed runs, backlog item 4).
     the validation design and, for a universal promise with a holdout,
     the path `$XDG_STATE_HOME/tractor/holdouts/<build>.path` records
     (declaration §4, decision 43); routes pass to the
-    chapter loop, fail to the sprint loop or a human question.
+    chapter loop, fail to `replan`, which appends a repair sprint or asks
+    the human.
   - Holdout handoff from the design lap to the `verify` prompt.
   - Two known seeds planned and executed end to end; proof record under
     `proof/planning-v2/`; docs and skill; closeout.

@@ -2,13 +2,6 @@
 
 Size: <SIMPLE | MEDIUM | LARGE>
 
-Why: <one or two sentences: number of promises, number of slices,
-whether the slices group into chapters>.
-
-Package: `ephemeral/projects/<build>/` with `brief.md`, `promises.md`,
-`checklist.md` (<sprint ledger | chapter ledger>), `validation/`,
-`plan-review/`, `research/`.
-
-Review: <seven passes, all marked | list any project-added pass>.
+Rationale: <one line: number of promises, number of slices, whether they group into chapters, and the review outcome (seven passes marked, plus any project-added pass)>
 
 Next: <one of: Execute the plan yourself. | tractor workflow run medium --project BUILD | tractor workflow run large --project BUILD, with BUILD filled in>

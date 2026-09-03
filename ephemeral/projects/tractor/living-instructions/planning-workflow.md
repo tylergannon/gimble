@@ -108,7 +108,12 @@ open entries to `research/plan.md`. A lap that asks nothing and plans
 nothing is the terminal one.
 
 **decompose** (codergen). Vertical slices only; every promise is routed to
-a slice and every slice serves a promise. MEDIUM writes `checklist.md` as
+a slice and every slice serves a promise, and the routing is written
+down: the promise table's Item column names the sprint ledger item (and
+chapter, for LARGE) that demonstrates each promise, and the sprint doc's
+`Promises:` line names them back. `verify` selects its designs by the
+Chapter column; a sprint item's `check` is the promise, or the leg the
+Item column assigns (decision 37). MEDIUM writes `checklist.md` as
 a flat sprint ledger with an upfront backlog and one sprint doc per item.
 LARGE writes `checklist.md` as the chapter ledger (decision 35) with a
 chapter doc (pyramid index, vector, review posture, non-goals; design
@@ -131,8 +136,10 @@ sample under the XDG state root in a random-token directory whose path
 is stored beside it under the state root (`<build>.path`) and disclosed
 only to the `verify` prompt the execution run later materializes
 (decision 43). It then fills the
-sprint item that will demonstrate the promise, in MEDIUM's sprint
-ledger or in the chapter's sprint ledger for LARGE, with `command` (the
+sprint item the promise table's Item column names for the promise (one
+per promise; when the promise is split across items, each item carries
+the leg's `check`), in MEDIUM's sprint ledger or in the chapter's
+sprint ledger for LARGE, with `command` (the
 required checks) and `infer` (the judgment over the captured evidence).
 A chapter item carries as `command` the required checks plus the
 engine-count guards `chapters.md` uses (finished sprints and the run's
@@ -203,13 +210,24 @@ The package is only honest if execution proves what planning designed.
 Two nodes are added to the `large` chapter lap (and `replan` to `medium`):
 
 ```
-chapters ─▶ plan ─▶ sprints ─▶ implement ─▶ replan ─▶ sprints … ─▶ verify ─▶ chapters
+chapters ─▶ plan ─▶ sprints ─▶ implement ─▶ replan ─▶ sprints … ─▶ verify ─pass─▶ chapters
+                                     ▲                                   │
+                                     └────────────── fail ───────────────┘
 ```
 
 **replan** (codergen, cheap model, fresh context): after every implement
 lap, reads the sprint ledger, the last validation, and the repository, and
-edits open sprint items only. It never touches the chapter ledger; a
-sprint that finds the chapter wrong asks the human.
+edits open sprint items only, and never the item selected this lap
+(the last `LoopItemSelected` in the timeline): the engine validates that
+item on the return to `sprints` from the ledger as it then stands, so a
+`replan` that could edit it could weaken its gates before the mark
+(decision 37). It never touches the chapter ledger; a sprint that finds
+the chapter wrong asks the human. On the `verify` fail edge it instead
+appends one open item from the verifier's findings (or asks the human
+when the findings say the chapter is wrong), so the sprint loop has
+work when it re-enters; a loop whose ledger is exhausted routes straight
+to `on_done`, so without this the failure would cycle `verify → sprints
+→ verify`.
 
 **verify** (codergen, other provider than the coder, fresh context, tools):
 runs once per chapter after its sprint loop exits. Reads the validation
@@ -220,7 +238,8 @@ which is a different run; rendered only into this prompt; a chapter whose promis
 scenarios has none),
 operates the software itself, captures its
 own evidence under the run directory, and routes pass to the chapters
-loop or fail to the sprint loop (or to a human question). A chapter is
+loop or fail to `replan` (which appends the repair sprint, or asks the
+human) and so back into the sprint loop. A chapter is
 *proven* only through this leg; its item carries the required checks and the
 engine-count guards as `command` (§3, decompose) and no `infer`. Sprint items are *demonstrated* by their own
 `command` and `infer`.

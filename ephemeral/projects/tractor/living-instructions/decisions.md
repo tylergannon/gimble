@@ -201,8 +201,12 @@ planner node is withdrawn.
     The chapter ledger is written at plan time and edited only with a
     reason, by a human or the planner. Sprint ledgers get an upfront
     backlog and a `replan` node after every implement lap: own node, cheap
-    model, fresh context, edits open sprint items only, never the chapter
-    ledger. A sprint that finds the chapter wrong asks the human.
+    model, fresh context, edits open sprint items only, never the item
+    selected this lap (its gates are validated on the return to the loop,
+    from the ledger as it then stands) and never the chapter ledger. A
+    sprint that finds the chapter wrong asks the human. After a failed
+    `verify`, `replan` appends one open item from the findings before the
+    sprint loop re-enters (amended by consistency lap 24).
 45. **No budgets.** Code-volume budgets as tripwires are one signal of
     several and not yet a science. The over-engineering guard is the
     promise list, its exclusions, and a supervisor whose question is "does

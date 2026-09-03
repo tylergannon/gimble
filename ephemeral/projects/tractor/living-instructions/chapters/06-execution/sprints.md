@@ -15,9 +15,12 @@ chapter's own mark is the engine's, on its command, like chapters 4 and 5.
 ## Backlog sketch, in order
 
 1. `replan` in `medium` and `large`: node, prompt, `models.yaml` role;
-   proof that it edits only open items and never the chapter ledger.
+   proof, from the ledger diff across each `replan` turn, that it edits
+   only open items, never the item the lap's `LoopItemSelected` names,
+   and never the chapter ledger; and that on the `verify` fail edge it
+   appends exactly one open item.
 2. `verify` in `large` with the holdout handoff: node, prompt, route
-   targets; the holdout path recorded at design time and rendered only
+   targets (pass to `chapters`, fail to `replan`); the holdout path recorded at design time and rendered only
    here. Proof: a small scratch package with one universal promise whose
    holdout sample is disclosed to no prompt but `verify`'s (obscure, not
    secret, decision 43: an unsandboxed coder could find it on disk; the
