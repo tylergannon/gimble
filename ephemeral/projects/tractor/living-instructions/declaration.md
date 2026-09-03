@@ -11,7 +11,8 @@ crosses, and the chapters that get there. Design detail is in
 Tractor carries a built-in planning workflow. Given a declarative
 description of some software, and optionally the repository it lives in,
 the workflow interviews the caller about the promises the work will make,
-researches prior art into a local library the plan can cite, decomposes
+researches prior art into a research directory (the token cache) the
+plan can cite, decomposes
 the work into vertical slices as chapters and sprints, designs a proof for
 each promise that a coder cannot satisfy while the promise is false,
 reviews the plan with independent reviewers one question at a time, and
@@ -57,7 +58,7 @@ two parts decision 37 names, live in its validation design under
 | P5 | All seven review passes end `done: true` in `plan-review/ledger.md`, each marked by the engine after a fresh reviewer on another provider routed pass. | That the passes catch every defect. | Universal over passes | Inspector over ledger and events. |
 | P6 | `tractor workflow run large` on a v2 package reaches `COMPLETED`, and every chapter's `done: true` is preceded in the timeline by a `verify` turn for that chapter that operated the software and routed pass. | That the software the package describes is good. | Scenario | Nested run on a small package; timeline order check; judge over the verifier's turn. |
 | P7 | `scope_cop` delivers at least one steer during a planning run, and the steered turn's output differs from what it was writing before the steer. | That supervisors improve plans. | Scenario | Timeline `steer` verdict with a delivered disposition; diff of the stage output before and after. |
-| P8 | Every prompt body, doctrine page, supervisor brief, pass, and skeleton is a library file and Go supplies templates only data values, the two value functions `quote` and `shell`, and the two composition actions `include` and `doctrine`; every doctrine page is referenced by at least one agent-facing library file (a prompt body, supervisor brief, or pass) that some node renders; `tractor workflow show <name>` prints every node of the graph, each node's prompt exactly as `Build` materialized it for the given parameters, and the library file each prompt came from, and `--stage <dir>` diffs that against a real stage with the frame stripped. | That the content is well written, or that `show` reproduces run-time frames. | Universal over library files | Render test and orphan walk proven against injected defects; `show` compared with a program that calls `Build`; `show --stage` against a run the check makes; an `infer` judge over the proof scripts' logs deciding that each probe failed for the injected reason (decision 41: checks alone prove nothing). Exhaustive, no holdout. |
+| P8 | Every prompt body, doctrine page, supervisor brief, pass, and skeleton is a library file and Go supplies templates only data values, the two value functions `quote` and `shell`, and the two composition actions `include` and `doctrine`; every doctrine page is referenced by at least one agent-facing library file (a prompt body, supervisor brief, or pass) that some node renders; `tractor workflow show <name>` prints every node of the graph, each node's payload (a prompt, a tool command, or a checklist path) exactly as `Build` materialized it for the given parameters, and the library file each prompt came from, and `--stage <dir>` diffs that against a real stage with the frame stripped. | That the content is well written, or that `show` reproduces run-time frames. | Universal over library files | Render test and orphan walk proven against injected defects; `show` compared with a program that calls `Build`; `show --stage` against a run the check makes; an `infer` judge over the proof scripts' logs deciding that each probe failed for the injected reason (decision 41: checks alone prove nothing). Exhaustive, no holdout. |
 | P9 | An agent reading only the docs site, spec, and skill bundle runs `workflow run plan`, `workflow show`, and `ask` correctly, including where the interview directory and the holdout come from. | That the docs are complete. | Scenario | A docs-only reader run: a nested pipeline whose agent sees only those sources and the binary, inspected from its run directory and the plan run it starts, with an `infer` judge over its transcript and the docs against `--help`. |
 | P10 | For two small product descriptions written before chapter 5 starts, `plan` ends with an approved package that `validate-plan` accepts, `medium` or `large` runs it to `COMPLETED`, and the built program satisfies the acceptance examples written in the seed. | Generality beyond seeds of that size. | Scenario | Both seeds are known; the end-to-end run plus the seed's own examples, run by the check, are the proof. |
 
@@ -110,7 +111,7 @@ this comes first.
    provenance pointer, and the artifact skeletons. Written by Claude, not
    the coder (see question 5). Check: the pages the four
    existing prompts can cite (the subset of `planning-workflow.md` §6a
-   listed in `SPRINT-03.md`) exist; `infer` judge that each page is under
+   listed in `SPRINT-04.md`) exist; `infer` judge that each page is under
    a screen and cites its source under `sources/` or in `decisions.md`.
 5. Docs and skill. Check: the chapter 1 sprint 3 pattern.
 
@@ -150,7 +151,10 @@ Batched, with a recommendation each (decision 39).
    provider, model, and reasoning effort, with a `not` constraint for
    independence, deployed with the binary. Initial table in
    `planning-workflow.md` §6b.
-3. **Holdout seeds.** Withdrawn; see P10. No holdout in this project.
+3. **Holdout seeds.** Withdrawn as a holdout over this project's own
+   promises; see P10. Interview 0014, questions 3 and 4, ask Tyler to
+   confirm the exhaustive-set exception and the scratch-package holdout
+   in chapter 6.
 4. **Dogfood timing.** Ruled: run the v2 algorithm by hand on this
    project now, Claude as the planner nodes, Tyler as the human gate,
    subagents as reviewers and research branches, and automate portions

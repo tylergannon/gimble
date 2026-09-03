@@ -51,7 +51,9 @@ can call with a corrupt `fs.FS`, or an exported `BuildFrom(fsys fs.FS,
   standalone rendering of one library file (`prompts/...`,
   `doctrine/...`, `templates/...`) with the same data and func map
   `Build` uses. The render test and the chapter's proof scripts call
-  it; `Build` itself is `Render` of each node's file and nothing more.
+  it; `Build` materializes each node's payload with `Render` and adds nothing
+  to it; graph construction, path resolution, and validation stay in
+  `Build`.
 
 ## Byte equality
 

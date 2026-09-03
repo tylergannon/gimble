@@ -26,8 +26,9 @@ lines, the same sets the render test uses) with an include tracer, and
 fail, naming the page, on any file under `doctrine/` that no rendering
 included. A `doctrine` action in a branch that never renders is not a
 reference.
-All three directories are prompts in P8's sense: text the library sends
-to an agent. Skeletons under `templates/` are not in the walk; P8 does
+All three directories
+hold agent-facing library files, the declaration's umbrella for text
+the library sends to an agent. Skeletons under `templates/` are not in the walk; P8 does
 not promise that every skeleton is used, and sprint 4's script checks
 its own skeletons are cited. The failure names the orphan. Prove the
 walk fails: the test constructs a synthetic `fs.FS` with one uncited

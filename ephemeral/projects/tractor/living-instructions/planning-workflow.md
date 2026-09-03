@@ -90,8 +90,9 @@ that finds nothing and then the halt. `brief`'s `max_visits` is the
 ceiling; its exhaustion
 edge leads to `ceiling`, a codergen node that asks the human one
 question (continue with a higher ceiling, or stop) through `tractor
-ask` and routes back to `brief` or to `success` as answered, so the
-ceiling is a human gate, not a failed run (spec: an exhausted node with
+ask` and routes back to `brief` or to `halted` (a terminal that ends the
+run without a package; only `approve` reaches `success`) as answered,
+so the ceiling is a human gate, not a failed run (spec: an exhausted node with
 no escalation edge fails the run).
 
 **brief** (codergen, full fidelity across laps). First lap: elicit.
@@ -283,9 +284,9 @@ recommended pair.
 - Tests render every template with representative parameters, fail on a
   doctrine page no rendered prompt references, and fail on any prompt
   that is a Go string.
-- `tractor workflow show <name> [--project …]` prints each node's prompt
-  and supervisor brief exactly as `Build` materialized them for those
-  parameters; `--stage <dir>` diffs against a real stage with the frame
+- `tractor workflow show <name> [--project …]` prints each node's payload (a
+  prompt, a tool command, or a checklist path) and each supervisor's
+  brief exactly as `Build` materialized them for those parameters; `--stage <dir>` diffs against a real stage with the frame
   stripped. Frames and `$goal` are engine additions `show` never
   reproduces (research F1).
 - The skill bundle (`skills/tractor`) and the docs site teach the same

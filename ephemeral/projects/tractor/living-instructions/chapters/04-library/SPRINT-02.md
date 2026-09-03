@@ -14,8 +14,8 @@ prints every node of the plan graph with its prompt.
 
 ## The work
 
-`tractor workflow show <name>` takes the same flags as `run`
-(`--project`, `--seed`, `--workdir`), no `--logs`. It calls `Build`
+`tractor workflow show <name>` shares `run`'s parameter flags
+(`--project`, `--seed`, `--workdir`) and has no `--logs`. It calls `Build`
 exactly as `run` does and prints, for every node in the graph, in file
 order:
 
