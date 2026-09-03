@@ -66,6 +66,34 @@ for wf in $workflows; do
   done
 done
 
+# ---- every doctrine page renders under some representative parameter set --
+# The README lists representative parameter sets as lines of the form
+# "- params: --project X --seed Y" (sprint 3 writes them for the render
+# test). A doctrine page whose sentinel appears in no node's output under
+# any listed set (nor under the check's own demo parameters) is an orphan,
+# whatever text names it.
+find "$mlib/doctrine" -type f -name '*.md' 2>/dev/null | while read -r d; do
+  printf '\n%s DOCTRINE %s\n' "$stamp" "$(basename "$d" .md)" >> "$d"
+done
+(cd "$tmp/src" && go build -o "$tmp/bin/mutated" ./cmd/tractor)
+: > "$tmp/seen-doctrine.txt"
+sed -n 's/^- params: *//p' "$mlib/README.md" > "$tmp/param-sets.txt"
+printf -- '--project demo --seed %s\n' "$seed" >> "$tmp/param-sets.txt"
+while read -r pset; do
+  for wf in $workflows; do
+    yaml_nodes "$wf" | while read -r node kind; do
+      # shellcheck disable=SC2086
+      "$tmp/bin/mutated" workflow show "$wf" $pset --workdir "$tmp/demo" --node "$node" --raw 2>/dev/null \
+        | grep "^$stamp DOCTRINE " | sed "s/^$stamp DOCTRINE //"
+    done
+  done
+done < "$tmp/param-sets.txt" | sort -u > "$tmp/seen-doctrine.txt"
+find "$mlib/doctrine" -type f -name '*.md' 2>/dev/null | while read -r d; do
+  b="$(basename "$d" .md)"
+  grep -qxF -- "$b" "$tmp/seen-doctrine.txt" || { echo "doctrine: no node renders $b.md under any listed parameter set"; exit 1; }
+  echo "doctrine: $b.md rendered under a listed parameter set"
+done
+
 # ---- every skeleton is included by some rendered prompt ------------------
 : > "$tmp/seen-templates.txt"
 for wf in $workflows; do

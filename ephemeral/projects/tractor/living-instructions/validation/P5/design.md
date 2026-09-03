@@ -1,8 +1,8 @@
 # P5: all seven review passes are engine-marked after a fresh reviewer on another provider routed pass
 
 Archetype: universal over the passes of a run. Exhaustive; no holdout.
-Lap 17 (re-opened after the plan-review loop's routing was corrected;
-marked on lap 4); answers `review-3.md`.
+Lap 18 (re-opened on lap 17 after the plan-review loop's routing was
+corrected; marked on lap 4); answers `review-17.md`.
 
 ## Story
 
@@ -44,11 +44,16 @@ every planner node (harness names are the routes of providers), and the
 each turn was a fresh session.
 
 `infer` (files: every reviewer turn's `prompt.md` and `response.md`,
-the seven pass files): "For each reviewer turn: was it given one pass
-question and the package, and nothing that answers the question for it?
+the seven pass files under `workflow/library/passes/`, and
+`planning-workflow.md` section 3, which defines the seven passes): "For each of the seven passes: is the question the reviewer was given
+the pass as `planning-workflow.md` defines it, in substance (the whole
+criterion, not a weakened or narrowed version)? For each reviewer
+turn: was it given one pass question and the package, and nothing that
+answers the question for it?
 Do its notes answer that question, and does the verdict in the notes
-agree with the `next` in the front matter? Fail for any turn that was
-not asked, did not answer, or whose words disagree with its route."
+agree with the `next` in the front matter? Fail for any pass whose question is weaker than its definition, and
+for any turn that was not asked, did not answer, or whose words
+disagree with its route."
 
 ## Not proven
 

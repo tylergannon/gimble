@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 17; answers `review-16.md`.
+Archetype: scenario, twice. Lap 18; answers `review-17.md`.
 
 ## Story
 
@@ -17,7 +17,7 @@ either seed differs from that commit's version):
 
 For each seed the check: makes an empty scratch repository
 (`mktemp -d`, `git init`); writes the seed into it from the pinned
-commit (`git show <hash>:seeds/<name>`) and keeps its own copy of that
+commit (`git show <hash>:ephemeral/projects/tractor/living-instructions/seeds/<name>`) and keeps its own copy of that
 text outside the scratch tree (the examples are read from the check's
 copy, never from the scratch repository, so a planner that rewrites the
 seed it was handed changes nothing the check reads); runs `plan` with `observer.sh` accepting
@@ -50,8 +50,8 @@ seed, comparing stdout, stderr, and exit status exactly.
 ## Validator
 
 `command`: `prove/p10-end-to-end.sh`: `git show
-6dec5dc8cd23e6f340e838beb9c0c2a442dffef4:<seed>` equals each seed as
-checked out, and that commit is an ancestor of the first commit in
+6dec5dc8cd23e6f340e838beb9c0c2a442dffef4:ephemeral/projects/tractor/living-instructions/seeds/<name>.md`
+equals each seed as checked out, and that commit is an ancestor of the first commit in
 which any chapter 5 sprint item is `done: true` (the seeds predate
 chapter 5, as P10 says); for each seed: the plan run's `timeline.jsonl` ends with
 `PipelineCompleted` after a `StageCompleted` with `next: success`; the
@@ -78,13 +78,13 @@ reported twice); the approved package was what ran: the execution graph's loop n
 items name the sprint ledgers), so the items the engine iterated are
 the package's, not a shadow copy; for a LARGE package, the chapter
 ledger at the end equals the approved copy except for `done` flags and
-for edits the human approved: every other difference between the two
-copies (a chapter's `check`, `checklist`, `doc`, or `command`, or a
-chapter added or removed) appears after a `QuestionAsked` whose
-question file names that chapter and whose answer accepts the edit
-(decision 44's reason, given to the human; a planner's unasked rewrite
-of the approved chapters fails, and a chapter's `checklist` may never
-point anywhere but the approved sprint ledger); a
+for edits made with a reason (decision 44): every other difference
+between the two copies (a chapter's `check`, `doc`, or `command`, or a
+chapter added or removed) appears across a stage whose `response.md`
+states the reason, or after a `QuestionAsked` whose question names the
+chapter and whose answer accepts it; a chapter's `checklist` never
+changes (the approved sprint ledgers are the ones that run); the judge
+below reads every such reason; a
 sprint item is identified by its ledger path and name, and for a LARGE
 package the events for a chapter's items are those between that
 chapter's `LoopItemSelected` on `chapters` and its `LoopValidated`, so
@@ -106,7 +106,10 @@ example in the seed matches exactly.
 `approve` turn's `prompt.md` and `response.md`, the package as
 approved (`promises.md`, `checklist.md`, chapter or sprint docs,
 `plan-review/ledger.md`); the approved and final chapter ledgers for a
-LARGE package; each `replan` turn's `response.md` for items it changed;
+LARGE package with, for each difference, the `response.md` of the stage
+that made it and every question and answer file of the execution run's
+interview directory; each `replan` turn's `response.md` for items it
+changed;
 the check's own copy of each seed, taken from the pinned
 commit, and `probes.log`): "Three judgments. First: did
 the approval question put this package in front of the human,
@@ -116,8 +119,9 @@ Fail if the question describes a package other than the one in the
 files or does not ask for approval. Second: for every item replan
 changed, renamed, or removed, does its response give a reason grounded
 in work already done, and for every difference between the approved
-and final chapter ledgers, does the question that preceded it describe
-exactly that edit and does the answer accept it? Third: run the seed's acceptance examples
+and final chapter ledgers, does the stage's response give a reason
+grounded in the work, or does a question describe exactly that edit
+with an answer accepting it? Naming the chapter is not a reason. Third: run the seed's acceptance examples
 yourself against the built program and fail if any does not hold."
 
 ## Not proven

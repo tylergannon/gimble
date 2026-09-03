@@ -1,12 +1,15 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 17; answers `review-16.md`.
+Lap 18; answers `review-17.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
 count as prompts for the orphan walk; the walk covers doctrine pages,
-which P8 names, and not skeletons; skeletons are library files that
+which P8 names, and not skeletons; a page is referenced only if some
+node renders it under at least one of the representative parameter
+sets the library README lists (the sets the render test uses), so a
+`doctrine` action in a branch that never renders is no reference; skeletons are library files that
 prompts include, and the sentinel test covers them like any included
 file. `show` prints every node of the
 graph, in any order, with the node's type as the graph declares it
@@ -90,9 +93,11 @@ ignores the frame).
   an inline skeleton fails; a file under `templates/` not in the list
   may exist unused) (a conditional
   include that does not fire for the check's parameters is allowed to
-  be absent; a file outside the closure is not allowed to appear). Doctrine pages are covered by the orphan probes and the render
-  probe below, not by a sentinel: a page a prompt includes only under a
-  condition may stay silent for the check's parameters.
+  be absent; a file outside the closure is not allowed to appear); with a sentinel appended to every doctrine page, each page's
+  sentinel appears in some node's `show --raw` under at least one of
+  the README's representative parameter sets (the check runs `show`
+  once per listed set; a page no listed set renders is an orphan by
+  the library's own definition, whatever text names it).
   A citation counts for the orphan walk only from a file some node
   renders (the walk's own rule, sprint 3); an unused prompt or
   supervisor file may exist and is not a defect. Rendering is the whole of `Build`: `show --raw` for each node equals
@@ -128,9 +133,9 @@ ignores the frame).
   one frame fails there.
 
 `infer` (files: the two proof scripts and their logs under
-`prove/last-run/`, the non-test Go under `workflow/` and
-`cmd/tractor/workflow.go` (where `run` hands `Build`'s graph to the
-engine): each ledger command captures its script's stdout,
+`prove/last-run/`, the library files under `workflow/library/`, the
+non-test Go under `workflow/` and `cmd/tractor/workflow.go` (where
+`run` hands `Build`'s graph to the engine): each ledger command captures its script's stdout,
 which names every probe and its outcome (the stage perturbation's byte
 and offset, each node's sentinel result, each skeleton's rendering),
 to `prove/last-run/<script>.log`, and the orphan script copies the `go

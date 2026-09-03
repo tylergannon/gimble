@@ -20,9 +20,12 @@ least once. Also execute every file under `doctrine/` and `templates/`
 standalone with the same data, so a syntax error in a page fails here,
 not at run time, and the failure names the file.
 
-`TestLibraryNoOrphans`: walk the embedded tree; every file under
-`doctrine/` must be named by a `doctrine` action in at least one file
-under `prompts/`, `supervisors/`, or `passes/` that some node renders.
+`TestLibraryNoOrphans`: render every node of every workflow under each
+representative parameter set (listed in the README as `- params: ...`
+lines, the same sets the render test uses) with an include tracer, and
+fail, naming the page, on any file under `doctrine/` that no rendering
+included. A `doctrine` action in a branch that never renders is not a
+reference.
 All three directories are prompts in P8's sense: text the library sends
 to an agent. Skeletons under `templates/` are not in the walk; P8 does
 not promise that every skeleton is used, and sprint 4's script checks
@@ -45,7 +48,9 @@ outside that file's include closure (a conditional include may stay
 silent), and every skeleton the library README lists has its sentinel in some
 node's output (an unlisted file under `templates/` may exist unused); an injected uncited page, named at random, makes `TestLibraryNoOrphans`
 fail naming it, and so does removing every citation of an existing page
-chosen at random; an unclosed action with random text appended to a
+chosen at random; with a sentinel appended to every doctrine page, each
+page's sentinel appears in some node's `show --raw` under at least one
+listed parameter set; an unclosed action with random text appended to a
 doctrine page chosen at random (using the delimiters the README states)
 makes `TestLibraryRendersAll` fail naming the page; when the library has
 no doctrine page yet, the script plants one, cited from a prompt, so
