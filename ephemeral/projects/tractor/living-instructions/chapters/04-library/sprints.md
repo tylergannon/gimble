@@ -17,7 +17,7 @@ items:
       files:
         - workflow/library/doctrine/*.md
         - workflow/library/templates/*
-      prompt: Judge each doctrine page against decisions 37 to 59 in ephemeral/projects/tractor/living-instructions/decisions.md. Fail if any page contradicts a decision, exceeds about sixty lines, lacks a pointer to its source under ephemeral/projects/tractor/living-instructions/sources/, or contains the literal text "{{".
+      prompt: Judge each doctrine page against decisions 37 to 59 in ephemeral/projects/tractor/living-instructions/decisions.md. Fail if any page contradicts a decision, exceeds about sixty lines, lacks a pointer to its source under ephemeral/projects/tractor/living-instructions/sources/.
   - name: docs and skill
     check: "The spec, the docs site, the skill bundle, and llms.txt teach the library layout, the template contract, and `workflow show` accurately enough that an agent reading only them can add a doctrine page and see it in `show` output."
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/SPRINT-04.md

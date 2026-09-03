@@ -1,40 +1,56 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice.
+Archetype: scenario, twice. Lap 2; answers `review-1.md`.
 
 ## Story
 
-Seeds written before chapter 5 sprint 1 starts, committed under
-`seeds/`:
+The seeds exist now, under `seeds/`, fixed at commit `6dec5dc8cd23e6f340e838beb9c0c2a442dffef4`
+(recorded when they were committed; the proof script fails if either
+seed differs from that commit's version):
 
 - `seeds/greeter.md`: a CLI that greets by name, with a flag for
-  shouting and a file of names; expected to size MEDIUM.
-- `seeds/ledger-tool.md`: a CLI that keeps a markdown ledger of items
-  with add, done, and list, plus a validation subcommand and an
-  export; expected to size LARGE with two chapters.
+  shouting and a file of names, with four acceptance examples and their
+  exact output. Expected MEDIUM; the expectation is a note, not a check.
+- `seeds/ledger-tool.md`: a CLI that keeps a markdown ledger with add,
+  done, list, validate, and export, with six acceptance examples and
+  their exact output. Expected LARGE; same.
 
-For each: scratch repository; `plan` with `answerer.sh` accepting
-everything and answering "begin" to open prompts; the printed `Next:`
-handoff is run verbatim; wait for `COMPLETED`.
+For each seed the check: makes an empty scratch repository
+(`mktemp -d`, `git init`); runs `plan` with `answerer.sh` accepting
+everything and answering "Proceed with your recommendation." to open
+prompts; runs the printed `Next:` handoff verbatim with a fresh
+`--logs`; waits for `COMPLETED`; then builds the program as the scratch
+repository's `README.md` says and runs every acceptance example from
+the seed, comparing stdout, stderr, and exit status exactly.
 
 ## Evidence
 
-- Both run directories in full (timeline, stages, events, supervisors).
+- Both plan run directories and both execution run directories, in
+  full.
 - Both packages.
-- The scratch repositories at the end, with the built software.
+- The scratch repositories at the end, and the probe transcript
+  (`probes.log`: each example's command, expected, actual).
 
 ## Validator
 
-`command`: `prove/p10-end-to-end.sh`: for each seed, `plan` completed,
-`validate-plan` accepts the package, `recommendation.md` names the
-expected size, the handoff command ran to `COMPLETED`, and the scratch
-repository's own tests pass; for the LARGE seed, P6's script passes on
-its run.
+`command`: `prove/p10-end-to-end.sh`: `git show 6dec5dc8cd23e6f340e838beb9c0c2a442dffef4:<seed>`
+equals each seed as checked out; for each seed, `plan` completed,
+`validate-plan` accepts the package, `recommendation.md` names `medium`
+or `large` and the handoff it prints ran to `COMPLETED`; every
+acceptance example in the seed matches exactly; when the ledger-tool
+package ran as `large`, `prove/p6-verify-before-done.sh` passes on that
+execution run directory.
 
-`infer` (files: each scratch repository's README and the seed): "Does
-the built software do what the seed asked? Run it. Fail if a named
-feature is missing or the program does not run."
+`infer` (files: each seed, each scratch repository's `README.md`,
+`probes.log`): "Build and run the program yourself from the README.
+Does it do what the seed asked, beyond the examples the script already
+ran? Fail if a named feature is missing, the README's instructions do
+not work, or the program does not run."
 
 ## Not proven
 
-Generality beyond seeds of this size.
+Generality beyond seeds of this size. Whether the sizes match the
+expectations noted in the seeds; either size satisfies the promise.
+Whether the packages' own checklist commands are strong: that is P3's
+reviewer's job and the `verify` node's, and the acceptance examples
+here are the independent probe.

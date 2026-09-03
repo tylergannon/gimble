@@ -22,7 +22,13 @@ fi
 grep -q 'go:embed' workflow/library.go || { echo "no embed in workflow/library.go"; exit 1; }
 grep -q 'text/template' workflow/*.go || { echo "text/template not used"; exit 1; }
 
-# The byte-equality snapshot test exists and passes.
-ls workflow/testdata/*.snap* >/dev/null 2>&1 || ls workflow/testdata/* >/dev/null 2>&1 || { echo "no snapshot testdata"; exit 1; }
-go test -run 'Snapshot|Golden|ByteEqual' ./workflow/... -count=1
+# The byte-equality snapshot exists (captured from Build before the
+# migration) and the test that compares Build against it runs and passes.
+# A `go test -run` with no matching test exits 0, so the PASS line is
+# required, not the exit status alone.
+for f in plan/planner.txt plan/validate.txt medium/implement.txt large/plan.txt large/implement.txt; do
+  test -f "workflow/testdata/$f" || { echo "missing snapshot workflow/testdata/$f"; exit 1; }
+done
+go test -v -run 'TestBuildMatchesSnapshot' ./workflow/ -count=1 2>&1 | tee /dev/stderr \
+  | grep -q -- '--- PASS: TestBuildMatchesSnapshot' || { echo "TestBuildMatchesSnapshot did not pass"; exit 1; }
 echo "prompts-are-library-files.sh: ok"

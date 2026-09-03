@@ -33,8 +33,8 @@ can call with a corrupt `fs.FS`, or an exported `BuildFrom(fsys fs.FS,
 ## Template contract
 
 - Engine: `text/template`, delimiters `<<` and `>>` (or another
-  non-default pair; say which in the README). Doctrine text will contain
-  `{{`.
+  non-default pair; say which in the README). Doctrine text may contain
+  `{{`, which is then literal.
 - Data: a struct built from `Parameters` plus the derived values the old
   functions computed (`projectDir`, `briefPath`, `checklistPath`,
   `interviewDir`, `questionCommand`). Two functions in the func map:
@@ -49,12 +49,21 @@ can call with a corrupt `fs.FS`, or an exported `BuildFrom(fsys fs.FS,
 
 ## Byte equality
 
-Before touching anything, write a test that snapshots what `Build`
-returns today for each workflow with fixed parameters (prompt text of
-every codergen node, `tool_command` of every tool node, `checklist` of
-every loop node) into `workflow/testdata/`. After the move, the same
-test must pass against the templates. Keep the test; it is the tripwire
-for every later content edit that is meant to be a refactor.
+Before touching anything, write `TestBuildMatchesSnapshot`: it calls
+`Build` for each workflow with fixed parameters and compares, byte for
+byte, the prompt of every codergen node, the `tool_command` of every
+tool node, and the `checklist` of every loop node against
+`workflow/testdata/<workflow>/<node>.txt`. Capture the snapshots from
+the code as it is now, commit them, then do the move; the same test
+must pass against the templates. Keep the test; it is the tripwire for
+every later content edit that is meant to be a refactor, and sprint 2's
+`show` is checked against the same files.
+
+Fixed parameters, recorded in `workflow/testdata/README.md`: project
+`demo`, workdir `/tmp/demo`, executable `/opt/tractor/bin/tractor`,
+seed `/tmp/demo/seed.md` (plan only). Sprint 2's proof script runs
+`show` with real paths and substitutes these back, so the values must
+not appear anywhere else in a prompt.
 
 ## Not in this sprint
 

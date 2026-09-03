@@ -25,9 +25,11 @@ walk stays green.
 | `doctrine/ledger.md` | planner, both implement prompts | `loop-node.md` §2; decision 15, 44 |
 
 Each page: under about sixty lines, one idea, positive phrasing, a
-`Source:` line at the end pointing into `sources/` or `decisions.md`. No
-`{{` anywhere. Written in the library's voice, which is the voice of
-`BUILD.md`: tells the agent what to do and why in as few words as hold.
+`Source:` line pointing into `sources/` or `decisions.md`. Written in
+the library's voice, which is the voice of `BUILD.md`: tells the agent
+what to do and why in as few words as hold. A page is rendered as a
+template, so it must not contain the library's delimiters except as
+actions; `{{` is literal under non-default delimiters and allowed.
 
 ## Skeletons
 
@@ -47,8 +49,10 @@ moved.
 
 ## Proof script
 
-`prove/doctrine-pages.sh`: every page in the table exists; no file under
-`doctrine/` or `templates/` contains `{{`; every page ends with a
-`Source:` line; `go test -run 'TestLibraryNoOrphans|TestLibraryRendersAll'
-./workflow/...` passes. The `infer` judge on the ledger item reads the
+`prove/doctrine-pages.sh`: every page in the table exists with a
+`Source:` line; every skeleton exists;
+`TestLibraryNoOrphans` and `TestLibraryRendersAll` run and pass (the
+render test is what catches a delimiter misuse in a page). This script
+demonstrates the sprint; it is not part of P8's proof, which makes no
+claim about page names. The `infer` judge on the ledger item reads the
 pages against decisions 37–59.

@@ -301,7 +301,7 @@ Fan-out drafts of chapter docs. Any engine change. The web client.
    directory.
 4. A validation design that a reviewer rejects is re-entered with the
    reviewer's notes in the frame and passes on the next lap.
-5. All six review passes end `done: true` in `plan-review/ledger.md`, each
+5. All seven review passes end `done: true` in `plan-review/ledger.md`, each
    marked by the engine after a reviewer on a provider other than the
    planner's routed pass.
 6. The package runs: `tractor workflow run medium` (or `large`) on the
