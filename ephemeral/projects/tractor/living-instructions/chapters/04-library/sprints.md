@@ -4,12 +4,15 @@ items:
   - name: prompts become library files
     check: "`workflow/library/` holds the three graphs and the four prompts as embedded files rendered with `text/template` under non-default delimiters; `Build` returns the same graphs it returned before, byte for byte in every prompt and command; no prompt body remains in a Go string."
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/SPRINT-01.md
-    command: go build ./... && go vet ./... && go test ./workflow/... ./cmd/tractor/... && mkdir -p ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/prompts-are-library-files.sh > ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/prompts-are-library-files.log 2>&1; rc=$?; cat ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/prompts-are-library-files.log; test $rc -eq 0
+    command: test "$(cat ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/base-commit.txt)" = a5fca707f0abc8fd96c9af4f45ea759caebf864e && go build ./... && go vet ./... && go test ./workflow/... ./cmd/tractor/... && mkdir -p ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/prompts-are-library-files.sh > ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/prompts-are-library-files.log 2>&1; rc=$?; cat ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/prompts-are-library-files.log; test $rc -eq 0
     infer:
       files:
         - workflow/*.go
         - workflow/library/README.md
-        - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/prompts-are-library-files.log
+                - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/prompts-are-library-files.log
+        - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/prompts-are-library-files.sh
+        - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/lib.sh
+
       prompt: Read the log and the non-test Go of every module package the log lists. Does any Go string carry prompt text (instructions to an agent) rather than a data value? Did the log show every node's payload byte-equal to the pre-migration baseline built from the commit in prove/base-commit.txt, or, where doctrine is present, a diff in which every removed line reappears in a doctrine page or skeleton the prompt includes and every added line is an include's rendered text? Fail on prompt text in Go, on a lost line, or on an invented one.
   - name: workflow show
     check: "`tractor workflow show <name>` prints every node the graph declares and, for each, the prompt, command, or checklist exactly as `Build` materialized it for the given parameters, naming the library file each prompt came from; `--node --raw`, `--values`, and `--stage <dir>` (a diff against a stage's prompt.md with the frame stripped) work as the sprint doc says."
@@ -18,7 +21,9 @@ items:
     infer:
       files:
         - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/show-equals-build.log
-        - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/show-equals-build.sh
+                - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/show-equals-build.sh
+        - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/lib.sh
+
       prompt: Read the script and its log. Did the run compare every node of every workflow against the Build dumper, did the --stage probe fail after the random perturbation for that reason, and did --values report only derived values? Fail if any step is missing from the log or passed for a reason other than the one the script names.
   - name: render test and orphan walk
     check: "A test renders every template with representative parameters and names the file on a syntax error; a test walks the embedded tree and fails, naming the page, on a doctrine page no rendered agent-facing library file (prompt body, supervisor brief, or pass) references; both are proven against injected defects in a copy of the tree, and every rendered line is library text plus data values."
@@ -27,7 +32,9 @@ items:
     infer:
       files:
         - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/orphan-walk-and-render.log
-        - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/orphan-walk-and-render.sh
+                - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/orphan-walk-and-render.sh
+        - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/lib.sh
+
         - workflow/library_test.go
       prompt: Read the script, its log, and the tests. For each probe the log names (the random orphan page, the page whose citation was removed, the random broken action, the per-file sentinels), did the test or check fail for the injected reason and name the injected file, and does the test's code walk the tree rather than recognise probe names? Fail if any probe's failure is generic, names the wrong file, or the test special-cases probes.
   - name: doctrine pages and skeletons

@@ -116,7 +116,9 @@ while no other stage was live (ledger rules: the engine, not a turn,
 wrote it); the final ledger(s) are not empty; every acceptance
 example in the seed matches exactly.
 
-`infer` (files: the scratch repository at the end (the whole tree, the
+`infer` (files: the proof tooling that produced the evidence
+(`validation/observer.sh`, `validation/lib/`, the proof script named
+above) and the segment of every turn this design judges; the scratch repository at the end (the whole tree, the
 built program included), `check.log`, the approval question as the
 observer copied it before answering (its own copy at its random path,
 not the live file, which `tractor answer` or a later turn could

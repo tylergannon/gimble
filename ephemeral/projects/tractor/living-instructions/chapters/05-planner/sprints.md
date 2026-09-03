@@ -27,9 +27,11 @@ are edited only when the plan node runs (once per chapter in today's
 4. The `index_gate` tool node and the `halt` tool node with the loop's
    routes. Proof: the halt command under the three states of P2's
    design, and one nested run whose halt routes back once.
-5. The observer and the shared proof library (`validation/observer.sh`,
-   `validation/lib/`). Proof: a nested run answered end to end by the
-   observer with its tree beside the run directory.
+5. Wire the observer and the shared proof library the planner wrote
+   (`validation/observer.sh`, `validation/lib/`, committed before this
+   chapter) into the first scenario: the scripts need no change; the
+   sprint proves them on a nested run answered end to end by the
+   observer with its tree at a random path outside the run directory.
 6. `brief`: elicit then prune, batched question files with `Promise:`
    lines, promise list, exclusions, open plan entries. Proof: P1.
 7. The brief/research loop end to end. Proof: P2.

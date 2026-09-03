@@ -45,8 +45,12 @@ subject line. Include interview files and ledger changes in the commit.
 
 `chapters.md` and each chapter's `sprints.md` are markdown files with YAML
 frontmatter. The engine marks items `done: true` after their validation
-passes. You never write `done`. A planning turn may append sprint items and
-edit open ones; an implementing turn does not edit the ledger.
+passes. You never write `done`. A planning turn may append sprint items and edit open ones; an
+implementing turn does not edit the ledger, and no turn edits the proof
+tooling: `chapters/*/prove/`, `validation/observer.sh`,
+`validation/lib/`, the `base-commit.txt` pins, or the doctrine pages
+under `content/`. Those are the planner's; your segment records every
+write, and a write there fails the sprint.
 
 ## Asking questions
 

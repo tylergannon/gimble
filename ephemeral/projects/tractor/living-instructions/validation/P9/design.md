@@ -82,7 +82,9 @@ against another `show` call, and a prefix or canned text fails);
 directory of E's path) and the holdout root that `show large --node
 verify --raw` renders.
 
-`infer` (files: the reader's `response.md` and segment, the observer's
+`infer` (files: the proof tooling that produced the evidence
+(`validation/observer.sh`, `validation/lib/`, the proof script named
+above) and the segment of every turn this design judges; the reader's `response.md` and segment, the observer's
 `answers.log` for both runs, the planner stage's `prompt.md` and T, the
 promised sources, the help output, `planning-workflow.md` section 3): "Is T the planner prompt the run sent, frame aside, and did the
 reader print it whole? For the three promised commands (`workflow run plan`, `workflow show`, `ask`,

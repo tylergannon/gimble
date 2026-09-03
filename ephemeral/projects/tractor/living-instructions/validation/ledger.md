@@ -38,6 +38,7 @@ items:
   - name: P10 two seeds end to end
     check: The design under validation/P10 proves P10 and cannot be satisfied while P10 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P10/design.md
+    done: true
 ---
 
 # Validation designs
@@ -145,6 +146,17 @@ and what the design does not prove.
   holds only in memory and hands to the check on its own stdout when the
   run ends. A file edited after the fact breaks the chain, so a
   process that finds the observer's path gains nothing.
+- **The proof tooling is the planner's, not the coder's.** The
+  observer, the shared proof library, the chapter proof scripts, the
+  ledgers, and the pinned baseline commits are planner-authored content
+  committed before the sprint that uses them (as the doctrine pages
+  are). The implement prompt forbids editing them; an implement turn's
+  segment records every write it makes, so a `tool_call` whose
+  arguments name a file under `prove/`, `validation/observer.sh`,
+  `validation/lib/`, a ledger, or a baseline pin is a fail of that
+  sprint, and every judge that reads a proof log also receives the
+  scripts that wrote it and the segment of the turn under judgment, so
+  a producer that constructs its own story is read, not trusted.
 - **Out of scope for every check.** The engine and harness are excluded
   from this project (no engine change; `promises.md` exclusions). A game
   that needs the engine or a harness adapter to record false events,
@@ -187,8 +199,9 @@ check binds an ask call to its `QuestionAsked` event. It never answers a file it
   answered.
 
 The rules file is part of the scenario; the `observer/` tree is part of
-the evidence. Built once, in chapter 5 sprint 3, and reused by every
-later scenario. `validation/lib/run-plan.sh <seed> <rules>` makes a
+the evidence. Written by the planner before chapter 5 sprint 5, which wires and
+exercises it, and reused by every later scenario; the coder never
+edits it (rule above). `validation/lib/run-plan.sh <seed> <rules>` makes a
 scratch repository, runs `plan` with the observer attached, records the
 run's stdout to `check.log`, waits for completion, and prints the run
 directory. `validation/lib/timeline.sh` holds the `jq` idioms the proof

@@ -55,7 +55,9 @@ and after that design turn, and is byte-identical across the review
 turn that follows it (each redesign is the design turn's, and the
 reviewer left it alone).
 
-`infer` (files: the seed, `promises.md`, the ledger item, every review
+`infer` (files: the proof tooling that produced the evidence
+(`validation/observer.sh`, `validation/lib/`, the proof script named
+above) and the segment of every turn this design judges; the seed, `promises.md`, the ledger item, every review
 turn's `prompt.md` and `response.md`; every redesigning turn's
 `prompt.md` and segment; the notes; the copies of F: D1, D2, ...): "Is
 the item under test the validation design for the seed's first

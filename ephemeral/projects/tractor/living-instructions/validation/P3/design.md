@@ -61,7 +61,9 @@ key, harnesses that are the routes of those providers, R(item)'s
 differing from each; every reviewing stage has `prompt.md`,
 `response.md`, and a segment.
 
-`infer` (files: for every item, its reviewing stage's `prompt.md` and
+`infer` (files: the proof tooling that produced the evidence
+(`validation/observer.sh`, `validation/lib/`, the proof script named
+above) and the segment of every turn this design judges; for every item, its reviewing stage's `prompt.md` and
 `response.md`; `promises.md`; the copy of each design as its reviewer
 saw it): "For each item's reviewing
 turn: was it given that item's promise statement and that item's

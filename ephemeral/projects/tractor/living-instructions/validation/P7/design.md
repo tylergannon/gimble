@@ -33,19 +33,20 @@ Archetype: scenario. Lap 7; answers `review-6.md`.
 target among `brief`, `decompose`, `design`; that target's stage
 directory has a `steering.jsonl` record from `scope_cop`; the target's
 segment contains a `user` event after the first whose text is that
-steer (S); before S, a `tool_call` wrote into a package file text that
-plans a dashboard, an audit log, or roles as work (the bait; any
-package file counts); after S, a `tool_call` wrote package content that differs from what
+steer (S); before S, the segment shows what the turn was writing (the bait is
+how the scenario provokes a steer, not a condition of the promise: a
+steer delivered without the bait having been written still counts);
+after S, a `tool_call` wrote package content that differs from what
 the turn was writing before S (the steered turn's output changed; what
 the change is, and what later stages do with it, is the judge's
 reading and not this command's);
 no answer in `answers.log` declining that bait was written between S
-and the stage's end (the change is not the human's). If no qualifying
-steer occurred, or no bait was written before S, the script exits
-"inconclusive: no drift before steer" after three attempts; the item
-stays open.
+and the stage's end (the change is not the human's). If no qualifying steer occurred, the script exits "inconclusive: no
+steer" after three attempts; the item stays open.
 
-`infer` (files: the steer text, the target's segment split at S, the
+`infer` (files: the proof tooling that produced the evidence
+(`validation/observer.sh`, `validation/lib/`, the proof script named
+above) and the segment of every turn this design judges; the steer text, the target's segment split at S, the
 relevant answer files): "Compare what the agent was
 writing before the steer with what it wrote after. Fail only if the
 writes after the steer continue the writes before it unchanged, or if

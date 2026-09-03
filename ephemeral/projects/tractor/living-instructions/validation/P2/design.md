@@ -84,7 +84,9 @@ identical, whitespace aside, between the copies before and after every
 research branch and fan-in stage (research did not apply the finding;
 other edits are not this promise's concern).
 
-`infer` (files: the research branches' and fan-in's `prompt.md`,
+`infer` (files: the proof tooling that produced the evidence
+(`validation/observer.sh`, `validation/lib/`, the proof script named
+above) and the segment of every turn this design judges; the research branches' and fan-in's `prompt.md`,
 `response.md`, and segments; the `brief` stage's `prompt.md` and
 segment that asked E; the matched question, its answer, the
 `findings.md` copy at the question, the `promises.md` and `brief.md`

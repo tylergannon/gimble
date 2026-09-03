@@ -48,7 +48,9 @@ every planner node (harness names are the routes of providers), and the
 `reviewer` key carries the no-thread marker, the engine's record that
 each turn was a fresh session.
 
-`infer` (files: every completed reviewer turn's `prompt.md` and
+`infer` (files: the proof tooling that produced the evidence
+(`validation/observer.sh`, `validation/lib/`, the proof script named
+above) and the segment of every turn this design judges; every completed reviewer turn's `prompt.md` and
 `response.md`, the seven pass files under `workflow/library/passes/`,
 `planning-workflow.md` section 3, which defines the seven passes, and
 the package the reviewers were given: `brief.md`, `promises.md`,

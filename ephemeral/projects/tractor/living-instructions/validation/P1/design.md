@@ -66,7 +66,9 @@ script fails with "question-file seam not used". If every candidate
 named a chosen feature, so nothing was declined, it exits "inconclusive:
 nothing to decline" and the item stays open.
 
-`infer` (files: the generated seed, the declined question file in full,
+`infer` (files: the proof tooling that produced the evidence
+(`validation/observer.sh`, `validation/lib/`, the proof script named
+above) and the segment of every turn this design judges; the generated seed, the declined question file in full,
 its answer file, `answers.log`, the `brief.md` copy before the answer,
 the final `brief.md`): "answers.log quotes the `Promise:` line the
 decline rule matched and its number. Read the whole question file.

@@ -1,15 +1,18 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 24; answers `review-23.md`.
+Lap 25; answers `review-24.md` and pass 4's third lap.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
 count as prompts for the orphan walk; the walk covers doctrine pages,
-which P8 names, and not skeletons; a page is referenced only if some
-node renders it under at least one of the representative parameter
-sets the library README lists (the sets the render test uses), so a
-`doctrine` action in a branch that never renders is no reference. The
+which P8 names, and not skeletons; a page is referenced only if a `doctrine` action in an agent-facing
+file (a prompt body, supervisor brief, or pass; never another doctrine
+page) renders it for some node under at least one of the representative
+parameter sets the library README lists (the sets the render test
+uses), so a `doctrine` action in a branch that never renders is no
+reference and a hub page that includes the others does not reference
+them. The
 README's list is part of the template contract (declaration section
 4): an author who adds a page rendered only under some parameter adds
 a set that renders it, or the page is an orphan by the library's own
@@ -79,11 +82,11 @@ pass leg of the check below is empty until then and runs then.
   when the prompts legitimately change to include doctrine, the script
   prints the unified diff between that baseline and the current output
   for every node into its log instead of failing, and the ledger item's
-  judge reads the diffs: every difference is either an include's rendered
-  text (content moved from the prompt into a page or skeleton) or a
-  wording change the sprint doc authorised (`SPRINT-04.md`: nothing an
-  agent is told may be lost, only moved; decision 53 allows content
-  improvement as a reviewed edit), never text from Go. The coder's snapshot test is a tripwire, not the
+  judge reads the diffs: every difference is text rendered from a library file (a moved
+  passage, an include, or a rewording that lives in the library),
+  never text from Go; what the words say is not P8's concern (the
+  declaration excludes content quality), and whether sprint 4 lost
+  anything is sprint 4's own judge's question, not this one's. The coder's snapshot test is a tripwire, not the
   baseline. The judge also reads the Go for prompt text in strings.
 - `prove/show-equals-build.sh` (sprint 2) and
   `prove/orphan-walk-and-render.sh` (sprint 3). Nodes: the set of
@@ -128,10 +131,11 @@ output and carries every payload, not only headers). Equality: for every node of
   check computes the data values itself and requires `show --values`
   to list exactly them; what `Render` itself could add beyond those
   values is Go the judge reads (below). Orphans: an injected uncited page, named at random per run, makes
-  `TestLibraryNoOrphans` fail naming it, and so does removing every
-  citation of one existing page chosen at random (a test that allows
-  the original filenames and rejects only additions fails the second
-  probe). Rendering: an unclosed action
+  `TestLibraryNoOrphans` fail naming it, and so does removing every citation of one existing page chosen at
+  random from the agent-facing files (a test that allows the original
+  filenames and rejects only additions fails the second probe; a page
+  cited only from another doctrine page is an orphan, so a hub cannot
+  hide one). Rendering: an unclosed action
   with random text appended to a doctrine page chosen at random makes
   `TestLibraryRendersAll` fail naming the page. In the real tree both
   tests run and pass.
@@ -158,8 +162,13 @@ output and carries every payload, not only headers). Equality: for every node of
   nested chapters-and-sprints frame, so a `--stage` that strips only
   one frame fails there.
 
-`infer` (files: every proof script this design names and its log under
-`prove/last-run/` (chapter 4's two, chapter 5's pass leg with the
+`infer` (files: the proof tooling that produced the evidence
+(`validation/observer.sh`, `validation/lib/`, the proof script named
+above) and the segment of every turn this design judges; every proof script
+this design names, `prove/lib.sh`, `prove/base-commit.txt` (whose hash
+the ledger command itself carries, so a moved pin fails the command
+before the judge sees anything), `SPRINT-04.md`, and each script's log
+under `prove/last-run/` (chapter 4's two, chapter 5's pass leg with the
 generated `plan-review/ledger.md` and every reviewer stage's
 `prompt.md` of its run, chapter 6's stage leg with the stage
 directories it diffed), the library files under `workflow/library/`,

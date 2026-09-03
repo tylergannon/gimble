@@ -68,7 +68,9 @@ tool); every event this check relies on, and every `verify` stage's
 was live (ledger rules: a tool node cannot forge a verify stage or a
 mark without its own stage being live at the time).
 
-`infer` (files: every completed verify turn's `prompt.md`,
+`infer` (files: the proof tooling that produced the evidence
+(`validation/observer.sh`, `validation/lib/`, the proof script named
+above) and the segment of every turn this design judges; every completed verify turn's `prompt.md`,
 `response.md`, and segment; the chapter's validation design; for a
 removed chapter, the removing stage's `response.md` and every segment
 that names the chapter, or the question and answer): "Was each verifier told which chapter to
