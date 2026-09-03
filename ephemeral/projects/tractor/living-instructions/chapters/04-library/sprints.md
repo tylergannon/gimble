@@ -51,8 +51,8 @@ items:
 
 Five sprints, one agent turn each; sprint 4's pages are written by
 Claude beforehand under `content/` (interview 0013, question 5) and the
-turn wires them. Commands are
-the definition of done; check scripts beside this file are part of it.
+turn wires them. Each item's `command` and `infer` together are its definition of done;
+the proof scripts beside this file are part of it.
 Anchors for every file the migration touches are in
 `research/workflow-package-inventory/migration-inventory.md`; read it
 before the sprint doc.

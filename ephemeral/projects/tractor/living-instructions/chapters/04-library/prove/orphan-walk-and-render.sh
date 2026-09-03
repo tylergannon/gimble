@@ -37,7 +37,6 @@ strip_values() {
   done < "$tmp/values-all.txt"
   eval "$cmd"
 }
-strip_actions() { sed -e "s/$delim_open\/\*.*\*\/$delim_close//g" -e "s/$delim_open[^>]*$delim_close//g"; }
 doc_closure() { # FILE... -> doctrine and template files named by any of them
   for f in "$@"; do
     for cand in $(cd "$lib" && find doctrine templates -type f 2>/dev/null); do
@@ -53,7 +52,16 @@ for wf in $workflows; do
     closure "$file" > "$tmp/node-closure.txt"
     doc_closure $(cat "$tmp/node-closure.txt") >> "$tmp/node-closure.txt"
     : > "$tmp/closure-residue.txt"
-    while read -r f; do strip_actions < "$lib/$f" >> "$tmp/closure-residue.txt"; done < "$tmp/node-closure.txt"
+    # Render each closure file standalone through the check's own program
+    # (workflow.Render), so the comparison is against what the library
+    # files render to, not their raw text: an inline include matches, a
+    # branch that never renders does not.
+    while read -r f; do
+      "$tmp/bin/builddump" render "$f" "$tmp/demo" "$tmp/bin/tractor" "$seed" >> "$tmp/closure-residue.txt" 2>/dev/null \
+        || { echo "closure-text: $f does not render standalone"; exit 1; }
+      printf '\n' >> "$tmp/closure-residue.txt"
+    done < "$tmp/node-closure.txt"
+    strip_values < "$tmp/closure-residue.txt" > "$tmp/closure-residue.txt.v" && mv "$tmp/closure-residue.txt.v" "$tmp/closure-residue.txt"
     awk 'length($0) > 0' "$tmp/closure-residue.txt" | sed 's/[[:space:]]*$//' | sort -u > "$tmp/closure-residue.txt.s"
     show_raw "$tmp/bin/tractor" "$wf" "$node" | strip_values | sed 's/[[:space:]]*$//' | awk 'length($0) > 0' | sort -u > "$tmp/rendered-residue.txt"
     while IFS= read -r line; do
@@ -66,7 +74,7 @@ done
 # ---- content: one sentinel per file, in the copy ------------------------
 mlib="$tmp/src/workflow/library"
 stamp="SENTINEL-$(date +%s)-$$"
-find "$mlib/prompts" "$mlib/supervisors" "$mlib/passes" -type f 2>/dev/null | while read -r f; do
+find "$mlib/prompts" "$mlib/supervisors" "$mlib/passes" "$mlib/templates" -type f 2>/dev/null | while read -r f; do
   rel="${f#$mlib/}"
   printf '\n%s FILE %s\n' "$stamp" "$rel" >> "$f"
 done
@@ -107,6 +115,20 @@ for wf in $workflows; do
     fi
     echo "content: $wf/$node renders $file and nothing outside its closure"
   done
+done
+
+# ---- every skeleton is included by some rendered prompt ------------------
+: > "$tmp/seen-templates.txt"
+for wf in $workflows; do
+  yaml_nodes "$wf" | while read -r node kind; do
+    file="$(shown_file "$tmp/bin/mutated" "$wf" "$node")"
+    [ -n "$file" ] || continue
+    show_raw "$tmp/bin/mutated" "$wf" "$node" | grep "^$stamp FILE templates/" | sed "s/^$stamp FILE //"
+  done
+done | sort -u > "$tmp/seen-templates.txt"
+(cd "$mlib" && find templates -type f 2>/dev/null | sort) | while read -r t; do
+  grep -qxF -- "$t" "$tmp/seen-templates.txt" || { echo "templates: no node renders $t"; exit 1; }
+  echo "templates: $t rendered by a node"
 done
 
 # ---- orphans: the injected page must be reported by name ---------------

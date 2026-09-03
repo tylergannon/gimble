@@ -7,6 +7,7 @@ items:
   - name: P2 halt
     check: The design under validation/P2 proves P2 and cannot be satisfied while P2 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P2/design.md
+    done: true
   - name: P3 independent design review
     check: The design under validation/P3 proves P3 and cannot be satisfied while P3 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P3/design.md
@@ -33,6 +34,7 @@ items:
   - name: P9 docs
     check: The design under validation/P9 proves P9 and cannot be satisfied while P9 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P9/design.md
+    done: true
   - name: P10 two seeds end to end
     check: The design under validation/P10 proves P10 and cannot be satisfied while P10 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P10/design.md

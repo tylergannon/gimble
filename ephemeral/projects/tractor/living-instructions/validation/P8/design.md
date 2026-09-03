@@ -1,12 +1,14 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 14; answers `review-13.md`.
+Lap 15; answers `review-14.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
 count as prompts for the orphan walk; the walk covers doctrine pages,
-which P8 names, and not skeletons. `show` prints every node of the
+which P8 names, and not skeletons; skeletons are library files that
+prompts include, and the sentinel test covers them like any included
+file. `show` prints every node of the
 graph, in any order, with the node's type as the graph declares it
 (`parallel.fan_in` included), what `Build` materialized for each (prompt for any
 node kind that carries one, command for tools, checklist for loops),
@@ -32,7 +34,10 @@ pass leg of the check below is empty until then and runs then.
   types, read by the check itself.
 - `Build`'s output, captured by the check itself through a throwaway
   program it writes into a copy of the tree, for every node that
-  carries a prompt, command, or checklist.
+  carries a prompt, command, or checklist; and, through the same
+  program, the standalone rendering of any single library file with the
+  same data (`workflow.Render`, the seam sprint 1 exports for the
+  render test), for every file in a node's closure.
 - The include closure of each header file: the files named by
   `include` and `doctrine` actions in it, transitively, read by the
   check from the files themselves; and the doctrine and template files
@@ -76,9 +81,12 @@ pass; a byte in the frame is never the probe, since a correct `--stage`
 ignores the frame).
   Content: each prompt-bearing node's header names its library file;
   with a distinct sentinel appended to every file under `prompts/`,
-  `supervisors/`, and `passes/`, each node's `show --raw` contains the
-  sentinel of the file its header names and contains no sentinel of a
-  prompt file outside that file's include closure (a conditional
+  `supervisors/`, `passes/`, and `templates/`, each node's `show --raw`
+  contains the sentinel of the file its header names and contains no
+  sentinel of a file outside that file's include closure, and every
+  file under `templates/` has its sentinel in some node's output (every
+  skeleton is a library file some prompt includes; an inert file under
+  `templates/` beside an inline skeleton fails) (a conditional
   include that does not fire for the check's parameters is allowed to
   be absent; a file outside the closure is not allowed to appear); with a sentinel appended to a
   doctrine page, every prompt whose closure names that page prints it.
@@ -87,16 +95,18 @@ ignores the frame).
   supervisor file may exist and is not a defect. Text from the closure only: the check computes
   the data values itself (the parameters it passed and the
   README-stated derivations, in raw, `quote`d, and `shell`-quoted
-  forms) and requires `show --values` to list exactly those values, none
-  missing and none extra; then, for
-  each node, it removes every data value form from each rendered line,
-  removes every template action and template comment from each line of
-  the node's closure (its header file, the prompt files it includes,
-  and the doctrine and template files any of them name), and requires
-  every rendered residue line to equal some residue line of that
-  closure. Text parked in another file, in a comment, or supplied by Go
-  fails; a `quote`d or `shell`-quoted value passes; a fragment included
-  twice passes. Orphans: an injected uncited page, named at random per run, makes
+  forms) and requires `show --values` to list exactly those values,
+  none missing and none extra; then, for each node, it renders every
+  file of the node's closure standalone with the same data through its
+  own program (the header file, the prompt files it includes, and the
+  doctrine and template files any of them name), removes every data
+  value form from each line of the node's `show --raw` output and of
+  those renderings, and requires every rendered residue line to equal
+  some line of the closure's renderings. Text supplied by Go around the
+  template, text parked in a branch that never renders, and text in a
+  file outside the closure all fail; an inline include, a `quote`d or
+  `shell`-quoted value, and a fragment included twice pass, because
+  the closure is compared rendered, not raw. Orphans: an injected uncited page, named at random per run, makes
   `TestLibraryNoOrphans` fail naming it, and so does removing every
   citation of one existing page chosen at random (a test that allows
   the original filenames and rejects only additions fails the second
@@ -143,6 +153,5 @@ field list is the contract, the check recomputes every value, and the
 code review reads the struct. Text a template parks in a branch that never renders and Go re-emits:
 the residue check cannot tell it from rendering, so the infer judge
 reads the Go under `workflow/` for exactly that.
-Skeleton text: templates are cited by prompts (sprint 4's script) and
-rendered by the render test; what a planner writes from them is its
-own output, not the library's.
+What a planner writes from a skeleton is its own output, not the
+library's; the skeleton itself is covered by the sentinel test.

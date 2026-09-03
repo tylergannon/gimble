@@ -20,6 +20,7 @@ items:
   - name: executability
     check: Every sprint fits one agent turn, every command runs from the workdir, every path resolves, every ledger parses.
     doc: ephemeral/projects/tractor/living-instructions/plan-review/06-executability.md
+    done: true
   - name: holistic
     check: A fresh reviewer, asked with no rubric whether they would accept this as the plan for this product, says yes.
     doc: ephemeral/projects/tractor/living-instructions/plan-review/07-holistic.md

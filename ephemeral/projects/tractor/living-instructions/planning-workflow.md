@@ -82,7 +82,12 @@ quality bar; it routes to `brief` while no brief lap has run yet (no
 
 **halt** (tool). Exits 0 when `research/findings.md` is empty and
 `research/plan.md` has no open entry; routes to `decompose`. Otherwise
-routes to `brief`. `brief`'s `max_visits` is the ceiling; its exhaustion
+routes to `brief`. Decision 38's stopping rule governs what `brief`
+asks; the loop's exit is this predicate, which the brief's last lap
+meets by leaving no finding and no open entry behind, so a lap that
+asked nothing and planned nothing is followed by one research pass
+that finds nothing and then the halt. `brief`'s `max_visits` is the
+ceiling; its exhaustion
 edge leads to `ceiling`, a codergen node that asks the human one
 question (continue with a higher ceiling, or stop) through `tractor
 ask` and routes back to `brief` or to `success` as answered, so the
@@ -115,17 +120,19 @@ chapter ledger is durable (decision 44); it is edited only with a reason.
 
 **validation design loop** (loop over `validation/ledger.md`, one item per
 promise; body `design` → `review` → back). `design` (codergen) chooses the
-archetype (decision 42) and writes, under `validation/<promise>/`: the
+archetype (decision 42) and writes, under `validation/<id>/`: the
 user story a verifier follows, the evidence specification (what is
 captured, where), the UI sketch when a screen is involved, and, for a
 universal promise over a set too large to check whole, the holdout
 sample under the XDG state root in a random-token directory whose path
 is stored in the run's private workflow state and disclosed only to the
 `verify` prompt the workflow later materializes (decision 43). It then fills the
-sprint item that will demonstrate the promise, in the chapter or sprint
-ledger, with `command` (the required checks) and `infer` (the judgment
-over the captured evidence); the validation ledger's own item stays
-without a command. Where the mechanism of proof is
+sprint item that will demonstrate the promise, in MEDIUM's sprint
+ledger or in the chapter's sprint ledger for LARGE, with `command` (the
+required checks) and `infer` (the judgment over the captured evidence).
+A chapter item carries only the required checks as `command`, because
+the chapter is proven by `verify`, not demonstrated by a gate; the
+validation ledger's own item stays without a command. Where the mechanism of proof is
 not derivable it asks the human. `review` (codergen, other provider, fresh
 context) is told only the promise and the design and answers three
 questions: can a coder satisfy this while the promise is false; is any
@@ -133,7 +140,7 @@ check trivially true; is the design stricter than the promise. It routes
 pass to the loop node and fail to `design`. The ledger item has no
 `command`: only the pass edge returns to the loop, so a returning lap is
 the pass and the engine marks the item. The reviewer's notes are ordinary
-files under `validation/<promise>/`, read by `design` on the next lap.
+files under `validation/<id>/`, read by `design` on the next lap.
 
 **assemble** (codergen, cheap). Writes `recommendation.md` (decision 32)
 and `plan-review/ledger.md` from the built-in pass list plus any passes

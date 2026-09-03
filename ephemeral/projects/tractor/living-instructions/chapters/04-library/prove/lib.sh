@@ -37,7 +37,7 @@ closure() {
   while :; do
     before="$(wc -l < "$tmp/cl.txt")"
     while read -r f; do
-      for cand in $(cd "$closure_lib" && find prompts supervisors passes -type f 2>/dev/null); do
+      for cand in $(cd "$closure_lib" && find prompts supervisors passes templates -type f 2>/dev/null); do
         base="$(basename "$cand" .md)"
         if grep -q "include.*\"$base\"\|include.*\"$cand\"" "$closure_lib/$f" 2>/dev/null; then printf '%s\n' "$cand"; fi
       done
@@ -68,10 +68,21 @@ import (
 
 func main() {
 	name, node, workdir, exe, seed := os.Args[1], os.Args[2], os.Args[3], os.Args[4], os.Args[5]
-	g, err := workflow.Build(name, workflow.Parameters{
+	params := workflow.Parameters{
 		Project: "demo", Workdir: workdir, Executable: exe,
 		Plan: workflow.PlanParameters{Seed: seed},
-	})
+	}
+	// "render" mode: print the standalone rendering of one library file.
+	if name == "render" {
+		out, err := workflow.Render(node, params)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		fmt.Print(out)
+		return
+	}
+	g, err := workflow.Build(name, params)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)

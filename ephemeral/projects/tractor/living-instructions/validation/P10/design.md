@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 14; answers `review-13.md`.
+Archetype: scenario, twice. Lap 15; answers `review-14.md`.
 
 ## Story
 
@@ -74,7 +74,14 @@ reported twice); the approved package was what ran: the execution graph's loop n
 (`show medium` or `show large` for the run's parameters) names as its
 `checklist` the package's own sprint ledger (or chapter ledger whose
 items name the sprint ledgers), so the items the engine iterated are
-the package's, not a shadow copy; every sprint item in A0
+the package's, not a shadow copy; for a LARGE package, the chapter
+ledger at the end equals the approved copy except for `done` flags
+and any chapter removed with a reason under P6's rule (the approved
+chapters ran; a chapter ledger rewritten during execution fails); a
+sprint item is identified by its ledger path and name, and for a LARGE
+package the events for a chapter's items are those between that
+chapter's `LoopItemSelected` on `chapters` and its `LoopValidated`, so
+two chapters may reuse a sprint name; every sprint item in A0
 is either present in the final sprint ledger(s) with its `name`,
 `check`, `command`, and `infer` unchanged and `done: true`, with
 exactly one `LoopValidated` `passed: true` naming it in the execution
@@ -91,8 +98,9 @@ example in the seed matches exactly.
 `infer` (files: the approval question file and its answer, the
 `approve` turn's `prompt.md` and `response.md`, the package as
 approved (`promises.md`, `checklist.md`, chapter or sprint docs,
-`plan-review/ledger.md`); each `replan` turn's `response.md` for items
-it changed; the check's own copy of each seed, taken from the pinned
+`plan-review/ledger.md`); the approved and final chapter ledgers for a
+LARGE package; each `replan` turn's `response.md` for items it changed;
+the check's own copy of each seed, taken from the pinned
 commit, and `probes.log`): "Three judgments. First: did
 the approval question put this package in front of the human,
 describing its promises, its slices, and its review outcomes as they

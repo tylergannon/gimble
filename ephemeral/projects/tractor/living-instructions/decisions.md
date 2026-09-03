@@ -274,7 +274,10 @@ planner node is withdrawn.
     the planner nodes, Tyler as the human gate, subagents as reviewers
     and research branches; portions are automated as they are built.
 56. **Three chapters** for v2: library, planner, execution and proof. No
-    engine change in any of them. No holdout in this project's proof.
+    engine change in any of them. No holdout over this project's own
+    promises (P1 to P10); a scratch package under test in chapter 5 or 6
+    may carry one, since the holdout machinery is the feature being
+    proven (interview 0014, question 3, asks Tyler to confirm).
 58. **Seven review passes.** The sixth is executability; the seventh is
     holistic and rubric-free, last, because single-criterion judges miss
     trade-offs (research F2, 2026-09-02).

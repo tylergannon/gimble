@@ -47,6 +47,11 @@ can call with a corrupt `fs.FS`, or an exported `BuildFrom(fsys fs.FS,
   sprint 4 is content only.
 - An empty render is an error, never a fallback to the node label
   (inventory gotcha on `PromptValue`).
+- Export `Render(name string, params Parameters) (string, error)`: the
+  standalone rendering of one library file (`prompts/...`,
+  `doctrine/...`, `templates/...`) with the same data and func map
+  `Build` uses. The render test and the chapter's proof scripts call
+  it; `Build` itself is `Render` of each node's file and nothing more.
 
 ## Byte equality
 

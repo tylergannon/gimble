@@ -48,5 +48,5 @@ run's events, not from the YAML.
 
 ## Non-goals
 
-`replan` and `verify` (chapter 6). A holdout in this project's proof.
+`replan` and `verify` (chapter 6). A holdout over this project's own promises (scratch packages under test may carry one).
 Multi-level supervision. Fan-out drafts of chapter docs.
