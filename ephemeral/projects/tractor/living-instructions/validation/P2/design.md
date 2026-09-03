@@ -1,6 +1,6 @@
 # P2: the brief/research loop halts through the tool node, and a finding is asked, not applied
 
-Archetype: scenario. Lap 8; answers `review-7.md`.
+Archetype: scenario. Lap 9; answers `review-8.md`.
 
 ## Story
 
@@ -22,13 +22,15 @@ Archetype: scenario. Lap 8; answers `review-7.md`.
    this project and runs it in the finished package under three
    states: one open finding in `research/findings.md` (expect non-zero);
    findings empty but one open entry in `research/plan.md` (expect
-   non-zero); both clear (expect zero). The command is what the engine
-   ran (P8 binds `show` to `Build`).
+   non-zero); both clear (expect zero).
 
 ## Evidence
 
 - The graph as `show plan` prints it: the `halt` node's command and
-  routes, the `brief` node's successor, and the research nodes.
+  routes, the `brief` node's successor, and the research nodes. The run
+  records neither the graph nor the command a tool node executed (only
+  `tool.log`), so the graph evidence is what `show` prints; P8's check,
+  in the same binary, is what binds `show` to `Build`.
 - `timeline.jsonl`: every `halt` `StageCompleted(next)`; stages of the
   research branches and fan-in; `QuestionAsked`.
 - `stages/<seq>-halt/tool.log` for every halt turn; the check's own
@@ -77,7 +79,11 @@ Convergence on arbitrary seeds; how many laps the loop takes; whether
 the first halt sent the loop back (a run in which research resolves the
 finding before the first halt satisfies P2); whether and where the
 accepted change was applied afterwards (P2 promises the ask, not the
-application). Exhaustion of `max_visits` needs no check: it fails the
-run. The snapshot race (ledger rules) applies to the research-stage
-identity checks; the ask-then-block check and the halt predicate check
-do not depend on it.
+application). That the command `show` prints is the command the run
+executed: the run does not record it, and this design relies on P8's
+proof that `show` prints what `Build` materialized in the same binary;
+a `show` that lies about `Build` fails P8's check, not this one.
+Exhaustion of `max_visits` needs no check: it fails the run. The
+snapshot race (ledger rules) applies to the research-stage identity
+checks; the ask-then-block check and the halt predicate check do not
+depend on it.

@@ -127,10 +127,12 @@ and the witness. It tails `<run-dir>/timeline.jsonl` and:
   `<run-dir>/observer/<n>-<event>-<node>/`;
 - on `QuestionAsked` only: copies the package, reads the question file,
   matches it against ordered rules (a substring or a `Promise:` line
-  predicate, and an answer), copies the package again immediately
-  before writing the answer with `tractor answer` (so a change made
-  between the ask and the answer is visible), and appends
-  `<id> <rule> <ts> <matched line>` (tab-separated) to
+  predicate, and an answer), composes the answer (when the question
+  numbers its candidates the answer mirrors the numbering, one line per
+  candidate, decision 39), copies the package again immediately before
+  writing the answer with `tractor answer` (so a change made between
+  the ask and the answer is visible), and appends
+  `<id> <rule> <ts> <candidate number> <matched line>` (tab-separated) to
   `<run-dir>/observer/answers.log`. It never answers a file it found by
   polling, so a question written without `tractor ask` is never
   answered.

@@ -1,6 +1,6 @@
 # P9: an agent reading only the docs uses plan, show, and ask correctly
 
-Archetype: scenario, judged by inference. Lap 8; answers `review-7.md`.
+Archetype: scenario, judged by inference. Lap 9; answers `review-8.md`.
 
 ## Story
 
@@ -14,20 +14,20 @@ Archetype: scenario, judged by inference. Lap 8; answers `review-7.md`.
    `--logs` also lands there.
 2. It runs a one-node pipeline, `reader` (codergen, claude, fresh
    context, workdir the scratch directory), with one `observer.sh`
-   attached to the reader run, and a second `observer.sh` with
-   accept-all rules attached to the nested plan run as soon as the
-   check sees its run directory appear under the scratch directory
-   (the check watches for it), so the plan run can finish after the
-   reader has answered its first question. The prompt describes the
-   tasks in plain words and names no command, flag, or path: start the
-   built-in planning workflow on a one-line product and let it run to
-   the end; ask your operator one question about it the way an agent
-   inside a Tractor run is meant to, and wait for the answer; answer
-   the first question the planning run asks; print, with the command
-   the docs give for it, the prompt the planner node will receive; and
-   say where the interview directory and a universal promise's holdout
-   live and which planning step produces each. Run the commands, do not
-   describe them, and finish with a short report.
+   attached to the reader run. The check watches the scratch directory
+   for the nested plan run's directory; once that run's first question
+   has been answered (its first `.answer.md` exists), the check attaches
+   a second `observer.sh` with accept-all rules to the nested run so it
+   can finish. The first question is the reader's alone. The prompt
+   describes the tasks in plain words and names no command, flag, or
+   path: start the built-in planning workflow on a one-line product and
+   let it run to the end; ask your operator one question about it the
+   way an agent inside a Tractor run is meant to, and wait for the
+   answer; answer the first question the planning run asks; print, with
+   the command the docs give for it, the prompt the planner node will
+   receive; and say where the interview directory and a universal
+   promise's holdout live and which planning step produces each. Run
+   the commands, do not describe them, and finish with a short report.
 3. Wait for `COMPLETED` of the reader run.
 
 ## Evidence
@@ -62,14 +62,14 @@ answer` for E's file at time A, and the plan run's planner segment has
 a `tractor ask` `tool_call` before E with its paired `tool_result`
 after A (the reader's answer released the planner's blocked ask); the
 reader's segment has a `tool_call` invoking `tractor workflow show`
-whose paired `tool_result` text, trailing whitespace aside, equals the
-check's own `show plan --node planner --raw` output for the same
-project (the reader printed the whole prompt, not a prefix), and the
-check's `show --stage` against the plan run's planner stage exits 0
-(what `show` prints is what the run sent, frame aside); `response.md`
-names the interview directory the plan run used (the directory of E's
-path) and the holdout root that `show large --node verify --raw`
-renders.
+whose paired `tool_result` text contains, trailing whitespace aside,
+the whole of the check's own `show plan --node planner --raw` output
+for the same project (the headed form and the raw form both satisfy
+this; a prefix does not), and the check's `show --stage` against the
+plan run's planner stage exits 0 (what `show` prints is what the run
+sent, frame aside); `response.md` names the interview directory the
+plan run used (the directory of E's path) and the holdout root that
+`show large --node verify --raw` renders.
 
 `infer` (files: the reader's `response.md` and segment, the promised
 sources, the help output, `planning-workflow.md` section 3): "For the

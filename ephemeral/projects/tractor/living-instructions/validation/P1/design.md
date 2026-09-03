@@ -1,6 +1,6 @@
 # P1: elicitation adds a promise; a declined promise becomes an exclusion
 
-Archetype: scenario. Lap 8; answers `review-7.md`.
+Archetype: scenario. Lap 9; answers `review-8.md`.
 
 ## Story
 
@@ -21,7 +21,9 @@ Archetype: scenario. Lap 8; answers `review-7.md`.
    - default: a question with no `Promise:` line, "Proceed with your
      recommendation."
    The `Promise:` line is part of the question-file seam (declaration
-   section 4).
+   section 4). When a question numbers its candidates, the observer's
+   answer mirrors the numbering, one line per candidate (decision 39),
+   so a batched question gets an unambiguous answer.
 3. Wait for `COMPLETED`.
 
 ## Evidence
@@ -30,8 +32,10 @@ Archetype: scenario. Lap 8; answers `review-7.md`.
 - Every segment under `events/`: each `tool_call` that invoked `tractor
   ask`, with its `ts`, and its paired `tool_result` with its `ts`.
 - `observer/`: the package copy taken immediately before the declined
-  question's answer; `answers.log` with answer timestamps (the
-  observer's own record of what it was shown and what it answered).
+  question's answer; `answers.log` with answer timestamps and, for the
+  decline, the quoted `Promise:` line and its number in the question
+  (the observer's own record of what it was shown and what it
+  answered).
 - `interview/NNNN.md` and `.answer.md`; the generated seed.
 - `brief.md` from the package at the end.
 
@@ -45,7 +49,8 @@ a `QuestionAsked` event E whose `question` path is that file; some
 `tool_result` (same `call_id`) with `ts` after the answer timestamp in
 `answers.log` (a turn asked through `tractor ask` and blocked until the
 human answered; concurrent asks are allowed, any bracketing call
-qualifies); the `.answer.md` for that id contains the decline text; the
+qualifies); the `.answer.md` for that id contains the decline text,
+under the candidate's number when the question numbered them; the
 final `brief.md` has an exclusions section with at least one entry,
 where an exclusions section is any Markdown heading, at any level,
 whose text contains "exclusions" (case-insensitive), followed by at
@@ -56,15 +61,17 @@ feature, so nothing was declined, it exits "inconclusive: nothing to
 decline" and the item stays open.
 
 `infer` (files: the generated seed, the declined question file in full,
-the `brief.md` copy before the answer, the final `brief.md`): "Read the
-whole question file. Does it actually ask the human to decide the
-promise on the `Promise:` line the decline rule matched (quoted in
-answers.log), with that line belonging to the question rather than
-standing apart from it? Name the capability the line describes. Fail
-unless the question asks about it, the seed does not mention it, the
-copy taken before the answer does not already exclude that capability
-(other exclusions may exist), and the final brief.md declines it under
-its exclusions, in any wording."
+its answer file, `answers.log`, the `brief.md` copy before the answer,
+the final `brief.md`): "answers.log quotes the `Promise:` line the
+decline rule matched and its number. Read the whole question file.
+Does it actually ask the human to decide the promise on that line,
+with the line belonging to the question rather than standing apart
+from it, and does the answer file decline that candidate and no other?
+Name the capability the line describes. Fail unless the question asks
+about it, the seed does not mention it, the copy taken before the
+answer does not already exclude that capability (other exclusions may
+exist), and the final brief.md declines it under its exclusions, in any
+wording."
 
 ## Not proven
 

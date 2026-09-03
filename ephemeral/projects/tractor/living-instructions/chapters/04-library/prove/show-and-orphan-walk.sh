@@ -122,51 +122,6 @@ if "$tmp/bin/tractor" workflow show plan --project demo --seed "$seed" --workdir
   echo "show --stage missed a diff"; exit 1
 fi
 
-# ---- data only: every rendered line is library text plus data ----------
-# The check supplied the parameters, and the README lists every derived
-# value templates may read and how it is computed, so every data value is
-# known. Remove the data values from each rendered line and the template
-# actions from each library line; every rendered residue must equal some
-# library residue. Go-supplied text that is neither library text nor a
-# data value fails here, whatever its length.
-lib_real=workflow/library
-delim_open="$(sed -n 's/^[Dd]elimiters:[[:space:]]*\([^[:space:]]*\)[[:space:]]*\([^[:space:]]*\).*/\1/p' "$lib_real/README.md" | head -1)"
-delim_close="$(sed -n 's/^[Dd]elimiters:[[:space:]]*\([^[:space:]]*\)[[:space:]]*\([^[:space:]]*\).*/\2/p' "$lib_real/README.md" | head -1)"
-test -n "$delim_open" && test -n "$delim_close" || { echo "data-only: README does not state both delimiters"; exit 1; }
-# Data values: the parameters and the README's derived values. The README
-# lists each derived field as "- <Field>: <how derived>"; the script
-# recomputes the standard ones and reads any extra literal values from
-# `tractor workflow show --values` (chapter 4 sprint 2 prints the data
-# struct as key: value lines for exactly this use).
-"$tmp/bin/tractor" workflow show plan --project demo --seed "$seed" --workdir "$tmp/demo" --values > "$tmp/values.txt" \
-  || { echo "data-only: show --values failed"; exit 1; }
-sed -n 's/^[A-Za-z_]*: //p' "$tmp/values.txt" | awk 'length($0) > 0' | sort -u > "$tmp/data-values.txt"
-strip_values() { # stdin -> stdout, every data value removed
-  cmd="sed"
-  while IFS= read -r v; do
-    esc="$(printf '%s' "$v" | sed 's/[.[\*^$\/&]/\\&/g')"
-    cmd="$cmd -e 's/$esc//g'"
-  done < "$tmp/data-values.txt"
-  eval "$cmd"
-}
-cat "$lib_real"/prompts/*/* "$lib_real"/supervisors/* "$lib_real"/passes/* "$lib_real"/doctrine/* "$lib_real"/templates/* 2>/dev/null \
-  | sed -e "s/$delim_open[^>]*$delim_close//g" | sort -u > "$tmp/library-residue.txt"
-for wf in $workflows; do
-  yaml_nodes "$wf" | while read -r node kind; do
-    file="$(shown_file "$tmp/bin/tractor" "$wf" "$node")"
-    [ -n "$file" ] || continue
-    show_raw "$tmp/bin/tractor" "$wf" "$node" | strip_values | while IFS= read -r line; do
-      [ -n "$(printf '%s' "$line" | tr -d '[:space:]')" ] || continue
-      grep -qxF -- "$line" "$tmp/library-residue.txt" \
-        || { echo "data-only: $wf/$node renders a line that is neither library text nor data: $line"; exit 1; }
-    done
-  done
-done
-
-# ---- no unused prompt file: every prompt and supervisor file is rendered
-# by some node of some workflow (directly or through an include).
-# ---- content: one sentinel per file, in the copy ------------------------
-lib="$tmp/src/workflow/library"
 # closure FILE: prints FILE and every prompt/supervisor/pass file reachable
 # from it through include actions (an action naming another library file
 # by path or by base name), transitively.
@@ -175,7 +130,7 @@ closure() {
   while :; do
     before="$(wc -l < "$tmp/cl.txt")"
     while read -r f; do
-      for cand in $(cd "$lib" && find prompts supervisors passes -type f 2>/dev/null); do
+      for cand in $(cd "${lib:-workflow/library}" && find prompts supervisors passes -type f 2>/dev/null); do
         base="$(basename "$cand" .md)"
         if grep -q "include.*\"$base\"\|include.*\"$cand\"" "$lib/$f" 2>/dev/null; then printf '%s\n' "$cand"; fi
       done
@@ -185,6 +140,89 @@ closure() {
   done
   cat "$tmp/cl.txt"
 }
+# ---- text from the closure only ----------------------------------------
+# The check computes every data value itself from the parameters it
+# passed and the README's stated derivations, in raw, Go-quoted, and
+# shell-quoted forms, and requires `show --values` to agree. Then, per
+# node: remove every value form from each rendered line; remove every
+# template action and template comment from each line of the node's
+# closure (header file, included prompt files, and the doctrine and
+# template files any of them name); every rendered residue must equal
+# some closure residue, and there may be no more rendered residue lines
+# than closure residue lines. Text parked in another file, in a comment,
+# or supplied by Go fails; quoted values pass.
+lib_real=workflow/library
+delim_open="$(sed -n 's/^[Dd]elimiters:[[:space:]]*\([^[:space:]]*\)[[:space:]]*\([^[:space:]]*\).*/\1/p' "$lib_real/README.md" | head -1)"
+delim_close="$(sed -n 's/^[Dd]elimiters:[[:space:]]*\([^[:space:]]*\)[[:space:]]*\([^[:space:]]*\).*/\2/p' "$lib_real/README.md" | head -1)"
+test -n "$delim_open" && test -n "$delim_close" || { echo "closure-text: README does not state both delimiters"; exit 1; }
+# Independent data values. The README's derivations are fixed by sprint 1:
+#   Project, Workdir, Executable, Seed, ProjectDir=Workdir/ephemeral/projects/Project,
+#   BriefPath=ProjectDir/brief.md, ChecklistPath=ProjectDir/checklist.md,
+#   InterviewDir=ProjectDir/interview, QuestionCommand=Executable ask.
+project=demo; workdir="$tmp/demo"; exe="$tmp/bin/tractor"
+projdir="$workdir/ephemeral/projects/$project"
+{
+  printf '%s\n' "$project" "$workdir" "$exe" "$seed" "$projdir" "$projdir/brief.md" "$projdir/checklist.md" "$projdir/interview" "$exe ask"
+} | sort -u > "$tmp/values-raw.txt"
+"$tmp/bin/tractor" workflow show plan --project demo --seed "$seed" --workdir "$tmp/demo" --values > "$tmp/values.txt" \
+  || { echo "closure-text: show --values failed"; exit 1; }
+sed -n 's/^[A-Za-z_]*: //p' "$tmp/values.txt" | awk 'length($0) > 0' | sort -u > "$tmp/values-shown.txt"
+comm -13 "$tmp/values-raw.txt" "$tmp/values-shown.txt" > "$tmp/values-extra.txt" || true
+if [ -s "$tmp/values-extra.txt" ]; then
+  echo "closure-text: show --values reports values the check did not derive:"; cat "$tmp/values-extra.txt"; exit 1
+fi
+# Quoted forms: Go strconv.Quote and single-quoted shell form.
+python3 - "$tmp/values-raw.txt" > "$tmp/values-all.txt" <<'PYEOF'
+import json, sys
+vals = [l.rstrip("\n") for l in open(sys.argv[1]) if l.strip()]
+out = set()
+for v in vals:
+    out.add(v)
+    out.add(json.dumps(v))                       # Go quote for plain strings
+    out.add("'" + v.replace("'", "'\\''") + "'")  # shell single-quoted
+for v in sorted(out, key=len, reverse=True):
+    print(v)
+PYEOF
+strip_values() { # stdin -> stdout, every data value form removed, longest first
+  cmd="sed"
+  while IFS= read -r v; do
+    esc="$(printf '%s' "$v" | sed 's/[.[\*^$\/&|]/\\&/g')"
+    cmd="$cmd -e 's|$esc||g'"
+  done < "$tmp/values-all.txt"
+  eval "$cmd"
+}
+strip_actions() { sed -e "s/$delim_open\/\*.*\*\/$delim_close//g" -e "s/$delim_open[^>]*$delim_close//g"; }
+doc_closure() { # FILE... -> doctrine and template files named by any of them
+  for f in "$@"; do
+    for cand in $(cd "$lib_real" && find doctrine templates -type f 2>/dev/null); do
+      base="$(basename "$cand" .md)"; base2="$(basename "$cand")"
+      if grep -q "\"$base\"\|\"$base2\"\|\"$cand\"" "$lib_real/$f" 2>/dev/null; then printf '%s\n' "$cand"; fi
+    done
+  done | sort -u
+}
+lib="$lib_real"
+for wf in $workflows; do
+  yaml_nodes "$wf" | while read -r node kind; do
+    file="$(shown_file "$tmp/bin/tractor" "$wf" "$node")"
+    [ -n "$file" ] || continue
+    closure "$file" > "$tmp/node-closure.txt"
+    doc_closure $(cat "$tmp/node-closure.txt") >> "$tmp/node-closure.txt"
+    : > "$tmp/closure-residue.txt"
+    while read -r f; do strip_actions < "$lib_real/$f" >> "$tmp/closure-residue.txt"; done < "$tmp/node-closure.txt"
+    awk 'length($0) > 0' "$tmp/closure-residue.txt" | sed 's/[[:space:]]*$//' | sort > "$tmp/closure-residue.txt.s"
+    show_raw "$tmp/bin/tractor" "$wf" "$node" | strip_values | sed 's/[[:space:]]*$//' | awk 'length($0) > 0' | sort > "$tmp/rendered-residue.txt"
+    while IFS= read -r line; do
+      grep -qxF -- "$line" "$tmp/closure-residue.txt.s" \
+        || { echo "closure-text: $wf/$node renders a line that is neither closure text nor data: $line"; exit 1; }
+    done < "$tmp/rendered-residue.txt"
+    r="$(wc -l < "$tmp/rendered-residue.txt")"; c="$(wc -l < "$tmp/closure-residue.txt.s")"
+    [ "$r" -le "$c" ] || { echo "closure-text: $wf/$node renders $r lines from a closure of $c"; exit 1; }
+  done
+done
+lib="$tmp/src/workflow/library"
+
+# ---- content: one sentinel per file, in the copy ------------------------
+lib="$tmp/src/workflow/library"
 stamp="SENTINEL-$(date +%s)-$$"
 find "$lib/prompts" "$lib/supervisors" "$lib/passes" -type f 2>/dev/null | while read -r f; do
   rel="${f#$lib/}"

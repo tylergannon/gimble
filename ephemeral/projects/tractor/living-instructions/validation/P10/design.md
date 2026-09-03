@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 8; answers `review-7.md`.
+Archetype: scenario, twice. Lap 9; answers `review-8.md`.
 
 ## Story
 
@@ -22,10 +22,11 @@ prompts, and answering the approval question "Yes."; captures `plan`'s
 stdout to `check.log`; records the approved package's sprint ledger(s)
 and their item names (A0); runs the `Next:` line from that stdout
 verbatim with a fresh `--logs <dir>` the check names, logging the
-command it ran; waits for that run's completion; then builds the
-program (as the scratch repository's `README.md` says; if that fails,
-with `go build ./...`, noting it) and runs every acceptance example
-from the seed, comparing stdout, stderr, and exit status exactly.
+command it ran, with `observer.sh` attached to that run too; waits for
+that run's completion; then builds the program (as the scratch
+repository's `README.md` says; if that fails, with `go build ./...`,
+noting it) and runs every acceptance example from the seed, comparing
+stdout, stderr, and exit status exactly.
 
 ## Evidence
 
@@ -33,11 +34,13 @@ from the seed, comparing stdout, stderr, and exit status exactly.
   build commands; A0.
 - Both plan run directories and both execution run directories (the
   ones the check named), in full, with their `observer/` trees,
-  including the copy taken immediately before the approval answer; the
+  including the copy taken immediately before the approval answer and
+  the sprint ledger copies at every execution stage boundary; the
   `approve` stage's `prompt.md`, `response.md`, and segment; the
   approval question and answer files.
 - Both packages; the execution run's sprint ledger(s) at the end; the
-  segments of every `implement` stage.
+  segments of every `implement` stage; every `replan` stage's
+  `response.md`.
 - The scratch repositories at the end, and `probes.log` (each example's
   command, expected, actual).
 
@@ -58,27 +61,33 @@ is the one permitted difference); `validate-plan` accepts the package;
 `Next:` line and the identical command executed; the execution run
 directory the check named has a `timeline.jsonl` ending with
 `PipelineCompleted` after a `StageCompleted` with `next: success`; the
-approved package was what ran: every sprint item name in A0 is present
-in the final sprint ledger(s) and `done: true`, with exactly one
-`LoopValidated` `passed: true` naming it and a loop stage's
-`validation.json` naming it (the execution workflow ran the approved
-items and the engine marked each; a ledger emptied or replaced during
-execution fails); at least one `implement` stage's segment has a
-`tool_call` that wrote a source file of the program (execution, not
+approved package was what ran: every sprint item name in A0 is either
+present in the final sprint ledger(s) and `done: true`, with exactly
+one `LoopValidated` `passed: true` naming it and a loop stage's
+`validation.json` naming it, or left the ledger across a `replan`
+stage while still open (not `done: true` in the copy before that
+stage) and that stage's `response.md` names it (decision 44: replan
+edits open items with a reason; an item that vanishes across any
+other stage, or after being marked, fails); every item in the final
+ledger(s) is `done: true` with the same event and record; the final
+ledger(s) are not empty; at least one `implement` stage's segment has
+a `tool_call` that wrote a source file of the program (execution, not
 planning, built it; scaffolding by `plan` is allowed); every
 acceptance example in the seed matches exactly.
 
 `infer` (files: the approval question file and its answer, the
 `approve` turn's `prompt.md` and `response.md`, the package as
 approved (`promises.md`, `checklist.md`, chapter or sprint docs,
-`plan-review/ledger.md`); each seed and `probes.log`): "Two judgments.
+`plan-review/ledger.md`); each `replan` turn's `response.md` for items
+it removed or renamed; each seed and `probes.log`): "Three judgments.
 First: did the approval question put this package in front of the
 human, describing its promises, its slices, and its review outcomes as
 they actually stand in the package files, and ask whether to approve
 it? Fail if the question describes a package other than the one in the
-files or does not ask for approval. Second: run the seed's acceptance
-examples yourself against the built program and fail if any does not
-hold."
+files or does not ask for approval. Second: for every item replan
+removed or renamed, does its response give a reason grounded in work
+already done? Third: run the seed's acceptance examples yourself
+against the built program and fail if any does not hold."
 
 ## Not proven
 
@@ -90,4 +99,4 @@ Verify-before-done ordering in the large run; that is P6. Whether the
 packages' own checklist commands are strong: that is P3's reviewer's
 job and the `verify` node's. How much of the program `plan` scaffolded
 before execution; only that execution ran the approved items and wrote
-program source.
+program source. The replan copies race by model latency (ledger rules).

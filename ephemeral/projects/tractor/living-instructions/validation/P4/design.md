@@ -1,6 +1,6 @@
 # P4: a rejected validation design is re-designed with the reviewer's notes and later passes
 
-Archetype: scenario. Lap 8; answers `review-7.md`.
+Archetype: scenario. Lap 9; answers `review-8.md`.
 
 ## Story
 
@@ -10,31 +10,37 @@ Archetype: scenario. Lap 8; answers `review-7.md`.
    `infer`, then accept whatever the reviewer says." The seed is data;
    the design node reads it as it reads any seed.
 2. `plan` runs with `observer.sh` accepting everything.
-3. Wait for `COMPLETED`.
+3. Wait until the validation loop has marked the item for the first
+   promise (its `LoopValidated`), or the run ends, whichever comes
+   first. What the run does afterwards is outside P4.
 
 ## Evidence
 
+- `promises.md` from the package: the first promise's id.
 - `timeline.jsonl`: `StageStarted`, `StageCompleted(next)`,
   `StageFailed`, `LoopItemSelected(item, lap)`, `LoopValidated` for the
-  first item; `validation.json` of the marking loop stage.
-- For the first item's laps: every completed review turn's `prompt.md`
-  and `response.md`; every completed design turn after the first:
+  item whose name begins with that id; `validation.json` of the marking
+  loop stage.
+- For that item's laps: every completed review turn's `prompt.md` and
+  `response.md`; every completed design turn after the first:
   `prompt.md` and segment (every `tool_call` and paired `tool_result`).
 - `observer/` copies of `validation/<item>/` at the `StageCompleted` of
   each design and review stage for this item (D1, R1, D2, R2, ... ) and
-  at the end.
-- `validation/ledger.md` at the end.
+  after the marking stage.
+- `validation/ledger.md` after the marking stage.
 
 ## Validator
 
-`command`: `prove/p4-reentry.sh`: for the first item in
-`validation/ledger.md`, the completed stages between its first
-`LoopItemSelected` and its `LoopValidated` (`passed: true`, with a
-matching `validation.json`) alternate design and review, with at least
-two review turns; every review but the last has `next: design` and the
-last has `next:` the loop node (rejected at least once, then passed);
-retried attempts (a `StageFailed` stage with no `response.md`) are
-skipped; the item is `done: true` in the final ledger; for the first
+`command`: `prove/p4-reentry.sh`: the item under test is the one whose
+name begins with the id of the first promise in `promises.md` (the item
+the seed's instruction addresses; a ledger item serving no promise is
+not it); the completed stages between its first `LoopItemSelected` and
+its `LoopValidated` (`passed: true`, with a matching `validation.json`)
+alternate design and review, with at least two review turns; every
+review but the last has `next: design` and the last has `next:` the
+loop node (rejected at least once, then passed); retried attempts (a
+`StageFailed` stage with no `response.md`) are skipped; the item is
+`done: true` in the ledger copy after the marking stage; for the first
 review: the notes file is absent in D1 and present in R1, and
 `design.md` is byte-identical between D1 and R1 (the reviewer wrote
 notes, not a redesign); the notes were available to every design turn
@@ -47,25 +53,27 @@ copies before and after that design turn, and is byte-identical across
 the review turn that follows it (each redesign is the design turn's,
 and the reviewer left it alone).
 
-`infer` (files: every review turn's `prompt.md` and `response.md`; every
-redesigning turn's `prompt.md` and segment; the notes; the design
-copies D1, D2, ...): "Did each rejecting reviewer read the design in
-front of it and reject it in its notes, with the route agreeing? Was
-the full text of the notes in front of each redesigning turn, in its
-prompt or in a file it read, and did its redesign change the design in
-a way that answers those notes rather than cosmetically? Did the final
-reviewer read the final design and accept it in its notes, with the
-route agreeing? Fail on any no."
+`infer` (files: the seed, `promises.md`, every review turn's
+`prompt.md` and `response.md`; every redesigning turn's `prompt.md` and
+segment; the notes; the design copies D1, D2, ...): "Is the item under
+test the validation design for the seed's first promise? Did each
+rejecting reviewer read the design in front of it and reject it in its
+notes, with the route agreeing? Was the full text of the notes in front
+of each redesigning turn, in its prompt or in a file it read, and did
+its redesign change the design in a way that answers those notes rather
+than cosmetically? Did the final reviewer read the final design and
+accept it in its notes, with the route agreeing? Fail on any no."
 
 ## Not proven
 
 How often reviewers reject in practice, or that two laps suffice; any
-number of rejections before the pass satisfies P4. Whether the model
-follows the seed's instruction: if the first review routes pass, the
-scenario exits "inconclusive: first design was not rejected", the item
-stays open, and the scenario is rerun with the instruction moved into
-the design prompt's documented test hook (`TRACTOR_TEST_TRIVIAL_FIRST=1`,
-honored only when the seed asks for it). Whether every objection was
-resolved; the passing reviewer's judgment is that. The copies race by
-model latency (ledger rules): each turn's first write follows a model
-round trip.
+number of rejections before the pass satisfies P4. Whether the run
+completes after the item is marked; P4 ends at the mark. Whether the
+model follows the seed's instruction: if the first review routes pass,
+the scenario exits "inconclusive: first design was not rejected", the
+item stays open, and the scenario is rerun with the instruction moved
+into the design prompt's documented test hook
+(`TRACTOR_TEST_TRIVIAL_FIRST=1`, honored only when the seed asks for
+it). Whether every objection was resolved; the passing reviewer's
+judgment is that. The copies race by model latency (ledger rules):
+each turn's first write follows a model round trip.

@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 8; answers `review-7.md`.
+Lap 9; answers `review-8.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -33,10 +33,12 @@ pass leg of the check below is empty until then and runs then.
   carries a prompt, command, or checklist.
 - The include closure of each header file: the files named by
   `include` and `doctrine` actions in it, transitively, read by the
-  check from the files themselves.
-- The data values for the check's parameters: the check supplied
-  `Parameters` and computes every README-listed derived value from
-  them.
+  check from the files themselves; and the doctrine and template files
+  those name.
+- The data values for the check's parameters, computed by the check
+  itself from the parameters it supplied and the derivations the README
+  states, in raw, Go-quoted (`quote`), and shell-quoted (`shell`) form;
+  `show --values` output for the same parameters, which must agree.
 - Mutated copies of the tree the check makes: every library prompt file
   and one doctrine page with a sentinel naming that file appended; one
   uncited doctrine page added; and, separately, one doctrine page with a
@@ -70,18 +72,22 @@ pass leg of the check below is empty until then and runs then.
   of a prompt file outside the closure; with a sentinel appended to a
   doctrine page, every prompt whose closure names that page prints it.
   No unused prompt file: every file under `prompts/` and `supervisors/`
-  is in the closure of some node's header file in some workflow (a file
-  no node renders cannot be the citation that keeps a doctrine page
-  alive); every file under `passes/` is covered by the chapter 5 leg.
-  Data only: the check knows every data value, because it supplied the
-  parameters and the README says how each derived value is computed;
-  for each rendered line it removes every occurrence of every data
-  value, and for each library line it removes every template action;
-  every rendered residue must equal some library residue (a rendered
-  line is library text plus data, whatever its length; Go-supplied
-  text that is neither fails). Orphans: an injected
-  `doctrine/zz-uncited.md` makes `TestLibraryNoOrphans` fail naming it.
-  Rendering: an injected broken action in a doctrine page makes
+  is in the closure of some node's header file in some workflow; every
+  file under `passes/` is covered by the chapter 5 leg. Text from the
+  closure only: the check computes the data values itself (the
+  parameters it passed and the README-stated derivations, in raw,
+  `quote`d, and `shell`-quoted forms) and requires `show --values` to
+  agree with them; then, for each node, it removes every data value
+  form from each rendered line, removes every template action and
+  template comment from each line of the node's closure (its header
+  file, the prompt files it includes, and the doctrine and template
+  files any of them name), and requires every rendered residue line to
+  equal some residue line of that closure, and the count of rendered
+  residue lines not to exceed the count of closure residue lines. Text
+  parked in another file, in a comment, or supplied by Go fails; a
+  `quote`d or `shell`-quoted value passes. Orphans: an injected
+  `doctrine/zz-uncited.md` makes `TestLibraryNoOrphans` fail naming
+  it. Rendering: an injected broken action in a doctrine page makes
   `TestLibraryRendersAll` fail naming the page. In the real tree both
   tests run and pass.
 - `prove/p8-passes-are-files.sh` (chapter 5): in a copy of the tree
@@ -103,7 +109,7 @@ No `infer`.
 
 That the content is good. That `show` reproduces frames (by design;
 research F1). That a data value carries no instruction; the README's
-field list is the contract and the code review reads the struct.
-Skeleton text: templates are cited by prompts (sprint 3's script) and
-rendered by the render test; what a planner writes from them is its
-own output, not the library's.
+field list is the contract, the check recomputes every value, and the
+code review reads the struct. Skeleton text: templates are cited by
+prompts (sprint 3's script) and rendered by the render test; what a
+planner writes from them is its own output, not the library's.
