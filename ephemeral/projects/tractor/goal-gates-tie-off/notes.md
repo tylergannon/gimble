@@ -108,3 +108,11 @@ checklist files on resume, resume at the innermost loop.
 
 Still to do: delete `workflow/` + CLI + docs, delete the ephemeral spiral,
 squash-merge.
+
+## Tie-off PR
+
+tylergannon/tractor#38, commit 3f83f2c, opened 2026-09-03 for squash-merge.
+Deleted: workflow/, cmd/tractor/workflow*.go, planning.md, spec §3.1.2,
+README/llms/SKILL/loops sections, living-instructions/ (except loop-node.md
+and proof/loop-node-live, moved to ephemeral/projects/tractor/loop-node/),
+12 workflow worklogs.
