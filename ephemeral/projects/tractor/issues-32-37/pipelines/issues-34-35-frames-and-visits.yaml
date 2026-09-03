@@ -30,6 +30,9 @@ nodes:
 
   - id: check
     type: tool
-    tool_command: go build ./... && go test -count=1 ./...
+    tool_command: >-
+      if [ -z "$(git status --porcelain -- engine checklist graph lint docs src)" ]; then
+      echo "NO CHANGES in the workdir: the work was not done here"; exit 1; fi;
+      go build ./... && go test -count=1 ./...
     on_success: success
     on_error: implement
