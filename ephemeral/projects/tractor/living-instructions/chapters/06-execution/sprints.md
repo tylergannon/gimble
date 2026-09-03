@@ -18,7 +18,8 @@ chapter's own mark is the engine's, on its command, like chapters 4 and 5.
    proof, from the ledger diff across each `replan` turn, that it edits
    only open items, never the item the lap's `LoopItemSelected` names,
    and never the chapter ledger; and that on the `verify` fail edge it
-   appends exactly one open item.
+   either appends exactly one open item or asks the human (a
+   `QuestionAsked` in its segment), never neither.
 2. `verify` in `large` with the holdout handoff: node, prompt, route
    targets (pass to `chapters`, fail to `replan`); the holdout path recorded at design time and rendered only
    here. Proof: a small scratch package with one universal promise whose

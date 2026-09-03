@@ -32,7 +32,7 @@ When this is done, the repository contains:
 - `workflow/library/` with graphs, prompts, supervisors, passes, doctrine,
   and templates as files; no prompt in a Go string; a render test; and
   `tractor workflow show <name>`.
-- `plan` v2: intake, the brief/research loop with its tool-node halt,
+- `plan` v2: intake, the brief/research loop with its tool-node halt and its `ceiling` gate to `halted`,
   decompose, the validation design loop, assemble, the plan review loop,
   approve; four supervisors.
 - `medium` and `large` with `replan` after every implement lap and, in
@@ -126,7 +126,8 @@ Promises P1 to P5, P7, P8's pass leg (passes are library files), and
 the chapter 5 portion of P9 (its docs sprint). Backlog sketch: `models.yaml` and per-role model
 resolution; intake node and first research plan; research branches,
 fan-in, index, `index_gate`; brief node with elicit-then-prune and
-batched questions; the halt tool node and the loop; decompose for MEDIUM
+batched questions; the halt tool node, the loop, and the `ceiling`
+gate on `brief`'s exhaustion edge with the `halted` terminal; decompose for SIMPLE, MEDIUM,
 and LARGE; validation ledger generation and the `design` node with both
 archetypes and the holdout writer; the `review` node with its pass and
 fail edges; the pass files, the generated review ledger, the `reviewer` node

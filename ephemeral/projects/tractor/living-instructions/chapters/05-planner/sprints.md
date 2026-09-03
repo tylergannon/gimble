@@ -24,9 +24,12 @@ are edited only when the plan node runs (once per chapter in today's
    leaves under `research/`, `INDEX.md`, `findings.md`. Proof: nested run
    on a seed with a planted source; leaves, index entry, and one finding
    exist; the timeline shows the branches.
-4. The `index_gate` tool node and the `halt` tool node with the loop's
-   routes. Proof: the halt command under the three states of P2's
-   design, and one nested run whose halt routes back once.
+4. The `index_gate` tool node, the `halt` tool node with the loop's
+   routes, and the `ceiling` gate on `brief`'s exhaustion edge with the
+   `halted` terminal. Proof: the halt command under the three states of
+   P2's design, one nested run whose halt routes back once, and one
+   nested run with `max_visits: 1` on `brief` that ends in `halted`
+   through `ceiling` after its `tractor ask`.
 5. Wire the observer and the shared proof library the planner wrote
    (`validation/observer.sh`, `validation/lib/`, committed before this
    chapter) into the first scenario: the scripts need no change; the
@@ -35,9 +38,10 @@ are edited only when the plan node runs (once per chapter in today's
 6. `brief`: elicit then prune, batched question files with `Promise:`
    lines, promise list, exclusions, open plan entries. Proof: P1.
 7. The brief/research loop end to end. Proof: P2.
-8. `decompose` for MEDIUM and LARGE with the chapter and sprint
-   skeletons. Proof: `validate-plan` shape rules pass on both sizes from
-   one seed each.
+8. `decompose` for SIMPLE, MEDIUM, and LARGE with the chapter and
+   sprint skeletons (SIMPLE is a one-item sprint ledger, decision 51).
+   Proof: `validate-plan` shape rules pass on all three sizes from one
+   seed each.
 9. Validation ledger generation and `design` with both archetypes and
    the holdout writer. Proof: a nested run leaves one design per promise
    and, for a universal promise over a set too large to check whole, a

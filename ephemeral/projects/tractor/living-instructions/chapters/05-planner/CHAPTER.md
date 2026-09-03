@@ -3,7 +3,8 @@
 Status: planned
 
 The `plan` workflow becomes the graph in `planning-workflow.md` §2: intake,
-the brief/research loop with its tool-node halt, decompose, the
+the brief/research loop with its tool-node halt and its `ceiling` gate
+to `halted`, decompose, the
 validation design loop, assemble, the plan review loop, approve; four
 supervisors; `models.yaml`. Every node is content in the library from
 chapter 4. Promises P1 to P5, P7, P8's pass leg (passes are library files, sprint 11), and the chapter 5 portion of P9.
@@ -18,7 +19,7 @@ chapter 4. Promises P1 to P5, P7, P8's pass leg (passes are library files, sprin
     explicit provider and a `not` constraint, applied in `Build`.
   - Intake and the brief/research loop: elicit then prune, batched
     question files, research branches writing leaves and findings, a halt
-    tool node.
+    tool node, and the `ceiling` gate on `brief`'s exhaustion edge.
   - Decompose writes chapters or sprints as vertical slices.
   - The validation design loop: `design` chooses an archetype and fills
     the item; `review` routes pass or fail.
@@ -37,9 +38,10 @@ No engine change: every node type is already in the spec.
 
 ## Review posture
 
-Each sprint's proof is a nested run on a small seed with the scripted
-observer, inspected from the timeline and the ledgers, in the manner of
-chapter 2 sprint 4. The implement prompt (library content since chapter
+Each sprint that adds a node or a route proves it by a nested run on a
+small seed with the scripted observer, inspected from the timeline and
+the ledgers, in the manner of chapter 2 sprint 4; sprint 1, which adds
+no node, proves by unit tests and `show` output. The implement prompt (library content since chapter
 4) forbids the coder to start a child Tractor run; sprint 1 of this
 chapter adds the exception: a validator named in the sprint doc may
 start one, the coder runs it as the doc says, and the engine runs it
