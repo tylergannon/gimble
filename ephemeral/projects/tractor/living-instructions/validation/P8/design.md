@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 20; answers `review-19.md`.
+Lap 21; answers `review-20.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -134,8 +134,11 @@ output and carries every payload, not only headers). Equality: for every node of
 - `prove/p8-show-stage.sh` (chapter 6): runs `plan` on
   `seeds/greeter.md` into a fresh run directory, then for the first
   completed stage of each prompt-bearing node runs `show plan --node
-  <n> --stage <that stage dir>` with the parameters the script passed
-  to `run`, and expects exit 0; does the same for the first `implement`
+  <n> --stage <that stage dir> --goal <the run's goal from
+  manifest.json>` with the parameters the script passed to `run`, and
+  expects exit 0 (`--stage` strips the frame and, given `--goal`,
+  expands `$goal` as the engine does, so a library prompt that uses
+  `$goal` is not a false diff); does the same for the first `implement`
   stage of P10's `medium` run and for the first `implement` stage of
   P10's `large` run, whose `prompt.md` carries the
   nested chapters-and-sprints frame, so a `--stage` that strips only
@@ -146,8 +149,9 @@ output and carries every payload, not only headers). Equality: for every node of
 generated `plan-review/ledger.md` and every reviewer stage's
 `prompt.md` of its run, chapter 6's stage leg with the stage
 directories it diffed), the library files under `workflow/library/`,
-the non-test Go under `workflow/` and `cmd/tractor/workflow.go` (where
-`run` hands `Build`'s graph to the engine): each ledger command captures its script's stdout,
+the non-test Go under `workflow/` and under `cmd/tractor/` (every file
+on the path from `Build` to `engine.NewRunner`, `workflow.go` and
+`root.go` included): each ledger command captures its script's stdout,
 which names every probe and its outcome (the stage perturbation's byte
 and offset, each node's sentinel result, each skeleton's rendering),
 to `prove/last-run/<script>.log`, and the orphan script copies the `go
@@ -162,7 +166,8 @@ names and name the right file, and does the test's code walk the tree rather tha
 recognise probe names? Read the Go under `workflow/` and `cmd/tractor/workflow.go`: does any
 Go code supply prompt text beyond the data values the README lists and
 the four functions, rely on a template branch that never renders, or
-alter a node between `Build` and the engine? Fail
+alter any node, supervisor briefs included, anywhere between `Build`
+and `engine.NewRunner`? Fail
 if any probe's failure is generic, names the wrong file, the test
 special-cases probes, or Go carries prompt text." This is the model
 judgment over recorded evidence that decision 41 requires; the scripts

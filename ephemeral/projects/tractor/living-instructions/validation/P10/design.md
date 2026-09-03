@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 20; answers `review-19.md`.
+Archetype: scenario, twice. Lap 21; answers `review-20.md`.
 
 ## Story
 
@@ -83,12 +83,17 @@ between the two copies (a chapter's `check`, `doc`, or `command`, or a
 chapter added or removed) appears across a stage whose `response.md`
 states the reason, or after a `QuestionAsked` whose question names the
 chapter and whose answer accepts it; a chapter's `checklist` changes only
-after a `QuestionAsked` whose question names the chapter and the new
-ledger and whose answer accepts it (a human may re-point an open
-chapter, decision 44; a planner may not), and the ledger it then names
-is the one whose items the run marked (A0 for that chapter becomes the
-replacement ledger as approved); the judge below reads every such
-reason; a
+with a recorded reason (a `QuestionAsked` naming the chapter and the
+new ledger with an accepting answer, or a planner stage whose
+`response.md` states the reason; decision 44), the change happens while
+the chapter is open, and the ledger it then names is the one whose
+items the run marked (A0 for that chapter becomes the replacement
+ledger as recorded); the judge below reads every such reason; every
+`doc` a marked item names, and every chapter doc, is byte-identical
+between the approved package and the end of execution except across a
+stage with such a recorded reason (the engine reads an item's doc live
+at each turn, so the instructions execution followed are the approved
+ones); a
 sprint item is identified by its ledger path and name, and for a LARGE
 package the events for a chapter's items are those between that
 chapter's `LoopItemSelected` on `chapters` and its `LoopValidated`, so
@@ -109,8 +114,8 @@ example in the seed matches exactly.
 `infer` (files: the approval question file and its answer, the
 `approve` turn's `prompt.md` and `response.md`, the package as
 approved (`promises.md`, `checklist.md`, chapter or sprint docs,
-`plan-review/ledger.md`); the approved and final chapter ledgers for a
-LARGE package with, for each difference, the `response.md` of the stage
+`plan-review/ledger.md`); the approved and final chapter ledgers and docs for a LARGE package
+with, for each difference, the `response.md` and segment of the stage
 that made it and every question and answer file of the execution run's
 interview directory; each `replan` turn's `response.md` for items it
 changed;
@@ -123,9 +128,12 @@ Fail if the question describes a package other than the one in the
 files or does not ask for approval. Second: for every item replan
 changed, renamed, or removed, does its response give a reason grounded
 in work already done, and for every difference between the approved
-and final chapter ledgers, does the stage's response give a reason
-grounded in the work, or does a question describe exactly that edit
-with an answer accepting it? Naming the chapter is not a reason. Third: run the seed's acceptance examples
+and final chapter ledgers or docs, does the stage's response give a
+reason grounded in the work, corroborated by that stage's segment (the
+commands it ran and their results, supplied with the response), or does
+a question describe exactly that edit with an answer accepting it?
+Naming the chapter is not a reason; a reason the segment does not bear
+out is not a reason. Third: run the seed's acceptance examples
 yourself against the built program and fail if any does not hold."
 
 ## Not proven

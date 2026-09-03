@@ -38,8 +38,10 @@ path) with no header.
 
 `--stage <dir>` (requires `--node`): read `<dir>/prompt.md`, strip the
 frame (everything from the start through the end of the outermost
-`</iterate>` block and the preamble before it), and print a unified
-diff against the node's prompt. Exit 0 on no diff, 1 on diff. Unit test
+`</iterate>` block and the preamble before it), expand `$goal` in the
+node's prompt when `--goal <text>` is given (the engine's own
+replacement, so a library prompt that uses `$goal` diffs clean against
+its stage), and print a unified diff against the result. Exit 0 on no diff, 1 on diff. Unit test
 with a hand-built stage directory.
 
 ## Definition of done
