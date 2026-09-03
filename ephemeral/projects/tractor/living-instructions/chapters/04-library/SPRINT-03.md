@@ -1,67 +1,58 @@
-# Sprint 3: the render test and the orphan walk
+# Sprint 3: doctrine pages and skeletons
 
-Two tests that make the library safe to edit, and the proof that they
-bite. Exercisable at the end: add an uncited doctrine page and `go test
-./workflow/` fails naming it; break a template action and it fails
-naming the file.
+Written by Claude, not the coder (interview 0013 round, question 5). The
+pages are the design; the coder's part is limited to the `include`
+wiring if the func map from sprint 1 needs adjusting.
 
-## Read first
+## Pages
 
-- `workflow/library.go` and the filesystem seam sprint 1 chose (the
-  package-level parse function or `BuildFrom`; the proof script needs
-  neither, it builds a copy of the tree).
-- `chapters/04-library/prove/lib.sh` (the shared setup the proof
-  scripts source) and `prove/show-equals-build.sh` (sprint 2).
+Only pages the three existing prompts can cite now. Pages for nodes that
+do not exist yet (validation archetypes, reviewer independence, prior
+art, research leaf) come with their prompts in chapter 5, so the orphan
+walk stays green.
 
-## The work
+| Page | Cited by | Distilled from |
+|---|---|---|
+| `doctrine/promises.md` | planner | decision 37; `sources/diffusioninc/.claude/skills/df-promise/SKILL.md` |
+| `doctrine/elicit-then-prune.md` | planner | decision 38; spec-authoring stopping rule; grilling |
+| `doctrine/question-files.md` | planner, both implement prompts | decisions 26–29, 39; `BUILD.md` |
+| `doctrine/promise-adjacent-seams.md` | planner | decision 40; nlspec methodology (Parnas test) |
+| `doctrine/proof-not-theater.md` | both implement prompts | decision 41; proof-of-work; research R2 findings |
+| `doctrine/vertical-slices.md` | planner, large plan | slice-design; wisdom.md |
+| `doctrine/chapter-doc.md` | large plan | df-chapter-create; chapters 1–4 `CHAPTER.md` |
+| `doctrine/sprint-doc.md` | large plan, planner | df-sprint-plan; chapter 1 sprint docs |
+| `doctrine/pyramid-index.md` | large plan | df-chapter-create |
+| `doctrine/ledger.md` | planner, both implement prompts | `loop-node.md` §2; decision 15, 44 |
 
-`TestLibraryRendersAll`: for every workflow in the library, `Build` with
-representative parameters and assert every prompt-bearing node's prompt
-is non-empty and every template under `prompts/`, `supervisors/`, and
-`passes/` was executed at least once (a file none of the representative
-sets renders fails the test by name). Also execute every file under `doctrine/` and `templates/`
-standalone with the same data, so a syntax error in a page fails here,
-not at run time, and the failure names the file.
+Each page: under about sixty lines, one idea, positive phrasing, a
+`Source:` line pointing into `sources/` or `decisions.md`. Written in
+the library's voice, which is the voice of `BUILD.md`: tells the agent
+what to do and why in as few words as hold. A page is rendered as a
+template, so it must not contain the library's delimiters except as
+actions; `{{` is literal under non-default delimiters and allowed.
 
-`TestLibraryNoOrphans`: render every node of every workflow under each
-representative parameter set (listed in the README as `- params: ...`
-lines, the same sets the render test uses) with an include tracer, and
-fail, naming the page, on any file under `doctrine/` that no rendering
-included. A `doctrine` action in a branch that never renders is not a
-reference.
-All three directories
-hold agent-facing library files, the declaration's umbrella for text
-the library sends to an agent. Skeletons under `templates/` are not in the walk; P8 does
-not promise that every skeleton is used, and sprint 4's script checks
-its own skeletons are cited. The failure names the orphan. Prove the
-walk fails: the test constructs a synthetic `fs.FS` with one uncited
-page and asserts the walk reports it by name.
+## Skeletons
 
-The walk is written from scratch; no surveyed tool has one
-(`research/prompt-libraries/goose.md` has the inverse and still drifted).
+`templates/brief.md`, `templates/promises.md`, `templates/recommendation.md`,
+`templates/CHAPTER.md`, `templates/SPRINT.md`, `templates/ledger.md`. Each
+is the artifact with its fixed parts filled and its variable parts as
+prose placeholders in angle brackets. The planner prompt cites the first
+three; the large plan prompt cites the rest.
 
-## Definition of done
+## Prompt edits
 
-The ledger item's command runs `prove/orphan-walk-and-render.sh`, which
-proves, in a copy of the tree it makes itself: for every prompt-bearing node, `show --raw` equals the script's own
-standalone `workflow.Render` of the node's header file (`Build` adds
-nothing to a prompt; tool commands and checklist paths are `Build`'s
-own and are compared against `Build` by sprint 2's script); with a distinct sentinel appended to every file
-under `prompts/`, `supervisors/`, `passes/`, and `templates/`, each node
-renders the sentinel of its header file and no sentinel of a file
-outside that file's include closure (a conditional include may stay
-silent), and every skeleton the library README lists has its sentinel in some
-node's output (an unlisted file under `templates/` may exist unused); an injected uncited page, named at random, makes `TestLibraryNoOrphans`
-fail naming it, and so does removing every citation of an existing page
-chosen at random; with a sentinel appended to every doctrine page, each
-page's sentinel appears in some node's `show --raw` under at least one
-listed parameter set; an unclosed action with random text appended to a
-doctrine page chosen at random (using the delimiters the README states)
-makes `TestLibraryRendersAll` fail naming the page; when the library has
-no doctrine page yet, the script plants one, cited from a prompt, so
-every probe runs; and in the real tree both
-tests run by name with `-v` and their `--- PASS:` lines are present.
+The three migrated prompts gain `doctrine` includes where they currently
+paraphrase a page, and lose the paraphrase. This changes prompt text, so
+the sprint 1 byte-equality snapshot is updated in the same commit, with
+the diff reviewed as content: nothing an agent is told may be lost, only
+moved.
 
-## Not in this sprint
+## Proof script
 
-`show` itself (sprint 2). Doctrine pages (sprint 4). Docs (sprint 5).
+`prove/doctrine-pages.sh`: every page in the table exists with a
+`Source:` line; every skeleton exists;
+`TestLibraryNoOrphans` and `TestLibraryRendersAll` run and pass (the
+render test is what catches a delimiter misuse in a page). This script
+demonstrates the sprint; it is not part of P8's proof, which makes no
+claim about page names. The `infer` judge on the ledger item reads the
+pages against decisions 37–59.

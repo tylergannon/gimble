@@ -1,67 +1,21 @@
-# Sprint 4: doctrine pages and skeletons
+# Sprint 4: docs and skill
 
-Written by Claude, not the coder (interview 0013 round, question 5),
-before the chapter's run starts, and committed under
-`chapters/04-library/content/doctrine/` and `content/templates/`. The
-coder's turn copies them into `workflow/library/doctrine/` and
-`workflow/library/templates/`, adds the `doctrine` includes to the
-four migrated prompts, updates the snapshot, and runs the proof
-script. The pages are the design; the sprint is the wiring, and the proof
-script compares every installed file byte for byte with `content/`.
+Teach the library and `show` wherever the workflows are already taught.
+Anchors: `research/workflow-package-inventory/migration-inventory.md` §7.
 
-## Pages
+- `docs/spec.md` §3.1.2: a subsection "The workflow library" stating the
+  layout, the template contract (delimiters, `quote` and `shell`, the
+  `include` and `doctrine` actions, data values only from Go), the render
+  and orphan tests, and `workflow show` with `--stage`. State plainly
+  that `show` never reproduces frames or `$goal`.
+- `src/content/docs/planning.md`: a short section "Editing what the
+  planner is told" with the three-step loop: edit a page, run the tests,
+  run `show`.
+- `skills/tractor/SKILL.md` and `llms.txt`: one paragraph each; the skill
+  description mentions `show`.
+- `workflow/library/README.md` is the authoritative contract; the docs
+  point at it rather than restating it.
+- `README.md` "Start with a plan": one sentence and a link.
 
-Only pages the four existing prompts can cite now. Pages for nodes that
-do not exist yet (validation archetypes, reviewer independence, prior
-art, research leaf) come with their prompts in chapter 5, so the orphan
-walk stays green.
-
-| Page | Cited by | Distilled from |
-|---|---|---|
-| `doctrine/promises.md` | planner | decision 37; `sources/diffusioninc/.claude/skills/df-promise/SKILL.md` |
-| `doctrine/elicit-then-prune.md` | planner | decision 38; spec-authoring stopping rule; grilling |
-| `doctrine/question-files.md` | planner, both implement prompts | decisions 26–29, 39; `BUILD.md` |
-| `doctrine/promise-adjacent-seams.md` | planner | decision 40; nlspec methodology (Parnas test) |
-| `doctrine/proof-not-theater.md` | both implement prompts | decision 41; proof-of-work; research R2 findings |
-| `doctrine/vertical-slices.md` | planner, large plan | slice-design; wisdom.md |
-| `doctrine/chapter-doc.md` | large plan | df-chapter-create; chapters 1–4 `CHAPTER.md` |
-| `doctrine/sprint-doc.md` | large plan, planner | df-sprint-plan; chapter 1 sprint docs |
-| `doctrine/pyramid-index.md` | large plan | df-chapter-create |
-| `doctrine/ledger.md` | planner, both implement prompts | `loop-node.md` §2; decision 15, 44 |
-
-Each page: under about sixty lines, one idea, positive phrasing, a
-`Source:` line pointing into `sources/` or `decisions.md`. Written in
-the library's voice, which is the voice of `BUILD.md`: tells the agent
-what to do and why in as few words as hold. A page is rendered as a
-template, so it must not contain the library's delimiters except as
-actions; `{{` is literal under non-default delimiters and allowed.
-
-## Skeletons
-
-List them in `workflow/library/README.md` as lines `- templates/<name>`;
-the sprint 3 proof script reads that list and requires each listed
-skeleton to be rendered by some node.
-
-`templates/brief.md`, `templates/promises.md`, `templates/recommendation.md`,
-`templates/CHAPTER.md`, `templates/SPRINT.md`, `templates/ledger.md`. Each
-is the artifact with its fixed parts filled and its variable parts as
-prose placeholders in angle brackets. The planner prompt cites the first
-three; the large plan prompt cites the rest.
-
-## Prompt edits
-
-The four migrated prompts gain `doctrine` includes where they currently
-paraphrase a page, and lose the paraphrase. This changes prompt text, so
-the sprint 1 byte-equality snapshot is updated in the same commit, with
-the diff reviewed as content: nothing an agent is told may be lost, only
-moved.
-
-## Proof script
-
-`prove/doctrine-pages.sh`: every page in the table exists with a
-`Source:` line; every skeleton exists;
-`TestLibraryNoOrphans` and `TestLibraryRendersAll` run and pass (the
-render test is what catches a delimiter misuse in a page). This script
-demonstrates the sprint; it is not part of P8's proof, which makes no
-claim about page names. The `infer` judge on the ledger item reads the
-pages against decisions 37–59.
+No claim the docs make may contradict `workflow show --help` or the
+README. The `infer` judge on the ledger item checks exactly that.

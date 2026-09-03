@@ -1,71 +1,83 @@
-# Sprint 2: `tractor workflow show`
+# Sprint 2: `show`, the render test, the orphan walk
 
-One command that prints what `Build` materialized, so an editor can see
-the effect of a content change without running a pipeline. Exercisable
-at the end: `tractor workflow show plan --project demo --seed s.md`
-prints every node of the plan graph with its payload (prompt, tool
-command, or checklist path).
+Three things that make the library safe to edit.
 
-## Read first
+## `tractor workflow show <name>`
 
-- `cmd/tractor/workflow.go:31` (subcommand registration) and `:108-127`
-  (the `Parameters` construction `run` uses; reuse it).
-- `engine/frames.go:108-146` (the frame shape `--stage` strips).
-- `research/workflow-package-inventory/migration-inventory.md` §4.
-
-## The work
-
-`tractor workflow show <name>` shares `run`'s parameter flags
-(`--project`, `--seed`, `--workdir`) and has no `--logs`. It calls `Build`
-exactly as `run` does and prints, for every node `Build` returns
-(synthesized branch nodes included), in any stable order:
+Same flags as `run` (`--project`, `--seed`, `--workdir`), no `--logs`.
+Calls `Build` exactly as `run` does and prints, for each node in file
+order:
 
 ```
-== <node id> [(<type>)] <library file, for nodes that carry a prompt>
+== <node id> (<type>)
 <prompt text, or tool_command, or checklist path>
 ```
 
-The library file is the path under `workflow/library/` of the template
-the node was rendered from (for example `prompts/plan/planner.md`).
 Nothing else: no frames, no `$goal` expansion, no banner claiming
-equality with a run. `workflow list` output and the root help set are
-asserted exactly by existing tests and must not change.
+equality with a run. Register it beside `list` and `run`
+(`cmd/tractor/workflow.go:31`); reuse the `Parameters` construction at
+`:108-127`. `workflow list` output and the root help set are asserted
+exactly by existing tests and must not change.
 
 `--node <id> --raw` prints one node's prompt (or command, or checklist
-path) with no header.
+path) with no header. The proof script compares this against the sprint
+1 snapshot for the same parameters, so `show` must print what `Build`
+returns and nothing it renders on its own.
 
-`--values` prints the template data struct for the given parameters as
-`Field: value` lines, one per field the README lists, and nothing else.
+`--stage <dir>`: read `<dir>/prompt.md`, strip the frame (everything
+from the start through the end of the outermost `</iterate>` block and
+the preamble before it; see `engine/frames.go:108-146` for the shape),
+and print a unified diff against the node's prompt. `--stage` requires
+`--node`. Exit 0 on no diff, 1 on diff. This is the tool that chapter
+6's proof uses against a run it makes; here it needs a unit test with a
+hand-built stage directory.
 
-`--stage <dir>` (requires `--node`): read `<dir>/prompt.md`, strip the
-frame (everything from the start through the end of the outermost
-`</iterate>` block and the preamble before it), expand `$goal` in the
-node's prompt when `--goal <text>` is given (the engine's own
-replacement, so a library prompt that uses `$goal` diffs clean against
-its stage), and print a unified diff against the result. Exit 0 on no diff, 1 on diff. Unit test
-with a hand-built stage directory.
+## Render test
 
-## Definition of done
+`TestLibraryRendersAll`: for every workflow in the library, `Build` with
+representative parameters and assert every codergen prompt is non-empty
+and every template under `prompts/` was executed at least once. Also
+execute every file under `doctrine/` and `templates/` standalone with
+the same data so a syntax error in a page fails here, not at run time.
 
-The ledger item's command runs `prove/show-equals-build.sh`, which
-proves: the set of node ids `show` prints equals the set `Build`
-returns, as a program the script writes lists them; for every node `show --raw` is byte-equal to a
-program the script writes into a copy of the tree that calls
-`workflow.Build` directly; `--stage` exits 0 on a stage built from the
-frame preamble (`chapters/04-library/fixtures/frame-preamble.txt`), two
-nested `iterate` blocks the script writes, and that program's output and 1 after one byte is appended; `--values` reports no value
-the script did not derive itself from the parameters and the README's
-derivations. If the graph API names in the script's program differ
-from the sprint's, fix the program, never the comparison.
+## Orphan walk
 
-## Not in this sprint
+`TestLibraryNoOrphans`: walk the embedded tree; every file under
+`doctrine/` must be named by a `doctrine` action in at least one file
+under `prompts/`, `supervisors/`, or `passes/`. All three directories
+are prompts in P8's sense: text the library sends to an agent.
+Skeletons under `templates/` are not in the walk; P8 does not promise
+that every skeleton is used, and sprint 3's script checks its own
+skeletons are cited. Prove the walk fails: the test constructs a
+synthetic `fs.FS` with one uncited page and asserts the walk reports it
+by name. This needs the `BuildFrom(fs.FS)` or equivalent seam from
+sprint 1. The proof script injects its own uncited page into a copy of
+the tree as well, so the walk is proven against the real embedded tree,
+not only the test's synthetic one.
 
-The render test, the orphan walk, sentinel and mutation proofs
-(sprint 3). Doctrine pages (sprint 4). Docs (sprint 5). Printing
-provider and model per node (chapter 5 sprint 1 adds it).
+The walk is written from scratch; no surveyed tool has one
+(`research/prompt-libraries/goose.md` has the inverse and still drifted).
 
-## Later
+## Proof script
 
-Supervisor briefs print as `== <id> (supervisor) <file>` once supervisor
-nodes exist; chapter 5's supervisor sprint adds that, and this sprint's
-node loop already handles any node kind that carries a prompt.
+`prove/show-and-orphan-walk.sh`, three parts. Content: in a copy of the
+tracked tree, append a sentinel line to every file under `prompts/`,
+`supervisors/`, and `passes/` and to one doctrine page, build, and
+require `show --raw` for every codergen node to print its file's
+sentinel and every prompt citing the page to print the page's sentinel.
+Equality: in the real tree, for every node header the headed `show`
+prints, `show --raw` with the snapshot's fixed parameters (real paths
+substituted back) is byte-equal to `workflow/testdata/<wf>/<node>.txt`;
+a stage directory built from the committed frame preamble
+(`fixtures/frame-preamble.txt`), a synthetic iterate block, and the
+planner snapshot makes `--stage` exit 0, and 1 after one byte is
+appended. Orphans: the injected `doctrine/zz-uncited.md` in the copy
+makes `go test -run TestLibraryNoOrphans` fail naming it; in the real
+tree the two tests run by name with `-v` and their `--- PASS:` lines
+are required, since `go test -run` with no matching test exits 0.
+
+## Ask the reviewer
+
+- Whether `show` should also print supervisor briefs once supervisors
+  exist (chapter 5). Recommend yes, as `== <id> (supervisor)`; nothing to
+  do now.

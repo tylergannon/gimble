@@ -2,14 +2,10 @@
 
 Status: active
 
-Every prompt body, doctrine page, supervisor brief, pass, and skeleton a
-built-in workflow uses becomes a file under `workflow/library/`, embedded in the binary and rendered with
-`text/template`. After this chapter, every later chapter adds content
-and `workflow`-package Go, never engine code. Promise P8.
-
-Paths in this chapter's documents follow `BUILD.md`: a path that does
-not start with a top-level repository directory is relative to
-`ephemeral/projects/tractor/living-instructions/`.
+Everything an agent is told by a built-in workflow becomes a file under
+`workflow/library/`, embedded in the binary and rendered with
+`text/template`. After this chapter, every later chapter adds content,
+not code. Promise P8.
 
 ## Pyramid index
 
@@ -20,29 +16,25 @@ not start with a top-level repository directory is relative to
   - The three graphs and four prompts move out of Go strings into
     `workflow/library/` with no change to what `Build` returns.
   - `tractor workflow show <name>` prints what `Build` materialized;
-    `--stage` diffs a stage minus its frame (in this chapter a stage
-    built to the frame shape from a fixture; recorded stages of real
-    runs are chapter 6's leg); tests render every
+    `--stage` diffs a real stage minus its frame; tests render every
     template and fail on an orphaned doctrine page.
   - Doctrine pages and artifact skeletons the current prompts can cite,
     written by Claude, wired by the coder.
   - Docs, spec, skill bundle, and `llms.txt` teach the library and `show`.
-- L2: sprints 1 to 5 in `sprints.md`; anchors in
+- L2: sprints 1 to 4 in `sprints.md`; anchors in
   `research/workflow-package-inventory/migration-inventory.md`.
 
 ## Vector
 
-Decisions 53 and 59 (54, `models.yaml`, is chapter 5's). Research R1 (prior art: crush, goose, codex,
-gemini-cli) and R5 (the exact seams). Go supplies data values, the
-value functions `quote` and `shell`, and the composition actions
-`include` and `doctrine` to templates, and nothing else; provider names are explicit; delimiters are
+Decisions 53, 54, 59. Research R1 (prior art: crush, goose, codex,
+gemini-cli) and R5 (the exact seams). Go supplies data values to
+templates and nothing else; provider names are explicit; delimiters are
 non-default because doctrine contains `{{`.
 
 ## Review posture
 
-`Build`'s outputs are pinned by the snapshot test; in sprint 1 a change
-to what a prompt says is a failed refactor, and from sprint 4 on a
-change is a reviewed diff of the snapshot, committed with the content. The orphan walk is written
+`Build`'s outputs are pinned by the existing tests; a sprint that changes
+what a prompt says has failed, not refactored. The orphan walk is written
 from scratch (no surveyed tool has one) and must be proven to fail on a
 synthetic orphan.
 
