@@ -13,6 +13,16 @@ build. Read this before the sprint doc.
   beside this file; the loop node's design is in `loop-node.md`. Read the
   parts your sprint touches. Do not reopen decisions; ask if one blocks you.
 
+## Paths in these documents
+
+A path that starts with a top-level repository directory (`workflow/`,
+`cmd/`, `docs/`, `src/`, `skills/`, `engine/`, `ephemeral/`) is relative
+to the repository root, where every command runs. Any other path in a
+chapter or sprint document (`research/...`, `chapters/04-library/...`,
+`prove/...`, `decisions.md`) is relative to this directory,
+`ephemeral/projects/tractor/living-instructions/`; prefix it when you
+open or copy the file.
+
 ## The repository
 
 Go module `github.com/tylergannon/tractor`. Before you finish a sprint:

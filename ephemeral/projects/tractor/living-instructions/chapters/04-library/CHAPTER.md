@@ -7,6 +7,10 @@ Everything an agent is told by a built-in workflow becomes a file under
 `text/template`. After this chapter, every later chapter adds content
 and `workflow`-package Go, never engine code. Promise P8.
 
+Paths in this chapter's documents follow `BUILD.md`: a path that does
+not start with a top-level repository directory is relative to
+`ephemeral/projects/tractor/living-instructions/`.
+
 ## Pyramid index
 
 - L0: The built-in workflows' prompts, doctrine, and skeletons are
