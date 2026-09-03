@@ -1,14 +1,13 @@
 #!/bin/sh
-# Proves: show, render test, orphan walk. Three parts:
-#   nodes    - headed `show` lists exactly the nodes the workflow YAML
-#              declares, with their types.
-#   content  - in a copy of the tree, a dumper the script writes calls
-#              workflow.Build directly; `show --raw` must equal it for
-#              every node. Then a sentinel appended to every library
-#              prompt file must show up in `show --raw`; a prompt still
-#              living in Go cannot pass this.
-#   orphans  - an uncited page injected in the copy makes the orphan
-#              test fail by name; the real tree's tests run and pass.
+# Proves: show, render test, orphan walk. Parts:
+#   nodes     - headed `show` lists the same id/type set the YAML declares.
+#   equality  - a dumper the script writes calls workflow.Build directly;
+#               `show --raw` must equal it for every node.
+#   content   - each node's header names its library file; a per-file
+#               sentinel appended in a copy of the tree must appear in
+#               that node's output and no other file's sentinel may.
+#   orphans   - an injected uncited page fails the orphan test by name.
+#   rendering - an injected broken action fails the render test by name.
 set -eu
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
@@ -26,10 +25,11 @@ show_headed() { # bin workflow
   if [ "$2" = plan ]; then "$1" workflow show "$2" --project demo --seed "$seed" --workdir "$tmp/demo"
   else "$1" workflow show "$2" --project demo --workdir "$tmp/demo"; fi
 }
-shown_nodes() { show_headed "$1" "$2" | sed -n 's/^== \([^ ]*\) (\([a-z]*\)).*/\1 \2/p'; }
-yaml_nodes() { # workflow: "id type" per node, file order
-  awk '/^  - id:/{id=$3} /^    type:/{print id, $2}' "workflow/library/workflows/$1.yaml"
-}
+# Header form: "== <id> (<type>) [<library file>]"; the file is present for
+# codergen nodes.
+shown_nodes() { show_headed "$1" "$2" | sed -n 's/^== \([^ ]*\) (\([a-z]*\)).*/\1 \2/p' | sort; }
+shown_file() { show_headed "$1" "$2" | sed -n "s/^== $3 ([a-z]*) \(.*\)$/\1/p"; }
+yaml_nodes() { awk '/^  - id:/{id=$3} /^    type:/{print id, $2}' "workflow/library/workflows/$1.yaml" | sort; }
 
 # ---- copy of the tracked tree, with a Build dumper --------------------
 git ls-files -z | tar --null -T - -cf - | tar -xf - -C "$tmp/src"
@@ -111,31 +111,49 @@ if "$tmp/bin/tractor" workflow show plan --project demo --seed "$seed" --workdir
   echo "show --stage missed a diff"; exit 1
 fi
 
-# ---- content: sentinels in the copy -----------------------------------
+# ---- content: one sentinel per file, in the copy ------------------------
 lib="$tmp/src/workflow/library"
-sentinel="SENTINEL-$(date +%s)-$$"
+stamp="SENTINEL-$(date +%s)-$$"
 find "$lib/prompts" "$lib/supervisors" "$lib/passes" -type f 2>/dev/null | while read -r f; do
-  printf '\n%s %s\n' "$sentinel" "$(basename "$f")" >> "$f"
+  rel="${f#$lib/}"
+  printf '\n%s FILE %s\n' "$stamp" "$rel" >> "$f"
 done
 page="$(find "$lib/doctrine" -type f -name '*.md' 2>/dev/null | head -1 || true)"
-if [ -n "$page" ]; then printf '\n%s doctrine %s\n' "$sentinel" "$(basename "$page")" >> "$page"; fi
+if [ -n "$page" ]; then printf '\n%s DOCTRINE %s\n' "$stamp" "$(basename "$page" .md)" >> "$page"; fi
 printf '# uncited\n\nNo prompt cites this page.\n' > "$lib/doctrine/zz-uncited.md"
 (cd "$tmp/src" && go build -o "$tmp/bin/mutated" ./cmd/tractor)
 for wf in plan medium large; do
   yaml_nodes "$wf" | while read -r node kind; do
     [ "$kind" = codergen ] || continue
+    file="$(shown_file "$tmp/bin/mutated" "$wf" "$node")"
+    test -n "$file" || { echo "content: $wf/$node header names no library file"; exit 1; }
     show_raw "$tmp/bin/mutated" "$wf" "$node" > "$tmp/mut.txt"
-    grep -q "^$sentinel " "$tmp/mut.txt" || { echo "content: $wf/$node prompt does not come from a library file"; exit 1; }
-    if [ -n "$page" ] && grep -q "$(basename "$page" .md)" "$tmp/mut.txt"; then
-      grep -q "^$sentinel doctrine " "$tmp/mut.txt" || { echo "content: $wf/$node names $(basename "$page") but does not render it"; exit 1; }
+    grep -q "^$stamp FILE $file\$" "$tmp/mut.txt" || { echo "content: $wf/$node does not render $file"; exit 1; }
+    others="$(grep "^$stamp FILE " "$tmp/mut.txt" | grep -v " $file\$" || true)"
+    test -z "$others" || { echo "content: $wf/$node renders another prompt file: $others"; exit 1; }
+    if [ -n "$page" ] && grep -q "$(basename "$page" .md)" "$lib/$file"; then
+      grep -q "^$stamp DOCTRINE " "$tmp/mut.txt" || { echo "content: $wf/$node names $(basename "$page") but does not render it"; exit 1; }
     fi
   done
 done
 
-# ---- orphans ------------------------------------------------------------
+# ---- orphans: the injected page must be reported by name ---------------
 (cd "$tmp/src" && go test -run 'TestLibraryNoOrphans' ./workflow/ -count=1 > "$tmp/orphan.log" 2>&1) \
   && { echo "orphans: injected zz-uncited.md was not reported"; cat "$tmp/orphan.log"; exit 1; }
 grep -q 'zz-uncited' "$tmp/orphan.log" || { echo "orphans: test failed but did not name zz-uncited.md"; cat "$tmp/orphan.log"; exit 1; }
+
+# ---- rendering: a broken action must be reported by name ---------------
+rm -f "$lib/doctrine/zz-uncited.md"
+if [ -n "$page" ]; then
+  delim="$(sed -n 's/^[Dd]elimiters:[[:space:]]*\([^[:space:]]*\).*/\1/p' "$lib/README.md" | head -1)"
+  test -n "$delim" || { echo "rendering: README does not state the delimiters"; exit 1; }
+  printf '\n%s broken-action-never-closed\n' "$delim" >> "$page"
+  (cd "$tmp/src" && go test -run 'TestLibraryRendersAll' ./workflow/ -count=1 > "$tmp/render.log" 2>&1) \
+    && { echo "rendering: broken page was not reported"; cat "$tmp/render.log"; exit 1; }
+  grep -q "$(basename "$page")" "$tmp/render.log" || { echo "rendering: test failed but did not name $(basename "$page")"; cat "$tmp/render.log"; exit 1; }
+fi
+
+# ---- the real tree's tests run and pass --------------------------------
 go test -v -run 'TestLibraryRendersAll|TestLibraryNoOrphans' ./workflow/ -count=1 > "$tmp/test.log" 2>&1 || { cat "$tmp/test.log"; exit 1; }
 grep -q -- '--- PASS: TestLibraryRendersAll' "$tmp/test.log" || { echo "TestLibraryRendersAll did not run"; exit 1; }
 grep -q -- '--- PASS: TestLibraryNoOrphans' "$tmp/test.log" || { echo "TestLibraryNoOrphans did not run"; exit 1; }

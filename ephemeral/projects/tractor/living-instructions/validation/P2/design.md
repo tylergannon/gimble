@@ -1,6 +1,6 @@
 # P2: the brief/research loop halts through the tool node, and a finding is asked, not applied
 
-Archetype: scenario. Lap 4; answers `review-3.md`.
+Archetype: scenario. Lap 5; answers `review-4.md`.
 
 ## Story
 
@@ -19,31 +19,31 @@ Archetype: scenario. Lap 4; answers `review-3.md`.
 
 ## Evidence
 
-- `timeline.jsonl`: stages of `intake`, `brief`, the research branches
-  and fan-in, `halt`, `decompose`; `QuestionAsked`.
-- `stages/<seq>-halt/`: `tool.log` and `outcome.json`.
-- The asking `brief` stage's segment: the `tractor ask` `tool_call` and
-  its paired `tool_result`.
-- `observer/` copies: at every stage boundary; at the citing
-  `QuestionAsked`; immediately before its answer. `answers.log`.
+- `timeline.jsonl`: every `halt` `StageCompleted(next)`; stages of the
+  research branches and fan-in; `QuestionAsked`.
+- `stages/<seq>-halt/` for every halt turn: `tool.log`, `outcome.json`.
+- Every segment's `tractor ask` `tool_call` and paired `tool_result`.
+- `observer/` copies: at every stage boundary; immediately before the
+  citing question's answer. `answers.log`.
 - The question and answer files; the final `promises.md`.
 
 ## Validator
 
-`command`: `prove/p2-halt.sh`: the last `halt` stage directory contains
-`tool.log` (only a tool node has one) and a success `outcome.json`, and
-its `StageCompleted` has `next: decompose`, so the halt was the tool
-node's exit status; exactly one question file names the planted leaf or
-a finding id; a `brief` segment's `tractor ask` `tool_call` for that
-question has its paired `tool_result` after the answer timestamp (the
-turn blocked on the human); the finding was research's:
-`research/findings.md` first contains it in the copy at a research
-branch or fan-in `StageCompleted`, and not in the copy at the
-`StageCompleted` preceding that research stage; the promise changed only
-after the answer: `promises.md` says CSV in the copy taken immediately
-before the answer and JSON in the final package; `promises.md` and
-`brief.md` are byte-identical between the copies before and after every
-research branch and fan-in stage (research applied nothing).
+`command`: `prove/p2-halt.sh`: every `halt` stage directory contains
+`tool.log` (a tool node); at least one `halt` `StageCompleted` has
+`next: brief` (the loop went round: the planted finding sent it back),
+and the last has `next: decompose` with a success `outcome.json` (the
+tool node's exit status ended the loop); exactly one question file
+names the planted leaf or a finding id, with event E; exactly one
+`tractor ask` `tool_call` in any segment has `ts` before E and a paired
+`tool_result` after the answer timestamp, with no other ask in flight
+across E (the asking turn blocked on the human); the finding was
+research's: `research/findings.md` first contains it in the copy at a
+research branch or fan-in `StageCompleted`, and not in the copy at the
+`StageCompleted` preceding that research stage; `promises.md` says CSV
+in the copy taken immediately before the answer; `promises.md` and
+`brief.md` are byte-identical between the copies before and after
+every research branch and fan-in stage (research applied nothing).
 
 `infer` (files: the citing question, its answer, the `findings.md` copy
 at the question, `promises.md` before the answer and at the end): "Does
@@ -53,10 +53,9 @@ done, or if the question does not rest on the finding in findings.md."
 
 ## Not proven
 
-Convergence on arbitrary seeds; how many laps the loop takes; in which
-later stage the accepted change was written. Only that the halt is the
-tool node's decision and that findings route through the human.
-Exhaustion of `max_visits` needs no check: it fails the run, it cannot
-route to `decompose`. The snapshot race (ledger rules) applies to the
+Convergence on arbitrary seeds; how many laps the loop takes; whether
+and where the accepted change was applied afterwards (P2 promises the
+ask, not the application). Exhaustion of `max_visits` needs no check:
+it fails the run. The snapshot race (ledger rules) applies to the
 research-stage identity checks; the ask-then-block check does not
 depend on it.

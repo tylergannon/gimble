@@ -9,9 +9,14 @@ Calls `Build` exactly as `run` does and prints, for every node in the
 graph in file order:
 
 ```
-== <node id> (<type>)
+== <node id> (<type>) <library file, for codergen nodes>
 <prompt text, or tool_command, or checklist path>
 ```
+
+The library file in the header is the path under `workflow/library/`
+of the prompt template the node was rendered from (for example
+`prompts/plan/planner.md`). The proof script reads it to know which
+file's sentinel each node must carry.
 
 Nothing else: no frames, no `$goal` expansion, no banner claiming
 equality with a run. Register it beside `list` and `run`
@@ -61,8 +66,8 @@ The walk is written from scratch; no surveyed tool has one
 ## Proof script
 
 `prove/show-and-orphan-walk.sh`, in a copy of the tracked tree it makes
-itself. Nodes: the headed `show` lists exactly the `id`/`type` pairs
-the workflow YAML declares. Equality: the script writes a small Go
+itself. Nodes: the headed `show` lists exactly the set of `id`/`type`
+pairs the workflow YAML declares, in any order. Equality: the script writes a small Go
 program into the copy that calls `workflow.Build` and prints one node's
 prompt, command, or checklist; `show --raw` must equal it for every
 node of every workflow, and a stage directory built from the committed
@@ -73,7 +78,9 @@ file under `prompts/`, `supervisors/`, and `passes/` and to one doctrine
 page, every codergen node's `show --raw` prints its file's sentinel and
 every prompt naming the page prints the page's sentinel. Orphans: an
 injected `doctrine/zz-uncited.md` makes `go test -run
-TestLibraryNoOrphans` fail naming it; in the real tree the two tests
+TestLibraryNoOrphans` fail naming it; rendering: an unclosed action
+appended to a doctrine page (using the delimiters the README states)
+makes `TestLibraryRendersAll` fail naming the page; in the real tree the two tests
 run by name with `-v` and their `--- PASS:` lines are required, since
 `go test -run` with no matching test exits 0. If the graph API names in
 the script's program differ from the sprint's, fix the program, never

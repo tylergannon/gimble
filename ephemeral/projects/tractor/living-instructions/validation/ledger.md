@@ -15,6 +15,7 @@ items:
   - name: P5 seven passes
     check: The design under validation/P5 proves P5 and cannot be satisfied while P5 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P5/design.md
+    done: true
   - name: P6 verify before chapter done
     check: The design under validation/P6 proves P6 and cannot be satisfied while P6 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P6/design.md

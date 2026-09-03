@@ -1,0 +1,7 @@
+1. Yes. The cheapest game is for the first review turn to reject D1 in its notes while also rewriting `design.md`; the second design turn merely reads the notes and leaves that rewrite intact. The validator compares D2 only with D1 and the final copy, never with the first review’s completed snapshot, so it misattributes the redesign ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P4/design.md:24), [design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P4/design.md:36)).
+
+2. Yes. The claim that “the design turn … made the redesign” depends on evidence the validator does not capture: equality of `design.md` between D1 and the first review’s completion. Additionally, arguments containing the notes path plus output containing its first line do not prove the tool read that file; a command could simply echo both ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P4/design.md:38)).
+
+3. Yes. The design requires an explicit tool call reading the notes path, while the promise requires only that the reviewer’s notes be available. A correct implementation could inject the notes directly into the redesign prompt, produce a substantive D2, later receive a pass, and still fail this validator solely because no path-reading tool call occurred.
+
+ROUTE: fail

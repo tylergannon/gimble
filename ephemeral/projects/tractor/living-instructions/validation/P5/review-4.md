@@ -1,0 +1,9 @@
+1. No substantive game. The cheapest attempt would be hand-marking the seven ledger items, but the validator requires a unique passing `LoopValidated` event and matching `validation.json` for each item; the engine emits those before writing `done: true`, while hand-marked items produce neither ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P5/design.md:26), [loop.go](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/engine/loop.go:83)).
+
+2. No substantive check is trivial or uncaptured. Prompts, responses, routes, loop events, validation records, segments, and session bindings are all recorded and inspected ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P5/design.md:13)). Freshness ultimately depends on the harness honoring no-thread mode, but the design explicitly lists genuine native-session freshness as not proven, and the trusted backend creates a new session for every `FidelityNone` turn ([backend.go](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/harness/backend.go:100), [design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P5/design.md:54)).
+
+3. No concrete false failure. The additional checks bind the recorded marks to actual reviewer routes and fresh, provider-separated turns; they do not require defect detection, pass order, or a particular model ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P5/design.md:49)). Comparing the reviewer against every planner-node harness is equivalent here because all planner nodes share one provider role ([planning-workflow.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/planning-workflow.md:274)).
+
+ROUTE: pass
+
+

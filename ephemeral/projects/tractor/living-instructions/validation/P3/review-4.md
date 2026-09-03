@@ -1,0 +1,9 @@
+1. Yes. The cheapest game is to run the real `design` and `review` turns on the same provider under custom thread keys, while harmless auxiliary codergen turns populate `checkpoint.json` keys called `design` and `review` using different harnesses. The validator compares those harness entries without binding them to the actual stages ([design.md](</Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P3/design.md:23>)), and thread bindings contain no provider or node identity ([contract.go](</Users/tyler/src/tractor/.claude/worktrees/goal-gates/harness/contract.go:119>)). All engine events remain truthful while P3 is false.
+
+2. Yes. Provider independence depends on evidence the design does not capture. `StageCompleted` records only stage name, index, duration, and successor ([runner.go](</Users/tyler/src/tractor/.claude/worktrees/goal-gates/engine/runner.go:514>)); `checkpoint.json` records harness bindings, not providers. Thus “review harness differs from design harness” may be true without proving which provider served either actual stage, contradicting the chapter’s stated requirement to read provider from run events ([CHAPTER.md](</Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/chapters/05-planner/CHAPTER.md:37>)).
+
+3. Yes. The validator requires the nearest preceding completed stage to be `review` and that stage to route directly to the loop ([design.md](</Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P3/design.md:34>)). A correct implementation could route a passing independent review through a mechanical audit or bookkeeping stage before returning to the loop; the engine would still mark the promise after the qualifying review, but this validator would reject it.
+
+ROUTE: fail
+
+

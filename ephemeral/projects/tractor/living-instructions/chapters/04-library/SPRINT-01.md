@@ -33,8 +33,9 @@ can call with a corrupt `fs.FS`, or an exported `BuildFrom(fsys fs.FS,
 ## Template contract
 
 - Engine: `text/template`, delimiters `<<` and `>>` (or another
-  non-default pair; say which in the README). Doctrine text may contain
-  `{{`, which is then literal.
+  non-default pair). The README states them on one line of the form
+  `Delimiters: << >>`; the sprint 2 proof script reads that line.
+  Doctrine text may contain `{{`, which is then literal.
 - Data: a struct built from `Parameters` plus the derived values the old
   functions computed (`projectDir`, `briefPath`, `checklistPath`,
   `interviewDir`, `questionCommand`). Two functions in the func map:
