@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 18; answers `review-17.md`.
+Archetype: scenario, twice. Lap 19; answers `review-18.md`.
 
 ## Story
 
@@ -126,7 +126,11 @@ yourself against the built program and fail if any does not hold."
 
 ## Not proven
 
-That no workflow tool node forged run-directory records: every tool
+That the graph `show` prints afterwards is the graph the run walked:
+the run records neither its graph nor its loop's checklist path, and
+this design relies, as P2 does, on P8's proof that `show` prints what
+`Build` materialized in the same binary for the same parameters. That
+no workflow tool node forged run-directory records: every tool
 command receives the run directory's path and could write loop stage
 files or append events; the observer tree is at a random path the
 agents cannot find, but the run directory is theirs to write. The graph

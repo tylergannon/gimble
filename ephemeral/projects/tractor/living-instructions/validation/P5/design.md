@@ -1,8 +1,8 @@
 # P5: all seven review passes are engine-marked after a fresh reviewer on another provider routed pass
 
 Archetype: universal over the passes of a run. Exhaustive; no holdout.
-Lap 18 (re-opened on lap 17 after the plan-review loop's routing was
-corrected; marked on lap 4); answers `review-17.md`.
+Lap 19 (re-opened on lap 17 after the plan-review loop's routing was
+corrected; marked on lap 4); answers `review-18.md`.
 
 ## Story
 
@@ -36,16 +36,21 @@ every `reviewer` stage whose `next` is `brief`, `decompose`, or
 `design`, the next `StageStarted` is that node and the stage after that
 node is a `reviewer` stage for the same pass, with no `LoopValidated`
 for the pass in between (the owning node returns to the reviewer, not
-to the loop; a commandless item would otherwise pass on return); every reviewer
-stage has `prompt.md`, `response.md`, and a segment; in
+to the loop; a commandless item would otherwise pass on return); every completed
+reviewer stage has `prompt.md`, `response.md`, and a segment (a
+`StageFailed` attempt with no `response.md` is a retry and is skipped,
+as P3 does); in
 `checkpoint.json` the `reviewer` harness differs from the harness of
 every planner node (harness names are the routes of providers), and the
 `reviewer` key carries the no-thread marker, the engine's record that
 each turn was a fresh session.
 
-`infer` (files: every reviewer turn's `prompt.md` and `response.md`,
-the seven pass files under `workflow/library/passes/`, and
-`planning-workflow.md` section 3, which defines the seven passes): "For each of the seven passes: is the question the reviewer was given
+`infer` (files: every completed reviewer turn's `prompt.md` and
+`response.md`, the seven pass files under `workflow/library/passes/`,
+`planning-workflow.md` section 3, which defines the seven passes, and
+the package the reviewers were given: `brief.md`, `promises.md`,
+`checklist.md`, the chapter and sprint docs, `validation/`, and
+`plan-review/`): "For each of the seven passes: is the question the reviewer was given
 the pass as `planning-workflow.md` defines it, in substance (the whole
 criterion, not a weakened or narrowed version)? For each reviewer
 turn: was it given one pass question and the package, and nothing that
@@ -57,7 +62,11 @@ disagree with its route."
 
 ## Not proven
 
-That the passes catch every defect, or that seven is the right number.
+That no agent or tool node forged run-directory records: the run
+directory is writable by every turn, and a planner that fabricated
+reviewer stages would be a defect of the diff review of the graph and
+prompts, not of this check (the same concession as P6 and P10). That
+the passes catch every defect, or that seven is the right number.
 The order the passes ran in; P5 does not promise one. Project-added
 passes: a run cannot complete with one open. The model within the
 provider (see P3). That the harness honoured the no-thread mode with a

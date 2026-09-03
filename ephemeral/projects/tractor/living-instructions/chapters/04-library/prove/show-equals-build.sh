@@ -9,8 +9,10 @@ build_copy
 # ---- nodes and equality with Build ------------------------------------
 for wf in $workflows; do
   shown_nodes "$tmp/bin/tractor" "$wf" > "$tmp/shown.txt"
+  yaml_ids "$wf" > "$tmp/declared-ids.txt"
+  cmp -s "$tmp/shown.txt" "$tmp/declared-ids.txt" || { echo "show $wf lists different nodes than workflows/$wf.yaml"; diff "$tmp/declared-ids.txt" "$tmp/shown.txt"; exit 1; }
+  echo "nodes: show $wf lists every declared node"
   yaml_nodes "$wf" > "$tmp/declared.txt"
-  cmp -s "$tmp/shown.txt" "$tmp/declared.txt" || { echo "show $wf lists different nodes than workflows/$wf.yaml"; diff "$tmp/declared.txt" "$tmp/shown.txt"; exit 1; }
   while read -r node kind; do
     if [ "$wf" = plan ]; then s="$seed"; else s=""; fi
     if ! "$tmp/bin/builddump" "$wf" "$node" "$tmp/demo" "$tmp/bin/tractor" "$s" > "$tmp/want.txt" 2>"$tmp/dump.err"; then

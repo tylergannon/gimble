@@ -23,9 +23,10 @@ show_headed() { # bin workflow
 }
 # Header form: "== <id> (<type>) [<library file>]"; the file is present for
 # every node that carries a prompt.
-shown_nodes() { show_headed "$1" "$2" | sed -n 's/^== \([^ ]*\) (\([a-z_.]*\)).*/\1 \2/p' | sort; }
-shown_file() { show_headed "$1" "$2" | sed -n "s/^== $3 ([a-z_.]*) \(.*\)$/\1/p"; }
+shown_nodes() { show_headed "$1" "$2" | sed -n 's/^== \([^ ]*\).*/\1/p' | sort; }
+shown_file() { show_headed "$1" "$2" | sed -n "s/^== $3 \(([a-z_.]*) \)\{0,1\}\(.*\)$/\2/p"; }
 yaml_nodes() { awk '/^  - id:/{id=$3} /^    type:/{print id, $2}' "workflow/library/workflows/$1.yaml" | sort; }
+yaml_ids() { awk '/^  - id:/{print $3}' "workflow/library/workflows/$1.yaml" | sort; }
 workflows="$(ls workflow/library/workflows/*.yaml | xargs -n1 basename | sed 's/\.yaml$//')"
 
 # closure FILE: prints FILE and every prompt/supervisor/pass file reachable

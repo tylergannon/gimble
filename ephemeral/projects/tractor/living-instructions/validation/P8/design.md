@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 18; answers `review-17.md`.
+Lap 19; answers `review-18.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -71,9 +71,9 @@ pass leg of the check below is empty until then and runs then.
   passes). Not the proof.
 - `prove/show-equals-build.sh` (sprint 2) and
   `prove/orphan-walk-and-render.sh` (sprint 3). Nodes: the set of
-  `id`/`type` pairs
-  the headed `show` prints equals the set the workflow YAML declares
-  (order free). Equality: for every node of any kind that carries a
+node ids the headed `show` prints equals the set the workflow YAML
+declares (order free; the type in the header is a convenience, not a
+requirement). Equality: for every node of any kind that carries a
   prompt, command, or checklist, `show --raw` equals the check's own
   `Build` dumper; `--stage` on a stage built from the frame preamble plus two nested
   `<iterate>` blocks (an outer chapters frame and an inner sprints
@@ -132,20 +132,24 @@ ignores the frame).
   nested chapters-and-sprints frame, so a `--stage` that strips only
   one frame fails there.
 
-`infer` (files: the two proof scripts and their logs under
-`prove/last-run/`, the library files under `workflow/library/`, the
-non-test Go under `workflow/` and `cmd/tractor/workflow.go` (where
+`infer` (files: every proof script this design names and its log under
+`prove/last-run/` (chapter 4's two, chapter 5's pass leg with the
+generated `plan-review/ledger.md` and every reviewer stage's
+`prompt.md` of its run, chapter 6's stage leg with the stage
+directories it diffed), the library files under `workflow/library/`,
+the non-test Go under `workflow/` and `cmd/tractor/workflow.go` (where
 `run` hands `Build`'s graph to the engine): each ledger command captures its script's stdout,
 which names every probe and its outcome (the stage perturbation's byte
 and offset, each node's sentinel result, each skeleton's rendering),
 to `prove/last-run/<script>.log`, and the orphan script copies the `go
 test` output of every probe run beside it before the scratch directory
 is removed;
-`workflow/library_test.go`): "For each probe the log
-names (the random orphan page, the page whose citation was removed, the
-random broken action, the random stage perturbation, the per-file
-sentinels), did the test or check fail for the injected reason and name
-the injected file, and does the test's code walk the tree rather than
+`workflow/library_test.go`): "For each probe the logs name (the random orphan page, the page whose
+citation was removed, the random broken action, the random stage
+perturbation, the per-file sentinels, the per-pass sentinels in the
+generated review ledger and reviewer prompts, and the real stages
+diffed), did the test or check fail or pass for the reason the script
+names and name the right file, and does the test's code walk the tree rather than
 recognise probe names? Read the Go under `workflow/` and `cmd/tractor/workflow.go`: does any
 Go code supply prompt text beyond the data values the README lists and
 the four functions, rely on a template branch that never renders, or
