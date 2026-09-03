@@ -3,12 +3,14 @@ items:
   - name: P1 elicitation
     check: The design under validation/P1 proves P1 as stated in declaration.md and a coder cannot satisfy it while P1 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P1/design.md
+    done: true
   - name: P2 halt
     check: The design under validation/P2 proves P2 and cannot be satisfied while P2 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P2/design.md
   - name: P3 independent design review
     check: The design under validation/P3 proves P3 and cannot be satisfied while P3 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P3/design.md
+    done: true
   - name: P4 re-entry
     check: The design under validation/P4 proves P4 and cannot be satisfied while P4 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P4/design.md
@@ -20,6 +22,7 @@ items:
   - name: P6 verify before chapter done
     check: The design under validation/P6 proves P6 and cannot be satisfied while P6 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P6/design.md
+    done: true
   - name: P7 supervisor steer
     check: The design under validation/P7 proves P7 and cannot be satisfied while P7 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P7/design.md
@@ -120,15 +123,17 @@ and what the design does not prove.
 ## Shared evidence tooling
 
 `validation/observer.sh <run-dir> <rules-file>` is the scripted human
-and the witness. Its own tree lives beside the run directory, at
-`<run-dir>.observer/`, never inside it, so nothing under
-`TRACTOR_RUN_DIR` betrays its presence to the agents. It tails
+and the witness. Its own tree lives outside the run directory, at a path the check
+draws at random under its scratch space and passes to the observer,
+never inside the run directory and never at a predictable name, so
+nothing under `TRACTOR_RUN_DIR` betrays its presence to the agents and
+no agent can find it to edit it. It tails
 `<run-dir>/timeline.jsonl` and:
 
 - on every `StageStarted`, `StageCompleted`, `QuestionAsked`, and
   `SupervisorVerdict` event, copies the package directory
   (`ephemeral/projects/<build>/`, without `research/` leaves) into
-  `<run-dir>.observer/<n>-<event>-<node>/`;
+  `<observer-tree>/<n>-<event>-<node>/`;
 - on `QuestionAsked` only: copies the package, reads the question file,
   matches it against ordered rules (a substring or a `Promise:` line
   predicate, and an answer), composes the answer (when the question
@@ -138,7 +143,7 @@ and the witness. Its own tree lives beside the run directory, at
   immediately before writing the answer with `tractor answer` (so a
   change made between the ask and the answer is visible), and appends
   `<id> <rule> <ts> <candidate number> <nonce> <matched line>`
-  (tab-separated) to `<run-dir>.observer/answers.log`. `tractor ask`
+  (tab-separated) to `<observer-tree>/answers.log`. `tractor ask`
   prints the answer it received, so the `tool_result` of the ask that
   waited on a question contains that question's nonce: that is how a
   check binds an ask call to its `QuestionAsked` event. It never answers a file it found by

@@ -1,6 +1,6 @@
 # P9: an agent reading only the docs uses plan, show, and ask correctly
 
-Archetype: scenario, judged by inference. Lap 12; answers `review-11.md`.
+Archetype: scenario, judged by inference. Lap 13; answers `review-12.md`.
 
 ## Story
 
@@ -57,8 +57,11 @@ Archetype: scenario, judged by inference. Lap 12; answers `review-11.md`.
 ## Validator
 
 `command`: `prove/p9-docs.sh`: the reader run completed; the reader's
-own timeline has a `QuestionAsked` answered through the observer (the
-reader used `tractor ask`); the reader's segment has exactly one
+own timeline has a `QuestionAsked` answered through the observer, and
+the reader's segment has a `tractor ask` `tool_call` whose paired
+`tool_result` contains the observer's nonce for that question (the
+reader used `tractor ask` and received the answer the observer wrote,
+not canned text); the reader's segment has exactly one
 `workflow run plan` call whose `tool_result` carries a `Logs:` line,
 that directory exists, and its `timeline.jsonl` ends with
 `PipelineCompleted` (the run the reader started finished); its first
@@ -76,9 +79,9 @@ against another `show` call, and a prefix or canned text fails);
 directory of E's path) and the holdout root that `show large --node
 verify --raw` renders.
 
-`infer` (files: the reader's `response.md` and segment, the planner
-stage's `prompt.md` and T, the promised sources, the help output,
-`planning-workflow.md` section 3): "Is T the planner prompt the run sent, frame aside, and did the
+`infer` (files: the reader's `response.md` and segment, the observer's
+`answers.log` for both runs, the planner stage's `prompt.md` and T, the
+promised sources, the help output, `planning-workflow.md` section 3): "Is T the planner prompt the run sent, frame aside, and did the
 reader print it whole? For the three promised commands (`workflow run plan`, `workflow show`, `ask`,
 with `answer` as `ask`'s counterpart): did the agent's use of each come
 from the promised sources, and did each work as run? Helper commands

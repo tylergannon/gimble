@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 12; answers `review-11.md`.
+Lap 13; answers `review-12.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -70,8 +70,10 @@ pass leg of the check below is empty until then and runs then.
   prompt, command, or checklist, `show --raw` equals the check's own
   `Build` dumper; `--stage` on a stage built from the frame preamble
 plus the dumper's output exits 0, and 1 after one random byte at a
-random offset is changed (a comparator that recognises a fixed suffix
-cannot pass).
+random offset within the prompt body (past the frame the check itself
+wrote) is changed (a comparator that recognises a fixed suffix cannot
+pass; a byte in the frame is never the probe, since a correct `--stage`
+ignores the frame).
   Content: each prompt-bearing node's header names its library file;
   with a distinct sentinel appended to every file under `prompts/`,
   `supervisors/`, and `passes/`, each node's `show --raw` contains the
@@ -117,13 +119,18 @@ cannot pass).
   to `run`, and expects exit 0.
 
 `infer` (files: the two proof scripts and their logs under
-`prove/last-run/`, `workflow/library_test.go`): "For each probe the log
+`prove/last-run/`, which include the `go test` output of every probe
+run copied out of the scratch directory before it is removed;
+`workflow/library_test.go`; the non-test Go files under `workflow/`): "For each probe the log
 names (the random orphan page, the page whose citation was removed, the
 random broken action, the random stage perturbation, the per-file
 sentinels), did the test or check fail for the injected reason and name
 the injected file, and does the test's code walk the tree rather than
-recognise probe names? Fail if any probe's failure is generic, names
-the wrong file, or the test special-cases probes." This is the model
+recognise probe names? Read the Go under `workflow/`: does any Go code
+supply prompt text beyond the data values the README lists and the
+four functions, or rely on a template branch that never renders? Fail
+if any probe's failure is generic, names the wrong file, the test
+special-cases probes, or Go carries prompt text." This is the model
 judgment over recorded evidence that decision 41 requires; the scripts
 record, the judge decides.
 
@@ -132,10 +139,9 @@ record, the judge decides.
 That the content is good. That `show` reproduces frames (by design;
 research F1). That a data value carries no instruction; the README's
 field list is the contract, the check recomputes every value, and the
-code review reads the struct. That Go never re-emits text a template
-parks in a branch that does not render: the residue check proves every
-rendered line exists in the library files and every data value is one
-the README lists, and the code review reads the Go for anything else.
+code review reads the struct. Text a template parks in a branch that never renders and Go re-emits:
+the residue check cannot tell it from rendering, so the infer judge
+reads the Go under `workflow/` for exactly that.
 Skeleton text: templates are cited by prompts (sprint 4's script) and
 rendered by the render test; what a planner writes from them is its
 own output, not the library's.

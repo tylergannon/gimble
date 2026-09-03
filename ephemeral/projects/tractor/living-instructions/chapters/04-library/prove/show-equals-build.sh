@@ -27,6 +27,9 @@ mkdir -p "$tmp/stage"
 {
   cat ephemeral/projects/tractor/living-instructions/chapters/04-library/fixtures/frame-preamble.txt
   printf '<iterate loop="chapters" checklist="x.md" index="1" count="1" lap="1">\nname: x\ncheck: y\n</iterate>\n\n'
+} > "$tmp/stage/frame.txt"
+{
+  cat "$tmp/stage/frame.txt"
   "$tmp/bin/builddump" plan planner "$tmp/demo" "$tmp/bin/tractor" "$seed"
 } > "$tmp/stage/prompt.md"
 cp "$tmp/stage/prompt.md" "$tmp/stage/prompt.md.orig"
@@ -35,7 +38,10 @@ cp "$tmp/stage/prompt.md" "$tmp/stage/prompt.md.orig"
 echo "stage: no diff on the unperturbed stage"
 # Perturb one random byte at a random offset, never a fixed suffix.
 size="$(wc -c < "$tmp/stage/prompt.md" | tr -d ' ')"
-pos=$(( $(od -An -N2 -tu2 /dev/urandom | tr -d ' ') % size ))
+frame="$(wc -c < "$tmp/stage/frame.txt" | tr -d ' ')"
+body=$(( size - frame ))
+[ "$body" -gt 0 ] || { echo "stage probe: empty body"; exit 1; }
+pos=$(( frame + $(od -An -N2 -tu2 /dev/urandom | tr -d ' ') % body ))
 byte="$(od -An -N1 -tx1 /dev/urandom | tr -d ' \n')"
 printf "\\$(printf '%03o' "0x$byte")" | dd of="$tmp/stage/prompt.md" bs=1 seek="$pos" conv=notrunc 2>/dev/null
 if cmp -s "$tmp/stage/prompt.md" "$tmp/stage/prompt.md.orig"; then

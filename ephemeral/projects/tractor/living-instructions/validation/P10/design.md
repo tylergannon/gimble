@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 12; answers `review-11.md`.
+Archetype: scenario, twice. Lap 13; answers `review-12.md`.
 
 ## Story
 
@@ -98,6 +98,12 @@ yourself against the built program and fail if any does not hold."
 
 ## Not proven
 
+That no workflow tool node forged run-directory records: every tool
+command receives the run directory's path and could write loop stage
+files or append events; the observer tree is at a random path the
+agents cannot find, but the run directory is theirs to write. The graph
+is content the diff review reads, and a forging tool node is a defect
+of that review, not of this check (the same concession as P6).
 Generality beyond seeds of this size. Whether the sizes match the
 expectations noted in the seeds; either size satisfies the promise.
 Behaviour the seed's prose names but its examples do not exercise, and

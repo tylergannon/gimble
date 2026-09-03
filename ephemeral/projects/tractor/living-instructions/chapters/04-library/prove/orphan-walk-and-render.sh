@@ -150,8 +150,14 @@ if [ -n "$page" ]; then
   echo "rendering: broken action in $(basename "$page") reported"
 fi
 
+# ---- keep the probe outputs for the judge ------------------------------
+logdir="$root/ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run"
+mkdir -p "$logdir"
+for l in orphan.log orphan2.log render.log; do [ -f "$tmp/$l" ] && cp "$tmp/$l" "$logdir/probe-$l"; done
+
 # ---- the real tree's tests run and pass --------------------------------
 go test -v -run 'TestLibraryRendersAll|TestLibraryNoOrphans' ./workflow/ -count=1 > "$tmp/test.log" 2>&1 || { cat "$tmp/test.log"; exit 1; }
 grep -q -- '--- PASS: TestLibraryRendersAll' "$tmp/test.log" || { echo "TestLibraryRendersAll did not run"; exit 1; }
 grep -q -- '--- PASS: TestLibraryNoOrphans' "$tmp/test.log" || { echo "TestLibraryNoOrphans did not run"; exit 1; }
+cp "$tmp/test.log" "$logdir/probe-test.log"
 echo "orphan-walk-and-render.sh: ok"

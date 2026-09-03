@@ -1,6 +1,6 @@
 # P2: the brief/research loop halts through the tool node, and a finding is asked, not applied
 
-Archetype: scenario. Lap 12; answers `review-11.md`.
+Archetype: scenario. Lap 13; answers `review-12.md`.
 
 ## Story
 
@@ -24,8 +24,11 @@ Archetype: scenario. Lap 12; answers `review-11.md`.
 3. Wait for `COMPLETED`.
 4. The check then exercises the halt predicate itself: it takes the
    halt node's command as `show plan --node halt --raw` prints it for
-   this project and runs it in the finished package under three
-   states: one open finding in `research/findings.md` (expect non-zero);
+   this project and runs it in the finished package with the run's own
+   environment reproduced (`TRACTOR_RUN_DIR` set to the run directory,
+   the same working directory the tool node had, the same variables the
+   engine exports), so a command that behaves differently inside a run
+   is exercised as it ran, under three states: one open finding in `research/findings.md` (expect non-zero);
    findings empty but one open entry in `research/plan.md` (expect
    non-zero); both clear (expect zero).
 
@@ -54,8 +57,12 @@ describes: `halt` routes to `decompose` on success and to `brief` on
 error, and `brief`'s successor is the research node; the halt command
 run by the check exits non-zero under each of the two open states and
 zero under the clear state; every `halt` stage directory contains
-`tool.log` (a tool node); the last `halt` `StageCompleted` has `next:
-decompose`; at least one question matched
+`tool.log` (a tool node); the last `halt`
+`StageCompleted` has `next: decompose`, and in the observer copy at
+that halt stage's `StageStarted`, `research/findings.md` holds no open
+finding and `research/plan.md` no open entry (the state the predicate
+saw when it routed on; a halt that routed on with a finding still open
+fails here whatever its command says); at least one question matched
 the finding rule (`answers.log`); call the first E; some `tractor ask`
 `tool_call` has `ts` before E and a paired `tool_result` with `ts`
 after the answer timestamp, with E's nonce appearing in that segment at
