@@ -26,6 +26,9 @@ Copy-and-run loop pipelines live in `examples/loops/` (also bundled with the
   in isolated worktrees; a judge runs each and merges the winner.
 - `milestone-loop.yaml` — "keep working after I leave": a chooser picks the
   next runnable step, an implementer does it, a command checks, repeat.
+- `checklist-loop.yaml` — "work through this list and prove each item": a
+  `loop` node iterates a checklist file, validates each item by its command
+  and judge, marks it done itself, and injects the next item as a frame.
 
 `examples/loops/README.md` carries a symptom→fix table for misbehaving loops.
 
@@ -84,6 +87,27 @@ The server uses `github.com/mark3labs/mcp-go`. All tools are deferred, so their 
 Each run is a detached Tractor process with atomic state under
 `~/.local/state/tractor/mcp-runs`. It survives MCP and Codex restarts. A later
 MCP session can inspect, steer, or stop it with the original `run_id`.
+
+## Ask and answer inside a run
+
+An agent can pause inside one node visit, write a Markdown or HTML question,
+and wait for its caller:
+
+```sh
+TRACTOR_INTERVIEW_DIR=ephemeral/projects/<build>/interview tractor ask question.md
+```
+
+`tractor ask` moves the file to the next numbered question, uses the
+run-provided `TRACTOR_RUN_DIR` to append `QuestionAsked` to `timeline.jsonl`,
+and prints the answer when it arrives. `--into <directory>` overrides
+`TRACTOR_INTERVIEW_DIR`. If the waiting shell ends, rerun `tractor ask` with
+the numbered question path and the same interview directory to resume.
+
+The calling agent watches the run timeline for `QuestionAsked`, opens the
+event's `question` path, and answers with `tractor answer <question-path>
+[text]` (on one command line). With no text argument, `answer` reads stdin. It
+writes a non-empty `<number>.answer.md` beside the question, refuses to
+overwrite an existing answer, and thereby unblocks the original agent turn.
 
 ## Schema synchronization
 

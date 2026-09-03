@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"maps"
 	"math/rand/v2"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +14,7 @@ import (
 	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/harness"
 	"github.com/tylergannon/tractor/internal/runlog"
+	"github.com/tylergannon/tractor/lint"
 )
 
 // ExecutionScope is the engine-owned context for one handler execution.
@@ -20,7 +23,10 @@ type ExecutionScope struct {
 	StageDir string
 	RunLog   string
 	Goal     string
-	Stop     *StopSignal
+	// Frame is the rendered loop frame stack, outermost first, or empty when
+	// no loop is active. Codergen and fan-in turns prepend it to their prompt.
+	Frame string
+	Stop  *StopSignal
 }
 
 // Handler executes one graph node.
@@ -149,6 +155,8 @@ type Runner struct {
 	checkpointMu     sync.Mutex
 	lastCheckpoint   Checkpoint
 	supervision      *supervisionService
+	framesMu         sync.Mutex
+	frames           []loopFrame
 }
 
 // NewRunner validates the graph and prepares a runner without creating run files.
@@ -229,6 +237,23 @@ func (r *Runner) Stop() {
 
 // Run initializes or restores durable state and walks the graph to completion or failure.
 func (r *Runner) Run() (RunResult, error) {
+	logsRoot, err := filepath.Abs(r.config.LogsRoot)
+	if err != nil {
+		return RunResult{}, fmt.Errorf("resolve logs root: %w", err)
+	}
+	r.config.LogsRoot = logsRoot
+	previousRunDir, hadRunDir := os.LookupEnv("TRACTOR_RUN_DIR")
+	if err := os.Setenv("TRACTOR_RUN_DIR", logsRoot); err != nil {
+		return RunResult{}, fmt.Errorf("set TRACTOR_RUN_DIR: %w", err)
+	}
+	defer func() {
+		if hadRunDir {
+			_ = os.Setenv("TRACTOR_RUN_DIR", previousRunDir)
+		} else {
+			_ = os.Unsetenv("TRACTOR_RUN_DIR")
+		}
+	}()
+
 	state := newEngineState()
 	currentID := r.startID
 	if r.resumeCheckpoint != nil {
@@ -245,9 +270,24 @@ func (r *Runner) Run() (RunResult, error) {
 		currentID = r.resumeCheckpoint.NextNode
 		r.lastCheckpoint = *r.resumeCheckpoint
 	}
+	// The loop frame stack is in-memory only, so a continuation inside a
+	// loop body would run frameless. Rewind to the outermost enclosing loop,
+	// whose arrival validates nothing and selects the first open item.
+	rewoundFrom := ""
+	if r.resumeCheckpoint != nil {
+		if loopID, ok := lint.OutermostLoop(r.graph, currentID); ok {
+			rewoundFrom, currentID = currentID, loopID
+			state.clearRetryVisit()
+		}
+	}
 	store, err := openRunStore(r.config.LogsRoot, state)
 	if err != nil {
 		return RunResult{}, err
+	}
+	if rewoundFrom != "" {
+		if err := store.appendTimeline(timelineEvent{"type": "ResumeRewound", "from": rewoundFrom, "to": currentID}); err != nil {
+			return RunResult{}, err
+		}
 	}
 	allocator, err := runlog.New(r.config.LogsRoot)
 	if err != nil {
@@ -268,6 +308,7 @@ func (r *Runner) Run() (RunResult, error) {
 		return RunResult{}, err
 	}
 	r.registry.Register("parallel", &parallelHandler{runner: r, state: state, store: store})
+	r.registry.Register("loop", &loopHandler{runner: r, state: state, store: store})
 	if r.resumeCheckpoint == nil {
 		if err := r.saveCheckpoint(store, state.checkpoint("", r.startID, false, r.bindings()), r.startID); err != nil {
 			eventErr := store.appendTimeline(timelineEvent{
@@ -456,6 +497,7 @@ func (r *Runner) executeWithRetry(
 				StageDir: stage.Dir,
 				RunLog:   runLog,
 				Goal:     r.graph.Goal,
+				Frame:    r.renderFrames(workdir),
 				Stop:     r.stop,
 			}, &r.graph)
 			r.endExecution(liveID)

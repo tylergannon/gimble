@@ -249,6 +249,37 @@ func (*SupervisorNode) isNode()           {}
 func (n *SupervisorNode) Base() *NodeBase { return &n.NodeBase }
 func (*SupervisorNode) NodeType() string  { return "supervisor" }
 
+// LoopNode iterates a checklist file: on every arrival it validates the
+// previous lap's item, marks it done when the validation passes, injects the
+// first open item as the lap's frame, and dispatches the body. With no open
+// item left it routes to on_done.
+type LoopNode struct {
+	NodeBase
+	// Checklist is the checklist path, relative to the workdir. Optional only
+	// when this loop node lies inside another loop's body, in which case it
+	// iterates the enclosing item's checklist field.
+	Checklist jsonschema.Optional[string] `json:"checklist,omitzero"`
+	// Body is the entry node of one lap.
+	Body string `json:"body"`
+	// OnDone is the target when no open item remains: a node ID or
+	// success/failure.
+	OnDone string `json:"on_done"`
+	// MaxVisits bounds arrivals at the loop node, laps plus one.
+	MaxVisits jsonschema.Optional[int] `json:"max_visits,omitzero"`
+	// Timeout bounds one item's validation command and the infer judge turn.
+	Timeout jsonschema.Optional[Duration] `json:"timeout,omitzero"`
+	// LLMModel selects the model used by the infer judge.
+	LLMModel jsonschema.Optional[string] `json:"llm_model,omitzero"`
+	// LLMProvider selects the provider used by the infer judge.
+	LLMProvider jsonschema.Optional[string] `json:"llm_provider,omitzero"`
+	// ReasoningEffort sets the reasoning effort of the infer judge.
+	ReasoningEffort jsonschema.Optional[string] `json:"reasoning_effort,omitzero"`
+}
+
+func (*LoopNode) isNode()           {}
+func (n *LoopNode) Base() *NodeBase { return &n.NodeBase }
+func (*LoopNode) NodeType() string  { return "loop" }
+
 // MaxParallelValue returns the explicit maximum or the system default.
 func (n *ParallelNode) MaxParallelValue() int {
 	if n.MaxParallel.Present {
@@ -318,6 +349,8 @@ func RoutingTargets(node Node) []string {
 		return targets
 	case *ParallelNode:
 		return node.BranchIDs()
+	case *LoopNode:
+		return []string{node.Body, node.OnDone}
 	default:
 		return nil
 	}
@@ -345,6 +378,8 @@ func MaxVisits(node Node) jsonschema.Optional[int] {
 	case *ToolNode:
 		return node.MaxVisits
 	case *ParallelNode:
+		return node.MaxVisits
+	case *LoopNode:
 		return node.MaxVisits
 	default:
 		return jsonschema.Optional[int]{}

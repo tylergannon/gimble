@@ -99,6 +99,27 @@ func TestAdapterRetainsFreshProcessThenResumesWithCompleteEvents(t *testing.T) {
 	assertTurnStartParams(t, firstTurn.Params, workdir)
 }
 
+func TestAdapterReadsTractorRunDirAtProcessStart(t *testing.T) {
+	const runDir = "/tmp/tractor-run-for-codex"
+	logPath := t.TempDir() + "/protocol.jsonl"
+	adapter := newAdapter(processConfig{
+		command: os.Args[0],
+		args:    []string{"-test.run=TestCodexProtocolHelperProcess"},
+	})
+	defer adapter.Close()
+	t.Setenv("TRACTOR_CODEX_HELPER", "1")
+	t.Setenv("TRACTOR_CODEX_HELPER_LOG", logPath)
+	t.Setenv("TRACTOR_RUN_DIR", runDir)
+
+	if _, createErr := adapter.CreateSession("gpt-test", t.TempDir()); createErr != nil {
+		t.Fatal(createErr)
+	}
+	record := firstRecord(t, readProtocolLog(t, logPath), "thread/start")
+	if record.RunDir != runDir {
+		t.Fatalf("TRACTOR_RUN_DIR = %q, want %q", record.RunDir, runDir)
+	}
+}
+
 func TestAdapterCodexStrictSchemaCompatibilityPreservesCallerSemantics(t *testing.T) {
 	adapter, logPath := newProtocolTestAdapter(t)
 	defer adapter.Close()
@@ -279,6 +300,7 @@ type protocolRecord struct {
 	PID    int            `json:"pid"`
 	Method string         `json:"method"`
 	Params map[string]any `json:"params,omitempty"`
+	RunDir string         `json:"run_dir,omitempty"`
 }
 
 func readProtocolLog(t *testing.T, path string) []protocolRecord {
@@ -489,7 +511,10 @@ func TestCodexProtocolHelperProcess(t *testing.T) {
 		if json.Unmarshal(scanner.Bytes(), &request) != nil {
 			os.Exit(2)
 		}
-		appendProtocolRecord(logPath, protocolRecord{PID: os.Getpid(), Method: request.Method, Params: request.Params})
+		appendProtocolRecord(logPath, protocolRecord{
+			PID: os.Getpid(), Method: request.Method, Params: request.Params,
+			RunDir: os.Getenv("TRACTOR_RUN_DIR"),
+		})
 		if len(request.ID) == 0 {
 			continue
 		}

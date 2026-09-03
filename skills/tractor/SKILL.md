@@ -20,16 +20,16 @@ goal: Implement the TODO in cmd/server/routes.go and make the tests pass
 start: implement
 nodes:
   - id: implement
-    type: codergen          # an agent turn
-    max_visits: 5           # the budget; nothing else stops a loop
-    prompt: $goal           # the goal is the whole prompt
+    type: codergen # an agent turn
+    max_visits: 5 # the budget; nothing else stops a loop
+    prompt: $goal # the goal is the whole prompt
     edges:
       - to: check
   - id: check
-    type: tool              # a command decides what "done" means
+    type: tool # a command decides what "done" means
     tool_command: go test ./...
     on_success: success
-    on_error: implement     # failure routes back — that's the loop
+    on_error: implement # failure routes back — that's the loop
 ```
 
 An agent works, a command decides, failure routes back. Fan-out shapes add
@@ -47,12 +47,13 @@ files that teach ("read AGENTS.md first"), never script the checks.
 
 ## Pick the user's moment
 
-| The moment | Example |
-|---|---|
-| "Don't stop until it actually works" | `examples/fix-until-green.yaml` |
-| "Have another model check this" | `examples/critique-circle.yaml` |
-| "Try a couple of approaches in parallel" | `examples/bake-off.yaml` |
-| "Keep working on this after I leave" | `examples/milestone-loop.yaml` |
+| The moment                               | Example                         |
+| ---------------------------------------- | ------------------------------- |
+| "Don't stop until it actually works"     | `examples/fix-until-green.yaml` |
+| "Have another model check this"          | `examples/critique-circle.yaml` |
+| "Try a couple of approaches in parallel" | `examples/bake-off.yaml`        |
+| "Keep working on this after I leave"     | `examples/milestone-loop.yaml`  |
+| "Work through a list, proving each item" | `examples/checklist-loop.yaml`  |
 
 They ship beside this file, mirroring `examples/loops/` in the Tractor repo;
 if neither is at hand, the pipeline above is a complete start.
@@ -75,6 +76,18 @@ observable proof of the user's claim — run the app, curl the endpoint, assert
 on the artifact. Tests and linters are worth requiring, but prove the claim
 only when they exercise that behavior.
 
+## Checklists
+
+`checklist-loop.yaml` puts a `loop` node in front of the agent. It iterates
+a markdown file whose YAML frontmatter lists items — `name`, `check`,
+optionally a `command` (exit 0 passes) and an `infer` judge (`files`,
+`prompt`) — and on every arrival validates the previous lap's item, writes
+`done: true` on it itself, and injects the next open item into the prompt
+as a frame (name, check, command, last failure, doc). The agent never marks
+items. Copy `examples/checklist-loop.md` to the path the pipeline names and
+edit its items; `validation.log` in the loop node's stage directory says
+why an item stayed open.
+
 ## While it runs
 
 `get_run_status` returns `current_node`, `last_stage`, and `last_response`
@@ -85,17 +98,35 @@ when new authoritative information arrives or the run is leaving scope; a
 complete goal up front beats frequent correction. `stop_run` asks a run to
 stop; calling it again after the graceful window forces it.
 
+An agent inside a run can ask its caller a blocking question by writing one
+question per Markdown or HTML file and running:
+
+```sh
+TRACTOR_INTERVIEW_DIR=ephemeral/projects/<build>/interview tractor ask question.md
+```
+
+The command moves the question to a numbered file, records `QuestionAsked`
+when `TRACTOR_RUN_DIR` is available, and prints the answer once another
+process runs `tractor answer <numbered-question> [text]`. Answers may come
+from stdin; an existing answer is never overwritten. If a shell session ends
+while waiting, rerun `tractor ask` with the numbered question path to resume.
+
+On the calling side, watch the returned run path's `timeline.jsonl` for
+`QuestionAsked`, open the event's `question` path, then run `tractor answer`
+with that numbered path. The answer file unblocks the same agent turn; do not
+steer or restart the run to deliver it.
+
 ## When a loop misbehaves
 
-| Symptom | Fix |
-|---|---|
-| Runs forever | `max_visits` on the looping node. |
-| Says it's done when it isn't | The command is checking the wrong thing — check the behavior itself. |
-| Re-derives the same dead end every lap | Have the prompt keep a short notes file: append what the next attempt should do differently, read it first. |
-| Reviewer rubber-stamps | Fresh session (`fidelity: none`), whole target every round, never say what to find. A different provider makes the independence real. |
-| Fan-in averages instead of deciding | Tell it to inspect and run the work itself and adjudicate each finding on evidence — never count votes or concatenate reports. |
+| Symptom                                       | Fix                                                                                                                                                                                                         |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runs forever                                  | `max_visits` on the looping node.                                                                                                                                                                           |
+| Says it's done when it isn't                  | The command is checking the wrong thing — check the behavior itself.                                                                                                                                        |
+| Re-derives the same dead end every lap        | Have the prompt keep a short notes file: append what the next attempt should do differently, read it first.                                                                                                 |
+| Reviewer rubber-stamps                        | Fresh session (`fidelity: none`), whole target every round, never say what to find. A different provider makes the independence real.                                                                       |
+| Fan-in averages instead of deciding           | Tell it to inspect and run the work itself and adjudicate each finding on evidence — never count votes or concatenate reports.                                                                              |
 | Guesses at a decision that wasn't its to make | Give it a door: an edge conditioned on "this decision isn't mine" leading to a node that asks the user or writes a report and routes to `failure`. Agents improvise when forward is the only route offered. |
-| Builds everything, nothing runs until the end | Steer the chooser to vertical slices: a step is done when you can run something that proves it. Stack-order plans are the model's default tic; say no to them in the prompt. |
+| Builds everything, nothing runs until the end | Steer the chooser to vertical slices: a step is done when you can run something that proves it. Stack-order plans are the model's default tic; say no to them in the prompt.                                |
 
 ## Authoring beyond the examples
 

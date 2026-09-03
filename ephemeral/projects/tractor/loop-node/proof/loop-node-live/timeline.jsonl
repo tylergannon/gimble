@@ -1,0 +1,31 @@
+{"id":"c4cdcdecb0fdb70466f4740f51027f4c","name":"checklist-loop-proof","ts":"2026-09-02T17:58:06.472278Z","type":"PipelineStarted"}
+{"node_id":"items","ts":"2026-09-02T17:58:06.472577Z","type":"CheckpointSaved"}
+{"index":1,"name":"items","ts":"2026-09-02T17:58:06.472647Z","type":"StageStarted"}
+{"count":3,"index":1,"item":"greet script","lap":1,"node":"items","ts":"2026-09-02T17:58:06.472935Z","type":"LoopItemSelected"}
+{"duration":"534.583µs","index":1,"name":"items","next":"implement","ts":"2026-09-02T17:58:06.473182Z","type":"StageCompleted"}
+{"node_id":"items","ts":"2026-09-02T17:58:06.473386Z","type":"CheckpointSaved"}
+{"index":2,"name":"implement","ts":"2026-09-02T17:58:06.473449Z","type":"StageStarted"}
+{"duration":"8.830491167s","index":2,"name":"implement","next":"items","ts":"2026-09-02T17:58:15.303868Z","type":"StageCompleted"}
+{"node_id":"implement","ts":"2026-09-02T17:58:15.304385Z","type":"CheckpointSaved"}
+{"index":3,"name":"items","ts":"2026-09-02T17:58:15.304481Z","type":"StageStarted"}
+{"item":"greet script","node":"items","passed":true,"summary":"passed","ts":"2026-09-02T17:58:15.316622Z","type":"LoopValidated"}
+{"count":3,"index":2,"item":"line count","lap":1,"node":"items","ts":"2026-09-02T17:58:15.322786Z","type":"LoopItemSelected"}
+{"duration":"18.771375ms","index":3,"name":"items","next":"implement","ts":"2026-09-02T17:58:15.323253Z","type":"StageCompleted"}
+{"node_id":"items","ts":"2026-09-02T17:58:15.323563Z","type":"CheckpointSaved"}
+{"index":4,"name":"implement","ts":"2026-09-02T17:58:15.323662Z","type":"StageStarted"}
+{"duration":"13.861945791s","index":4,"name":"implement","next":"items","ts":"2026-09-02T17:58:29.185499Z","type":"StageCompleted"}
+{"node_id":"implement","ts":"2026-09-02T17:58:29.186603Z","type":"CheckpointSaved"}
+{"index":5,"name":"items","ts":"2026-09-02T17:58:29.186809Z","type":"StageStarted"}
+{"item":"line count","node":"items","passed":true,"summary":"passed","ts":"2026-09-02T17:58:29.204644Z","type":"LoopValidated"}
+{"count":3,"index":3,"item":"notes","lap":1,"node":"items","ts":"2026-09-02T17:58:29.210859Z","type":"LoopItemSelected"}
+{"duration":"24.457791ms","index":5,"name":"items","next":"implement","ts":"2026-09-02T17:58:29.211266Z","type":"StageCompleted"}
+{"node_id":"items","ts":"2026-09-02T17:58:29.211526Z","type":"CheckpointSaved"}
+{"index":6,"name":"implement","ts":"2026-09-02T17:58:29.211618Z","type":"StageStarted"}
+{"duration":"10.938343834s","index":6,"name":"implement","next":"items","ts":"2026-09-02T17:58:40.149879Z","type":"StageCompleted"}
+{"node_id":"implement","ts":"2026-09-02T17:58:40.150492Z","type":"CheckpointSaved"}
+{"index":7,"name":"items","ts":"2026-09-02T17:58:40.150692Z","type":"StageStarted"}
+{"item":"notes","node":"items","passed":true,"summary":"passed","ts":"2026-09-02T17:58:47.586178Z","type":"LoopValidated"}
+{"count":3,"node":"items","ts":"2026-09-02T17:58:47.597458Z","type":"LoopCompleted"}
+{"duration":"7.4474395s","index":7,"name":"items","next":"success","ts":"2026-09-02T17:58:47.59807Z","type":"StageCompleted"}
+{"node_id":"items","ts":"2026-09-02T17:58:47.598446Z","type":"CheckpointSaved"}
+{"duration":"41.126567917s","ts":"2026-09-02T17:58:47.598504Z","type":"PipelineCompleted"}

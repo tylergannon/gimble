@@ -101,6 +101,28 @@ func TestFreshSessionPromotesOnlyAfterPostInitMessage(t *testing.T) {
 	}
 }
 
+func TestAdapterPassesTractorRunDirToNativeProcess(t *testing.T) {
+	const runDir = "/tmp/tractor-run-for-claude"
+	var observed nativeConfig
+	session := newFakeSession(2)
+	session.onSend = func(string) {
+		session.messages <- claudeagent.SystemMessage{Type: "system", Subtype: "init", SessionID: "session"}
+		session.messages <- successResult("session")
+	}
+	adapter := newAdapter(func(_ context.Context, config nativeConfig) (nativeSession, error) {
+		observed = config
+		return session, nil
+	})
+	t.Setenv("TRACTOR_RUN_DIR", runDir)
+
+	if _, runErr := adapter.RunTurn(validInput("session", t.TempDir()), func(harness.Event) {}); runErr != nil {
+		t.Fatal(runErr)
+	}
+	if got := observed.env["TRACTOR_RUN_DIR"]; got != runDir {
+		t.Fatalf("TRACTOR_RUN_DIR = %q, want %q", got, runDir)
+	}
+}
+
 func TestRunTurnProjectsCompleteEventsAndValidatesResult(t *testing.T) {
 	const sessionID = "550e8400-e29b-41d4-a716-446655440000"
 	session := newFakeSession(8)

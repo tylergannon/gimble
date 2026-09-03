@@ -32,6 +32,28 @@ func TestToolHandlerRunsShellInWorkdirAndCombinesOutput(t *testing.T) {
 	}
 }
 
+func TestLogExcerptKeepsBothEndsOfLongLogs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "validation.log")
+	short := "no flag\n"
+	if err := os.WriteFile(path, []byte(short), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := logExcerpt(path, 6, 4); err != nil || got != strings.TrimSpace(short) {
+		t.Fatalf("short excerpt = %q, %v", got, err)
+	}
+	long := "héad--" + strings.Repeat("x", 90) + "-tail"
+	if err := os.WriteFile(path, []byte(long), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := logExcerpt(path, 6, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "héad--\n… (91 runes omitted) …\ntail"; got != want {
+		t.Fatalf("long excerpt = %q, want %q", got, want)
+	}
+}
+
 func TestNewRegistryIncludesToolHandler(t *testing.T) {
 	handler, runErr := NewRegistry().Resolve(toolNode("true", "done"))
 	if runErr != nil || handler == nil {

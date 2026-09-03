@@ -66,6 +66,19 @@ func TestEveryBuiltInRule(t *testing.T) {
 		}, lint.Options{}},
 		{"fan_in_entry", lint.SeverityError, directFanInParallel, lint.Options{}},
 		{"branch_entry", lint.SeverityError, externalBranchEntry, lint.Options{}},
+		{"loop_body_entry", lint.SeverityError, externalLoopBodyEntry, lint.Options{}},
+		{"loop_body_returns", lint.SeverityError, func() graph.Graph {
+			g := validLoop()
+			coder(g, "lap").Edges = []graph.Edge{edge(graph.Success)}
+			return g
+		}, lint.Options{}},
+		{"loop_body_exit", lint.SeverityError, loopBodyExitsToSuccess, lint.Options{}},
+		{"loop_checklist_required", lint.SeverityError, func() graph.Graph {
+			g := validLoop()
+			loopNode(g, "items").Checklist = jsonschema.Optional[string]{}
+			return g
+		}, lint.Options{}},
+		{"loop_in_parallel", lint.SeverityError, loopInsideParallel, lint.Options{}},
 		{"max_visits_positive", lint.SeverityError, func() graph.Graph { g := validLinear(); coder(g, "work").MaxVisits = set(0); return g }, lint.Options{}},
 		{"max_parallel_positive", lint.SeverityError, func() graph.Graph { g := validParallel(); parallel(g).MaxParallel = set(0); return g }, lint.Options{}},
 		{"max_retries_nonnegative", lint.SeverityError, func() graph.Graph { g := validLinear(); coder(g, "work").MaxRetries = set(-1); return g }, lint.Options{}},
@@ -106,8 +119,8 @@ func TestEveryBuiltInRule(t *testing.T) {
 			}
 		})
 	}
-	if len(tests) != 27 {
-		t.Fatalf("covered %d built-in rules, want 27", len(tests))
+	if len(tests) != 32 {
+		t.Fatalf("covered %d built-in rules, want 32", len(tests))
 	}
 }
 
@@ -115,6 +128,8 @@ func TestValidGraphsAndSupervisorExemption(t *testing.T) {
 	for name, g := range map[string]graph.Graph{
 		"linear":   validLinear(),
 		"parallel": validParallel(),
+		"loop":     validLoop(),
+		"nested":   validNestedLoop(),
 		"supervised": func() graph.Graph {
 			g := validLinear()
 			g.Nodes = append(g.Nodes, supervisor("coach", "work"))
@@ -126,6 +141,133 @@ func TestValidGraphsAndSupervisorExemption(t *testing.T) {
 				t.Fatalf("unexpected errors: %#v", diagnostics)
 			}
 		})
+	}
+}
+
+func TestLoopRulesAreSilentOnValidLoops(t *testing.T) {
+	loopRules := []string{"loop_body_entry", "loop_body_returns", "loop_body_exit", "loop_checklist_required", "loop_in_parallel"}
+	for name, g := range map[string]graph.Graph{"loop": validLoop(), "nested": validNestedLoop()} {
+		t.Run(name, func(t *testing.T) {
+			diagnostics := lint.Validate(g)
+			for _, rule := range loopRules {
+				assertNoRule(t, diagnostics, rule)
+			}
+			if len(diagnostics) != 0 {
+				t.Fatalf("unexpected diagnostics: %#v", diagnostics)
+			}
+		})
+	}
+}
+
+func TestLoopRuleDetails(t *testing.T) {
+	g := validLoop()
+	loopNode(g, "items").OnDone = "lap"
+	finding, ok := findDiagnostic(lint.Validate(g), "loop_body_entry")
+	if !ok || finding.Edge == nil || *finding.Edge != (lint.EdgeRef{"items", "lap"}) {
+		t.Fatalf("on_done into body = %#v", finding)
+	}
+
+	g = externalLoopBodyEntry()
+	finding, ok = findDiagnostic(lint.Validate(g), "loop_body_entry")
+	if !ok || finding.Edge == nil || *finding.Edge != (lint.EdgeRef{"pre", "lap"}) {
+		t.Fatalf("external body entry = %#v", finding)
+	}
+
+	g = validLoop()
+	loopNode(g, "items").Body = "missing"
+	diagnostics := lint.Validate(g)
+	if _, ok := findDiagnostic(diagnostics, "edge_target_exists"); !ok {
+		t.Fatal("missing edge_target_exists")
+	}
+	assertNoRule(t, diagnostics, "loop_body_returns")
+
+	g = validLoop()
+	loopNode(g, "items").MaxVisits = set(0)
+	if _, ok := findDiagnostic(lint.Validate(g), "max_visits_positive"); !ok {
+		t.Fatal("missing max_visits_positive on loop node")
+	}
+	assertNoRule(t, lint.Validate(g), "edge_condition_missing")
+}
+
+func TestLoopBodyMustNameANode(t *testing.T) {
+	for _, target := range []string{graph.Success, graph.Failure} {
+		g := validLoop()
+		loopNode(g, "items").Body = target
+		finding, ok := findDiagnostic(lint.Validate(g), "loop_body_returns")
+		if !ok || finding.NodeID != "items" || finding.Message != `loop body must name a node, not "`+target+`"` {
+			t.Fatalf("body %s = %#v", target, finding)
+		}
+	}
+}
+
+func TestLoopBodyExit(t *testing.T) {
+	g := loopBodyExitsToSuccess()
+	finding, ok := findDiagnostic(lint.Validate(g), "loop_body_exit")
+	if !ok || finding.Edge == nil || *finding.Edge != (lint.EdgeRef{"lap", graph.Success}) {
+		t.Fatalf("body exit = %#v", finding)
+	}
+	if want := `loop body node "lap" may not route to success; route back to loop "items" and let on_done end the run`; finding.Message != want {
+		t.Fatalf("message = %q, want %q", finding.Message, want)
+	}
+
+	// A nested loop whose on_done is success would end the run with outer
+	// items open: it is a body node of the outer loop.
+	g = validNestedLoop()
+	loopNode(g, "inner").OnDone = graph.Success
+	finding, ok = findDiagnostic(lint.Validate(g), "loop_body_exit")
+	if !ok || finding.Edge == nil || *finding.Edge != (lint.EdgeRef{"inner", graph.Success}) {
+		t.Fatalf("nested on_done exit = %#v", finding)
+	}
+
+	// failure stays an escape hatch.
+	g = validLoop()
+	coder(g, "lap").Edges = []graph.Edge{condition("items", "item done"), condition(graph.Failure, "give up")}
+	diagnostics := lint.Validate(g)
+	assertNoRule(t, diagnostics, "loop_body_exit")
+	if lint.HasErrors(diagnostics) {
+		t.Fatalf("unexpected errors: %#v", diagnostics)
+	}
+}
+
+func TestStartMustNotNameLoopBodyNode(t *testing.T) {
+	g := validLoop()
+	g.Start = "lap"
+	finding, ok := findDiagnostic(lint.Validate(g), "loop_body_entry")
+	if !ok || finding.NodeID != "lap" || finding.Message != `start must not name loop body node "lap"; start at the loop or before it` {
+		t.Fatalf("start at body = %#v", finding)
+	}
+
+	g = validNestedLoop()
+	g.Start = "inner"
+	finding, ok = findDiagnostic(lint.Validate(g), "loop_body_entry")
+	if !ok || finding.NodeID != "inner" || finding.Message != `start must not name loop body node "inner"; start at the loop or before it` {
+		t.Fatalf("start at nested loop = %#v", finding)
+	}
+
+	g = validNestedLoop()
+	pre := codergen("pre", edge("outer"))
+	g.Start = "pre"
+	g.Nodes = append(g.Nodes, pre)
+	assertNoRule(t, lint.Validate(g), "loop_body_entry")
+}
+
+func TestOutermostLoop(t *testing.T) {
+	g := validNestedLoop()
+	for node, want := range map[string]string{"plan": "outer", "inner": "outer", "implement": "outer"} {
+		if got, ok := lint.OutermostLoop(g, node); !ok || got != want {
+			t.Fatalf("OutermostLoop(%s) = %q, %v; want %q", node, got, ok, want)
+		}
+	}
+	for _, node := range []string{"outer", "missing", graph.Success} {
+		if got, ok := lint.OutermostLoop(g, node); ok {
+			t.Fatalf("OutermostLoop(%s) = %q, want none", node, got)
+		}
+	}
+	if got, ok := lint.OutermostLoop(validLoop(), "lap"); !ok || got != "items" {
+		t.Fatalf("OutermostLoop(lap) = %q, %v", got, ok)
+	}
+	if _, ok := lint.OutermostLoop(validLinear(), "work"); ok {
+		t.Fatal("OutermostLoop found a loop in a graph without one")
 	}
 }
 
@@ -292,6 +434,43 @@ func externalBranchEntry() graph.Graph {
 	return g
 }
 
+func validLoop() graph.Graph {
+	return graph.Graph{Start: "items", Nodes: []graph.Node{
+		loop("items", "checklist.md", "lap", graph.Success),
+		codergen("lap", edge("items")),
+	}}
+}
+
+func validNestedLoop() graph.Graph {
+	return graph.Graph{Start: "outer", Nodes: []graph.Node{
+		loop("outer", "checklist.md", "plan", graph.Success),
+		codergen("plan", edge("inner")),
+		loop("inner", "", "implement", "outer"),
+		codergen("implement", edge("inner")),
+	}}
+}
+
+func externalLoopBodyEntry() graph.Graph {
+	g := validLoop()
+	pre := codergen("pre", condition("items", "start the loop"), condition("lap", "skip the loop"))
+	g.Start = "pre"
+	g.Nodes = append(g.Nodes, pre)
+	return g
+}
+
+func loopBodyExitsToSuccess() graph.Graph {
+	g := validLoop()
+	coder(g, "lap").Edges = []graph.Edge{condition("items", "item done"), condition(graph.Success, "everything done")}
+	return g
+}
+
+func loopInsideParallel() graph.Graph {
+	g := validParallel()
+	coder(g, "left").Edges = []graph.Edge{edge("items")}
+	g.Nodes = append(g.Nodes, loop("items", "checklist.md", "lap", "join"), codergen("lap", edge("items")))
+	return g
+}
+
 func supervisedCycle() graph.Graph {
 	g := validLinear()
 	g.Nodes = append(g.Nodes, supervisor("manager", "director"), supervisor("director", "manager"))
@@ -317,6 +496,23 @@ func codergen(id string, edges ...graph.Edge) *graph.CodergenNode {
 
 func fanIn(id string, edges ...graph.Edge) *graph.FanInNode {
 	return &graph.FanInNode{NodeBase: graph.NodeBase{ID: id}, Edges: edges, LLMNodeFields: graph.LLMNodeFields{Prompt: set("evaluate")}}
+}
+
+func loop(id, checklist, body, onDone string) *graph.LoopNode {
+	node := &graph.LoopNode{NodeBase: graph.NodeBase{ID: id}, Body: body, OnDone: onDone}
+	if checklist != "" {
+		node.Checklist = set(checklist)
+	}
+	return node
+}
+
+func loopNode(g graph.Graph, id string) *graph.LoopNode {
+	for _, node := range g.Nodes {
+		if node.Base().ID == id {
+			return node.(*graph.LoopNode)
+		}
+	}
+	panic("missing loop " + id)
 }
 
 func supervisor(id string, supervises ...string) *graph.SupervisorNode {

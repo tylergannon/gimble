@@ -438,6 +438,33 @@ func TestAdapterProvisionsHookBeforeFirstInvocation(t *testing.T) {
 	}
 }
 
+func TestAdapterReadsTractorRunDirAtProcessStart(t *testing.T) {
+	const runDir = "/tmp/tractor-run-for-agy"
+	record := filepath.Join(t.TempDir(), "run-dir")
+	adapter := newAdapter(runnerConfig{
+		binary:   os.Args[0],
+		baseArgs: []string{"-test.run=TestAgyHelperProcess", "--"},
+		homeDir:  t.TempDir(),
+	})
+	defer adapter.Close()
+	t.Setenv("GO_WANT_AGY_HELPER", "1")
+	t.Setenv("AGY_HELPER_MODE", "success")
+	t.Setenv("AGY_HELPER_VERSION", minSupportedAgyVersion)
+	t.Setenv("AGY_HELPER_RUN_DIR_RECORD", record)
+	t.Setenv("TRACTOR_RUN_DIR", runDir)
+
+	if _, createErr := adapter.CreateSession("gemini-test", t.TempDir()); createErr != nil {
+		t.Fatal(createErr)
+	}
+	observed, err := os.ReadFile(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(observed) != runDir {
+		t.Fatalf("TRACTOR_RUN_DIR = %q, want %q", observed, runDir)
+	}
+}
+
 func TestRunTurnTimeoutInterruptsProcess(t *testing.T) {
 	adapter := testAdapter(t, "sleep", "")
 	defer adapter.Close()
@@ -604,6 +631,11 @@ func testAdapter(t *testing.T, mode, record string) *Adapter {
 func TestAgyHelperProcess(t *testing.T) {
 	if os.Getenv("GO_WANT_AGY_HELPER") != "1" {
 		return
+	}
+	if record := os.Getenv("AGY_HELPER_RUN_DIR_RECORD"); record != "" {
+		if err := os.WriteFile(record, []byte(os.Getenv("TRACTOR_RUN_DIR")), 0o600); err != nil {
+			os.Exit(2)
+		}
 	}
 	separator := slices.Index(os.Args, "--")
 	args := os.Args[separator+1:]

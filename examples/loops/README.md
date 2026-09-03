@@ -21,6 +21,10 @@ tractor run examples/loops/<file>.yaml
   bite-sized runnable step, an implementer does it, a command checks,
   repeat until the goal's claims are demonstrable. For *"keep working on
   this after I close my laptop."*
+- [`checklist-loop.yaml`](checklist-loop.yaml) — a `loop` node works
+  through a checklist file, proving each item by running its command
+  (and its judge) before marking it done and moving on. For *"work
+  through this list and prove each item."*
 
 ## Writing node prompts
 
@@ -30,6 +34,36 @@ substitutes `$goal` (nothing else delivers the goal text), supplies the
 workspace, and builds a structured routing choice from the node's edge
 conditions. Never coach routing, never point at files that teach, never
 script the checks: `prompt: $goal` is a complete, correct prompt.
+
+## Checklists
+
+`checklist-loop.yaml` iterates a markdown file whose YAML frontmatter is
+the ledger. Copy [`checklist-loop.md`](checklist-loop.md) to the path the
+pipeline names and edit its items:
+
+```yaml
+---
+items:
+  - name: Print a greeting                   # unique within the file
+    check: Running `sh hello.sh` prints exactly HELLO_LOOPS
+    command: test "$(sh hello.sh)" = HELLO_LOOPS   # exit 0 passes
+  - name: Document the scripts
+    check: NOTES.md tells a newcomer how to run both scripts
+    infer:                                   # a cheap judge reads the evidence
+      files: NOTES.md
+      prompt: Judge whether a newcomer could run both scripts from these notes alone
+---
+Prose below the frontmatter is for agents and people; the engine never reads it.
+```
+
+On every arrival the loop re-reads the file, validates the previous lap's
+item (its command, then its `infer` judge), writes `done: true` on it, and
+injects the first open item into the body's prompt as a frame: name,
+check, command, the last failure, and the item's `doc` if it has one.
+Agents never mark items; a hand-edited `done: true` is honored as the
+human override. Paths are relative to the workdir. `max_visits` on the
+loop node is the budget, and `validation.log` in the loop node's stage
+directory says why an item stayed open.
 
 ## When a loop misbehaves
 

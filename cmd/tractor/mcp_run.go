@@ -60,14 +60,26 @@ func defaultMCPRunStore() (*mcpRunStore, error) {
 		}
 		return &mcpRunStore{dir: absolute}, nil
 	}
+	stateRoot, err := tractorStateRoot()
+	if err != nil {
+		return nil, err
+	}
+	return &mcpRunStore{dir: filepath.Join(stateRoot, "mcp-runs")}, nil
+}
+
+func tractorStateRoot() (string, error) {
 	if xdgState := strings.TrimSpace(os.Getenv("XDG_STATE_HOME")); xdgState != "" {
-		return &mcpRunStore{dir: filepath.Join(xdgState, "tractor", "mcp-runs")}, nil
+		absolute, err := filepath.Abs(xdgState)
+		if err != nil {
+			return "", fmt.Errorf("resolve XDG state directory: %w", err)
+		}
+		return filepath.Join(absolute, "tractor"), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil, fmt.Errorf("resolve home directory for MCP state: %w", err)
+		return "", fmt.Errorf("resolve home directory for Tractor state: %w", err)
 	}
-	return &mcpRunStore{dir: filepath.Join(home, ".local", "state", "tractor", "mcp-runs")}, nil
+	return filepath.Join(home, ".local", "state", "tractor"), nil
 }
 
 func (s *mcpRunStore) create(record mcpRunRecord) error {

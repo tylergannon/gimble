@@ -1,0 +1,4 @@
+---
+next: pass
+---
+notes.md states greet.sh prints "GREETING_10ae02e8" — confirmed by cat greet.sh (echo GREETING_10ae02e8). notes.md states count.txt (value 2) is the line count of greet.sh — confirmed: greet.sh has exactly 2 lines (shebang + echo). Both claims accurate.

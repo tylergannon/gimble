@@ -1,23 +1,14 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/harness"
-)
-
-var (
-	errToolStopped  = errors.New("tool command stopped")
-	errToolTimedOut = errors.New("tool command timed out")
 )
 
 func toolHandler(node graph.Node, offered []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
@@ -37,67 +28,14 @@ func toolHandler(node graph.Node, offered []graph.Edge, scope ExecutionScope, _ 
 		return harness.Outcome{}, terminalError(timeoutErr.Error())
 	}
 	logPath := filepath.Join(scope.StageDir, "tool.log")
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-	if err != nil {
-		return harness.Outcome{}, terminalError(fmt.Sprintf("open tool log: %v", err))
-	}
-
-	ctx, cancel := context.WithCancelCause(context.Background())
-	commandDone := make(chan struct{})
-	if scope.Stop != nil {
-		go func() {
-			select {
-			case <-scope.Stop.done:
-				cancel(errToolStopped)
-			case <-commandDone:
-			}
-		}()
-	}
-	var timer *time.Timer
-	if tool.Timeout.Present {
-		timer = time.AfterFunc(timeout, func() { cancel(errToolTimedOut) })
-	}
-
-	command := exec.CommandContext(ctx, "/bin/sh", "-c", tool.ToolCommand)
-	command.Dir = scope.Workdir
-	command.Stdout = logFile
-	command.Stderr = logFile
-	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	command.Cancel = func() error {
-		if command.Process == nil {
-			return os.ErrProcessDone
-		}
-		err := syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
-		if errors.Is(err, syscall.ESRCH) {
-			return os.ErrProcessDone
-		}
-		return err
-	}
-	runErr := command.Run()
-	close(commandDone)
-	if timer != nil {
-		timer.Stop()
-	}
-	cause := context.Cause(ctx)
-	cancel(nil)
-	closeErr := logFile.Close()
-
+	exitCode, err := runShell(tool.ToolCommand, scope.Workdir, logPath, timeout, tool.Timeout.Present, scope.Stop)
 	switch {
-	case errors.Is(cause, errToolStopped):
+	case errors.Is(err, errShellStopped):
 		return harness.Outcome{}, interruptedError("tool command stopped by operator")
-	case errors.Is(cause, errToolTimedOut):
+	case errors.Is(err, errShellTimedOut):
 		return harness.Outcome{}, interruptedError("tool command timed out")
-	case closeErr != nil:
-		return harness.Outcome{}, terminalError(fmt.Sprintf("close tool log: %v", closeErr))
-	}
-
-	exitCode := 0
-	if runErr != nil {
-		var exitError *exec.ExitError
-		if !errors.As(runErr, &exitError) {
-			return harness.Outcome{}, terminalError(fmt.Sprintf("run tool command: %v", runErr))
-		}
-		exitCode = exitError.ExitCode()
+	case err != nil:
+		return harness.Outcome{}, terminalError(shellFailureMessage("tool", err))
 	}
 
 	route, routeErr := toolRoute(tool, exitCode)
@@ -148,14 +86,5 @@ func offeredTarget(offered []graph.Edge, target string) bool {
 }
 
 func toolLogTail(path string) (string, error) {
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	const maxTailRunes = 200
-	tail := []rune(strings.TrimSpace(string(contents)))
-	if len(tail) > maxTailRunes {
-		tail = tail[len(tail)-maxTailRunes:]
-	}
-	return string(tail), nil
+	return logTail(path, 200)
 }

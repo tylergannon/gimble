@@ -417,7 +417,7 @@ func TestDefinitionProofExecutionScopeHasNoReplayFlag(t *testing.T) {
 	for index := range typeOfScope.NumField() {
 		fields[index] = typeOfScope.Field(index).Name
 	}
-	if got := strings.Join(fields, ","); got != "Workdir,StageDir,RunLog,Goal,Stop" {
+	if got := strings.Join(fields, ","); got != "Workdir,StageDir,RunLog,Goal,Frame,Stop" {
 		t.Fatalf("ExecutionScope exposes replay metadata: %s", got)
 	}
 }

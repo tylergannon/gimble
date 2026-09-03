@@ -22,5 +22,6 @@ var _ = jsonschema.NewJSONSchemaMethod(
 		jsonschema.Impl("parallel.fan_in", (*FanInNode)(nil)),
 		jsonschema.Impl("tool", (*ToolNode)(nil)),
 		jsonschema.Impl("supervisor", (*SupervisorNode)(nil)),
+		jsonschema.Impl("loop", (*LoopNode)(nil)),
 	),
 )

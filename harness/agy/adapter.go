@@ -115,7 +115,7 @@ type nativeResult struct {
 
 // New constructs an adapter that launches `agy` from PATH.
 func New() *Adapter {
-	return newAdapter(runnerConfig{binary: "agy", env: os.Environ()})
+	return newAdapter(runnerConfig{binary: "agy"})
 }
 
 func newAdapter(config runnerConfig) *Adapter {

@@ -15,16 +15,16 @@ goal: Implement the TODO in cmd/server/routes.go and make the tests pass
 start: implement
 nodes:
   - id: implement
-    type: codergen          # an agent turn
-    max_visits: 5           # the budget; nothing else stops a loop
-    prompt: $goal           # the goal is the whole prompt
+    type: codergen # an agent turn
+    max_visits: 5 # the budget; nothing else stops a loop
+    prompt: $goal # the goal is the whole prompt
     edges:
       - to: check
   - id: check
-    type: tool              # a command decides what "done" means
+    type: tool # a command decides what "done" means
     tool_command: go test ./...
     on_success: success
-    on_error: implement     # failure routes back — that's the loop
+    on_error: implement # failure routes back — that's the loop
 ```
 
 An agent works, a command decides, failure routes back. That's a complete
@@ -34,12 +34,13 @@ copy it, change the goal and the check, run it.
 
 ## Pick your moment
 
-| You want | Example |
-|---|---|
-| "Don't stop until it actually works" | [`fix-until-green.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/fix-until-green.yaml) |
-| "Have another model check this" | [`critique-circle.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/critique-circle.yaml) |
-| "Try a couple of approaches in parallel" | [`bake-off.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/bake-off.yaml) |
-| "Keep working on this after I leave" | [`milestone-loop.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/milestone-loop.yaml) |
+| You want                                     | Example                                                                                                        |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| "Don't stop until it actually works"         | [`fix-until-green.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/fix-until-green.yaml) |
+| "Have another model check this"              | [`critique-circle.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/critique-circle.yaml) |
+| "Try a couple of approaches in parallel"     | [`bake-off.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/bake-off.yaml)               |
+| "Keep working on this after I leave"         | [`milestone-loop.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/milestone-loop.yaml)   |
+| "Work through this list and prove each item" | [`checklist-loop.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/checklist-loop.yaml)   |
 
 **Fix-until-green** is the pipeline above.
 
@@ -54,11 +55,24 @@ judge run each result before merging the winner. The judge is told to
 decide on demonstrated behavior, not on the reports.
 
 **Milestone loop** is for far-off goals: a chooser looks at the goal and
-the repository *as it is now*, names the smallest next step that ends in
+the repository _as it is now_, names the smallest next step that ends in
 something runnable, an implementer does it, a command checks it, repeat.
 No upfront plan to go stale. When you want to read and approve a plan
 before the tokens burn, add a planner node in front — the two shapes differ
 by exactly one node.
+
+**Checklist loop** is for work that is already a list of claims. A `loop`
+node iterates a markdown file whose YAML frontmatter lists items, each
+with a `check`, optionally a `command`, and optionally an `infer` judge
+over evidence files. On every arrival the engine re-reads the file,
+validates the item the previous lap worked on — runs its command, then
+asks the judge — marks it `done: true` itself when that passes, and
+injects the first open item into the body's prompt as a frame: the item,
+its command, the last failure, and the item's `doc` if it has one. The
+agent never marks items; the file is the only loop state, so a planner
+(or a person) can append, reorder, or hand-mark items between laps. Copy
+[`checklist-loop.md`](https://github.com/tylergannon/tractor/blob/main/examples/loops/checklist-loop.md)
+beside it to start.
 
 ## Writing node prompts
 
@@ -83,16 +97,17 @@ but they prove the claim only when they exercise that behavior.
 You don't need this table to write a loop; you need it when a loop annoys
 you.
 
-| Symptom | Fix |
-|---|---|
-| Runs forever | `max_visits` on the looping node. That's the budget; there is no other ceremony. |
-| Says it's done when it isn't | Make "done" a command (`tool` node). If the tests pass but the feature doesn't work, the command is checking the wrong thing — check the behavior you actually want. |
-| Re-derives the same dead end every lap | Tell the prompt to keep a short notes file: "append what the next attempt should do differently; read it first." |
-| Reviewer rubber-stamps | Don't tell it what to find or ask it to confirm your fix. Fresh session (`fidelity: none`), whole target, every round. A different provider makes the independence real. |
-| Fan-in averages instead of deciding | Tell it to inspect the work itself and adjudicate each finding with evidence — never count votes or concatenate reports. |
+| Symptom                                             | Fix                                                                                                                                                                                                             |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runs forever                                        | `max_visits` on the looping node. That's the budget; there is no other ceremony.                                                                                                                                |
+| Says it's done when it isn't                        | Make "done" a command (`tool` node). If the tests pass but the feature doesn't work, the command is checking the wrong thing — check the behavior you actually want.                                            |
+| Re-derives the same dead end every lap              | Tell the prompt to keep a short notes file: "append what the next attempt should do differently; read it first."                                                                                                |
+| Reviewer rubber-stamps                              | Don't tell it what to find or ask it to confirm your fix. Fresh session (`fidelity: none`), whole target, every round. A different provider makes the independence real.                                        |
+| Fan-in averages instead of deciding                 | Tell it to inspect the work itself and adjudicate each finding with evidence — never count votes or concatenate reports.                                                                                        |
 | Agent guesses at a decision that wasn't its to make | Give it a door: an edge whose condition is "this decision isn't mine," leading to a node that asks a human or writes a report and routes to `failure`. Agents improvise when forward is the only offered route. |
-| Builds everything, nothing runs until the end | Steer the chooser to vertical slices: "the step is done when you can run something that proves it." Stack-order plans (schema → services → API → UI) are the model's default tic; say no to them in the prompt. |
-| A long run starts believing its own stale plans | Per-lap plans are working notes, not authority; they live with the run, the code is the record. Don't commit them. |
+| Builds everything, nothing runs until the end       | Steer the chooser to vertical slices: "the step is done when you can run something that proves it." Stack-order plans (schema → services → API → UI) are the model's default tic; say no to them in the prompt. |
+| A long run starts believing its own stale plans     | Per-lap plans are working notes, not authority; they live with the run, the code is the record. Don't commit them.                                                                                              |
+| Item never gets marked                              | The engine marks it only after its command exits 0 and its `infer` judge passes; read `validation.log` in the loop node's stage directory.                                                                      |
 
 Every run leaves its evidence — prompts, responses, routing decisions,
 collected artifacts — in a browsable run directory, so when a loop

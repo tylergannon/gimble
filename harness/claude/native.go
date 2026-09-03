@@ -26,6 +26,9 @@ func openNativeSession(ctx context.Context, config nativeConfig) (nativeSession,
 		claudeagent.WithPermissionMode(claudeagent.PermissionModeBypassAll),
 		claudeagent.WithAllowDangerouslySkipPermissions(true),
 	}
+	if len(config.env) > 0 {
+		options = append(options, claudeagent.WithEnv(config.env))
+	}
 	if config.model != "" {
 		options = append(options, claudeagent.WithModel(config.model))
 	}
