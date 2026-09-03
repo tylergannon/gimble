@@ -42,12 +42,15 @@ removed from the rendered line and every template action removed from
 the lines of the node's include closure, each rendered residue equals
 some closure residue); with a distinct sentinel appended to every file
 under `prompts/`, `supervisors/`, and `passes/`, each node renders the
-sentinel of its header file and of every file in that file's include
-closure and no other; every file under `prompts/` and `supervisors/` is
-rendered by some node; an injected `doctrine/zz-uncited.md` makes
-`TestLibraryNoOrphans` fail naming it; an unclosed action appended to a
-doctrine page (using the delimiters the README states) makes
-`TestLibraryRendersAll` fail naming the page; and in the real tree both
+sentinel of its header file and no sentinel of a file outside that
+file's include closure (a conditional include may stay silent); every file under `prompts/` and `supervisors/` is
+rendered by some node; an injected uncited page, named at random, makes `TestLibraryNoOrphans`
+fail naming it, and so does removing every citation of an existing page
+chosen at random; an unclosed action with random text appended to a
+doctrine page chosen at random (using the delimiters the README states)
+makes `TestLibraryRendersAll` fail naming the page; when the library has
+no doctrine page yet, the script plants one, cited from a prompt, so
+every probe runs; and in the real tree both
 tests run by name with `-v` and their `--- PASS:` lines are present.
 
 ## Not in this sprint

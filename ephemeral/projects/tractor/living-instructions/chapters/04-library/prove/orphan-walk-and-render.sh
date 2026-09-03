@@ -70,6 +70,16 @@ find "$mlib/prompts" "$mlib/supervisors" "$mlib/passes" -type f 2>/dev/null | wh
   rel="${f#$mlib/}"
   printf '\n%s FILE %s\n' "$stamp" "$rel" >> "$f"
 done
+# When the library has no doctrine page yet (sprint 3 runs before sprint
+# 4), plant one and cite it from one prompt file, so every probe below
+# has a page to work on; otherwise pick an existing page at random.
+if [ -z "$(find "$mlib/doctrine" -type f -name '*.md' 2>/dev/null)" ]; then
+  planted="planted-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
+  printf '# planted\n\nA page the proof planted.\n' > "$mlib/doctrine/$planted.md"
+  host="$(find "$mlib/prompts" -type f | sort | head -1)"
+  printf '\n%s doctrine "%s" %s\n' "$delim_open" "$planted" "$delim_close" >> "$host"
+  echo "planted: $planted.md cited from ${host#$mlib/}"
+fi
 page="$(find "$mlib/doctrine" -type f -name '*.md' 2>/dev/null | sort -R | head -1 || true)"
 if [ -n "$page" ]; then printf '\n%s DOCTRINE %s\n' "$stamp" "$(basename "$page" .md)" >> "$page"; fi
 orphan="probe-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"

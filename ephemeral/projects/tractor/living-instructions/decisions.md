@@ -189,8 +189,9 @@ planner node is withdrawn.
     sees all. Scenario (a user story): no holdout; the proof is captures
     judged against the story. A holdout is always considered and belongs
     only to the universal archetype; a universal promise over a set the
-    verifier checks exhaustively needs none (amendment proposed in
-    interview 0014, question 4, pending Tyler's answer).
+    verifier checks exhaustively needs none (adopted 2026-09-03 as the
+    reading of decision 56, which rules out a holdout in this project's
+    proof; interview 0014, question 4, asks Tyler to confirm or reverse).
 43. **Holdout storage, simple.** Under the XDG state root in a directory
     named by a random token, written by the design lap, referenced only
     from the verifier's prompt. Not in the workdir, not under the run
@@ -278,8 +279,9 @@ planner node is withdrawn.
     holistic and rubric-free, last, because single-criterion judges miss
     trade-offs (research F2, 2026-09-02).
 59. **P8 restated.** Prompt bodies, doctrine, briefs, passes, and
-    skeletons are library files and Go supplies only data values and the
-    rendering functions `quote` and `shell`; `show`
+    skeletons are library files and Go supplies only data values, the
+    value functions `quote` and `shell`, and the composition actions
+    `include` and `doctrine`; `show`
     prints what `Build` materialized, with `--stage` to diff a real
     stage minus its frame. Cheap roles use the `sonnet` alias on claude;
     providers are always explicit; template delimiters are non-default

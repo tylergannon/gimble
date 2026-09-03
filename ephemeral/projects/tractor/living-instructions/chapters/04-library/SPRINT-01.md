@@ -44,7 +44,7 @@ can call with a corrupt `fs.FS`, or an exported `BuildFrom(fsys fs.FS,
   inventory's gotcha on `'/tmp/tractor'\''s binary'` is a test.
 - `include "name"` and `doctrine "name"` actions exist but are not yet
   used by any prompt (sprint 4 does that). Wire the func map now so
-  sprint 3 is content only.
+  sprint 4 is content only.
 - An empty render is an error, never a fallback to the node label
   (inventory gotcha on `PromptValue`).
 

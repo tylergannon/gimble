@@ -16,7 +16,8 @@ P6, P9, P10.
   - `replan`: own node, cheap model, fresh context, edits open sprint
     items only.
   - `verify`: other provider than the coder, fresh context, tools; reads
-    the validation design and any holdout path it recorded; routes pass to the
+    the validation design and, for a universal promise with a holdout,
+    the path the run's private workflow state carries; routes pass to the
     chapter loop, fail to the sprint loop or a human question.
   - Holdout handoff from the design lap to the `verify` prompt.
   - Two known seeds planned and executed end to end; proof record under

@@ -1,0 +1,3 @@
+1. `chapters/04-library/sprints.md` requires the sprint-3 infer judge to “Fail if any step is missing from the log,” including “the page whose citation was removed” and “the random broken action.” But `prove/orphan-walk-and-render.sh` selects an existing doctrine page and conditionally skips both probes when none exists: `page="$(find "$mlib/doctrine" ...)"; ... if [ -n "$page" ]`, and likewise `victim=...; if [ -n "$victim" ]`. At this point no doctrine pages exist in the library: `SPRINT-04.md` says the following sprint “copies them into workflow/library/doctrine/.” Sprint 3 therefore cannot satisfy its validator, so the loop cannot reach sprint 4. Owning node: decompose.
+
+ROUTE: fail

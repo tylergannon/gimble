@@ -27,8 +27,9 @@ and `workflow`-package Go, never engine code. Promise P8.
 ## Vector
 
 Decisions 53, 54, 59. Research R1 (prior art: crush, goose, codex,
-gemini-cli) and R5 (the exact seams). Go supplies data values and the
-rendering functions `quote` and `shell` to templates and nothing else; provider names are explicit; delimiters are
+gemini-cli) and R5 (the exact seams). Go supplies data values, the
+value functions `quote` and `shell`, and the composition actions
+`include` and `doctrine` to templates, and nothing else; provider names are explicit; delimiters are
 non-default because doctrine contains `{{`.
 
 ## Review posture

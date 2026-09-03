@@ -189,8 +189,10 @@ sprint that finds the chapter wrong asks the human.
 
 **verify** (codergen, other provider than the coder, fresh context, tools):
 runs once per chapter after its sprint loop exits. Reads the validation
-design and any holdout path the design recorded (a scenario chapter has
-none), operates the software itself, captures its
+design and, for a universal promise with a holdout, the holdout path
+the run's private workflow state carries (written there by the design
+lap and rendered only into this prompt; a scenario chapter has none),
+operates the software itself, captures its
 own evidence under the run directory, and routes pass to the chapters
 loop or fail to the sprint loop (or to a human question). A chapter is
 *proven* only through this leg; its item carries the required checks as
@@ -246,7 +248,7 @@ workflow/library/
                        prior-art.md research-leaf.md chapter-doc.md sprint-doc.md
                        pyramid-index.md reviewer-independence.md ledger.md
   templates/           skeletons the planner fills: brief.md promises.md
-                       CHAPTER.md SPRINT.md story.md evidence.md
+                       CHAPTER.md SPRINT.md design.md
                        recommendation.md ledger.md
 ```
 
