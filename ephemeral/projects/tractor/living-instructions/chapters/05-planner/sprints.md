@@ -5,9 +5,10 @@ items: []
 
 # Chapter 5 sprints
 
-Empty ledger; the plan node writes the backlog when the chapter is
-entered and the `replan` step (or, until it exists, the plan node on
-re-entry) edits open items after every lap (decision 44).
+Empty ledger; the plan node writes the backlog from the sketch below
+when the chapter is entered. Until chapter 6 adds `replan`, open items
+are edited only when the plan node runs (once per chapter in today's
+`large` graph); decision 44's per-lap replanning arrives with chapter 6.
 
 ## Backlog sketch, in order
 
@@ -44,8 +45,9 @@ re-entry) edits open items after every lap (decision 44).
     to the owning node. Proof: a nested run in which one pass fails, its
     owning node runs, and the pass is re-selected and marked.
 12. `assemble` and `approve`, the human gate. Proof: P5.
-13. The four supervisors in the YAML with `models.yaml` roles. Proof:
-    P7.
+13. The four supervisors in the YAML with `models.yaml` roles, and
+    `workflow show` printing supervisor briefs. Proof: P7, and `show`
+    listing every supervisor.
 14. Docs and skill: an agent reading only the docs starts a nested plan
     run on a one-line seed and answers its first question (the chapter
     5 portion of P9's reader). Proof: the reader's run directory.

@@ -68,4 +68,9 @@ comm -13 "$tmp/values-raw.txt" "$tmp/values-shown.txt" > "$tmp/values-extra.txt"
 if [ -s "$tmp/values-extra.txt" ]; then
   echo "show --values reports values the check did not derive:"; cat "$tmp/values-extra.txt"; exit 1
 fi
+comm -23 "$tmp/values-raw.txt" "$tmp/values-shown.txt" > "$tmp/values-missing.txt" || true
+if [ -s "$tmp/values-missing.txt" ]; then
+  echo "show --values omits values the check derived:"; cat "$tmp/values-missing.txt"; exit 1
+fi
+echo "values: $(wc -l < "$tmp/values-raw.txt" | tr -d ' ') derived values, all shown, none extra"
 echo "show-equals-build.sh: ok"

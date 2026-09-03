@@ -1,6 +1,6 @@
 # P2: the brief/research loop halts through the tool node, and a finding is asked, not applied
 
-Archetype: scenario. Lap 13; answers `review-12.md`.
+Archetype: scenario. Lap 14; answers `review-13.md`.
 
 ## Story
 
@@ -58,12 +58,17 @@ error, and `brief`'s successor is the research node; the halt command
 run by the check exits non-zero under each of the two open states and
 zero under the clear state; every `halt` stage directory contains
 `tool.log` (a tool node); the last `halt`
-`StageCompleted` has `next: decompose`, and in the observer copy at
-that halt stage's `StageStarted`, `research/findings.md` holds no open
-finding and `research/plan.md` no open entry (the state the predicate
-saw when it routed on; a halt that routed on with a finding still open
-fails here whatever its command says); at least one question matched
-the finding rule (`answers.log`); call the first E; some `tractor ask`
+`StageCompleted` has `next: decompose`, and in the observer copy at the
+`StageCompleted` of the stage before that halt (the state halt started
+from; halt is a tool node that writes nothing, so nothing changes
+between that copy and its decision), `research/findings.md` holds no
+open finding and `research/plan.md` no open entry (a halt that routed
+on with a finding still open fails here whatever its command says); at least one question matched
+the finding rule (`answers.log`); call the first E; E lies between a
+`brief` stage's `StageStarted` and `StageCompleted` and precedes the
+`StageStarted` of the halt that routed to `decompose` (the brief asked
+before the loop ended, as decision 46 orders; a question asked by
+`decompose` afterwards does not count); some `tractor ask`
 `tool_call` has `ts` before E and a paired `tool_result` with `ts`
 after the answer timestamp, with E's nonce appearing in that segment at
 or after the result (the call waited on this question; the asking turn
@@ -80,7 +85,8 @@ stage (research applied nothing; a whitespace normalisation is not an
 application).
 
 `infer` (files: the research branches' and fan-in's `prompt.md`,
-`response.md`, and segments; the matched question, its answer, the
+`response.md`, and segments; the `brief` stage's `prompt.md` and
+segment that asked E; the matched question, its answer, the
 `findings.md` copy at the question, the `promises.md` and `brief.md`
 copies before the answer and at the end): "Two judgments. Did the
 research stages derive the finding from the planted leaf (some research

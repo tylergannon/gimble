@@ -240,7 +240,7 @@ planner node is withdrawn.
     `proof_skeptic`. Fresh context, a provider other than the node they
     watch, steer authority into the active turn. In-graph supervision is
     engine machinery that already exists (spec §3.10).
-50. **Human gates, three.** The promise interview, proof-mechanism
+50. **Human gates, three** (four with `ceiling`, the brief/research loop's exhaustion gate, added 2026-09-03 by the consistency pass; spec requires an escalation edge or the run fails)**.** The promise interview, proof-mechanism
     questions inside the validation design loop, and final approval. All
     through `tractor ask`.
 51. **Sizes.** SIMPLE: the same graph, with `decompose` writing a

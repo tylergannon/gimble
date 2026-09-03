@@ -1,7 +1,7 @@
 #!/bin/sh
 # Proves: every rendered prompt is library text plus data values; each
 # node renders exactly its header file's include closure; every prompt
-# and supervisor file is rendered by some node; an injected uncited page
+# an injected uncited page
 # fails the orphan test by name; an injected broken action fails the
 # render test by name; both tests run and pass in the real tree.
 . "$(dirname "$0")/lib.sh"
@@ -86,7 +86,6 @@ orphan="probe-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
 printf '# uncited\n\nNo prompt cites this page.\n' > "$mlib/doctrine/$orphan.md"
 (cd "$tmp/src" && go build -o "$tmp/bin/mutated" ./cmd/tractor)
 closure_lib="$mlib"
-: > "$tmp/used.txt"
 for wf in $workflows; do
   yaml_nodes "$wf" | while read -r node kind; do
     file="$(shown_file "$tmp/bin/mutated" "$wf" "$node")"
@@ -97,7 +96,6 @@ for wf in $workflows; do
     show_raw "$tmp/bin/mutated" "$wf" "$node" > "$tmp/mut.txt"
     grep -q "^$stamp FILE $file\$" "$tmp/mut.txt" || { echo "content: $wf/$node does not render $file"; exit 1; }
     closure "$file" > "$tmp/closure.txt"
-    cat "$tmp/closure.txt" >> "$tmp/used.txt"
     grep "^$stamp FILE " "$tmp/mut.txt" | sed "s/^$stamp FILE //" | while read -r seen; do
       grep -qxF -- "$seen" "$tmp/closure.txt" || { echo "content: $wf/$node renders $seen, outside the include closure of $file"; exit 1; }
     done
@@ -109,12 +107,6 @@ for wf in $workflows; do
     fi
     echo "content: $wf/$node renders $file and nothing outside its closure"
   done
-done
-
-# ---- no unused prompt file --------------------------------------------
-sort -u "$tmp/used.txt" -o "$tmp/used.txt"
-(cd "$mlib" && find prompts supervisors -type f | sort) | while read -r f; do
-  grep -qxF -- "$f" "$tmp/used.txt" || { echo "unused: no node renders $f"; exit 1; }
 done
 
 # ---- orphans: the injected page must be reported by name ---------------

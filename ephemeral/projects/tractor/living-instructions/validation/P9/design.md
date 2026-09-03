@@ -1,6 +1,6 @@
 # P9: an agent reading only the docs uses plan, show, and ask correctly
 
-Archetype: scenario, judged by inference. Lap 13; answers `review-12.md`.
+Archetype: scenario, judged by inference. Lap 14; answers `review-13.md`.
 
 ## Story
 
@@ -35,9 +35,9 @@ Archetype: scenario, judged by inference. Lap 13; answers `review-12.md`.
 - The reader run directory: `timeline.jsonl` (its own `QuestionAsked`),
   its segment (every command it ran and what came back), `response.md`,
   the observer's `answers.log`.
-- The plan run directory the reader created, found from the `Logs:`
-  line in the reader's segment (the `tool_result` of its `workflow run`
-  call), wherever `--logs` or the state root put it: `timeline.jsonl`,
+- The plan run directory the reader created, found from its `--logs`
+  argument, from a `Logs:` line anywhere in the reader's segment, or
+  under the scratch state root: `timeline.jsonl`,
   `interview/`, the planner stage's `prompt.md` and segment (its
   `tractor ask` `tool_call` and paired `tool_result`), its own
   observer tree.
@@ -61,10 +61,13 @@ own timeline has a `QuestionAsked` answered through the observer, and
 the reader's segment has a `tractor ask` `tool_call` whose paired
 `tool_result` contains the observer's nonce for that question (the
 reader used `tractor ask` and received the answer the observer wrote,
-not canned text); the reader's segment has exactly one
-`workflow run plan` call whose `tool_result` carries a `Logs:` line,
-that directory exists, and its `timeline.jsonl` ends with
-`PipelineCompleted` (the run the reader started finished); its first
+not canned text); the reader started exactly one plan
+run, found by the check in this order: a `--logs` argument on the
+reader's `workflow run plan` `tool_call`; a `Logs:` line in any
+`tool_result` of the reader's segment (the run's stdout, whether read
+at once or later from a redirect); or the one run directory under the
+scratch state root; that directory exists and its `timeline.jsonl` ends
+with `PipelineCompleted` (the run the reader started finished); its first
 `QuestionAsked` E was answered by the reader: the reader's segment has
 a `tool_call` invoking `tractor answer` for E's file, and the plan
 run's planner segment has a `tractor ask` `tool_call` before E whose

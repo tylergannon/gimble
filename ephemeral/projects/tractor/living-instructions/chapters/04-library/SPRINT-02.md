@@ -61,8 +61,8 @@ The render test, the orphan walk, sentinel and mutation proofs
 (sprint 3). Doctrine pages (sprint 4). Docs (sprint 5). Printing
 provider and model per node (chapter 5 sprint 1 adds it).
 
-## Ask the reviewer
+## Later
 
-- Whether `show` should also print supervisor briefs once supervisors
-  exist (chapter 5). Recommend yes, as `== <id> (supervisor) <file>`;
-  nothing to do now.
+Supervisor briefs print as `== <id> (supervisor) <file>` once supervisor
+nodes exist; chapter 5's supervisor sprint adds that, and this sprint's
+node loop already handles any node kind that carries a prompt.

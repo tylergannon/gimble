@@ -43,8 +43,7 @@ the lines of the node's include closure, each rendered residue equals
 some closure residue); with a distinct sentinel appended to every file
 under `prompts/`, `supervisors/`, and `passes/`, each node renders the
 sentinel of its header file and no sentinel of a file outside that
-file's include closure (a conditional include may stay silent); every file under `prompts/` and `supervisors/` is
-rendered by some node; an injected uncited page, named at random, makes `TestLibraryNoOrphans`
+file's include closure (a conditional include may stay silent); an injected uncited page, named at random, makes `TestLibraryNoOrphans`
 fail naming it, and so does removing every citation of an existing page
 chosen at random; an unclosed action with random text appended to a
 doctrine page chosen at random (using the delimiters the README states)

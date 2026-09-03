@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 13; answers `review-12.md`.
+Lap 14; answers `review-13.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -82,14 +82,13 @@ ignores the frame).
   include that does not fire for the check's parameters is allowed to
   be absent; a file outside the closure is not allowed to appear); with a sentinel appended to a
   doctrine page, every prompt whose closure names that page prints it.
-  No unused prompt file: every file under `prompts/` and `supervisors/`
-  is in the closure of some node's header file in some workflow (a file
-  no node renders is not a prompt, so it cannot be the citation that
-  keeps a doctrine page alive); every file under `passes/` is covered
-  by the chapter 5 leg. Text from the closure only: the check computes
+  A citation counts for the orphan walk only from a file some node
+  renders (the walk's own rule, sprint 3); an unused prompt or
+  supervisor file may exist and is not a defect. Text from the closure only: the check computes
   the data values itself (the parameters it passed and the
   README-stated derivations, in raw, `quote`d, and `shell`-quoted
-  forms) and requires `show --values` to agree with them; then, for
+  forms) and requires `show --values` to list exactly those values, none
+  missing and none extra; then, for
   each node, it removes every data value form from each rendered line,
   removes every template action and template comment from each line of
   the node's closure (its header file, the prompt files it includes,
@@ -109,9 +108,11 @@ ignores the frame).
   with a distinct sentinel appended to every file under `passes/`, a
   `plan` run's generated `plan-review/ledger.md` has one item per pass
   file carrying that file's sentinel in its `check` or `doc`, and every
-  reviewer stage's `prompt.md` contains its pass's sentinel; a pass
-  carried as a Go string, or one pass file-backed among six Go strings,
-  cannot pass this.
+  reviewer stage's `prompt.md`, frame stripped, passes the closure-text
+  check against its pass file and the reviewer prompt's closure (every
+  line is library text plus data); a pass carried as a Go string, one
+  pass file-backed among six, or a Go body with a tiny library file
+  concatenated, cannot pass this.
 - `prove/p8-show-stage.sh` (chapter 6): runs `plan` on
   `seeds/greeter.md` into a fresh run directory, then for the first
   completed stage of each prompt-bearing node runs `show plan --node

@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 13; answers `review-12.md`.
+Archetype: scenario, twice. Lap 14; answers `review-13.md`.
 
 ## Story
 
@@ -16,7 +16,11 @@ either seed differs from that commit's version):
   their exact output. Expected LARGE; same.
 
 For each seed the check: makes an empty scratch repository
-(`mktemp -d`, `git init`); runs `plan` with `observer.sh` accepting
+(`mktemp -d`, `git init`); writes the seed into it from the pinned
+commit (`git show <hash>:seeds/<name>`) and keeps its own copy of that
+text outside the scratch tree (the examples are read from the check's
+copy, never from the scratch repository, so a planner that rewrites the
+seed it was handed changes nothing the check reads); runs `plan` with `observer.sh` accepting
 everything, answering "Proceed with your recommendation." to open
 prompts, and answering the approval question "Yes."; captures `plan`'s
 stdout to `check.log`; records the approved package's sprint ledger(s)
@@ -47,7 +51,9 @@ seed, comparing stdout, stderr, and exit status exactly.
 
 `command`: `prove/p10-end-to-end.sh`: `git show
 6dec5dc8cd23e6f340e838beb9c0c2a442dffef4:<seed>` equals each seed as
-checked out; for each seed: the plan run's `timeline.jsonl` ends with
+checked out, and that commit is an ancestor of the first commit in
+which any chapter 5 sprint item is `done: true` (the seeds predate
+chapter 5, as P10 says); for each seed: the plan run's `timeline.jsonl` ends with
 `PipelineCompleted` after a `StageCompleted` with `next: success`; the
 human gate was passed: the last `QuestionAsked` of the plan run E has a
 `tractor ask` `tool_call` before it in the `approve` stage's segment
@@ -86,7 +92,8 @@ example in the seed matches exactly.
 `approve` turn's `prompt.md` and `response.md`, the package as
 approved (`promises.md`, `checklist.md`, chapter or sprint docs,
 `plan-review/ledger.md`); each `replan` turn's `response.md` for items
-it changed; each seed and `probes.log`): "Three judgments. First: did
+it changed; the check's own copy of each seed, taken from the pinned
+commit, and `probes.log`): "Three judgments. First: did
 the approval question put this package in front of the human,
 describing its promises, its slices, and its review outcomes as they
 actually stand in the package files, and ask whether to approve it?

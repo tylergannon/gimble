@@ -27,7 +27,7 @@ promise.
 ## 2. The graph
 
 ```
-intake ─▶ research ─▶ brief ─▶ research ─▶ halt? ──no──▶ brief …
+intake ─▶ research ─▶ gate ─▶ brief ─▶ research ─▶ gate ─▶ halt? ──no──▶ brief …
                                             │
                                            yes
                                             ▼
@@ -56,7 +56,8 @@ steer authority into the active turn (spec §3.10).
 
 Human gates, all through `tractor ask` with batched question files
 (decision 39): the promise interview in `brief`, proof-mechanism questions
-inside the validation design loop, and `approve`.
+inside the validation design loop, `approve`, and `ceiling` when the
+brief/research loop exhausts its visits (decision 50 as amended).
 
 ## 3. Nodes
 
@@ -75,12 +76,18 @@ the first pass) and writes `research/findings.md`: any promise the
 research thinks should change, with evidence. Research never edits the
 brief and may add a plan entry only through a finding the brief accepts. A
 tool node, `index_gate`, after the fan-in checks the index against the
-quality bar and routes to `halt`.
+quality bar; it routes to `brief` while no brief lap has run yet (no
+`brief.md` exists), so the first interview always happens, and to
+`halt` afterwards.
 
 **halt** (tool). Exits 0 when `research/findings.md` is empty and
 `research/plan.md` has no open entry; routes to `decompose`. Otherwise
-routes to `brief`. The enclosing `loop` node's `max_visits` is the
-ceiling, and reaching it is a question to the human, not an exit.
+routes to `brief`. `brief`'s `max_visits` is the ceiling; its exhaustion
+edge leads to `ceiling`, a codergen node that asks the human one
+question (continue with a higher ceiling, or stop) through `tractor
+ask` and routes back to `brief` or to `success` as answered, so the
+ceiling is a human gate, not a failed run (spec: an exhausted node with
+no escalation edge fails the run).
 
 **brief** (codergen, full fidelity across laps). First lap: elicit.
 Drafts the promises a user of this thing would expect, from the seed, the
@@ -112,9 +119,9 @@ archetype (decision 42) and writes, under `validation/<promise>/`: the
 user story a verifier follows, the evidence specification (what is
 captured, where), the UI sketch when a screen is involved, and, for a
 universal promise over a set too large to check whole, the holdout
-sample under the XDG state root in a
-random-token directory whose path is recorded only in the verifier prompt
-the workflow will later materialize (decision 43). It then fills the
+sample under the XDG state root in a random-token directory whose path
+is stored in the run's private workflow state and disclosed only to the
+`verify` prompt the workflow later materializes (decision 43). It then fills the
 sprint item that will demonstrate the promise, in the chapter or sprint
 ledger, with `command` (the required checks) and `infer` (the judgment
 over the captured evidence); the validation ledger's own item stays
@@ -255,8 +262,10 @@ workflow/library/
 Rules:
 
 - A prompt includes doctrine with a `doctrine "promises"` action. The
-  template delimiters are non-default, chosen by the coder before any
-  page is written, because doctrine text contains `{{` (research F5).
+template delimiters are non-default, chosen by the coder in chapter 4
+sprint 1 before any page is installed in the library, because doctrine
+text contains `{{` (research F5); pages written earlier avoid the
+recommended pair.
   A teaching is edited in one place and every prompt that cites it
   changes.
 - Tests render every template with representative parameters, fail on a
@@ -317,9 +326,10 @@ Fan-out drafts of chapter docs. Any engine change. The web client.
 5. All seven review passes end `done: true` in `plan-review/ledger.md`, each
    marked by the engine after a reviewer on a provider other than the
    planner's routed pass.
-6. The package runs: `tractor workflow run medium` (or `large`) on the
-   output reaches `COMPLETED`, and a chapter's `done: true` follows a
-   `verify` turn routing pass, never a sprint count alone.
+6. The package runs: `tractor workflow run large` on a LARGE output
+   reaches `COMPLETED`, and every chapter's `done: true` follows a
+   `verify` turn routing pass, never a sprint count alone (`medium` has
+   no chapters and proves nothing here).
 7. `scope_cop` delivers at least one steer during the run, recorded in the
    timeline, and the steered turn's output changes.
 8. `show --stage` against a recorded stage of a real run reports no
