@@ -77,7 +77,7 @@ and the implementer owns it.
 | Checklist item | ledgers ↔ engine | `loop-node.md` §2. Exists; unchanged. |
 | Question and answer files | agents ↔ humans and the future web client | `tractor ask`/`answer` as built; batched questions (decision 39) are a convention inside the file, not a format change. Inside a question file, a promise candidate is one line beginning `Promise:`; a scripted or programmatic answerer keys on that line. |
 | Holdout handoff | design lap → `verify` prompt materialization | Path under `$XDG_STATE_HOME/tractor/holdouts/<build>-<token>/`, recorded in the run's private workflow state, rendered only into `verify`. |
-| Library template contract | content editors ↔ the workflow package | `text/template` under non-default delimiters (`<<` `>>` unless the README says otherwise); the `include "name"` and `doctrine "name"` actions; the `Parameters`-derived fields templates may read, listed in `workflow/library/README.md` with their derivations. The render test is its check. |
+| Library template contract | content editors ↔ the workflow package | `text/template` under non-default delimiters (`<<` `>>` unless the README says otherwise); the `include "name"` and `doctrine "name"` actions; the `Parameters`-derived fields templates may read, listed in `workflow/library/README.md` with their derivations; the representative parameter sets the README lists, under which every doctrine page must render for some node (the orphan walk's definition of referenced). The render test and the orphan walk are its check. |
 | Supervisor digests and verdicts | engine ↔ supervisor turns | Spec §3.10. Exists; unchanged. |
 
 ## 5. Chapters

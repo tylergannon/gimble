@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 19; answers `review-18.md`.
+Lap 20; answers `review-19.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -9,7 +9,11 @@ count as prompts for the orphan walk; the walk covers doctrine pages,
 which P8 names, and not skeletons; a page is referenced only if some
 node renders it under at least one of the representative parameter
 sets the library README lists (the sets the render test uses), so a
-`doctrine` action in a branch that never renders is no reference; skeletons are library files that
+`doctrine` action in a branch that never renders is no reference. The
+README's list is part of the template contract (declaration section
+4): an author who adds a page rendered only under some parameter adds
+a set that renders it, or the page is an orphan by the library's own
+rule; skeletons are library files that
 prompts include, and the sentinel test covers them like any included
 file. `show` prints every node of the
 graph, in any order, with the node's type as the graph declares it
@@ -73,15 +77,20 @@ pass leg of the check below is empty until then and runs then.
   `prove/orphan-walk-and-render.sh` (sprint 3). Nodes: the set of
 node ids the headed `show` prints equals the set the workflow YAML
 declares (order free; the type in the header is a convenience, not a
-requirement). Equality: for every node of any kind that carries a
+requirement), and the body the headed output prints under each header
+equals that node's `--raw` output (the headed form is the primary
+output and carries every payload, not only headers). Equality: for every node of any kind that carries a
   prompt, command, or checklist, `show --raw` equals the check's own
   `Build` dumper; `--stage` on a stage built from the frame preamble plus two nested
   `<iterate>` blocks (an outer chapters frame and an inner sprints
   frame, the shape `large` records) plus the dumper's output exits 0,
-  and 1 after one random byte at a random offset within the prompt body (past the frame the check itself
-wrote) is changed (a comparator that recognises a fixed suffix cannot
-pass; a byte in the frame is never the probe, since a correct `--stage`
-ignores the frame).
+  and, after one random byte at a random offset within the prompt body
+  (past the frame the check itself wrote) is changed, exits exactly 1
+  with a diff on stdout that names the perturbed line (an exit of 2, a
+  panic, or silence is a fail; the log records the offset, the exit
+  status, and the diff; a comparator that recognises a fixed suffix
+  cannot pass; a byte in the frame is never the probe, since a correct
+  `--stage` ignores the frame).
   Content: each prompt-bearing node's header names its library file;
   with a distinct sentinel appended to every file under `prompts/`,
   `supervisors/`, `passes/`, and `templates/`, each node's `show --raw`

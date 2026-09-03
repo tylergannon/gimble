@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 19; answers `review-18.md`.
+Archetype: scenario, twice. Lap 20; answers `review-19.md`.
 
 ## Story
 
@@ -82,9 +82,13 @@ for edits made with a reason (decision 44): every other difference
 between the two copies (a chapter's `check`, `doc`, or `command`, or a
 chapter added or removed) appears across a stage whose `response.md`
 states the reason, or after a `QuestionAsked` whose question names the
-chapter and whose answer accepts it; a chapter's `checklist` never
-changes (the approved sprint ledgers are the ones that run); the judge
-below reads every such reason; a
+chapter and whose answer accepts it; a chapter's `checklist` changes only
+after a `QuestionAsked` whose question names the chapter and the new
+ledger and whose answer accepts it (a human may re-point an open
+chapter, decision 44; a planner may not), and the ledger it then names
+is the one whose items the run marked (A0 for that chapter becomes the
+replacement ledger as approved); the judge below reads every such
+reason; a
 sprint item is identified by its ledger path and name, and for a LARGE
 package the events for a chapter's items are those between that
 chapter's `LoopItemSelected` on `chapters` and its `LoopValidated`, so

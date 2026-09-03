@@ -23,6 +23,19 @@ for wf in $workflows; do
   done < "$tmp/declared.txt"
 done
 show_headed "$tmp/bin/tractor" plan | grep -q '<iterate' && { echo "show printed a frame"; exit 1; }
+# The headed form carries every payload: the body under each header
+# equals the node's --raw output.
+for wf in $workflows; do
+  show_headed "$tmp/bin/tractor" "$wf" > "$tmp/headed.txt"
+  yaml_ids "$wf" | while read -r node; do
+    awk -v id="$node" 'BEGIN{p=0} /^== /{ if (p) exit; p = ($2==id) ; next } p{print}' "$tmp/headed.txt" > "$tmp/headed-body.txt"
+    show_raw "$tmp/bin/tractor" "$wf" "$node" > "$tmp/raw-body.txt"
+    sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$tmp/headed-body.txt" > "$tmp/headed-body.n"
+    sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$tmp/raw-body.txt" > "$tmp/raw-body.n"
+    cmp -s "$tmp/headed-body.n" "$tmp/raw-body.n" || { echo "headed: $wf/$node body differs from --raw"; exit 1; }
+    echo "headed: $wf/$node body equals --raw"
+  done
+done
 
 # ---- --stage against a stage built from Build's own output ------------
 mkdir -p "$tmp/stage"
@@ -52,10 +65,15 @@ if cmp -s "$tmp/stage/prompt.md" "$tmp/stage/prompt.md.orig"; then
 else
   echo "stage probe: byte $byte at offset $pos"
 fi
-if "$tmp/bin/tractor" workflow show plan --project demo --seed "$seed" --workdir "$tmp/demo" \
-  --node planner --stage "$tmp/stage" >/dev/null 2>&1; then
-  echo "show --stage missed a diff"; exit 1
-fi
+set +e
+"$tmp/bin/tractor" workflow show plan --project demo --seed "$seed" --workdir "$tmp/demo" \
+  --node planner --stage "$tmp/stage" > "$tmp/stage-diff.txt" 2>"$tmp/stage-diff.err"
+rc=$?
+set -e
+[ "$rc" -eq 1 ] || { echo "show --stage exited $rc on a perturbed stage (want 1)"; cat "$tmp/stage-diff.err"; exit 1; }
+[ -s "$tmp/stage-diff.txt" ] || { echo "show --stage printed no diff"; exit 1; }
+echo "stage probe: exit 1 with a diff; first differing lines:"
+grep '^[-+]' "$tmp/stage-diff.txt" | grep -v '^[-+][-+]' | head -4
 
 # ---- --values agrees with the values the check derives itself ----------
 # The README's derivations are fixed by sprint 1:
