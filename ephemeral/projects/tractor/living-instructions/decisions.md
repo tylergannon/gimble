@@ -148,15 +148,121 @@ under `interview/`; the number is the question id.
 36. (0012) `--logs` optional for all workflows; default is a fresh directory
     under the XDG state root, never under the committed project directory.
 
+## Planning workflow decisions (2026-09-02, evening, Tyler and Claude)
+
+Made in the design conversation that followed the build. The workflow they
+describe is specified in `planning-workflow.md`. Decision 31's single
+planner node is withdrawn.
+
+37. **Promises, not a spec.** The interview's job is to find out what we
+    promise about the work and to whom. A promise has a statement, what it
+    must not imply, a scope, a verifier, and evidence. A promise that
+    cannot be falsified is narrowed before it is accepted. The checklist
+    item's `check` is the promise; `command` and `infer` are its gates;
+    `done: true` is the attestation.
+38. **Elicit, then prune.** Before asking, the planner drafts the promises a
+    user of this thing would expect, from the seed, the repo, and research,
+    and asks "do you promise this, and what must it not imply", with a
+    recommendation. Declined promises become exclusions. After the promise
+    list stabilizes, a question survives only if its answer changes a
+    promise, its scope, or its verifier. Stop when a full pass changes
+    nothing. Answers already supplied are never asked for twice.
+39. **Batched questions.** One question file per independent group,
+    ordered questions inside it, each with options and a recommendation;
+    the answer file mirrors the numbering. One-question-per-file was a
+    convention, not a rule.
+40. **Seams matter only where a promise crosses them.** A seam is either a
+    promise to another party (another project, a persisted format, a public
+    API) or it is internal and the implementer owns it. The brief records
+    promise-adjacent decisions only; everything else is deferred by default
+    and moving an internal seam is ordinary work.
+41. **Checks never prove a promise.** Tests, lint, and compile are required
+    checks. Every promise needs a judgment over recorded evidence by a
+    model that is not the coder's, looking at captures and logs rather
+    than the coder's summary. At chapter exit the verifier is an agent with
+    tools, fresh context, other provider, that operates the software
+    itself and writes a verdict file the chapter item's `command` checks.
+    A sprint is *demonstrated*; a chapter is *proven*.
+42. **Two validation archetypes.** Universal ("for every case in a set"):
+    withhold a sample as the holdout; the coder sees the rest, the verifier
+    sees all. Scenario (a user story): no holdout; the proof is captures
+    judged against the story. Holdouts are always considered, never
+    universal.
+43. **Holdout storage, simple.** Under the XDG state root in a directory
+    named by a random token, written by the design lap, referenced only
+    from the verifier's prompt. Not in the workdir, not under the run
+    directory, not committed. Obscure, not secret; a sandbox that hides one
+    directory is the eventual fix.
+44. **Chapters durable, sprints re-planned.** Both ledgers are editable.
+    The chapter ledger is written at plan time and edited only with a
+    reason, by a human or the planner. Sprint ledgers get an upfront
+    backlog and a `replan` node after every implement lap: own node, cheap
+    model, fresh context, edits open sprint items only, never the chapter
+    ledger. A sprint that finds the chapter wrong asks the human.
+45. **No budgets.** Code-volume budgets as tripwires are one signal of
+    several and not yet a science. The over-engineering guard is the
+    promise list, its exclusions, and a supervisor whose question is "does
+    this serve a promise". Which mechanical signals should prompt a
+    refactor consideration is a separate research project (build order 6).
+46. **Brief and research loop.** Intake writes the first research plan, so
+    research runs before the first interview. Then brief and research
+    alternate: the brief asks only about findings and unresolved promises
+    and writes open plan entries; research works the entries and writes
+    findings that name promises it thinks should change. A tool node halts
+    the loop when findings are empty and no plan entry is open. Research
+    never edits the brief, and may add a plan entry only through a finding
+    the brief accepts. Hitting `max_visits` is a question to the human.
+47. **Validation design loop.** A loop node with one item per promise. Each
+    lap writes the user story, the evidence specification, the holdout
+    where the archetype calls for one, the UI sketch where a screen is
+    involved, and fills the checklist item's `command` and `infer`. An
+    adversarial reviewer (other provider, fresh context, told only the
+    promise and the design) answers: can a coder satisfy this while the
+    promise is false; is any check trivially true; is the design stricter
+    than the promise. Its verdict file is what the item's `command` checks.
+48. **Plan review loop.** After assembly, a loop node whose ledger is the
+    review passes, one question each, one fresh reviewer per lap on another
+    provider. Passes, in order: traceability, consistency, slicing, proof
+    quality, scope, executability. A failed pass routes its finding to the
+    owning node and is re-selected after the fix. The ledger is a project
+    file, so a project may add a pass. The human approves after the loop,
+    with the verdicts beside the package.
+49. **Supervisors, named by their question.** `research_auditor`,
+    `scope_cop` (brief, decompose, validation design), `slice_critic`,
+    `proof_skeptic`. Fresh context, a provider other than the node they
+    watch, steer authority into the active turn. In-graph supervision is
+    engine machinery that already exists (spec §3.10).
+50. **Human gates, three.** The promise interview, proof-mechanism
+    questions inside the validation design loop, and final approval. All
+    through `tractor ask`.
+51. **Sizes.** SIMPLE: brief and one validation lap, recommend
+    self-execution. MEDIUM: the full graph, decomposed into sprints. LARGE:
+    the full graph, decomposed into chapters. Intake guesses; the human
+    confirms at the brief gate.
+52. **Research output.** A research directory in the project (the token
+    cache) with leaves carrying pinned revisions, licenses, and bounded
+    comparisons ("like X but only Y", never an adoption frame), a routing
+    index over it, and a pointer file. Execution prompts inline resolved
+    index hits, not a pointer. At most five research branches in parallel.
+
 ## Build order (revised)
 
 1. Interview file plus `tractor ask` and `tractor answer`. **Done** (chapter 1).
 2. Loop node (this branch; see `loop-node.md`). **Done.**
 3. Built-in planning workflow, embedded, ends with plan and recommendation.
-   **Done** (chapter 2); design discussion with Tyler still owed.
+   **Done as a single node** (chapter 2). Superseded by decisions 37–52;
+   the v2 workflow is `planning-workflow.md` (chapter 4, not started).
 4. Built-in execution workflows (MEDIUM loop, LARGE nested loops). **Done**
-   (chapter 3); LARGE not proven live.
+   (chapter 3); LARGE not proven live. Gains the `replan` and `verify`
+   nodes from decisions 41 and 44 with chapter 4.
 5. Web client, then audio, then Slack.
+6. Complexity-signals research: which cheap mechanical signals (volume per
+   cell, cyclomatic complexity, public surface, fan-in/out, cross-directory
+   spray, per-file churn across laps, repeated failed fixes) predict a
+   change becoming expensive to change again, judged against our own run
+   logs. Output: a signal table with suggest and stop thresholds and a
+   supervisor prompt that reads them. No engine change until the table
+   exists. Its own project directory, after chapter 4.
 
 ## Rejected
 
