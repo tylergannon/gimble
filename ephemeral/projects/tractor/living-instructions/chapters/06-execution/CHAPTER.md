@@ -36,7 +36,7 @@ do not cite).
 
 ## Review posture
 
-The proof run is the artifact: identity block, claims, scope check,
+The proof record under `proof/planning-v2/` is the artifact: identity block, claims, scope check,
 findings, in the format of `proof/living-instructions-build/README.md`.
 A chapter's `done: true` that is not preceded by a `verify` pass in the
 timeline fails P6 regardless of anything else.

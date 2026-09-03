@@ -260,8 +260,10 @@ would want to change.
 workflow/library/
   README.md            what lives here; how prompts compose; how to test an edit
   workflows/           plan.yaml, medium.yaml, large.yaml (moved from workflow/)
-  prompts/             one file per node, Go text/template
-    plan/              intake.md research.md brief.md halt.sh decompose.md
+  prompts/             one file per prompt-bearing node, Go text/template
+                       (tool nodes, halt and index_gate, keep their commands
+                       in the workflow YAML: those are Build's own, not prompts)
+    plan/              intake.md research.md brief.md decompose.md
                        design.md review.md assemble.md approve.md
     medium/            implement.md replan.md
     large/             plan.md implement.md replan.md verify.md
