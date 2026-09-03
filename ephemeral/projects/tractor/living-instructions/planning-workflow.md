@@ -370,18 +370,20 @@ Fan-out drafts of chapter docs. Any engine change. The web client.
    `max_visits`, on a seed whose research produces one promise-changing
    finding; the finding is asked, not applied.
 3. Every promise in `promises.md` ends `done: true` in the validation
-   ledger after a `review` turn routed pass. (No holdout in this
+   ledger after a `review` turn on a provider other than the planner's
+   routed pass. (No holdout in this
    project's proof; a universal promise over a set the verifier checks
    exhaustively needs none, decision 42 as amended.)
 4. A validation design that a reviewer rejects is re-entered with the
    reviewer's notes available (read from their files under
    `validation/<id>/`) and later passes.
 5. All seven review passes end `done: true` in `plan-review/ledger.md`, each
-   marked by the engine after a reviewer on a provider other than the
-   planner's routed pass.
+   marked by the engine after a fresh-context reviewer on a provider
+   other than the planner's routed pass.
 6. The package runs: `tractor workflow run large` on a LARGE output
    reaches `COMPLETED`, and every chapter's `done: true` follows a
-   `verify` turn routing pass, never a sprint count alone (`medium` has
+   `verify` turn for that chapter that operated the software and routed
+   pass, never a sprint count alone (`medium` has
    no chapters and proves nothing here).
 7. `scope_cop` delivers at least one steer during the run, recorded in the
    timeline, the steered turn's output changes, and an `infer` judge over

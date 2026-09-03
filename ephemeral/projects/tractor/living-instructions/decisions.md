@@ -161,8 +161,9 @@ planner node is withdrawn.
     item's `check` is the promise; `command` and `infer` are its gates;
     `done: true` is the attestation. A chapter item's gates are its
     `command` (required checks and count guards) and the `verify` turn
-    (decision 41), not an `infer`; the commandless chapter item of
-    chapters 1 to 3 is the pre-v2 shape, and chapters 4 to 6 of this
+    (decision 41), not an `infer`; the chapter items of chapters 1 to 3
+    keep the commands they were marked with (build and test, no vet or
+    lint), the pre-v2 shape, and chapters 4 to 6 of this
     project, built by runs that predate `verify`, are marked by the
     engine on their command alone; verifier-gated marking starts with
     runs begun after chapter 6 sprint 2 (amended by consistency laps 26
