@@ -8,7 +8,8 @@ Anchors: `research/workflow-package-inventory/migration-inventory.md` §7.
   the template contract (the README is authoritative; the spec does not
   restate it), naming the render and orphan tests, and teaching
   `workflow show` with `--node --raw`, `--values`, and `--stage`. State
-  plainly that `show` never reproduces frames or `$goal`.
+  plainly that the raw output never reproduces frames or `$goal`, and
+  that `--stage --goal` expands `$goal` for the comparison only.
 - `src/content/docs/planning.md`: a short section "Editing what the
   planner is told" with the three-step loop: edit a page, run the tests,
   run `show`.

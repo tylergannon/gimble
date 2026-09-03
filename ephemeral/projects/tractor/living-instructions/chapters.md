@@ -23,7 +23,7 @@ items:
       go build ./... && go test ./... && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/03-execution/sprints.md)" -ge 2
     done: true
   - name: The library
-    check: Every prompt body, doctrine page, supervisor brief, pass, and skeleton the built-in workflows use is an embedded library file rendered from data values and the four library functions, every doctrine page is rendered by some agent-facing file, and `workflow show` prints every node's payload as `Build` materialized it with `--stage` diffing a real stage (P8); `Build` returns what it returned before the migration, and every later content edit is a reviewed change to the snapshot.
+    check: Every prompt body, doctrine page, supervisor brief, pass, and skeleton the built-in workflows use is an embedded library file rendered from data values, the two value functions `quote` and `shell`, and the two composition actions `include` and `doctrine`, every doctrine page is rendered by some agent-facing file, and `workflow show` prints every node's payload as `Build` materialized it with `--stage` diffing a real stage (P8); `Build` returns what it returned before the migration, and every later content edit is a reviewed change to the snapshot.
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/CHAPTER.md
     checklist: ephemeral/projects/tractor/living-instructions/chapters/04-library/sprints.md
     command: >-

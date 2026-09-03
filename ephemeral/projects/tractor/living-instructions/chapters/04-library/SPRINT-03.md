@@ -13,10 +13,11 @@ naming the file.
 
 ## The work
 
-`TestLibraryRendersAll`: for every workflow in the library, `Build`
-with representative parameters and assert every prompt-bearing node's
-prompt is non-empty and every template under `prompts/` was executed at
-least once. Also execute every file under `doctrine/` and `templates/`
+`TestLibraryRendersAll`: for every workflow in the library, `Build` with
+representative parameters and assert every prompt-bearing node's prompt
+is non-empty and every template under `prompts/`, `supervisors/`, and
+`passes/` was executed at least once (a file none of the representative
+sets renders fails the test by name). Also execute every file under `doctrine/` and `templates/`
 standalone with the same data, so a syntax error in a page fails here,
 not at run time, and the failure names the file.
 
@@ -40,9 +41,10 @@ The walk is written from scratch; no surveyed tool has one
 ## Definition of done
 
 The ledger item's command runs `prove/orphan-walk-and-render.sh`, which
-proves, in a copy of the tree it makes itself: each node's `show --raw` equals the
-script's own standalone `workflow.Render` of the node's header file
-(`Build` adds nothing to the rendering); with a distinct sentinel appended to every file
+proves, in a copy of the tree it makes itself: for every prompt-bearing node, `show --raw` equals the script's own
+standalone `workflow.Render` of the node's header file (`Build` adds
+nothing to a prompt; tool commands and checklist paths are `Build`'s
+own and are compared against `Build` by sprint 2's script); with a distinct sentinel appended to every file
 under `prompts/`, `supervisors/`, `passes/`, and `templates/`, each node
 renders the sentinel of its header file and no sentinel of a file
 outside that file's include closure (a conditional include may stay
