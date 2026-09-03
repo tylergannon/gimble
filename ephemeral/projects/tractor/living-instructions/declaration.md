@@ -4,7 +4,7 @@ Written 2026-09-02 by hand, the way the v2 planner is meant to do it: a
 declaration of the product, the state that exists when it is done, the
 promises we make about it and how each is proven, the seams a promise
 crosses, and the chapters that get there. Design detail is in
-`planning-workflow.md`; the rulings are decisions 37–53.
+`planning-workflow.md`; the rulings are decisions 37–59.
 
 ## 1. Declaration
 
@@ -55,8 +55,8 @@ Each promise: the statement, what it must not imply, the archetype
 | P5 | All seven review passes end `done: true` in `plan-review/ledger.md`, each marked by the engine after a fresh reviewer on another provider routed pass. | That the passes catch every defect. | Universal over passes | Inspector over ledger and events. |
 | P6 | `tractor workflow run large` on a v2 package reaches `COMPLETED`, and every chapter's `done: true` is preceded in the timeline by a `verify` turn for that chapter that operated the software and routed pass. | That the software the package describes is good. | Scenario | Nested run on a small package; timeline order check; judge over the verifier's turn. |
 | P7 | `scope_cop` delivers at least one steer during a planning run, and the steered turn's output differs from what it was writing before the steer. | That supervisors improve plans. | Scenario | Timeline `steer` verdict with a delivered disposition; diff of the stage output before and after. |
-| P8 | Every prompt body, doctrine page, supervisor brief, pass, and skeleton is a library file and Go supplies only data values to templates; every doctrine page is referenced by at least one prompt; `tractor workflow show <name>` prints every node of the graph, each node's prompt exactly as `Build` materialized it for the given parameters, and the library file each prompt came from, and `--stage <dir>` diffs that against a real stage with the frame stripped. | That the content is well written, or that `show` reproduces run-time frames. | Universal over library files | Render test; orphan walk over the embedded tree; `show --stage` against a recorded run reports no diff. Exhaustive, no holdout. |
-| P9 | An agent reading only the docs site, spec, and skill bundle runs `workflow run plan`, `workflow show`, and `ask` correctly, including where the interview directory and the holdout come from. | That the docs are complete. | Scenario | `infer` judge over the docs, failing on any claim the `--help` text contradicts (the chapter 1 sprint 3 pattern). |
+| P8 | Every prompt body, doctrine page, supervisor brief, pass, and skeleton is a library file and Go supplies templates only data values and the two rendering functions `quote` and `shell`; every doctrine page is referenced by at least one prompt; `tractor workflow show <name>` prints every node of the graph, each node's prompt exactly as `Build` materialized it for the given parameters, and the library file each prompt came from, and `--stage <dir>` diffs that against a real stage with the frame stripped. | That the content is well written, or that `show` reproduces run-time frames. | Universal over library files | Render test; orphan walk over the embedded tree; `show --stage` against a recorded run reports no diff. Exhaustive, no holdout. |
+| P9 | An agent reading only the docs site, spec, and skill bundle runs `workflow run plan`, `workflow show`, and `ask` correctly, including where the interview directory and the holdout come from. | That the docs are complete. | Scenario | A docs-only reader run: a nested pipeline whose agent sees only those sources and the binary, inspected from its run directory and the plan run it starts, with an `infer` judge over its transcript and the docs against `--help`. |
 | P10 | For two small product descriptions written before chapter 5 starts, `plan` ends with an approved package that `validate-plan` accepts, `medium` or `large` runs it to `COMPLETED`, and the built program satisfies the acceptance examples written in the seed. | Generality beyond seeds of that size. | Scenario | Both seeds are known; the end-to-end run plus the seed's own examples, run by the check, are the proof. |
 
 No promise here carries a holdout. Two seeds cannot be overfitted in a way
@@ -101,7 +101,7 @@ this comes first.
    Check: `show plan` output equals a real run's `prompt.md` minus frames.
 3. Doctrine pages, distilled from `sources/` one page each with a
    provenance pointer, and the artifact skeletons. Written by Claude, not
-   the coder (see question 5). Check: the pages the three
+   the coder (see question 5). Check: the pages the four
    existing prompts can cite (the subset of `planning-workflow.md` §6a
    listed in `SPRINT-03.md`) exist; `infer` judge that each page is under
    a screen and cites its source under `sources/` or in `decisions.md`.
@@ -153,5 +153,7 @@ Batched, with a recommendation each (decision 39).
    wires them. Recommend yes; the pages are the design, and writing them
    through a coder adds a lossy hop.
 6. **Verdict file.** Withdrawn. Review and verification are codergen
-   nodes with pass and fail edges; routing is the verdict, the item has
-   no command, and the reviewer's notes are ordinary files.
+   nodes with pass and fail edges; routing is the verdict; a validation
+   or plan-review ledger item has no command (a chapter item keeps the
+   required checks as its command, decision 41); the reviewer's notes are
+   ordinary files.

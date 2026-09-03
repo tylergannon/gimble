@@ -304,7 +304,8 @@ Fan-out drafts of chapter docs. Any engine change. The web client.
    promise has a holdout outside the workdir and outside the run
    directory.
 4. A validation design that a reviewer rejects is re-entered with the
-   reviewer's notes in the frame and passes on the next lap.
+   reviewer's notes available (read from their files under
+   `validation/<promise>/`) and later passes.
 5. All seven review passes end `done: true` in `plan-review/ledger.md`, each
    marked by the engine after a reviewer on a provider other than the
    planner's routed pass.

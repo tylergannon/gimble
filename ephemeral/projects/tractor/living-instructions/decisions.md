@@ -274,14 +274,16 @@ planner node is withdrawn.
     holistic and rubric-free, last, because single-criterion judges miss
     trade-offs (research F2, 2026-09-02).
 59. **P8 restated.** Prompt bodies, doctrine, briefs, passes, and
-    skeletons are library files and Go supplies only data values; `show`
+    skeletons are library files and Go supplies only data values and the
+    rendering functions `quote` and `shell`; `show`
     prints what `Build` materialized, with `--stage` to diff a real
     stage minus its frame. Cheap roles use the `sonnet` alias on claude;
     providers are always explicit; template delimiters are non-default
     (interview 0013).
 57. **No verdict files.** Review and verification are codergen nodes with
-    pass and fail edges. A reviewed item has no `command`; the pass edge
-    returning to the loop is the pass. Reviewer notes are ordinary files
+    pass and fail edges. A validation or plan-review ledger item has no
+    `command`; the pass edge returning to the loop is the pass. A chapter
+    item keeps the required checks as its `command` (decision 41). Reviewer notes are ordinary files
     with no format.
 
 ## Build order (revised)

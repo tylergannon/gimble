@@ -1,0 +1,9 @@
+1. `chapters/05-planner/CHAPTER.md` requires: “Each sprint's proof is a nested run on a small seed with a scripted answerer.” But `workflow/workflow.go` instructs the loop implementer both to “Run the sprint's validator command yourself before returning” and “Do not start a child Tractor run.” The required nested-run validators therefore cannot be executed by the loop agent as written. Owning node: decompose.
+
+2. `chapters/04-library/sprints.md` puts “show, render test, orphan walk” in one sprint. `SPRINT-02.md` additionally requires separate `--raw`, `--values`, and `--stage` modes, `TestLibraryRendersAll`, `TestLibraryNoOrphans`, synthetic mutation failures, and a full integration proof. This combines several independently implementable features and their proof infrastructure; it does not fit one agent turn. Owning node: decompose.
+
+3. `chapters/05-planner/sprints.md` contains compound entries such as: “Intake node and the first research plan; the research parallel node (at most five branches), fan-in, index update, findings file, and the index quality tool node”; “Brief node…; the halt tool node and the loop. Proof: P1 and P2 scenarios”; and “Validation ledger generation; `design` with both archetypes and the holdout writer; `review` with pass and fail edges. Proof: P3 and P4 scenarios.” Each spans multiple nodes, artifact systems, and proof scenarios, so these backlog entries are larger than one sprint. Owning node: decompose.
+
+4. `chapters/06-execution/sprints.md` places two complete end-to-end executions and their proof report into one entry: “`plan` then `medium` for one, `plan` then `large` for the other; the proof record under `proof/planning-v2/` is written from these runs in the same sprint.” Those are two independent full-workflow demonstrations and should not be one agent-turn sprint. Owning node: decompose.
+
+ROUTE: fail

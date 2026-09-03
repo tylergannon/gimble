@@ -16,7 +16,7 @@ reproduce frames.
 
 ## Story
 
-Chapter 4 sprints 1 and 2; their proof scripts are the story. Sprint 3's
+Chapter 4 sprints 1 to 3; their proof scripts are the story. Sprint 4's
 `prove/doctrine-pages.sh` demonstrates that sprint; it is not part of
 P8's proof. Passes and the plan-review ledger arrive in chapter 5; the
 pass leg of the check below is empty until then and runs then.
@@ -52,14 +52,16 @@ pass leg of the check below is empty until then and runs then.
 
 ## Validator
 
-`command`: the two sprint scripts, then at chapter 5
+`command`: the three sprint scripts, then at chapter 5
 `prove/p8-passes-are-files.sh`, then at chapter 6
 `prove/p8-show-stage.sh`.
 
 - `prove/prompts-are-library-files.sh`: the sprint's tripwire (library
   files exist, no planner sentence in Go, snapshot test runs and
   passes). Not the proof.
-- `prove/show-and-orphan-walk.sh`. Nodes: the set of `id`/`type` pairs
+- `prove/show-equals-build.sh` (sprint 2) and
+  `prove/orphan-walk-and-render.sh` (sprint 3). Nodes: the set of
+  `id`/`type` pairs
   the headed `show` prints equals the set the workflow YAML declares
   (order free). Equality: for every node of any kind that carries a
   prompt, command, or checklist, `show --raw` equals the check's own
@@ -115,6 +117,6 @@ code review reads the struct. That Go never re-emits text a template
 parks in a branch that does not render: the residue check proves every
 rendered line exists in the library files and every data value is one
 the README lists, and the code review reads the Go for anything else.
-Skeleton text: templates are cited by prompts (sprint 3's script) and
+Skeleton text: templates are cited by prompts (sprint 4's script) and
 rendered by the render test; what a planner writes from them is its
 own output, not the library's.

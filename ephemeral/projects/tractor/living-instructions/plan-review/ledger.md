@@ -10,6 +10,7 @@ items:
   - name: slicing
     check: Every chapter and sprint is a vertical slice that is exercisable when done; no horizontal stack-order plan.
     doc: ephemeral/projects/tractor/living-instructions/plan-review/03-slicing.md
+    done: true
   - name: proof quality
     check: Across all promises, no validator can be satisfied while its promise is false, nothing is trivially true, and nothing is stricter than its promise.
     doc: ephemeral/projects/tractor/living-instructions/plan-review/04-proof-quality.md

@@ -36,9 +36,13 @@ No engine change: every node type is already in the spec.
 
 ## Review posture
 
-Each sprint's proof is a nested run on a small seed with a scripted
-answerer, inspected from the timeline and the ledgers, in the manner of
-chapter 2 sprint 4. Reviewer and verifier nodes run on a provider other
+Each sprint's proof is a nested run on a small seed with the scripted
+observer, inspected from the timeline and the ledgers, in the manner of
+chapter 2 sprint 4. The implement prompt (library content since chapter
+4) forbids the coder to start a child Tractor run; sprint 1 of this
+chapter adds the exception: a validator named in the sprint doc may
+start one, the coder runs it as the doc says, and the engine runs it
+again after the turn. Reviewer and verifier nodes run on a provider other
 than the node they judge, and the check reads the provider from the
 run's events, not from the YAML.
 
