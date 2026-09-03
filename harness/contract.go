@@ -66,8 +66,8 @@ const (
 	FidelityCompacted FidelityMode = "compacted"
 )
 
-// CodergenTurn is the fully resolved input to a CodergenBackend.
-type CodergenTurn struct {
+// AgentTurn is the fully resolved input to an AgentBackend.
+type AgentTurn struct {
 	NodeID          string
 	Parts           []ContentPart
 	OutputSchema    json.RawMessage
@@ -94,7 +94,7 @@ type SupervisorTurn struct {
 	Timeout         time.Duration
 }
 
-// Outcome is the semantic result of a codergen turn.
+// Outcome is the semantic result of an agent turn.
 type Outcome struct {
 	Next  string `json:"next,omitempty"`
 	Notes string `json:"notes"`
@@ -128,9 +128,9 @@ type ThreadBinding struct {
 // first turn is dispatched. Returning an Error prevents dispatch.
 type BindingOpened func(threadKey string, binding ThreadBinding) *Error
 
-// CodergenBackend executes resolved codergen turns.
-type CodergenBackend interface {
-	Run(CodergenTurn) (Outcome, *Error)
+// AgentBackend executes resolved agent turns.
+type AgentBackend interface {
+	Run(AgentTurn) (Outcome, *Error)
 	RunSupervisor(SupervisorTurn) (Verdict, *Error)
 	Steer([]ContentPart) SteerStatus
 	InterruptAll()

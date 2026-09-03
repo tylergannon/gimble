@@ -22,7 +22,7 @@ func DefaultProviderRoutes() map[string]string {
 	}
 }
 
-// HarnessBackend routes codergen turns to harness adapters and owns the
+// HarnessBackend routes agent turns to harness adapters and owns the
 // logical bindings, live controls, and run log for one pipeline run.
 type HarnessBackend struct {
 	logsRoot string
@@ -83,9 +83,9 @@ func NewHarnessBackend(
 	return backend, nil
 }
 
-// Run executes one fully resolved codergen turn.
-func (b *HarnessBackend) Run(turn CodergenTurn) (Outcome, *Error) {
-	if err := ValidateCodergenTurn(turn); err != nil {
+// Run executes one fully resolved agent turn.
+func (b *HarnessBackend) Run(turn AgentTurn) (Outcome, *Error) {
+	if err := ValidateAgentTurn(turn); err != nil {
 		return Outcome{}, err
 	}
 	validator, validationErr := NewResultValidator(turn.OutputSchema)
@@ -210,7 +210,7 @@ func (b *HarnessBackend) prepareBinding(
 	key string,
 	harnessName string,
 	adapter HarnessAdapter,
-	turn CodergenTurn,
+	turn AgentTurn,
 ) (ThreadBinding, *Error) {
 	b.mu.Lock()
 	binding, exists := b.threads[key]

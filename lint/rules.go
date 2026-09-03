@@ -124,11 +124,11 @@ func (a *analysis) deadEnd() []Diagnostic {
 	for _, node := range a.graph.Nodes {
 		empty := false
 		switch node := node.(type) {
-		case *graph.CodergenNode:
+		case *graph.AgentNode:
 			empty = len(node.Edges) == 0
 		case *graph.FanInNode:
 			empty = len(node.Edges) == 0
-		case *graph.ParallelNode:
+		case *graph.FanOutNode:
 			empty = len(node.Branches) == 0
 		}
 		if empty {
@@ -146,7 +146,7 @@ func (a *analysis) parallelFanIn() []Diagnostic {
 			continue
 		}
 		if !block.converged {
-			diagnostics = append(diagnostics, diagnostic("parallel_fan_in", SeverityError,
+			diagnostics = append(diagnostics, diagnostic("fan_out_fan_in", SeverityError,
 				"every branch must converge on one fan-in without first reaching exit or a dead region", block.node.ID))
 		}
 	}
@@ -181,9 +181,9 @@ func (a *analysis) noNestedParallel() []Diagnostic {
 			if _, inside := block.union[node.Base().ID]; !inside {
 				continue
 			}
-			if _, nested := node.(*graph.ParallelNode); nested {
-				diagnostics = append(diagnostics, diagnostic("no_nested_parallel", SeverityError,
-					fmt.Sprintf("parallel node is nested inside branches of %q", block.node.ID), node.Base().ID))
+			if _, nested := node.(*graph.FanOutNode); nested {
+				diagnostics = append(diagnostics, diagnostic("no_nested_fan_out", SeverityError,
+					fmt.Sprintf("fan-out node is nested inside branches of %q", block.node.ID), node.Base().ID))
 			}
 		}
 	}
@@ -204,8 +204,8 @@ func (a *analysis) fanInSingleParallel() []Diagnostic {
 		}
 		count := len(owners[node.Base().ID])
 		if count != 1 {
-			diagnostics = append(diagnostics, diagnostic("fan_in_single_parallel", SeverityError,
-				fmt.Sprintf("fan-in must belong to exactly one parallel node; found %d", count), node.Base().ID))
+			diagnostics = append(diagnostics, diagnostic("fan_in_single_fan_out", SeverityError,
+				fmt.Sprintf("fan-in must belong to exactly one fan-out node; found %d", count), node.Base().ID))
 		}
 	}
 	return diagnostics
@@ -231,7 +231,7 @@ func (a *analysis) parallelThreadDisjoint() []Diagnostic {
 				}
 				slices.Sort(common)
 				for _, key := range common {
-					diagnostics = append(diagnostics, diagnostic("parallel_thread_disjoint", SeverityError,
+					diagnostics = append(diagnostics, diagnostic("fan_out_thread_disjoint", SeverityError,
 						fmt.Sprintf("thread key %q is shared across concurrent branches by %q and %q", key, keys[i][key], keys[j][key]), keys[i][key]))
 				}
 			}
@@ -323,9 +323,9 @@ func (a *analysis) loopBodyEntry() []Diagnostic {
 	var diagnostics []Diagnostic
 	for _, block := range a.loopBlocks() {
 		loop := block.node
-		if _, inside := block.nodes[loop.OnDone]; inside {
+		if _, inside := block.nodes[loop.Edges.Exit]; inside {
 			diagnostics = append(diagnostics, edgeDiagnostic("loop_body_entry",
-				fmt.Sprintf("on_done must not name a body node %q", loop.OnDone), loop.ID, loop.OnDone))
+				fmt.Sprintf("edges.exit must not name a loop-body node %q", loop.Edges.Exit), loop.ID, loop.Edges.Exit))
 		}
 		if _, inside := block.nodes[a.graph.Start]; inside {
 			diagnostics = append(diagnostics, diagnostic("loop_body_entry", SeverityError,
@@ -338,7 +338,7 @@ func (a *analysis) loopBodyEntry() []Diagnostic {
 			}
 			for _, incoming := range a.in[id] {
 				_, inside := block.nodes[incoming.from]
-				fromLoop := id == loop.Body && incoming.from == loop.ID
+				fromLoop := id == loop.Edges.Loop && incoming.from == loop.ID
 				if !inside && !fromLoop {
 					diagnostics = append(diagnostics, edgeDiagnostic("loop_body_entry",
 						fmt.Sprintf("loop body node %q may only be entered from its own body", id), incoming.from, id))
@@ -353,12 +353,12 @@ func (a *analysis) loopBodyReturns() []Diagnostic {
 	var diagnostics []Diagnostic
 	for _, block := range a.loopBlocks() {
 		loop := block.node
-		if graph.IsPseudoTarget(loop.Body) {
+		if graph.IsPseudoTarget(loop.Edges.Loop) {
 			diagnostics = append(diagnostics, diagnostic("loop_body_returns", SeverityError,
-				fmt.Sprintf("loop body must name a node, not %q", loop.Body), loop.ID))
+				fmt.Sprintf("edges.loop must name a node, not %q", loop.Edges.Loop), loop.ID))
 			continue
 		}
-		if _, exists := a.byID[loop.Body]; !exists {
+		if _, exists := a.byID[loop.Edges.Loop]; !exists {
 			continue
 		}
 		returns := false
@@ -377,7 +377,7 @@ func (a *analysis) loopBodyReturns() []Diagnostic {
 }
 
 // loopBodyExit: no routing target of a body node may be success. The only
-// way out of a loop body to success is the loop's own on_done; failure
+// way out of a loop body to success is the loop's own exit edge; failure
 // stays legal as an escape hatch.
 func (a *analysis) loopBodyExit() []Diagnostic {
 	var diagnostics []Diagnostic
@@ -393,7 +393,7 @@ func (a *analysis) loopBodyExit() []Diagnostic {
 					continue
 				}
 				diagnostics = append(diagnostics, edgeDiagnostic("loop_body_exit",
-					fmt.Sprintf("loop body node %q may not route to success; route back to loop %q and let on_done end the run", id, loop.ID), id, graph.Success))
+					fmt.Sprintf("loop body node %q may not route to success; route back to loop %q and let edges.exit end the run", id, loop.ID), id, graph.Success))
 			}
 		}
 	}
@@ -433,7 +433,7 @@ func (a *analysis) loopInParallel() []Diagnostic {
 				continue
 			}
 			if _, loop := node.(*graph.LoopNode); loop {
-				diagnostics = append(diagnostics, diagnostic("loop_in_parallel", SeverityError,
+				diagnostics = append(diagnostics, diagnostic("loop_in_fan_out", SeverityError,
 					fmt.Sprintf("loop node is nested inside branches of %q", block.node.ID), node.Base().ID))
 			}
 		}
@@ -456,7 +456,7 @@ func (a *analysis) maxVisitsPositive() []Diagnostic {
 func (a *analysis) maxParallelPositive() []Diagnostic {
 	var diagnostics []Diagnostic
 	for _, node := range a.graph.Nodes {
-		parallel, ok := node.(*graph.ParallelNode)
+		parallel, ok := node.(*graph.FanOutNode)
 		if ok && parallel.MaxParallel.Present && parallel.MaxParallel.Value <= 0 {
 			diagnostics = append(diagnostics, diagnostic("max_parallel_positive", SeverityError,
 				"max_parallel must be positive", parallel.ID))
@@ -688,7 +688,7 @@ func (a *analysis) fanInMaxVisits() []Diagnostic {
 func (a *analysis) branchRootMaxVisits() []Diagnostic {
 	var diagnostics []Diagnostic
 	for _, node := range a.graph.Nodes {
-		parallel, ok := node.(*graph.ParallelNode)
+		parallel, ok := node.(*graph.FanOutNode)
 		if !ok {
 			continue
 		}
@@ -711,10 +711,10 @@ func (a *analysis) branchRootMaxVisits() []Diagnostic {
 func (a *analysis) promptOnLLMNodes() []Diagnostic {
 	var diagnostics []Diagnostic
 	for _, node := range a.graph.Nodes {
-		codergen, ok := node.(*graph.CodergenNode)
-		if ok && (!codergen.Prompt.Present || strings.TrimSpace(codergen.Prompt.Value) == "") {
+		agent, ok := node.(*graph.AgentNode)
+		if ok && (!agent.Prompt.Present || strings.TrimSpace(agent.Prompt.Value) == "") {
 			diagnostics = append(diagnostics, diagnostic("prompt_on_llm_nodes", SeverityWarning,
-				"codergen node should have a non-empty prompt", codergen.ID))
+				"agent node should have a non-empty prompt", agent.ID))
 		}
 	}
 	return diagnostics
@@ -737,7 +737,7 @@ func (a *analysis) threadNodes(nodes map[string]struct{}) map[string]string {
 
 func maxRetries(node graph.Node) (int, bool) {
 	switch node := node.(type) {
-	case *graph.CodergenNode:
+	case *graph.AgentNode:
 		return node.MaxRetries.Value, node.MaxRetries.Present
 	case *graph.FanInNode:
 		return node.MaxRetries.Value, node.MaxRetries.Present

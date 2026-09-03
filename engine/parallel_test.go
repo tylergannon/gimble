@@ -39,7 +39,7 @@ func TestParallelRunnerIsolatesBranchesCapsConcurrencyAndFinalizesEvidence(t *te
 	var active atomic.Int32
 	var peak atomic.Int32
 	var indexMu sync.Mutex
-	registry.Register("codergen", HandlerFunc(func(node graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(node graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		current := active.Add(1)
 		defer active.Add(-1)
 		for {
@@ -78,7 +78,7 @@ func TestParallelRunnerIsolatesBranchesCapsConcurrencyAndFinalizesEvidence(t *te
 	}))
 
 	var evidence []BranchResult
-	registry.Register("parallel.fan_in", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("fan_in", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		var err error
 		evidence, err = readBranchResults(filepath.Join(root, "stages", "latest", "fanout", "branches.json"))
 		if err != nil {
@@ -180,18 +180,18 @@ func TestParallelRunnerWritesFailureEvidenceAndRollsBackBranchCounters(t *testin
 	root := t.TempDir()
 	pipeline := parallelRunnerGraph([]string{"left", "right"}, 2)
 	for _, node := range pipeline.Nodes {
-		if branch, ok := node.(*graph.CodergenNode); ok && branch.ID == "left" {
+		if branch, ok := node.(*graph.AgentNode); ok && branch.ID == "left" {
 			branch.MaxRetries = jsonschema.Optional[int]{Present: true, Value: 1}
 		}
 	}
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		if node.Base().ID == "left" {
 			return harness.Outcome{}, &harness.Error{Category: harness.ErrorRetryable, Message: "transient branch failure"}
 		}
 		return harness.Outcome{Notes: "right completed"}, nil
 	}))
-	registry.Register("parallel.fan_in", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("fan_in", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		return harness.Outcome{}, terminalError("fan-in ran after branch failure")
 	}))
 	runner := newTestRunnerWithWorkdir(t, pipeline, registry, root, repo, nil)
@@ -234,15 +234,15 @@ func TestParallelRunnerResolvesHeterogeneousCodergenBranchesAndGathersArtifacts(
   "start":"fanout",
   "nodes":[
     {
-      "id":"fanout","type":"parallel","max_parallel":1,
+	  "id":"fanout","type":"fan_out","max_parallel":1,
       "prompt":"parent prompt","llm_provider":"openai","llm_model":"gpt-parent","reasoning_effort":"high",
-      "edges":[{"to":"join"}],
+	  "branch_edges":[{"to":"join"}],
       "branches":[
-        {"id":"openai_branch","artifacts":["openai.txt"],"codergen":{"prompt":"openai prompt"}},
-        {"id":"anthropic_branch","artifacts":["anthropic.txt"],"codergen":{"llm_provider":"anthropic","llm_model":"claude-child","reasoning_effort":"medium"}}
+        {"id":"openai_branch","artifacts":["openai.txt"],"agent":{"prompt":"openai prompt"}},
+        {"id":"anthropic_branch","artifacts":["anthropic.txt"],"agent":{"llm_provider":"anthropic","llm_model":"claude-child","reasoning_effort":"medium"}}
       ]
     },
-    {"id":"join","type":"parallel.fan_in","prompt":"inspect artifacts","edges":[{"to":"success"}]}
+    {"id":"join","type":"fan_in","prompt":"inspect artifacts","edges":[{"to":"success"}]}
   ]
 }`)
 	repo := newGitTestRepository(t)
@@ -252,9 +252,9 @@ func TestParallelRunnerResolvesHeterogeneousCodergenBranchesAndGathersArtifacts(
 		"anthropic_branch": "anthropic.txt",
 	}}
 	registry := NewRegistry()
-	config := CodergenConfig{Backend: backend, DefaultModel: "gpt-fan-in"}
-	registry.Register("codergen", NewCodergenHandler(config))
-	registry.Register("parallel.fan_in", NewFanInHandler(config))
+	config := AgentConfig{Backend: backend, DefaultModel: "gpt-fan-in"}
+	registry.Register("agent", NewAgentHandler(config))
+	registry.Register("fan_in", NewFanInHandler(config))
 	runner := newTestRunnerWithWorkdir(t, pipeline, registry, root, repo, backend)
 
 	result, err := runner.Run()
@@ -288,12 +288,12 @@ func TestParallelRunnerResolvesHeterogeneousCodergenBranchesAndGathersArtifacts(
 			t.Fatalf("gathered artifact = %q, %v", raw, err)
 		}
 		resolved, err := os.ReadFile(filepath.Join(branch.StageDirs[0], "resolved.json"))
-		if err != nil || !bytes.Contains(resolved, []byte(`"type": "codergen"`)) || !bytes.Contains(resolved, []byte(`"id": "`+branch.BranchID+`"`)) {
+		if err != nil || !bytes.Contains(resolved, []byte(`"type": "agent"`)) || !bytes.Contains(resolved, []byte(`"id": "`+branch.BranchID+`"`)) {
 			t.Fatalf("resolved runtime branch = %s, %v", resolved, err)
 		}
 	}
 	resolvedRaw, err := os.ReadFile(filepath.Join(root, "stages", "latest", "fanout", "resolved-branches.json"))
-	if err != nil || !bytes.Contains(resolvedRaw, []byte(`"type": "codergen"`)) || !bytes.Contains(resolvedRaw, []byte(`"llm_model": "claude-child"`)) {
+	if err != nil || !bytes.Contains(resolvedRaw, []byte(`"type": "agent"`)) || !bytes.Contains(resolvedRaw, []byte(`"llm_model": "claude-child"`)) {
 		t.Fatalf("resolved branches = %s, %v", resolvedRaw, err)
 	}
 }
@@ -303,24 +303,24 @@ func TestParallelRunnerSharedWorkspaceExposesDeclaredArtifactsToFanIn(t *testing
   "start":"fanout",
   "nodes":[
     {
-      "id":"fanout","type":"parallel","workspace":"shared","max_parallel":2,
+	  "id":"fanout","type":"fan_out","workspace":"shared","max_parallel":2,
       "prompt":"write your artifact","llm_provider":"openai","llm_model":"gpt-shared",
-      "edges":[{"to":"join"}],
+	  "branch_edges":[{"to":"join"}],
       "branches":[
         {"id":"left","artifacts":["left.txt"]},
         {"id":"right","artifacts":["right.txt"]}
       ]
     },
-    {"id":"join","type":"parallel.fan_in","prompt":"expose all artifacts","edges":[{"to":"success"}]}
+    {"id":"join","type":"fan_in","prompt":"expose all artifacts","edges":[{"to":"success"}]}
   ]
 }`)
 	workdir := t.TempDir()
 	root := t.TempDir()
 	backend := &artifactCaptureBackend{artifacts: map[string]string{"left": "left.txt", "right": "right.txt"}}
 	registry := NewRegistry()
-	config := CodergenConfig{Backend: backend, DefaultModel: "gpt-fan-in"}
-	registry.Register("codergen", NewCodergenHandler(config))
-	registry.Register("parallel.fan_in", NewFanInHandler(config))
+	config := AgentConfig{Backend: backend, DefaultModel: "gpt-fan-in"}
+	registry.Register("agent", NewAgentHandler(config))
+	registry.Register("fan_in", NewFanInHandler(config))
 	runner := newTestRunnerWithWorkdir(t, pipeline, registry, root, workdir, backend)
 
 	result, err := runner.Run()
@@ -350,13 +350,13 @@ func TestParallelRunnerStopInterruptsActiveAndQueuedBranches(t *testing.T) {
 	registry := NewRegistry()
 	started := make(chan struct{}, 1)
 	var calls atomic.Int32
-	registry.Register("codergen", HandlerFunc(func(_ graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(_ graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		calls.Add(1)
 		started <- struct{}{}
 		scope.Stop.Wait()
 		return harness.Outcome{}, &harness.Error{Category: harness.ErrorInterrupted, Message: "cancelled"}
 	}))
-	registry.Register("parallel.fan_in", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("fan_in", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		return harness.Outcome{}, terminalError("fan-in ran after stop")
 	}))
 	backend := &fakeBackend{}
@@ -404,9 +404,9 @@ func TestParallelRunnerStopInterruptsActiveAndQueuedBranches(t *testing.T) {
 func parallelRunnerGraph(branchIDs []string, maxParallel int) graph.Graph {
 	nodes := make([]graph.Node, 0, len(branchIDs)+4)
 	nodes = append(nodes, startNode("start", "fanout"))
-	parallel := &graph.ParallelNode{NodeBase: graph.NodeBase{ID: "fanout"}}
+	parallel := &graph.FanOutNode{NodeBase: graph.NodeBase{ID: "fanout"}}
 	parallel.MaxParallel = jsonschema.Optional[int]{Present: true, Value: maxParallel}
-	parallel.Branches = graph.LegacyParallelBranches(branchIDs...)
+	parallel.Branches = graph.LegacyFanOutBranches(branchIDs...)
 	nodes = append(nodes, parallel)
 	for _, branchID := range branchIDs {
 		nodes = append(nodes, customNode(branchID, "task", []graph.Edge{{To: "join"}}, 0))
@@ -418,7 +418,7 @@ func parallelRunnerGraph(branchIDs []string, maxParallel int) graph.Graph {
 	return testGraph(nodes...)
 }
 
-func newTestRunnerWithWorkdir(t *testing.T, pipeline graph.Graph, registry *Registry, root, workdir string, backend harness.CodergenBackend) *Runner {
+func newTestRunnerWithWorkdir(t *testing.T, pipeline graph.Graph, registry *Registry, root, workdir string, backend harness.AgentBackend) *Runner {
 	t.Helper()
 	runner, err := NewRunner(pipeline, registry, RunnerConfig{
 		LogsRoot: root,
@@ -467,11 +467,11 @@ func parseParallelTestGraph(t *testing.T, document string) graph.Graph {
 
 type artifactCaptureBackend struct {
 	mu        sync.Mutex
-	turns     []harness.CodergenTurn
+	turns     []harness.AgentTurn
 	artifacts map[string]string
 }
 
-func (b *artifactCaptureBackend) Run(turn harness.CodergenTurn) (harness.Outcome, *harness.Error) {
+func (b *artifactCaptureBackend) Run(turn harness.AgentTurn) (harness.Outcome, *harness.Error) {
 	b.mu.Lock()
 	b.turns = append(b.turns, turn)
 	b.mu.Unlock()
@@ -497,8 +497,8 @@ func (*artifactCaptureBackend) Bindings() map[string]harness.ThreadBinding { ret
 
 func (*artifactCaptureBackend) SetBindingOpened(harness.BindingOpened) {}
 
-func (b *artifactCaptureBackend) snapshot() []harness.CodergenTurn {
+func (b *artifactCaptureBackend) snapshot() []harness.AgentTurn {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return append([]harness.CodergenTurn(nil), b.turns...)
+	return append([]harness.AgentTurn(nil), b.turns...)
 }

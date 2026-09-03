@@ -179,13 +179,13 @@ func (h *loopHandler) Execute(node graph.Node, offered []graph.Edge, scope Execu
 			if err := h.runner.writeFrames(); err != nil {
 				return harness.Outcome{}, terminalError(fmt.Sprintf("write frames: %v", err))
 			}
-			if !offeredTarget(offered, loop.OnDone) {
-				return harness.Outcome{}, terminalError(fmt.Sprintf("loop on_done %q has exhausted its visit budget", loop.OnDone))
+			if !offeredTarget(offered, loop.Edges.Exit) {
+				return harness.Outcome{}, terminalError(fmt.Sprintf("loop exit edge %q has exhausted its visit budget", loop.Edges.Exit))
 			}
 			if err := h.store.appendTimeline(timelineEvent{"type": "LoopCompleted", "node": loop.ID, "count": len(list.Items)}); err != nil {
 				return harness.Outcome{}, terminalError(err.Error())
 			}
-			return harness.Outcome{Next: loop.OnDone, Notes: fmt.Sprintf("%sevaluator decided done: %s", notes, verdict.Notes)}, nil
+			return harness.Outcome{Next: loop.Edges.Exit, Notes: fmt.Sprintf("%sevaluator decided done: %s", notes, verdict.Notes)}, nil
 		case "not_done":
 			if _, _, open = list.Open(); !open {
 				return harness.Outcome{}, terminalError(fmt.Sprintf("loop evaluator returned not_done but checklist %q has no open item", listPath))
@@ -244,14 +244,14 @@ func (h *loopHandler) Execute(node graph.Node, offered []graph.Edge, scope Execu
 	if err := h.runner.writeFrames(); err != nil {
 		return harness.Outcome{}, terminalError(fmt.Sprintf("write frames: %v", err))
 	}
-	if !offeredTarget(offered, loop.Body) {
+	if !offeredTarget(offered, loop.Edges.Loop) {
 		openCount := 0
 		for _, item := range list.Items {
 			if !item.Done {
 				openCount++
 			}
 		}
-		return harness.Outcome{}, terminalError(fmt.Sprintf("loop body %q has exhausted its visit budget with %d items open", loop.Body, openCount))
+		return harness.Outcome{}, terminalError(fmt.Sprintf("loop body %q has exhausted its visit budget with %d items open", loop.Edges.Loop, openCount))
 	}
 	if err := h.store.appendTimeline(timelineEvent{
 		"type": "LoopItemSelected", "node": loop.ID, "item": next.Name, "index": index + 1, "count": len(list.Items), "lap": lap,
@@ -259,7 +259,7 @@ func (h *loopHandler) Execute(node graph.Node, offered []graph.Edge, scope Execu
 		return harness.Outcome{}, terminalError(err.Error())
 	}
 	return harness.Outcome{
-		Next:  loop.Body,
+		Next:  loop.Edges.Loop,
 		Notes: fmt.Sprintf("%sitem %d/%d: %s (lap %d)", notes, index+1, len(list.Items), next.Name, lap),
 	}, nil
 }
@@ -352,11 +352,11 @@ func (h *loopHandler) validate(loop *graph.LoopNode, item checklist.Item, logPat
 	return record, nil
 }
 
-// judge runs one codergen turn that decides whether the evidence files
+// judge runs one agent turn that decides whether the evidence files
 // demonstrate the item's check.
 func (h *loopHandler) judge(loop *graph.LoopNode, item checklist.Item, files []string, artifactPrefix string, scope ExecutionScope, pipeline *graph.Graph) (harness.Outcome, *harness.Error) {
 	config := h.runner.config
-	handler := NewCodergenHandler(CodergenConfig{
+	handler := NewAgentHandler(AgentConfig{
 		Backend:                config.Backend,
 		DefaultModel:           defaultLoopJudgeModel,
 		DefaultReasoningEffort: defaultLoopJudgeReasoningEffort,
@@ -407,7 +407,7 @@ func judgePrompt(item checklist.Item, files []string) string {
 // fields override them.
 func (h *loopHandler) evaluate(loop *graph.LoopNode, listPath string, list *checklist.Checklist, records []validationRecord, scope ExecutionScope, pipeline *graph.Graph) (harness.Outcome, *harness.Error) {
 	config := h.runner.config
-	handler := NewCodergenHandler(CodergenConfig{
+	handler := NewAgentHandler(AgentConfig{
 		Backend:                config.Backend,
 		DefaultModel:           config.DefaultModel,
 		DefaultProvider:        config.DefaultProvider,

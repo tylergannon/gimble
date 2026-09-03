@@ -14,35 +14,35 @@ import (
 	"github.com/tylergannon/tractor/internal/modelalias"
 )
 
-// CodergenConfig supplies the backend and implementation-level model defaults.
-type CodergenConfig struct {
-	Backend                harness.CodergenBackend
+// AgentConfig supplies the backend and implementation-level model defaults.
+type AgentConfig struct {
+	Backend                harness.AgentBackend
 	DefaultModel           string
 	DefaultProvider        string
 	DefaultReasoningEffort string
 }
 
-// CodergenHandler executes codergen nodes through a CodergenBackend.
-type CodergenHandler struct {
-	config CodergenConfig
+// AgentHandler executes agent nodes through an AgentBackend.
+type AgentHandler struct {
+	config AgentConfig
 }
 
-// NewCodergenHandler constructs a codergen handler. A nil backend enables simulation.
-func NewCodergenHandler(config CodergenConfig) *CodergenHandler {
-	return &CodergenHandler{config: config}
+// NewAgentHandler constructs an agent handler. A nil backend enables simulation.
+func NewAgentHandler(config AgentConfig) *AgentHandler {
+	return &AgentHandler{config: config}
 }
 
-// Execute renders and executes one codergen turn.
-func (h *CodergenHandler) Execute(node graph.Node, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph) (harness.Outcome, *harness.Error) {
-	codergen, ok := node.(*graph.CodergenNode)
+// Execute renders and executes one agent turn.
+func (h *AgentHandler) Execute(node graph.Node, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph) (harness.Outcome, *harness.Error) {
+	agent, ok := node.(*graph.AgentNode)
 	if !ok {
-		return harness.Outcome{}, terminalError(fmt.Sprintf("codergen handler cannot execute node type %s", node.NodeType()))
+		return harness.Outcome{}, terminalError(fmt.Sprintf("agent handler cannot execute node type %s", node.NodeType()))
 	}
 
-	prompt := codergen.PromptValue(codergen.DisplayLabel())
+	prompt := agent.PromptValue(agent.DisplayLabel())
 	prompt = expandPrompt(prompt, scope.Goal)
 	prompt = prependFrame(scope.Frame, prompt)
-	return h.executeTurn(codergen, &codergen.LLMNodeFields, offered, scope, pipeline, prompt)
+	return h.executeTurn(agent, &agent.LLMNodeFields, offered, scope, pipeline, prompt)
 }
 
 // prependFrame places the rendered loop frame stack ahead of a node's own
@@ -54,7 +54,7 @@ func prependFrame(frame, prompt string) string {
 	return frame + "\n\n" + prompt
 }
 
-func (h *CodergenHandler) executeTurn(node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt string) (harness.Outcome, *harness.Error) {
+func (h *AgentHandler) executeTurn(node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt string) (harness.Outcome, *harness.Error) {
 	return h.executeTurnAt(node, fields, offered, scope, pipeline, prompt,
 		filepath.Join(scope.StageDir, "prompt.md"), filepath.Join(scope.StageDir, "response.md"))
 }
@@ -62,7 +62,7 @@ func (h *CodergenHandler) executeTurn(node graph.Node, fields *graph.LLMNodeFiel
 // executeTurnAt runs a turn whose prompt and response artifacts have
 // caller-selected paths. Composite handlers use this to keep multiple turns
 // within one stage from overwriting one another.
-func (h *CodergenHandler) executeTurnAt(node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt, promptPath, responsePath string) (harness.Outcome, *harness.Error) {
+func (h *AgentHandler) executeTurnAt(node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt, promptPath, responsePath string) (harness.Outcome, *harness.Error) {
 	if err := os.WriteFile(promptPath, []byte(prompt), 0o644); err != nil {
 		return harness.Outcome{}, terminalError(fmt.Sprintf("write prompt: %v", err))
 	}
@@ -75,12 +75,12 @@ func (h *CodergenHandler) executeTurnAt(node graph.Node, fields *graph.LLMNodeFi
 	if h.config.Backend == nil && validationTurn.RunLog == "" {
 		validationTurn.RunLog = filepath.Join(scope.StageDir, "simulation.jsonl")
 	}
-	if validationErr := harness.ValidateCodergenTurn(validationTurn); validationErr != nil {
+	if validationErr := harness.ValidateAgentTurn(validationTurn); validationErr != nil {
 		return harness.Outcome{}, validationErr
 	}
-	if codergen, ok := node.(*graph.CodergenNode); ok && codergen.IsSynthesized() {
-		if err := writeJSON(filepath.Join(scope.StageDir, "resolved.json"), resolvedCodergenRecord{
-			Type:            "codergen",
+	if agent, ok := node.(*graph.AgentNode); ok && agent.IsSynthesized() {
+		if err := writeJSON(filepath.Join(scope.StageDir, "resolved.json"), resolvedAgentRecord{
+			Type:            "agent",
 			ID:              node.Base().ID,
 			Prompt:          prompt,
 			Provider:        validationTurn.Provider,
@@ -92,7 +92,7 @@ func (h *CodergenHandler) executeTurnAt(node graph.Node, fields *graph.LLMNodeFi
 			Workdir:         validationTurn.Workdir,
 			RunLog:          validationTurn.RunLog,
 		}); err != nil {
-			return harness.Outcome{}, terminalError(fmt.Sprintf("write resolved Codergen configuration: %v", err))
+			return harness.Outcome{}, terminalError(fmt.Sprintf("write resolved agent configuration: %v", err))
 		}
 	}
 	var outcome harness.Outcome
@@ -115,7 +115,7 @@ func (h *CodergenHandler) executeTurnAt(node graph.Node, fields *graph.LLMNodeFi
 	return outcome, nil
 }
 
-type resolvedCodergenRecord struct {
+type resolvedAgentRecord struct {
 	Type            string               `json:"type"`
 	ID              string               `json:"id"`
 	Prompt          string               `json:"prompt"`
@@ -129,12 +129,12 @@ type resolvedCodergenRecord struct {
 	RunLog          string               `json:"run_log"`
 }
 
-func (h *CodergenHandler) turn(node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt string) (harness.CodergenTurn, *harness.Error) {
+func (h *AgentHandler) turn(node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt string) (harness.AgentTurn, *harness.Error) {
 	model := resolveString(fields.LLMModel, pipeline.Defaults.LLMModel, h.config.DefaultModel)
 	provider := resolveProvider(fields.LLMProvider, pipeline.Defaults.LLMProvider, h.config.DefaultProvider, model)
 	provider, model, selectionErr := modelalias.ResolveSelection(provider, model)
 	if selectionErr != nil {
-		return harness.CodergenTurn{}, terminalError(selectionErr.Error())
+		return harness.AgentTurn{}, terminalError(selectionErr.Error())
 	}
 	reasoningDefault := h.config.DefaultReasoningEffort
 	if reasoningDefault == "" {
@@ -148,13 +148,13 @@ func (h *CodergenHandler) turn(node graph.Node, fields *graph.LLMNodeFields, off
 	}
 	timeout, timeoutErr := resolveTimeout(fields.Timeout, pipeline.Defaults.Timeout)
 	if timeoutErr != nil {
-		return harness.CodergenTurn{}, terminalError(timeoutErr.Error())
+		return harness.AgentTurn{}, terminalError(timeoutErr.Error())
 	}
 	schema, schemaErr := choiceSchema(offered, pipeline)
 	if schemaErr != nil {
-		return harness.CodergenTurn{}, terminalError(schemaErr.Error())
+		return harness.AgentTurn{}, terminalError(schemaErr.Error())
 	}
-	return harness.CodergenTurn{
+	return harness.AgentTurn{
 		NodeID:          node.Base().ID,
 		Parts:           []harness.ContentPart{{Type: harness.ContentPartText, Text: prompt}},
 		OutputSchema:    schema,

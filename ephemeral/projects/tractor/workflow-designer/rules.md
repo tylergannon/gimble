@@ -186,7 +186,7 @@ and the other recorded proof and judges whether it is real proof or theater.
 A validation may call back to an agent with a Playwright MCP; a cheap judge
 model, configured independently and defaulting to Gemini 2.7 Flash (#37),
 scores screenshots against a Gherkin scenario. No verdict files: review and
-validation are a codergen node with routing instructions.
+validation are an agent node with routing instructions.
 
 **Agent, accepted.** At chapter exit a verifier with tools, fresh context, and
 another provider operates the software itself and routes pass or fail; the

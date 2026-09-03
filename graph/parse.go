@@ -34,7 +34,7 @@ func Parse(data []byte) (*Graph, error) {
 }
 
 func finishGraph(graph *Graph) error {
-	if err := graph.expandParallelBranches(); err != nil {
+	if err := graph.expandFanOutBranches(); err != nil {
 		return err
 	}
 	seen := make(map[string]struct{}, len(graph.Nodes))
@@ -52,10 +52,10 @@ func finishGraph(graph *Graph) error {
 	return nil
 }
 
-// UnmarshalJSON accepts both existing string branch roots and structured
-// Codergen branches without weakening the generated object schema.
-func (n *ParallelNode) UnmarshalJSON(data []byte) error {
-	type alias ParallelNode
+// UnmarshalJSON accepts both string branch roots and structured agent branches
+// without weakening the generated object schema.
+func (n *FanOutNode) UnmarshalJSON(data []byte) error {
+	type alias FanOutNode
 	var payload struct {
 		*alias
 		Branches []json.RawMessage `json:"branches"`
@@ -64,11 +64,11 @@ func (n *ParallelNode) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return err
 	}
-	branches := make([]ParallelBranch, len(payload.Branches))
+	branches := make([]FanOutBranch, len(payload.Branches))
 	for index, raw := range payload.Branches {
 		var id string
 		if err := json.Unmarshal(raw, &id); err == nil {
-			branches[index] = LegacyParallelBranch(id)
+			branches[index] = LegacyFanOutBranch(id)
 			continue
 		}
 		if err := json.Unmarshal(raw, &branches[index]); err != nil {
@@ -79,37 +79,37 @@ func (n *ParallelNode) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (g *Graph) expandParallelBranches() error {
+func (g *Graph) expandFanOutBranches() error {
 	authored := make(map[string]struct{}, len(g.Nodes))
 	for _, node := range g.Nodes {
 		authored[node.Base().ID] = struct{}{}
 	}
 	var synthesized []Node
 	for _, node := range g.Nodes {
-		parallel, ok := node.(*ParallelNode)
-		if !ok || len(parallel.Branches) == 0 {
+		fanOut, ok := node.(*FanOutNode)
+		if !ok || len(fanOut.Branches) == 0 {
 			continue
 		}
-		legacy := parallel.Branches[0].IsLegacy()
-		for _, branch := range parallel.Branches {
+		legacy := fanOut.Branches[0].IsLegacy()
+		for _, branch := range fanOut.Branches {
 			if branch.IsLegacy() != legacy {
-				return fmt.Errorf("parallel node %q cannot mix string and object branches", parallel.ID)
+				return fmt.Errorf("fan_out node %q cannot mix string and object branches", fanOut.ID)
 			}
 		}
 		if legacy {
 			continue
 		}
-		if len(parallel.Edges) == 0 {
-			return fmt.Errorf("parallel node %q with Codergen branches must declare edges", parallel.ID)
+		if len(fanOut.BranchEdges) == 0 {
+			return fmt.Errorf("fan_out node %q with agent branches must declare branch_edges", fanOut.ID)
 		}
-		for _, branch := range parallel.Branches {
+		for _, branch := range fanOut.Branches {
 			if _, exists := authored[branch.ID]; exists {
-				return fmt.Errorf("parallel node %q branch ID %q collides with a declared node", parallel.ID, branch.ID)
+				return fmt.Errorf("fan_out node %q branch ID %q collides with a declared node", fanOut.ID, branch.ID)
 			}
-			if err := validateArtifactPaths(parallel.ID, branch); err != nil {
+			if err := validateArtifactPaths(fanOut.ID, branch); err != nil {
 				return err
 			}
-			resolved := resolveParallelCodergen(parallel, branch)
+			resolved := resolveFanOutAgent(fanOut, branch)
 			synthesized = append(synthesized, resolved)
 			authored[branch.ID] = struct{}{}
 		}
@@ -118,17 +118,17 @@ func (g *Graph) expandParallelBranches() error {
 	return nil
 }
 
-func resolveParallelCodergen(parent *ParallelNode, branch ParallelBranch) *CodergenNode {
-	resolved := &CodergenNode{
+func resolveFanOutAgent(parent *FanOutNode, branch FanOutBranch) *AgentNode {
+	resolved := &AgentNode{
 		NodeBase:      NodeBase{ID: branch.ID, Label: parent.Label},
-		Edges:         append([]Edge(nil), parent.Edges...),
+		Edges:         append([]Edge(nil), parent.BranchEdges...),
 		LLMNodeFields: parent.LLMNodeFields,
 		synthesized:   true,
 	}
-	if !branch.Codergen.Present {
+	if !branch.Agent.Present {
 		return resolved
 	}
-	override := branch.Codergen.Value
+	override := branch.Agent.Value
 	overrideOptional(&resolved.Label, override.Label)
 	overrideOptional(&resolved.Prompt, override.Prompt)
 	overrideOptional(&resolved.MaxRetries, override.MaxRetries)
@@ -148,15 +148,15 @@ func overrideOptional[T any](destination *jsonschema.Optional[T], source jsonsch
 	}
 }
 
-func validateArtifactPaths(parallelID string, branch ParallelBranch) error {
+func validateArtifactPaths(fanOutID string, branch FanOutBranch) error {
 	seen := make(map[string]struct{}, len(branch.Artifacts))
 	for _, artifact := range branch.Artifacts {
 		cleaned := filepath.Clean(artifact)
 		if strings.TrimSpace(artifact) == "" || filepath.IsAbs(artifact) || cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
-			return fmt.Errorf("parallel node %q branch %q has invalid artifact path %q", parallelID, branch.ID, artifact)
+			return fmt.Errorf("fan_out node %q branch %q has invalid artifact path %q", fanOutID, branch.ID, artifact)
 		}
 		if _, duplicate := seen[cleaned]; duplicate {
-			return fmt.Errorf("parallel node %q branch %q repeats artifact path %q", parallelID, branch.ID, artifact)
+			return fmt.Errorf("fan_out node %q branch %q repeats artifact path %q", fanOutID, branch.ID, artifact)
 		}
 		seen[cleaned] = struct{}{}
 	}
@@ -193,11 +193,11 @@ func (g *Graph) NodeByID(id string) (Node, bool) {
 func (g *Graph) applyDefaults() {
 	for _, node := range g.Nodes {
 		switch current := node.(type) {
-		case *CodergenNode:
+		case *AgentNode:
 			inheritLLM(&current.LLMNodeFields, g.Defaults)
 		case *FanInNode:
 			inheritLLM(&current.LLMNodeFields, g.Defaults)
-		case *ToolNode:
+		case *CommandNode:
 			inherit(&current.Timeout, g.Defaults.Timeout)
 		case *SupervisorNode:
 			inherit(&current.Timeout, g.Defaults.Timeout)

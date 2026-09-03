@@ -46,7 +46,7 @@ func fixSchema(check bool) error {
 		typeName, _ := object(props["type"])["const"].(string)
 		required := []any{"type", "id"}
 		switch typeName {
-		case "parallel":
+		case "fan_out":
 			required = append(required, "branches")
 			branches := object(props["branches"])
 			structured := object(branches["items"])
@@ -55,12 +55,12 @@ func fixSchema(check bool) error {
 					"anyOf": []any{map[string]any{"type": "string"}, structured},
 				}
 			}
-		case "tool":
-			required = append(required, "tool_command", "on_success")
+		case "command":
+			required = append(required, "command", "edges")
 		case "supervisor":
 			required = append(required, "prompt", "supervises")
 		case "loop":
-			required = append(required, "body", "on_done")
+			required = append(required, "edges")
 		}
 		option["required"] = required
 	}
@@ -88,6 +88,12 @@ func walk(value any) {
 		}
 	case map[string]any:
 		if props, ok := current["properties"].(map[string]any); ok {
+			if _, commandEdges := props["success"]; commandEdges {
+				current["required"] = []any{"success"}
+			}
+			if _, loopEdges := props["loop"]; loopEdges {
+				current["required"] = []any{"loop", "exit"}
+			}
 			if id, ok := props["id"].(map[string]any); ok {
 				id["pattern"] = idPattern
 				id["not"] = map[string]any{"enum": []any{"success", "failure"}}

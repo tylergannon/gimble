@@ -13,17 +13,18 @@ defaults:
 # The smallest loop: an agent works, a command decides, failure routes back.
 # The goal is the whole prompt — the engine substitutes $goal, supplies the
 # workspace, and turns the edges into a structured routing schema. To adapt:
-# change the goal and the check's tool_command. Nothing else.
+# change the goal and the check's command. Nothing else.
 nodes:
   - id: implement
-    type: codergen
+    type: agent
     max_visits: 5
     prompt: $goal
     edges:
       - to: check
 
   - id: check
-    type: tool
-    tool_command: test "$(sh hello.sh)" = HELLO_LOOPS
-    on_success: success
-    on_error: implement
+    type: command
+    command: test "$(sh hello.sh)" = HELLO_LOOPS
+    edges:
+      success: success
+      error: implement

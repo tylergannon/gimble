@@ -23,12 +23,12 @@ import (
 	"github.com/tylergannon/tractor/harness"
 )
 
-func TestRunnerTimelineNarratesRetriesParallelBranchesAndCheckpoints(t *testing.T) {
+func TestRunnerTimelineNarratesRetriesFanOutBranchesAndCheckpoints(t *testing.T) {
 	repo := newGitTestRepository(t)
 	root := t.TempDir()
-	retry := customNode("retry", "retry_task", []graph.Edge{{To: "fanout"}}, 0).(*graph.CodergenNode)
+	retry := customNode("retry", "retry_task", []graph.Edge{{To: "fanout"}}, 0).(*graph.AgentNode)
 	retry.MaxRetries = jsonschema.Optional[int]{Present: true, Value: 1}
-	parallel := &graph.ParallelNode{NodeBase: graph.NodeBase{ID: "fanout"}, Branches: graph.LegacyParallelBranches("left", "right")}
+	parallel := &graph.FanOutNode{NodeBase: graph.NodeBase{ID: "fanout"}, Branches: graph.LegacyFanOutBranches("left", "right")}
 	parallel.MaxParallel = jsonschema.Optional[int]{Present: true, Value: 1}
 	pipeline := testGraph(
 		startNode("start", "retry"),
@@ -43,13 +43,13 @@ func TestRunnerTimelineNarratesRetriesParallelBranchesAndCheckpoints(t *testing.
 
 	registry := NewRegistry()
 	var retryCalls atomic.Int32
-	registry.Register("codergen", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		if node.Base().ID == "retry" && retryCalls.Add(1) == 1 {
 			return harness.Outcome{}, &harness.Error{Category: harness.ErrorRetryable, Message: "try again"}
 		}
 		return harness.Outcome{Notes: node.Base().ID}, nil
 	}))
-	registry.Register("parallel.fan_in", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("fan_in", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		return harness.Outcome{Notes: "joined"}, nil
 	}))
 	runner := newTestRunnerWithWorkdir(t, pipeline, registry, root, repo, nil)
@@ -71,8 +71,8 @@ func TestRunnerTimelineNarratesRetriesParallelBranchesAndCheckpoints(t *testing.
 		"PipelineStarted", "CheckpointSaved",
 		"StageStarted", "StageFailed", "StageRetrying", "StageStarted", "StageCompleted", "CheckpointSaved",
 		"StageStarted", "ParallelStarted",
-		"ParallelBranchStarted", "StageStarted", "StageCompleted", "ParallelBranchCompleted",
-		"ParallelBranchStarted", "StageStarted", "StageCompleted", "ParallelBranchCompleted",
+		"FanOutBranchStarted", "StageStarted", "StageCompleted", "FanOutBranchCompleted",
+		"FanOutBranchStarted", "StageStarted", "StageCompleted", "FanOutBranchCompleted",
 		"ParallelCompleted", "StageCompleted", "CheckpointSaved",
 		"StageStarted", "StageCompleted", "CheckpointSaved", "PipelineCompleted",
 	}
@@ -114,7 +114,7 @@ func TestRunnerTimelineNarratesRetriesParallelBranchesAndCheckpoints(t *testing.
 func TestRunnerTimelineRecordsPipelineFailure(t *testing.T) {
 	root := t.TempDir()
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		return harness.Outcome{}, terminalError("failed deliberately")
 	}))
 	pipeline := testGraph(startNode("start", "work"), customNode("work", "task", []graph.Edge{{To: "done"}}, 0), exitNode("done"))
@@ -137,7 +137,7 @@ func TestControlSocketAcceptsSteeringAndAuditsActiveStage(t *testing.T) {
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		close(entered)
 		<-release
 		return harness.Outcome{Notes: "done"}, nil
@@ -243,12 +243,12 @@ func TestControlRejectsTopLevelParallelBeforeBackendHandoff(t *testing.T) {
 	entered := make(chan struct{}, 1)
 	release := make(chan struct{})
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		entered <- struct{}{}
 		<-release
 		return harness.Outcome{Notes: "done"}, nil
 	}))
-	registry.Register("parallel.fan_in", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("fan_in", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		return harness.Outcome{Notes: "joined"}, nil
 	}))
 	backend := &steeringBackend{status: harness.SteerAccepted}
@@ -287,7 +287,7 @@ type steeringBackend struct {
 	parts  []harness.ContentPart
 }
 
-func (*steeringBackend) Run(harness.CodergenTurn) (harness.Outcome, *harness.Error) {
+func (*steeringBackend) Run(harness.AgentTurn) (harness.Outcome, *harness.Error) {
 	return harness.Outcome{}, nil
 }
 

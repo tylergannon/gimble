@@ -614,7 +614,7 @@ type supervisorRunResult struct {
 	err     *Error
 }
 
-func runAsync(backend *HarnessBackend, turn CodergenTurn, results chan<- runResult) {
+func runAsync(backend *HarnessBackend, turn AgentTurn, results chan<- runResult) {
 	outcome, err := backend.Run(turn)
 	results <- runResult{node: turn.NodeID, outcome: outcome, err: err}
 }
@@ -638,11 +638,11 @@ func newTestBackend(
 	return backend
 }
 
-func testTurn(nodeID, threadKey string, fidelity FidelityMode, provider, workdir string) CodergenTurn {
+func testTurn(nodeID, threadKey string, fidelity FidelityMode, provider, workdir string) AgentTurn {
 	return testTurnWithPromptAndFidelity(nodeID, threadKey, nodeID, fidelity, provider, workdir)
 }
 
-func testTurnWithPrompt(nodeID, threadKey, prompt, workdir string) CodergenTurn {
+func testTurnWithPrompt(nodeID, threadKey, prompt, workdir string) AgentTurn {
 	return testTurnWithPromptAndFidelity(nodeID, threadKey, prompt, FidelityFull, "provider", workdir)
 }
 
@@ -650,8 +650,8 @@ func testTurnWithPromptAndFidelity(
 	nodeID, threadKey, prompt string,
 	fidelity FidelityMode,
 	provider, workdir string,
-) CodergenTurn {
-	return CodergenTurn{
+) AgentTurn {
+	return AgentTurn{
 		NodeID:          nodeID,
 		Parts:           textParts(prompt),
 		OutputSchema:    outcomeSchema,
@@ -680,13 +680,13 @@ func textParts(text string) []ContentPart {
 	return []ContentPart{{Type: ContentPartText, Text: text}}
 }
 
-func runError(t *testing.T, backend *HarnessBackend, turn CodergenTurn) *Error {
+func runError(t *testing.T, backend *HarnessBackend, turn AgentTurn) *Error {
 	t.Helper()
 	_, err := backend.Run(allocateTestTurn(t, backend, turn))
 	return err
 }
 
-func allocateTestTurn(t *testing.T, backend *HarnessBackend, turn CodergenTurn) CodergenTurn {
+func allocateTestTurn(t *testing.T, backend *HarnessBackend, turn AgentTurn) AgentTurn {
 	t.Helper()
 	allocator, err := runlog.New(backend.logsRoot)
 	if err != nil {

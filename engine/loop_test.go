@@ -45,7 +45,7 @@ func TestLoopCompletesThreeItemChecklistInThreeLaps(t *testing.T) {
 	)
 	dispatches := 0
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) { dispatches++ }))
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) { dispatches++ }))
 
 	result, err := newLoopRunner(t, pipeline, registry, root, workdir, nil).Run()
 	if err != nil {
@@ -122,7 +122,7 @@ items:
 	)
 	laps := 0
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+	registry.Register("agent", bodyHandler(t, func(scope ExecutionScope) {
 		laps++
 		switch laps {
 		case 1:
@@ -203,7 +203,7 @@ items:
 	)
 	laps := 0
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+	registry.Register("agent", bodyHandler(t, func(scope ExecutionScope) {
 		laps++
 		if laps == 2 {
 			writeFile(t, filepath.Join(scope.Workdir, "flag"), "")
@@ -270,7 +270,7 @@ items:
 	}}
 	laps := 0
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(_ graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(_ graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		laps++
 		writeFile(t, filepath.Join(scope.Workdir, "captures", "shot.png"), "png")
 		return harness.Outcome{Notes: "worked"}, nil
@@ -372,7 +372,7 @@ items:
 				{Next: "done", Notes: "the definition is met"},
 			}}
 			registry := NewRegistry()
-			registry.Register("codergen", HandlerFunc(func(_ graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+			registry.Register("agent", HandlerFunc(func(_ graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 				return harness.Outcome{Notes: "worked"}, nil
 			}))
 
@@ -417,7 +417,7 @@ The generated proof exists.
 			{Next: "not_done", Notes: "added the missing work"},
 			{Next: "done", Notes: "the proof now exists"},
 		},
-		before: func(index int, _ harness.CodergenTurn) {
+		before: func(index int, _ harness.AgentTurn) {
 			if index == 0 {
 				writeFile(t, path, `---
 items:
@@ -435,7 +435,7 @@ The generated proof exists.
 	}
 	dispatches := 0
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) { dispatches++ }))
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) { dispatches++ }))
 
 	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
 	if err != nil {
@@ -484,7 +484,7 @@ Both claims hold.
 	}}
 	var selected []string
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+	registry.Register("agent", bodyHandler(t, func(scope ExecutionScope) {
 		for _, name := range []string{"First", "Second"} {
 			if strings.Contains(scope.Frame, "name: "+name+"\n") {
 				selected = append(selected, name)
@@ -526,7 +526,7 @@ func TestLoopEvaluatorReordersOpenItemsForNextLap(t *testing.T) {
 			{Next: "not_done", Notes: "Second remains"},
 			{Next: "done", Notes: "all claims hold"},
 		},
-		before: func(index int, _ harness.CodergenTurn) {
+		before: func(index int, _ harness.AgentTurn) {
 			if index == 0 {
 				writeFile(t, path, `---
 items:
@@ -551,7 +551,7 @@ Definition of done, in prose the evaluator reads.
 	}
 	var selected []string
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+	registry.Register("agent", bodyHandler(t, func(scope ExecutionScope) {
 		for _, name := range []string{"First", "Second", "Third"} {
 			if strings.Contains(scope.Frame, "name: "+name+"\n") {
 				selected = append(selected, name)
@@ -590,7 +590,7 @@ Initial and follow-up claims hold.
 			{Next: "not_done", Notes: "added a follow-up"},
 			{Next: "done", Notes: "both claims hold"},
 		},
-		before: func(index int, _ harness.CodergenTurn) {
+		before: func(index int, _ harness.AgentTurn) {
 			if index == 0 {
 				writeFile(t, path, `---
 items:
@@ -610,7 +610,7 @@ Initial and follow-up claims hold.
 	}
 	dispatches := 0
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) { dispatches++ }))
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) { dispatches++ }))
 
 	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
 	if err != nil {
@@ -634,7 +634,7 @@ func TestLoopEvaluatorNotDoneWithoutOpenItemIsTerminal(t *testing.T) {
 	)
 	backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "not_done", Notes: "work remains"}}}
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) { t.Fatal("body dispatched") }))
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) { t.Fatal("body dispatched") }))
 
 	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
 	if err != nil {
@@ -657,7 +657,7 @@ func TestLoopEvaluatorDoneRoutesToOnDone(t *testing.T) {
 	backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "done", Notes: "goal met"}}}
 	var dispatched []string
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		dispatched = append(dispatched, node.Base().ID)
 		return harness.Outcome{Notes: "finished"}, nil
 	}))
@@ -694,7 +694,7 @@ func TestLoopEvaluatorUsesPipelineDefaultModelNotInferJudgeDefault(t *testing.T)
 	pipeline.Defaults.ReasoningEffort = optional("low")
 	backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "done", Notes: "done"}}}
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) {}))
 
 	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
 	if err != nil {
@@ -726,7 +726,7 @@ func TestLoopEvaluatorExplicitModelSelectionWins(t *testing.T) {
 	pipeline.Defaults.ReasoningEffort = optional("low")
 	backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "done", Notes: "done"}}}
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) {}))
 
 	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
 	if err != nil {
@@ -759,7 +759,7 @@ The check passes.
 	)
 	backend := &scriptedBackend{}
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) {}))
 
 	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
 	if err != nil {
@@ -788,7 +788,7 @@ items:
 	)
 	backend := &scriptedBackend{}
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) {}))
 
 	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
 	if err != nil {
@@ -841,7 +841,7 @@ items:
 	)
 	plans, works := 0, 0
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+	registry.Register("agent", bodyHandler(t, func(scope ExecutionScope) {
 		if strings.HasSuffix(scope.StageDir, "-plan") {
 			plans++
 		} else {
@@ -920,7 +920,7 @@ items:
 	)
 	works := 0
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+	registry.Register("agent", bodyHandler(t, func(scope ExecutionScope) {
 		if strings.HasSuffix(scope.StageDir, "-work") {
 			works++
 			if works == 2 {
@@ -979,7 +979,7 @@ items:
 				customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
 			)
 			registry := NewRegistry()
-			registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+			registry.Register("agent", bodyHandler(t, func(ExecutionScope) {}))
 
 			result, err := newLoopRunner(t, pipeline, registry, root, workdir, nil).Run()
 			if err != nil {
@@ -1013,7 +1013,7 @@ items:
 	)
 	registry := NewRegistry()
 	laps := 0
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) {
 		laps++
 		text := readFile(t, path)
 		if laps == 1 {
@@ -1059,7 +1059,7 @@ items:
 		customNode("implement", "task", []graph.Edge{{To: "items"}}, 1),
 	)
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) {}))
 
 	result, err := newLoopRunner(t, pipeline, registry, root, workdir, nil).Run()
 	if err != nil {
@@ -1090,7 +1090,7 @@ items:
 	)
 	laps := 0
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) { laps++ }))
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) { laps++ }))
 
 	result, err := newLoopRunner(t, pipeline, registry, root, workdir, nil).Run()
 	if err != nil {
@@ -1121,7 +1121,7 @@ func TestLoopTerminalErrorsBeforeDispatch(t *testing.T) {
 				customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
 			)
 			registry := NewRegistry()
-			registry.Register("codergen", bodyHandler(t, func(ExecutionScope) { t.Fatal("body dispatched") }))
+			registry.Register("agent", bodyHandler(t, func(ExecutionScope) { t.Fatal("body dispatched") }))
 
 			result, err := newLoopRunner(t, pipeline, registry, root, workdir, nil).Run()
 			if err != nil {
@@ -1151,7 +1151,7 @@ items:
 		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
 	)
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) {}))
 
 	result, err := newLoopRunner(t, pipeline, registry, root, workdir, nil).Run()
 	if err != nil {
@@ -1177,7 +1177,7 @@ items:
 		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
 	)
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) {}))
 	runner := newLoopRunner(t, pipeline, registry, root, workdir, nil)
 
 	type runResponse struct {
@@ -1235,7 +1235,7 @@ items:
 		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
 	)
 	crashing := NewRegistry()
-	crashing.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	crashing.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		return harness.Outcome{}, terminalError("harness died")
 	}))
 	result, err := newLoopRunner(t, pipeline, crashing, root, workdir, nil).Run()
@@ -1249,7 +1249,7 @@ items:
 
 	var dispatched []string
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+	registry.Register("agent", bodyHandler(t, func(scope ExecutionScope) {
 		dispatched = append(dispatched, filepath.Base(scope.StageDir))
 	}))
 	result, err = newLoopResumeRunner(t, pipeline, registry, root, workdir).Run()
@@ -1306,7 +1306,7 @@ items:
 	)
 	var initial *Runner
 	stopping := NewRegistry()
-	stopping.Register("codergen", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	stopping.Register("agent", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		if node.Base().ID != "plan" {
 			t.Fatalf("unexpected initial dispatch: %s", node.Base().ID)
 		}
@@ -1325,7 +1325,7 @@ items:
 
 	var dispatched []string
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+	registry.Register("agent", bodyHandler(t, func(scope ExecutionScope) {
 		dispatched = append(dispatched, filepath.Base(scope.StageDir))
 	}))
 	result, err = newLoopResumeRunner(t, pipeline, registry, root, workdir).Run()
@@ -1373,7 +1373,7 @@ items:
 	)
 	var initial *Runner
 	stopping := NewRegistry()
-	stopping.Register("codergen", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	stopping.Register("agent", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		initial.Stop()
 		return harness.Outcome{Notes: "prepared"}, nil
 	}))
@@ -1382,7 +1382,7 @@ items:
 		t.Fatalf("initial result=%#v err=%v", result, err)
 	}
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) {}))
 	if result, err := newLoopResumeRunner(t, pipeline, registry, root, workdir).Run(); err != nil || result.Status != RunCompleted {
 		t.Fatalf("resumed result=%#v err=%v", result, err)
 	}
@@ -1446,7 +1446,7 @@ items:
 	)
 	backend := &scriptedBackend{}
 	registry := NewRegistry()
-	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+	registry.Register("agent", bodyHandler(t, func(ExecutionScope) {}))
 
 	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
 	if err != nil {
@@ -1509,7 +1509,7 @@ func TestFanInPrependsFrame(t *testing.T) {
 }
 
 func loopNode(id, checklistPath, body, onDone string, maxVisits int) *graph.LoopNode {
-	node := &graph.LoopNode{NodeBase: graph.NodeBase{ID: id}, Body: body, OnDone: onDone}
+	node := &graph.LoopNode{NodeBase: graph.NodeBase{ID: id}, Edges: graph.LoopEdges{Loop: body, Exit: onDone}}
 	if checklistPath != "" {
 		node.Checklist = optional(checklistPath)
 	}
@@ -1519,18 +1519,18 @@ func loopNode(id, checklistPath, body, onDone string, maxVisits int) *graph.Loop
 	return node
 }
 
-// bodyHandler runs hook and then a real simulated codergen turn so that
+// bodyHandler runs hook and then a real simulated agent turn so that
 // prompt.md in the body's stage directory reflects the injected frame.
 func bodyHandler(t *testing.T, hook func(ExecutionScope)) Handler {
 	t.Helper()
-	real := NewCodergenHandler(CodergenConfig{DefaultModel: "gpt-5.3-codex"})
+	real := NewAgentHandler(AgentConfig{DefaultModel: "gpt-5.3-codex"})
 	return HandlerFunc(func(node graph.Node, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph) (harness.Outcome, *harness.Error) {
 		hook(scope)
 		return real.Execute(node, offered, scope, pipeline)
 	})
 }
 
-func newLoopRunner(t *testing.T, pipeline graph.Graph, registry *Registry, root, workdir string, backend harness.CodergenBackend) *Runner {
+func newLoopRunner(t *testing.T, pipeline graph.Graph, registry *Registry, root, workdir string, backend harness.AgentBackend) *Runner {
 	t.Helper()
 	runner, err := NewRunner(pipeline, registry, RunnerConfig{
 		LogsRoot:     root,
@@ -1545,16 +1545,16 @@ func newLoopRunner(t *testing.T, pipeline graph.Graph, registry *Registry, root,
 	return runner
 }
 
-// scriptedBackend answers codergen turns from a fixed list of outcomes and
+// scriptedBackend answers agent turns from a fixed list of outcomes and
 // records every turn it saw. Everything else behaves like fakeBackend.
 type scriptedBackend struct {
 	fakeBackend
 	outcomes []harness.Outcome
-	turns    []harness.CodergenTurn
-	before   func(index int, turn harness.CodergenTurn)
+	turns    []harness.AgentTurn
+	before   func(index int, turn harness.AgentTurn)
 }
 
-func (b *scriptedBackend) Run(turn harness.CodergenTurn) (harness.Outcome, *harness.Error) {
+func (b *scriptedBackend) Run(turn harness.AgentTurn) (harness.Outcome, *harness.Error) {
 	index := len(b.turns)
 	b.turns = append(b.turns, turn)
 	if b.before != nil {

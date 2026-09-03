@@ -15,16 +15,17 @@ goal: Implement the TODO in cmd/server/routes.go and make the tests pass
 start: implement
 nodes:
   - id: implement
-    type: codergen # an agent turn
+    type: agent # an agent turn
     max_visits: 5 # the budget; nothing else stops a loop
     prompt: $goal # the goal is the whole prompt
     edges:
       - to: check
   - id: check
-    type: tool # a command decides what "done" means
-    tool_command: go test ./...
-    on_success: success
-    on_error: implement # failure routes back — that's the loop
+    type: command # a command decides what "done" means
+    command: go test ./...
+    edges:
+      success: success
+      error: implement # failure routes back — that's the loop
 ```
 
 An agent works, a command decides, failure routes back. That's a complete
@@ -46,7 +47,7 @@ copy it, change the goal and the check, run it.
 
 **Critique circle** fans one topic out to three providers — Claude, Codex,
 and Gemini through their real CLIs — each writes a proposal, then each
-critiques the other two. Multi-model checks and balances, one `parallel`
+critiques the other two. Multi-model checks and balances, one `fan_out`
 node at a time. Mutual critique across labs is the point: a reviewer from a
 different lab inherits none of the author's framing.
 
@@ -74,7 +75,7 @@ selection again. Failed validation immediately re-enters through the ledger.
 After every passing validation set, a separate evaluator reads the definition
 of done, the items and their results, and the workspace. It also runs when an
 arrival has no open item, including an empty ledger's first arrival. `done`
-routes to `on_done`; `not_done` re-reads the checklist and dispatches its first
+routes to `edges.exit`; `not_done` re-reads the checklist and dispatches its first
 open item. The evaluator can append, reorder, or rewrite open items before that
 selection. Returning `not_done` without leaving an open item is a terminal
 error.
@@ -131,7 +132,7 @@ and `prompt: $goal` is a complete, correct prompt.
 
 ## Make "done" honest
 
-The tool node's command is what "done" means. Point it at the closest
+The command node's command is what "done" means. Point it at the closest
 observable proof of the outcome you asked for — run the app, curl the
 endpoint, assert on the artifact. Tests and linters are worth requiring,
 but they prove the claim only when they exercise that behavior.
@@ -144,7 +145,7 @@ you.
 | Symptom                                             | Fix                                                                                                                                                                                                             |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Runs forever                                        | `max_visits` on the looping node. A top-level loop spends one budget per run; a nested loop gets a fresh budget for each enclosing item.                                                                         |
-| Says it's done when it isn't                        | Make "done" a command (`tool` node). If the tests pass but the feature doesn't work, the command is checking the wrong thing — check the behavior you actually want.                                            |
+| Says it's done when it isn't                        | Make "done" a `command` node. If the tests pass but the feature doesn't work, the command is checking the wrong thing — check the behavior you actually want.                                                 |
 | Re-derives the same dead end every lap              | Tell the prompt to keep a short notes file: "append what the next attempt should do differently; read it first."                                                                                                |
 | Reviewer rubber-stamps                              | Don't tell it what to find or ask it to confirm your fix. Fresh session (`fidelity: none`), whole target, every round. A different provider makes the independence real.                                        |
 | Fan-in averages instead of deciding                 | Tell it to inspect the work itself and adjudicate each finding with evidence — never count votes or concatenate reports.                                                                                        |

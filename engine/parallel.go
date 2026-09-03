@@ -13,16 +13,16 @@ import (
 	"github.com/tylergannon/tractor/lint"
 )
 
-type parallelHandler struct {
+type fanOutHandler struct {
 	runner *Runner
 	state  *engineState
 	store  *runStore
 }
 
-func (h *parallelHandler) Execute(node graph.Node, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph) (harness.Outcome, *harness.Error) {
-	parallel, ok := node.(*graph.ParallelNode)
+func (h *fanOutHandler) Execute(node graph.Node, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph) (harness.Outcome, *harness.Error) {
+	parallel, ok := node.(*graph.FanOutNode)
 	if !ok {
-		return harness.Outcome{}, terminalError(fmt.Sprintf("parallel handler cannot execute node type %s", node.NodeType()))
+		return harness.Outcome{}, terminalError(fmt.Sprintf("fan_out handler cannot execute node type %s", node.NodeType()))
 	}
 	limit := 4
 	if parallel.MaxParallel.Present {
@@ -36,7 +36,7 @@ func (h *parallelHandler) Execute(node graph.Node, offered []graph.Edge, scope E
 		return harness.Outcome{}, terminalError(fmt.Sprintf("unsupported parallel workspace policy %q", workspace))
 	}
 
-	join, err := parallelFanIn(*pipeline, parallel.ID)
+	join, err := fanOutFanIn(*pipeline, parallel.ID)
 	if err != nil {
 		return harness.Outcome{}, terminalError(err.Error())
 	}
@@ -72,11 +72,11 @@ func (h *parallelHandler) Execute(node graph.Node, offered []graph.Edge, scope E
 	} else {
 		frozen, freezeErr := freezeGitWorkspaceWithStop(scope.Workdir, scope.Stop)
 		if freezeErr != nil {
-			return harness.Outcome{}, parallelExecutionError(freezeErr)
+			return harness.Outcome{}, fanOutExecutionError(freezeErr)
 		}
 		worktrees, err = createBranchWorktreesWithStop(frozen, h.store.root, branchIDs, scope.Stop)
 		if err != nil {
-			return harness.Outcome{}, parallelExecutionError(err)
+			return harness.Outcome{}, fanOutExecutionError(err)
 		}
 	}
 	if err := h.writeResolvedBranches(scope.StageDir, parallel, worktrees); err != nil {
@@ -113,10 +113,10 @@ type resolvedBranchRecord struct {
 	Workspace string         `json:"workspace"`
 	Workdir   string         `json:"workdir"`
 	Artifacts []string       `json:"artifacts"`
-	Codergen  map[string]any `json:"codergen,omitempty"`
+	Agent     map[string]any `json:"agent,omitempty"`
 }
 
-func (h *parallelHandler) writeResolvedBranches(stageDir string, parallel *graph.ParallelNode, worktrees []branchWorktree) error {
+func (h *fanOutHandler) writeResolvedBranches(stageDir string, parallel *graph.FanOutNode, worktrees []branchWorktree) error {
 	structured := false
 	for _, branch := range parallel.Branches {
 		if !branch.IsLegacy() {
@@ -136,28 +136,28 @@ func (h *parallelHandler) writeResolvedBranches(stageDir string, parallel *graph
 			Workdir:   worktree.Workdir,
 			Artifacts: append([]string(nil), branch.Artifacts...),
 		}
-		if node, ok := h.runner.nodes[worktree.BranchID].(*graph.CodergenNode); ok && !branch.IsLegacy() {
+		if node, ok := h.runner.nodes[worktree.BranchID].(*graph.AgentNode); ok && !branch.IsLegacy() {
 			raw, err := json.Marshal(node)
 			if err != nil {
 				return err
 			}
-			if err := json.Unmarshal(raw, &records[index].Codergen); err != nil {
+			if err := json.Unmarshal(raw, &records[index].Agent); err != nil {
 				return err
 			}
-			records[index].Codergen["type"] = "codergen"
+			records[index].Agent["type"] = "agent"
 		}
 	}
 	return writeJSON(filepath.Join(stageDir, "resolved-branches.json"), records)
 }
 
-func parallelExecutionError(err error) *harness.Error {
+func fanOutExecutionError(err error) *harness.Error {
 	if errors.Is(err, errGitStopped) {
 		return interruptedError("stopped by operator")
 	}
 	return terminalError(err.Error())
 }
 
-func (h *parallelHandler) runBranches(worktrees []branchWorktree, joinID string, limit int) ([]BranchResult, error) {
+func (h *fanOutHandler) runBranches(worktrees []branchWorktree, joinID string, limit int) ([]BranchResult, error) {
 	results := make([]BranchResult, len(worktrees))
 	if limit > len(worktrees) {
 		limit = len(worktrees)
@@ -174,7 +174,7 @@ func (h *parallelHandler) runBranches(worktrees []branchWorktree, joinID string,
 				worktree := worktrees[index]
 				branchStarted := time.Now()
 				if err := h.store.appendTimeline(timelineEvent{
-					"type":   "ParallelBranchStarted",
+					"type":   "FanOutBranchStarted",
 					"branch": worktree.BranchID,
 					"index":  index,
 				}); err != nil {
@@ -194,7 +194,7 @@ func (h *parallelHandler) runBranches(worktrees []branchWorktree, joinID string,
 				}
 				results[index] = h.runner.walkBranch(worktree.BranchID, joinID, worktree.Workdir, h.state, h.store)
 				if err := h.store.appendTimeline(timelineEvent{
-					"type":     "ParallelBranchCompleted",
+					"type":     "FanOutBranchCompleted",
 					"branch":   worktree.BranchID,
 					"index":    index,
 					"duration": time.Since(branchStarted).String(),
@@ -267,23 +267,23 @@ func branchError(runErr *harness.Error) *harness.Error {
 	return terminalError(runErr.Message)
 }
 
-func parallelFanIn(pipeline graph.Graph, parallelID string) (*graph.FanInNode, error) {
+func fanOutFanIn(pipeline graph.Graph, parallelID string) (*graph.FanInNode, error) {
 	var join *graph.FanInNode
 	for _, node := range pipeline.Nodes {
 		candidate, ok := node.(*graph.FanInNode)
 		if !ok {
 			continue
 		}
-		owner, err := lint.ParallelForFanIn(pipeline, candidate.ID)
+		owner, err := lint.FanOutForFanIn(pipeline, candidate.ID)
 		if err == nil && owner.ID == parallelID {
 			if join != nil {
-				return nil, fmt.Errorf("parallel node %q has multiple fan-in nodes", parallelID)
+				return nil, fmt.Errorf("fan_out node %q has multiple fan-in nodes", parallelID)
 			}
 			join = candidate
 		}
 	}
 	if join == nil {
-		return nil, fmt.Errorf("parallel node %q has no designated fan-in", parallelID)
+		return nil, fmt.Errorf("fan_out node %q has no designated fan-in", parallelID)
 	}
 	return join, nil
 }

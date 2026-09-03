@@ -181,13 +181,13 @@ func runPipeline(command *cobra.Command, pipeline graph.Graph, workdir, logsRoot
 	}
 
 	registry := engine.NewRegistry()
-	codergenConfig := engine.CodergenConfig{
+	agentConfig := engine.AgentConfig{
 		Backend:                backend,
 		DefaultModel:           defaultModel,
 		DefaultReasoningEffort: defaultReasoningEffort,
 	}
-	registry.Register("codergen", engine.NewCodergenHandler(codergenConfig))
-	registry.Register("parallel.fan_in", engine.NewFanInHandler(codergenConfig))
+	registry.Register("agent", engine.NewAgentHandler(agentConfig))
+	registry.Register("fan_in", engine.NewFanInHandler(agentConfig))
 	runnerConfig := engine.RunnerConfig{
 		LogsRoot:               logsRoot,
 		Workdir:                workdir,

@@ -105,8 +105,8 @@ func (n *NodeBase) DisplayLabel() string {
 	return n.ID
 }
 
-// CodergenNode runs an LLM task.
-type CodergenNode struct {
+// AgentNode runs an LLM task.
+type AgentNode struct {
 	NodeBase
 	Edges     []Edge                   `json:"edges,omitzero"`
 	MaxVisits jsonschema.Optional[int] `json:"max_visits,omitzero"`
@@ -114,13 +114,13 @@ type CodergenNode struct {
 	synthesized bool
 }
 
-func (*CodergenNode) isNode()           {}
-func (n *CodergenNode) Base() *NodeBase { return &n.NodeBase }
-func (*CodergenNode) NodeType() string  { return "codergen" }
+func (*AgentNode) isNode()           {}
+func (n *AgentNode) Base() *NodeBase { return &n.NodeBase }
+func (*AgentNode) NodeType() string  { return "agent" }
 
 // IsSynthesized reports whether the node was resolved from a structured
 // parallel branch.
-func (n *CodergenNode) IsSynthesized() bool { return n.synthesized }
+func (n *AgentNode) IsSynthesized() bool { return n.synthesized }
 
 // FanInNode evaluates parallel branch evidence with an LLM turn.
 type FanInNode struct {
@@ -132,9 +132,9 @@ type FanInNode struct {
 
 func (*FanInNode) isNode()           {}
 func (n *FanInNode) Base() *NodeBase { return &n.NodeBase }
-func (*FanInNode) NodeType() string  { return "parallel.fan_in" }
+func (*FanInNode) NodeType() string  { return "fan_in" }
 
-// LLMNodeFields are shared by codergen and parallel fan-in nodes.
+// LLMNodeFields are shared by agent and fan-in nodes.
 type LLMNodeFields struct {
 	Prompt          jsonschema.Optional[string]   `json:"prompt,omitzero"`
 	MaxRetries      jsonschema.Optional[int]      `json:"max_retries,omitzero"`
@@ -146,9 +146,9 @@ type LLMNodeFields struct {
 	ReasoningEffort jsonschema.Optional[string]   `json:"reasoning_effort,omitzero"`
 }
 
-// CodergenOverride selectively replaces fields inherited from a parallel
-// node's Codergen configuration. Every field is optional by design.
-type CodergenOverride struct {
+// AgentOverride selectively replaces fields inherited from a fan-out node's
+// agent configuration. Every field is optional by design.
+type AgentOverride struct {
 	Label           jsonschema.Optional[string]   `json:"label,omitzero"`
 	Prompt          jsonschema.Optional[string]   `json:"prompt,omitzero"`
 	MaxRetries      jsonschema.Optional[int]      `json:"max_retries,omitzero"`
@@ -169,19 +169,24 @@ func (n *LLMNodeFields) PromptValue(label string) string {
 	return label
 }
 
-// ToolNode executes one shell command.
-type ToolNode struct {
-	NodeBase
-	ToolCommand string                        `json:"tool_command"`
-	OnSuccess   string                        `json:"on_success"`
-	OnError     jsonschema.Optional[string]   `json:"on_error,omitzero"`
-	Timeout     jsonschema.Optional[Duration] `json:"timeout,omitzero"`
-	MaxVisits   jsonschema.Optional[int]      `json:"max_visits,omitzero"`
+// CommandEdges are the engine-known routes out of a command node.
+type CommandEdges struct {
+	Success string                      `json:"success"`
+	Error   jsonschema.Optional[string] `json:"error,omitzero"`
 }
 
-func (*ToolNode) isNode()           {}
-func (n *ToolNode) Base() *NodeBase { return &n.NodeBase }
-func (*ToolNode) NodeType() string  { return "tool" }
+// CommandNode executes one shell command.
+type CommandNode struct {
+	NodeBase
+	Command   string                        `json:"command"`
+	Edges     CommandEdges                  `json:"edges"`
+	Timeout   jsonschema.Optional[Duration] `json:"timeout,omitzero"`
+	MaxVisits jsonschema.Optional[int]      `json:"max_visits,omitzero"`
+}
+
+func (*CommandNode) isNode()           {}
+func (n *CommandNode) Base() *NodeBase { return &n.NodeBase }
+func (*CommandNode) NodeType() string  { return "command" }
 
 // WorkspacePolicy controls whether parallel branches receive separate Git
 // worktrees or run together in the caller's workspace.
@@ -192,46 +197,46 @@ const (
 	WorkspaceShared   WorkspacePolicy = "shared"
 )
 
-// ParallelBranch is either a legacy branch-root reference or a synthesized
-// Codergen branch with declared output artifacts.
-type ParallelBranch struct {
-	ID        string                                `json:"id"`
-	Artifacts []string                              `json:"artifacts"`
-	Codergen  jsonschema.Optional[CodergenOverride] `json:"codergen,omitzero"`
+// FanOutBranch is either a legacy branch-root reference or a synthesized
+// agent branch with declared output artifacts.
+type FanOutBranch struct {
+	ID        string                             `json:"id"`
+	Artifacts []string                           `json:"artifacts"`
+	Agent     jsonschema.Optional[AgentOverride] `json:"agent,omitzero"`
 	legacy    bool
 }
 
-// LegacyParallelBranch constructs an existing-style branch-root reference.
-func LegacyParallelBranch(id string) ParallelBranch {
-	return ParallelBranch{ID: id, legacy: true}
+// LegacyFanOutBranch constructs an existing-style branch-root reference.
+func LegacyFanOutBranch(id string) FanOutBranch {
+	return FanOutBranch{ID: id, legacy: true}
 }
 
-// LegacyParallelBranches constructs existing-style branch-root references.
-func LegacyParallelBranches(ids ...string) []ParallelBranch {
-	branches := make([]ParallelBranch, len(ids))
+// LegacyFanOutBranches constructs existing-style branch-root references.
+func LegacyFanOutBranches(ids ...string) []FanOutBranch {
+	branches := make([]FanOutBranch, len(ids))
 	for index, id := range ids {
-		branches[index] = LegacyParallelBranch(id)
+		branches[index] = LegacyFanOutBranch(id)
 	}
 	return branches
 }
 
 // IsLegacy reports whether the branch was authored as a string reference.
-func (b ParallelBranch) IsLegacy() bool { return b.legacy }
+func (b FanOutBranch) IsLegacy() bool { return b.legacy }
 
-// ParallelNode concurrently walks each outgoing branch.
-type ParallelNode struct {
+// FanOutNode concurrently walks each outgoing branch.
+type FanOutNode struct {
 	NodeBase
-	Branches    []ParallelBranch                     `json:"branches"`
-	Edges       []Edge                               `json:"edges,omitzero"`
+	Branches    []FanOutBranch                       `json:"branches"`
+	BranchEdges []Edge                               `json:"branch_edges,omitzero"`
 	MaxParallel jsonschema.Optional[int]             `json:"max_parallel,omitzero"`
 	MaxVisits   jsonschema.Optional[int]             `json:"max_visits,omitzero"`
 	Workspace   jsonschema.Optional[WorkspacePolicy] `json:"workspace,omitzero"`
 	LLMNodeFields
 }
 
-func (*ParallelNode) isNode()           {}
-func (n *ParallelNode) Base() *NodeBase { return &n.NodeBase }
-func (*ParallelNode) NodeType() string  { return "parallel" }
+func (*FanOutNode) isNode()           {}
+func (n *FanOutNode) Base() *NodeBase { return &n.NodeBase }
+func (*FanOutNode) NodeType() string  { return "fan_out" }
 
 // SupervisorNode observes declared nodes and coaches them outside the walk.
 type SupervisorNode struct {
@@ -258,11 +263,8 @@ type LoopNode struct {
 	// when this loop node lies inside another loop's body, in which case it
 	// iterates the enclosing item's checklist field.
 	Checklist jsonschema.Optional[string] `json:"checklist,omitzero"`
-	// Body is the entry node of one lap.
-	Body string `json:"body"`
-	// OnDone is the target when the evaluator decides the loop is done: a node
-	// ID or success/failure.
-	OnDone string `json:"on_done"`
+	// Edges are the engine-known routes for another lap and for leaving the loop.
+	Edges LoopEdges `json:"edges"`
 	// MaxVisits bounds arrivals at the loop node, laps plus one.
 	MaxVisits jsonschema.Optional[int] `json:"max_visits,omitzero"`
 	// Timeout bounds one item's validation command, the infer judge turn, and
@@ -282,12 +284,18 @@ type LoopNode struct {
 	EvaluatorReasoningEffort jsonschema.Optional[string] `json:"evaluator_reasoning_effort,omitzero"`
 }
 
+// LoopEdges are the engine-known routes out of a loop node.
+type LoopEdges struct {
+	Loop string `json:"loop"`
+	Exit string `json:"exit"`
+}
+
 func (*LoopNode) isNode()           {}
 func (n *LoopNode) Base() *NodeBase { return &n.NodeBase }
 func (*LoopNode) NodeType() string  { return "loop" }
 
 // MaxParallelValue returns the explicit maximum or the system default.
-func (n *ParallelNode) MaxParallelValue() int {
+func (n *FanOutNode) MaxParallelValue() int {
 	if n.MaxParallel.Present {
 		return n.MaxParallel.Value
 	}
@@ -296,7 +304,7 @@ func (n *ParallelNode) MaxParallelValue() int {
 
 // WorkspacePolicyValue returns the explicit workspace policy or the
 // compatibility-preserving isolated default.
-func (n *ParallelNode) WorkspacePolicyValue() WorkspacePolicy {
+func (n *FanOutNode) WorkspacePolicyValue() WorkspacePolicy {
 	if n.Workspace.Present {
 		return n.Workspace.Value
 	}
@@ -304,7 +312,7 @@ func (n *ParallelNode) WorkspacePolicyValue() WorkspacePolicy {
 }
 
 // BranchIDs returns branch roots in authored order.
-func (n *ParallelNode) BranchIDs() []string {
+func (n *FanOutNode) BranchIDs() []string {
 	ids := make([]string, len(n.Branches))
 	for index, branch := range n.Branches {
 		ids[index] = branch.ID
@@ -313,13 +321,13 @@ func (n *ParallelNode) BranchIDs() []string {
 }
 
 // Branch returns branch metadata by ID.
-func (n *ParallelNode) Branch(id string) (ParallelBranch, bool) {
+func (n *FanOutNode) Branch(id string) (FanOutBranch, bool) {
 	for _, branch := range n.Branches {
 		if branch.ID == id {
 			return branch, true
 		}
 	}
-	return ParallelBranch{}, false
+	return FanOutBranch{}, false
 }
 
 // IntervalValue returns the explicit patrol interval or the system default.
@@ -343,20 +351,20 @@ func IsPseudoTarget(target string) bool { return target == Success || target == 
 // RoutingTargets returns the authored routing targets for a walk node.
 func RoutingTargets(node Node) []string {
 	switch node := node.(type) {
-	case *CodergenNode:
+	case *AgentNode:
 		return edgeTargets(node.Edges)
 	case *FanInNode:
 		return edgeTargets(node.Edges)
-	case *ToolNode:
-		targets := []string{node.OnSuccess}
-		if node.OnError.Present {
-			targets = append(targets, node.OnError.Value)
+	case *CommandNode:
+		targets := []string{node.Edges.Success}
+		if node.Edges.Error.Present {
+			targets = append(targets, node.Edges.Error.Value)
 		}
 		return targets
-	case *ParallelNode:
+	case *FanOutNode:
 		return node.BranchIDs()
 	case *LoopNode:
-		return []string{node.Body, node.OnDone}
+		return []string{node.Edges.Loop, node.Edges.Exit}
 	default:
 		return nil
 	}
@@ -365,7 +373,7 @@ func RoutingTargets(node Node) []string {
 // ChoiceEdges returns the authored choice edges for a chooser node.
 func ChoiceEdges(node Node) []Edge {
 	switch node := node.(type) {
-	case *CodergenNode:
+	case *AgentNode:
 		return node.Edges
 	case *FanInNode:
 		return node.Edges
@@ -377,13 +385,13 @@ func ChoiceEdges(node Node) []Edge {
 // MaxVisits returns a node's optional visit budget.
 func MaxVisits(node Node) jsonschema.Optional[int] {
 	switch node := node.(type) {
-	case *CodergenNode:
+	case *AgentNode:
 		return node.MaxVisits
 	case *FanInNode:
 		return node.MaxVisits
-	case *ToolNode:
+	case *CommandNode:
 		return node.MaxVisits
-	case *ParallelNode:
+	case *FanOutNode:
 		return node.MaxVisits
 	case *LoopNode:
 		return node.MaxVisits

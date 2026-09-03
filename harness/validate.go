@@ -65,8 +65,8 @@ func ValidateContentParts(parts []ContentPart) *Error {
 	return nil
 }
 
-// ValidateCodergenTurn validates a fully resolved backend turn.
-func ValidateCodergenTurn(turn CodergenTurn) *Error {
+// ValidateAgentTurn validates a fully resolved backend turn.
+func ValidateAgentTurn(turn AgentTurn) *Error {
 	if err := validateBackendTurn(turn.NodeID, turn.Provider, turn.Model, turn.ReasoningEffort, turn.Workdir, turn.RunLog, turn.Parts, turn.Timeout); err != nil {
 		return err
 	}

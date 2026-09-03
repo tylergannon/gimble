@@ -28,16 +28,17 @@ A loop is two nodes pointing at each other:
 
 ```yaml
 - id: implement
-  type: codergen
+  type: agent
   max_visits: 5
   prompt: $goal
   edges: [{to: check}]
 
 - id: check
-  type: tool
-  tool_command: ./run_tests.sh
-  on_success: success
-  on_error: implement
+  type: command
+  command: ./run_tests.sh
+  edges:
+    success: success
+    error: implement
 ```
 
 The agent works. The command decides. Failure routes back. `max_visits` is
@@ -45,7 +46,7 @@ the budget.
 
 ## Why
 
-- **"Done" is an exit code, not an agent's opinion.** Deterministic tool
+- **"Done" is an exit code, not an agent's opinion.** Deterministic command
   nodes end loops; models never grade their own homework.
 - **Routing belongs to the agent, not the engine.** Each turn answers a
   schema-enforced choice of offered successors — the engine never parses

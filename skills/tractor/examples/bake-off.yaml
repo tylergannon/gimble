@@ -15,12 +15,12 @@ defaults:
 # the final check.
 nodes:
   - id: attempts
-    type: parallel
+    type: fan_out
     max_parallel: 3
     branches:
       - id: attempt_claude
         artifacts: [REPORT.md]
-        codergen:
+        agent:
           llm_provider: anthropic
           llm_model: claude-sonnet-5
           reasoning_effort: low
@@ -31,7 +31,7 @@ nodes:
             works.
       - id: attempt_codex
         artifacts: [REPORT.md]
-        codergen:
+        agent:
           llm_provider: openai
           llm_model: gpt-5.6-sol
           reasoning_effort: low
@@ -42,7 +42,7 @@ nodes:
             works.
       - id: attempt_gemini
         artifacts: [REPORT.md]
-        codergen:
+        agent:
           llm_provider: gemini
           llm_model: gemini-3.1-pro-low
           reasoning_effort: low
@@ -51,11 +51,11 @@ nodes:
 
             Leave REPORT.md recording what you built and how you proved it
             works.
-    edges:
+    branch_edges:
       - to: judge
 
   - id: judge
-    type: parallel.fan_in
+    type: fan_in
     llm_provider: anthropic
     llm_model: claude-sonnet-5
     reasoning_effort: low
@@ -67,11 +67,12 @@ nodes:
       - to: verify
 
   - id: verify
-    type: tool
-    tool_command: |
+    type: command
+    command: |
       set -eu
       test "$(sh fizzbuzz.sh 3 | tail -1)" = Fizz
       test "$(sh fizzbuzz.sh 5 | tail -1)" = Buzz
       test "$(sh fizzbuzz.sh 15 | tail -1)" = FizzBuzz
       test -f WINNER.md
-    on_success: success
+    edges:
+      success: success

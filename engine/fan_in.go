@@ -26,23 +26,23 @@ type BranchResult struct {
 	Segments  []string         `json:"segments"`
 }
 
-// FanInHandler evaluates branch evidence through the codergen path.
+// FanInHandler evaluates branch evidence through the agent path.
 type FanInHandler struct {
-	codergen *CodergenHandler
+	agent *AgentHandler
 }
 
-// NewFanInHandler constructs a fan-in handler with the codergen configuration.
-func NewFanInHandler(config CodergenConfig) *FanInHandler {
-	return &FanInHandler{codergen: NewCodergenHandler(config)}
+// NewFanInHandler constructs a fan-in handler with the agent configuration.
+func NewFanInHandler(config AgentConfig) *FanInHandler {
+	return &FanInHandler{agent: NewAgentHandler(config)}
 }
 
-// Execute loads the owning parallel's evidence and runs the fan-in turn.
+// Execute loads the owning fan-out's evidence and runs the fan-in turn.
 func (h *FanInHandler) Execute(node graph.Node, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph) (harness.Outcome, *harness.Error) {
 	join, ok := node.(*graph.FanInNode)
 	if !ok {
 		return harness.Outcome{}, terminalError(fmt.Sprintf("fan-in handler cannot execute node type %s", node.NodeType()))
 	}
-	owner, err := lint.ParallelForFanIn(*pipeline, join.ID)
+	owner, err := lint.FanOutForFanIn(*pipeline, join.ID)
 	if err != nil {
 		return harness.Outcome{}, terminalError(err.Error())
 	}
@@ -71,7 +71,7 @@ func (h *FanInHandler) Execute(node graph.Node, offered []graph.Edge, scope Exec
 	prompt = expandPrompt(prompt, scope.Goal)
 	prompt += "\n\n" + renderBranchResults(results)
 	prompt = prependFrame(scope.Frame, prompt)
-	return h.codergen.executeTurn(join, &join.LLMNodeFields, offered, scope, pipeline, prompt)
+	return h.agent.executeTurn(join, &join.LLMNodeFields, offered, scope, pipeline, prompt)
 }
 
 func readBranchResults(path string) ([]BranchResult, error) {

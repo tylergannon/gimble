@@ -31,7 +31,7 @@ func TestDefinitionProofPipelineWithTenWorkNodesCompletes(t *testing.T) {
 
 	registry := NewRegistry()
 	var executed []string
-	registry.Register("codergen", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		executed = append(executed, node.Base().ID)
 		return harness.Outcome{Notes: "completed " + node.Base().ID}, nil
 	}))
@@ -87,7 +87,7 @@ func TestDefinitionProofRunnerCodergenChoiceSchemaRoutesThroughHarnessBackend(t 
 	}
 	pipeline := testGraph(
 		startNode("start", "choose"),
-		&graph.CodergenNode{
+		&graph.AgentNode{
 			NodeBase: graph.NodeBase{ID: "choose"},
 			Edges: []graph.Edge{
 				{To: "left", Condition: "choose the left result"},
@@ -95,11 +95,11 @@ func TestDefinitionProofRunnerCodergenChoiceSchemaRoutesThroughHarnessBackend(t 
 			},
 			LLMNodeFields: graph.LLMNodeFields{Prompt: optional("Select the better result")},
 		},
-		&graph.ToolNode{NodeBase: graph.NodeBase{ID: "left"}, ToolCommand: "true", OnSuccess: graph.Success},
-		&graph.ToolNode{NodeBase: graph.NodeBase{ID: "right"}, ToolCommand: "true", OnSuccess: graph.Success},
+		&graph.CommandNode{NodeBase: graph.NodeBase{ID: "left"}, Command: "true", Edges: graph.CommandEdges{Success: graph.Success}},
+		&graph.CommandNode{NodeBase: graph.NodeBase{ID: "right"}, Command: "true", Edges: graph.CommandEdges{Success: graph.Success}},
 	)
 	registry := NewRegistry()
-	registry.Register("codergen", NewCodergenHandler(CodergenConfig{
+	registry.Register("agent", NewAgentHandler(AgentConfig{
 		Backend:                backend,
 		DefaultModel:           "proof-model",
 		DefaultProvider:        "proof",
@@ -132,7 +132,7 @@ func TestDefinitionProofSideEffectReplaysAcrossResume(t *testing.T) {
 
 	firstScope := ExecutionScope{}
 	firstRegistry := NewRegistry()
-	firstRegistry.Register("codergen", HandlerFunc(func(_ graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	firstRegistry.Register("agent", HandlerFunc(func(_ graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		firstScope = scope
 		if err := appendProofLine(sends, map[string]string{"delivery": "sent", "workdir": scope.Workdir}); err != nil {
 			return harness.Outcome{}, terminalError(err.Error())
@@ -146,7 +146,7 @@ func TestDefinitionProofSideEffectReplaysAcrossResume(t *testing.T) {
 
 	secondScope := ExecutionScope{}
 	secondRegistry := NewRegistry()
-	secondRegistry.Register("codergen", HandlerFunc(func(_ graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	secondRegistry.Register("agent", HandlerFunc(func(_ graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		secondScope = scope
 		if err := appendProofLine(sends, map[string]string{"delivery": "sent", "workdir": scope.Workdir}); err != nil {
 			return harness.Outcome{}, terminalError(err.Error())
@@ -185,15 +185,15 @@ func TestDefinitionProofParallelReplayUsesFreshWorktreeAndReboundSession(t *test
 	repo := newGitTestRepository(t)
 	root := shortProofTempDir(t)
 	sends := filepath.Join(t.TempDir(), "sends.jsonl")
-	parallel := &graph.ParallelNode{
+	parallel := &graph.FanOutNode{
 		NodeBase:    graph.NodeBase{ID: "fanout"},
-		Branches:    graph.LegacyParallelBranches("send", "other"),
+		Branches:    graph.LegacyFanOutBranches("send", "other"),
 		MaxParallel: jsonschema.Optional[int]{Present: true, Value: 2},
 	}
 	pipeline := testGraph(
 		startNode("start", "fanout"),
 		parallel,
-		&graph.CodergenNode{
+		&graph.AgentNode{
 			NodeBase: graph.NodeBase{ID: "send"},
 			Edges:    []graph.Edge{{To: "join"}},
 			LLMNodeFields: graph.LLMNodeFields{
@@ -201,7 +201,7 @@ func TestDefinitionProofParallelReplayUsesFreshWorktreeAndReboundSession(t *test
 				Fidelity: optional("full"),
 			},
 		},
-		&graph.ToolNode{NodeBase: graph.NodeBase{ID: "other"}, ToolCommand: "true", OnSuccess: "join"},
+		&graph.CommandNode{NodeBase: graph.NodeBase{ID: "other"}, Command: "true", Edges: graph.CommandEdges{Success: "join"}},
 		&graph.FanInNode{NodeBase: graph.NodeBase{ID: "join"}, Edges: []graph.Edge{{To: "done"}}},
 		exitNode("done"),
 	)
@@ -285,16 +285,16 @@ func TestDefinitionProofParallelReplayUsesFreshWorktreeAndReboundSession(t *test
 	}
 }
 
-func replayProofRegistry(backend harness.CodergenBackend) *Registry {
+func replayProofRegistry(backend harness.AgentBackend) *Registry {
 	registry := NewRegistry()
-	config := CodergenConfig{
+	config := AgentConfig{
 		Backend:                backend,
 		DefaultModel:           "proof-model",
 		DefaultProvider:        "proof",
 		DefaultReasoningEffort: "high",
 	}
-	registry.Register("codergen", NewCodergenHandler(config))
-	registry.Register("parallel.fan_in", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", NewAgentHandler(config))
+	registry.Register("fan_in", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		return harness.Outcome{Notes: "fan-in completed"}, nil
 	}))
 	return registry

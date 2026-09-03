@@ -29,7 +29,7 @@ start: implement
 
 nodes:
   - id: implement
-    type: codergen
+    type: agent
     prompt: |
       Investigate $goal. Make the smallest complete change and explain
       the evidence that should be checked before shipping.
@@ -37,10 +37,11 @@ nodes:
       - to: verify
 
   - id: verify
-    type: tool
-    tool_command: go test ./...
-    on_success: success
-    on_error: implement
+    type: command
+    command: go test ./...
+    edges:
+      success: success
+      error: implement
     max_visits: 3
 ```
 
@@ -79,22 +80,22 @@ Tractor deliberately has a small, fixed node vocabulary.
 
 | Type              | Use it for                                          | How it routes                                                     |
 | ----------------- | --------------------------------------------------- | ----------------------------------------------------------------- |
-| `codergen`        | Planning, implementation, review, or any LLM task   | The agent chooses from its `edges`.                               |
-| `tool`            | Tests, builds, scripts, and other mechanical checks | Exit code selects `on_success` or `on_error`.                     |
-| `loop`            | Working through a checklist file, proving each item | An open item remains selects `body`; none selects `on_done`.      |
-| `parallel`        | Running independent alternatives concurrently       | `branches` reference authored roots or declare Codergen branches. |
-| `parallel.fan_in` | Comparing and consolidating parallel results        | The fan-in agent reads branch evidence, artifacts, and routes.    |
+| `agent`           | Planning, implementation, review, or any LLM task   | The agent chooses from its `edges` list.                           |
+| `command`         | Tests, builds, scripts, and other mechanical checks | Exit code selects `edges.success` or `edges.error`.                |
+| `loop`            | Working through a checklist file, proving each item | An open item selects `edges.loop`; none selects `edges.exit`.      |
+| `fan_out`         | Running independent alternatives concurrently       | Every top-level `branches` entry runs.                             |
+| `fan_in`          | Comparing and consolidating parallel results        | The fan-in agent chooses from its `edges` list.                    |
 | `supervisor`      | Periodically observing and coaching active nodes    | It returns `ok` or steers a node; it never joins the walk.        |
 
-Use `tool` when a process can decide correctly from an exit code. Use `codergen` when the decision requires judgment. Use `loop` when the work is a list of claims, each proven by a command or a judged artifact. That distinction saves tokens and makes deterministic gates genuinely deterministic.
+Use `command` when a process can decide correctly from an exit code. Use `agent` when the decision requires judgment. Use `loop` when the work is a list of claims, each proven by a command or a judged artifact. That distinction saves tokens and makes deterministic gates genuinely deterministic.
 
 ## Put routing on the chooser
 
-A `codergen` or `parallel.fan_in` node carries an `edges` array. If there is one possible successor, the edge can be unconditional. At a branch point, every edge needs a concise, mutually useful prose condition.
+An `agent` or `fan_in` node carries an `edges` array. If there is one possible successor, the edge can be unconditional. At a branch point, every edge needs a concise, mutually useful prose condition.
 
 ```yaml
 - id: review
-  type: codergen
+  type: agent
   prompt: Review the implementation against the request and the test evidence.
   edges:
     - to: success
@@ -107,18 +108,19 @@ A `codergen` or `parallel.fan_in` node carries an `edges` array. If there is one
 
 Conditions are instructions to the choosing agent, not a miniature expression language. Tractor constrains the answer to an offered target, records the response, and then follows that target.
 
-Tool nodes are different because the shell has already made the decision:
+Command nodes are different because the shell has already made the decision:
 
 ```yaml
 - id: verify
-  type: tool
-  tool_command: vp run verify
+  type: command
+  command: vp run verify
   timeout: 10m
-  on_success: success
-  on_error: repair
+  edges:
+    success: success
+    error: repair
 ```
 
-If `on_error` is absent, a nonzero exit fails the run. That is a good default for assertion-style checks.
+If `edges.error` is absent, a nonzero exit fails the run. That is a good default for assertion-style checks.
 
 ## Control sessions and retries
 
@@ -144,36 +146,36 @@ Keep prompts responsible for the work, not for re-explaining the entire pipeline
 
 ## Fan out, then converge
 
-Parallel nodes support two branch forms. A string names an authored branch root, preserving the original multi-node branch model. A structured branch declares one synthesized Codergen stage, its required artifacts, and an optional `codergen` override. The synthesized stage inherits the parallel node's prompt, model, provider, reasoning effort, retry, fidelity, thread, timeout, label, visit, and routing fields; only fields present in `codergen` replace those values.
+Fan-out nodes support two branch forms. A string names an authored branch root, preserving the original multi-node branch model. A structured branch declares one synthesized agent stage, its required artifacts, and an optional `codergen` override. The synthesized stage inherits the fan-out node's prompt, model, provider, reasoning effort, retry, fidelity, thread, timeout, label, visit, and `branch_edges`; only fields present in `codergen` replace those values.
 
 The default `workspace` is `isolated`. Tractor freezes the parent Git repository, creates a separate worktree for each branch, and collects every declared regular file or directory into durable fan-out stage evidence before deleting the branch worktrees. `branches.json` records each declared path, collected path, source path, outcome, stage directory, and run-log segment. The fan-in receives those collected paths directly.
 
 ```yaml
 - id: compare
-  type: parallel
+  type: fan_out
   workspace: isolated
   max_parallel: 2
   prompt: Review the change and write the branch's declared report.
   llm_provider: openai
   llm_model: gpt-5.6-sol
   reasoning_effort: low
-  edges:
+  branch_edges:
     - to: choose
   branches:
     - id: openai_review
       artifacts: [reports/openai.md]
-      codergen:
+      agent:
         prompt: Write the OpenAI review to reports/openai.md.
     - id: claude_review
       artifacts: [reports/claude.md]
-      codergen:
+      agent:
         prompt: Write the Claude review to reports/claude.md.
         llm_provider: anthropic
         llm_model: claude-sonnet-4-5
         reasoning_effort: medium
 
 - id: choose
-  type: parallel.fan_in
+  type: fan_in
   prompt: Read both collected reports, reconcile their findings, and verify the result here.
   edges:
     - to: success
@@ -185,11 +187,11 @@ Legacy string branches remain useful when each alternative needs several authore
 
 ```yaml
 - id: explore
-  type: parallel
+  type: fan_out
   branches: [minimal_fix, structural_fix]
 ```
 
-Every branch form must converge on one `parallel.fan_in`. Legacy branch node sets must be disjoint until that join, nested parallel nodes are not supported, and a failed fan-out replays as a unit. Use parallelism for genuinely independent alternatives—not merely to make a linear workflow look sophisticated.
+Every branch form must converge on one `fan_in`. Legacy branch node sets must be disjoint until that join, nested fan-out nodes are not supported, and a failed fan-out replays as a unit. Use parallelism for genuinely independent alternatives—not merely to make a linear workflow look sophisticated.
 
 ## Add live supervision sparingly
 
@@ -210,18 +212,19 @@ Supervisors are advisory. They do not route, block, or decide success. Prefer cl
 
 ## Work through a checklist
 
-A `loop` node iterates a checklist file. Its routing targets are `body`, the entry node of one lap, and `on_done`, followed when the loop evaluator returns `done`. `max_visits` on the loop node counts arrivals (laps plus one) and is the only ceiling. `timeout` inherits from `defaults`; `llm_model`, `llm_provider`, and `reasoning_effort` configure the item judge independently. When omitted, the judge uses `flash` (`gemini-3.8-flash-medium`) on the `gemini` provider at medium effort. The evaluator's separate `evaluator_llm_model`, `evaluator_llm_provider`, and `evaluator_reasoning_effort` fields default to the pipeline defaults.
+A `loop` node iterates a checklist file. Its routing targets are `edges.loop`, the entry node of one lap, and `edges.exit`, followed when the loop evaluator returns `done`. `max_visits` on the loop node counts arrivals (laps plus one) and is the only ceiling. `timeout` inherits from `defaults`; `llm_model`, `llm_provider`, and `reasoning_effort` configure the item judge independently. When omitted, the judge uses `flash` (`gemini-3.8-flash-medium`) on the `gemini` provider at medium effort. The evaluator's separate `evaluator_llm_model`, `evaluator_llm_provider`, and `evaluator_reasoning_effort` fields default to the pipeline defaults.
 
 ```yaml
 - id: items
   type: loop
   checklist: ephemeral/projects/demo/checklist.md
-  body: implement
-  on_done: success
+  edges:
+    loop: implement
+    exit: success
   max_visits: 20
 
 - id: implement
-  type: codergen
+  type: agent
   prompt: Implement the current checklist item so that its check holds.
   edges:
     - to: items
@@ -256,9 +259,9 @@ Definition of done in open prose.
 | `checklist`                   | A sub-checklist; a `loop` node inside this loop's body with no `checklist` of its own iterates it.              |
 | `done`                        | Engine-owned. Absent or `false` means open.                                                                     |
 
-On every lap return the engine re-reads the file and validates the framed item plus every item already marked done. The framed item is marked only when the whole set passes; failures are unmarked and re-entered without an evaluator turn. After each passing set — and whenever an arrival has no open item — the evaluator reads the definition of done, the items and results, and the workspace. `done` follows `on_done`; `not_done` re-reads the file and selects its first open item. The evaluator may append, reorder, or rewrite open items, but `not_done` with no open item is a terminal error. Paths are relative to the workdir. Validation results and distinct per-item logs land in `validation.json` and `validation-NNN.log`; infer judges and the evaluator also retain distinct prompt and response files in the loop stage.
+On every lap return the engine re-reads the file and validates the framed item plus every item already marked done. The framed item is marked only when the whole set passes; failures are unmarked and re-entered without an evaluator turn. After each passing set — and whenever an arrival has no open item — the evaluator reads the definition of done, the items and results, and the workspace. `done` follows `edges.exit`; `not_done` re-reads the file and selects its first open item. The evaluator may append, reorder, or rewrite open items, but `not_done` with no open item is a terminal error. Paths are relative to the workdir. Validation results and distinct per-item logs land in `validation.json` and `validation-NNN.log`; infer judges and the evaluator also retain distinct prompt and response files in the loop stage.
 
-The selected item reaches the agent as a frame the engine prepends to every codergen and fan-in prompt inside the body. With nested loops the inner loop's block sits inside the outer one, indented, so the prompt's structure mirrors the loops. A fixed preamble says what the blocks are. One level, flush left for width:
+The selected item reaches the agent as a frame the engine prepends to every agent and fan-in prompt inside the body. With nested loops the inner loop's block sits inside the outer one, indented, so the prompt's structure mirrors the loops. A fixed preamble says what the blocks are. One level, flush left for width:
 
 ```text
 <system-message>
@@ -283,7 +286,7 @@ last validation: failed -- no evidence files
 </iterate>
 ```
 
-`last validation` appears only after a failed lap; the doc only when the item has one. Because the frame carries the item, the body's prompt can be deictic. The body is delimited like a parallel branch: its nodes are entered only from within it, it must route back to the loop node, and it may not sit inside a parallel branch (the frame stack is run-wide).
+`last validation` appears only after a failed lap; the doc only when the item has one. Because the frame carries the item, the body's prompt can be deictic. The body is delimited like a fan-out branch: its nodes are entered only from within it, it must route back to the loop node, and it may not sit inside a fan-out branch (the frame stack is run-wide).
 
 ## Validate before spending tokens
 
@@ -300,7 +303,7 @@ Inside Codex, ask Tractor for the current pipeline schema only when authoring or
 
 1. Write one sentence for `goal` that is observable in the workspace.
 2. Start with a linear graph and explicit proof at the end.
-3. Use tool nodes for facts a command can decide.
+3. Use command nodes for facts a command can decide.
 4. Put branch conditions on the agent that has enough context to choose.
 5. Bound intentional loops with `max_visits`.
 6. When the work is a list of provable claims, write it as a checklist file and iterate it with a `loop` node.
