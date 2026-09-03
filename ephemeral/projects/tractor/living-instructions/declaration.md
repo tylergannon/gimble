@@ -57,10 +57,11 @@ Each promise: the statement, what it must not imply, the archetype
 | P7 | `scope_cop` delivers at least one steer during a planning run, and the steered turn's output differs from what it was writing before the steer. | That supervisors improve plans. | Scenario | Timeline `steer` verdict with a delivered disposition; diff of the stage output before and after. |
 | P8 | No built-in prompt lives in a Go string; every doctrine page is referenced by at least one prompt; `tractor workflow show plan` prints, for each node, text byte-equal to the prompt the engine materialized for that node in a real run. | That the content is well written. | Universal over library files | Render test plus a diff between `show` output and `stages/*/prompt.md` minus the frame block. Exhaustive, no holdout. |
 | P9 | An agent reading only the docs site, spec, and skill bundle runs `workflow run plan`, `workflow show`, and `ask` correctly, including where the interview directory and the holdout come from. | That the docs are complete. | Scenario | `infer` judge over the docs, failing on any claim the `--help` text contradicts (the chapter 1 sprint 3 pattern). |
-| P10 | For every seed in a set of small product descriptions, `plan` ends with an approved package that `validate-plan` accepts and `medium` or `large` runs to `COMPLETED`. | Generality beyond seeds of that size. | Universal over seeds, **with holdout** | Tyler writes the seed set; two seeds are withheld under the holdout root and never shown to the coder or to Claude. `verify` runs them at chapter 7 exit. |
+| P10 | For two small product descriptions written before chapter 5 starts, `plan` ends with an approved package that `validate-plan` accepts and `medium` or `large` runs to `COMPLETED`. | Generality beyond seeds of that size. | Scenario | Both seeds are known; the end-to-end run is the proof. |
 
-P10 is the one place a holdout earns its keep: the coder can overfit to
-seeds it has seen, and the set is too open to check exhaustively.
+No promise here carries a holdout. Two seeds cannot be overfitted in a way
+a holdout would catch, and every other set is checked exhaustively. The
+holdout stays in the workflow for projects whose sets are large.
 
 ## 4. Seams a promise crosses
 
@@ -79,11 +80,12 @@ and the implementer owns it.
 
 ## 5. Chapters
 
-Four chapters, numbered after the three built. Each chapter carries a
+Three chapters, numbered after the three built. Each chapter carries a
 docs-and-skill sprint, as chapter 1 did, so the docs never lag by more
 than one chapter. Chapter 4's sprints are written up front as the
 hand-written standard; later chapters start with a backlog sketch and are
-re-planned each lap (decision 44).
+re-planned each lap (decision 44). No engine change anywhere; chapters 5
+and 6 are content plus workflow-package Go.
 
 ### Chapter 4: the library
 
@@ -103,32 +105,27 @@ Promise P8. Everything later is content, so this comes first.
    screen and cites its source.
 4. Docs and skill. Check: the chapter 1 sprint 3 pattern.
 
-### Chapter 5: the planner core
+### Chapter 5: the planner
 
-Promises P1, P2, P7. Backlog sketch: intake node and first research plan;
-research branches, fan-in, index, quality tool node; brief node with
-elicit-then-prune and batched questions; the halt tool node and the loop;
-decompose for MEDIUM and LARGE; assemble and approve; `scope_cop` and
-`research_auditor`; docs and skill.
+Promises P1 to P5, P7. Backlog sketch: `models.yaml` and per-role model
+resolution; intake node and first research plan; research branches,
+fan-in, index, quality tool node; brief node with elicit-then-prune and
+batched questions; the halt tool node and the loop; decompose for MEDIUM
+and LARGE; validation ledger generation and the `design` node with both
+archetypes and the holdout writer; the `review` node and the verdict
+file; the pass files, the generated review ledger, the `reviewer` node
+and the route back to the owning node; assemble and approve; the four
+supervisors; docs and skill.
 
-### Chapter 6: validation design and plan review
-
-Promises P3, P4, P5. Backlog sketch: validation ledger generation and the
-`design` node with both archetypes and the holdout writer; the `review`
-node and the verdict file; the pass files and the generated review
-ledger; the `reviewer` node and the route back to the owning node;
-`slice_critic` and `proof_skeptic`; docs and skill.
-
-### Chapter 7: execution and the live proof
+### Chapter 6: execution and the live proof
 
 Promises P6, P9, P10. Backlog sketch: `replan` in `medium` and `large`;
-`verify` in `large` with the holdout handoff; the seed set and the
-withheld seeds; the live end-to-end proof and the proof record; docs and
-skill; closeout.
+`verify` in `large` with the holdout handoff; the two seeds; the live
+end-to-end proof and the proof record; docs and skill; closeout.
 
 ## 6. Size and recommendation
 
-LARGE: four chapters, each more than one sprint. Next:
+LARGE: three chapters, each more than one sprint. Next:
 `tractor workflow run large --project tractor/living-instructions` once
 chapter 4 exists; until then, the existing `pipeline.yaml` shape (chapters
 → plan → sprints → implement) with the coder and reviewer as before. See
@@ -138,22 +135,17 @@ question 4.
 
 Batched, with a recommendation each (decision 39).
 
-1. **Chapter split.** Four chapters as above, or fold 6 into 5 for three?
-   Recommend four: chapter 6 is where the new machinery is and deserves
-   its own verify.
-2. **Roles.** GPT (`gpt-5.6-sol`, codex) codes; Claude reviews and answers
-   questions; the `verify` node and the review passes run on Claude so the
-   coder's provider never adjudicates its own work. Recommend yes.
-3. **Holdout seeds.** You write the seed set for P10, including the two
-   withheld seeds, directly into the holdout directory, and neither the
-   coder nor Claude sees the withheld two. Recommend yes; it is the only
-   way the holdout is real.
-4. **Dogfood timing.** Build chapters 4 and 5 on the current
-   `pipeline.yaml` shape, then switch chapters 6 and 7 to run under the
-   new `large` with `replan` and `verify` as soon as they exist. Or finish
-   all four on the old shape and make the complexity-signals research the
-   first real v2 project. Recommend the second: one moving part at a
-   time, and P6 and P10 prove the new shape anyway.
+1. **Chapter split.** Ruled: three, since nothing in chapters 5 and 6
+   is engine machinery.
+2. **Roles.** Ruled: a `models.yaml` in the library maps roles to
+   provider, model, and reasoning effort, with a `not` constraint for
+   independence, deployed with the binary. Initial table in
+   `planning-workflow.md` §6b.
+3. **Holdout seeds.** Withdrawn; see P10. No holdout in this project.
+4. **Dogfood timing.** Ruled: run the v2 algorithm by hand on this
+   project now, Claude as the planner nodes, Tyler as the human gate,
+   subagents as reviewers and research branches, and automate portions
+   as they are built.
 5. **Doctrine authorship.** Claude writes the doctrine pages and skeletons
    as chapter 4 sprint 3, from the extractions already made; the coder
    wires them. Recommend yes; the pages are the design, and writing them

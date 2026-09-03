@@ -252,9 +252,27 @@ Rules:
 - The raw corpus under `sources/` stays as provenance. The library holds
   the distilled teaching, a page each, with a pointer back.
 
+## 6b. Models (decision 54)
+
+`workflow/library/models.yaml` maps roles to provider, model, and
+reasoning effort, and is deployed with the binary. A role may carry
+`not: <role>` meaning its provider must differ from that role's at
+materialization. Initial table:
+
+| Role | Provider, model, effort | Constraint |
+|---|---|---|
+| coder (`implement`) | codex, gpt-5.6-sol, high | |
+| planner nodes (intake, brief, decompose, design, assemble, approve) | claude, claude-fable-5-1, high | |
+| research branches | codex, gpt-5.6-sol, high | |
+| validation reviewer, plan-review reviewer, `verify` | claude, claude-fable-5-1, high | not the provider of the node judged |
+| supervisors | claude, claude-fable-5-1, high | not the provider of the node watched |
+| `replan`, `infer` judges, halt | claude, claude-sonnet-5, medium | |
+| answerer | human, or the calling agent | |
+
 ## 7. Not in this version
 
-Budgets (decision 45). A secret holdout location. Multi-level supervision.
+Budgets (decision 45). A secret holdout location. A holdout in this
+project's own proof (none of its sets is large enough). Multi-level supervision.
 Fan-out drafts of chapter docs. Any engine change. The web client.
 
 ## 8. Claims to demonstrate before this replaces `plan`

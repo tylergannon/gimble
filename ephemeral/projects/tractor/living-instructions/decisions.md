@@ -256,6 +256,16 @@ planner node is withdrawn.
     see. Each release can improve the design and proof workflows as a
     content edit, without touching Go.
 
+54. **Model associations are content.** `workflow/library/models.yaml`
+    maps roles to provider, model, and effort, with a `not` constraint
+    where independence matters; edited by deploying a new version.
+55. **Manual first.** The v2 planning algorithm is run by hand on the
+    living-instructions project itself, effective 2026-09-02: Claude as
+    the planner nodes, Tyler as the human gate, subagents as reviewers
+    and research branches; portions are automated as they are built.
+56. **Three chapters** for v2: library, planner, execution and proof. No
+    engine change in any of them. No holdout in this project's proof.
+
 ## Build order (revised)
 
 1. Interview file plus `tractor ask` and `tractor answer`. **Done** (chapter 1).
