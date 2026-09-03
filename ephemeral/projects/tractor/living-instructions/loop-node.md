@@ -60,10 +60,7 @@ Item fields:
 Rules:
 
 - An item with neither `command` nor `infer` passes when its lap returns.
-  This is what a chapter item looked like through chapter 3: its
-  validation was its sprints. From chapter 4 a chapter item carries the
-  required checks and count guards as `command` and, from chapter 6, is
-  marked only through a `verify` pass (decisions 37 and 41).
+  This is what a chapter item looks like: its validation is its sprints.
   The baby-bear reviewer is the guard against abusing it at the bottom
   level.
 - The engine writes exactly one thing: `done: true` on one item. The

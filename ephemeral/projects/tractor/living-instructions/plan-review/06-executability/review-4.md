@@ -1,3 +1,0 @@
-1. `chapters/04-library/sprints.md` invokes `"sh ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/orphan-walk-and-render.sh"`. Its `lib.sh` copies only tracked files: `"git ls-files -z | tar --null -T - -cf - | tar -xf - -C \"$tmp/src\""`. `SPRINT-01.md`’s declared library layout contains only `README.md`, `workflows/`, and `prompts/`, while `SPRINT-03.md` explicitly defers `"Doctrine pages (sprint 4)"`. Nevertheless, `orphan-walk-and-render.sh` writes `> "$mlib/doctrine/$orphan.md"` without creating `"$mlib/doctrine"`. Empty directories are not tracked or copied, so sprint 3’s command fails at that redirection as written. Owning node: decompose.
-
-ROUTE: fail

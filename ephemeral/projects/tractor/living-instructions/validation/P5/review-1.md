@@ -1,7 +1,0 @@
-1. Yes. A coding agent inherits `TRACTOR_RUN_DIR` ([runner.go](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/engine/runner.go:245)) and can rewrite the ledger plus forge writable `timeline.jsonl` and reviewer segments with seven `LoopValidated` events, synthetic unique session IDs, and a claimed alternate provider. The validator authenticates none of these self-reported artifacts, so no fresh cross-provider reviewer need run.
-
-2. Yes. The design depends on reviewer logs containing provider, model, and session ID ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P5/design.md:16)), but backend logs stamp only `node_id` and `ts` ([backend.go](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/harness/backend.go:371)); the segment index likewise records only sequence, node, path, and timestamp ([spec.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/docs/spec.md:2973)). Moreover, an ID “not seen earlier” proves only within-run uniqueness, not that the native session was newly created.
-
-3. Yes. The promise covers the seven review passes, but the validator additionally requires every project-added pass to be done ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P5/design.md:22)). A run with all seven promised passes correctly engine-marked could therefore fail solely because an optional added pass remains open.
-
-ROUTE: fail

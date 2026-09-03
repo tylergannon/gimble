@@ -1,7 +1,0 @@
-1. No substantive game. Hard-coding the two known seeds is permitted because P10 explicitly disclaims generality, while forged completion, approval, or probe results would require falsifying engine/harness records or defeating the independent example rerun ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P10/design.md:46)).
-
-2. No. Some checks are redundant but not trivially true: engine-authored loop records detect hand-marking, approval is bound to a pre-answer package snapshot, and exact probes are both mechanically compared and independently rerun ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P10/design.md:49)).
-
-3. Yes. A correct `replan` may rename or remove an approved open sprint item when earlier work makes it redundant: decision 44 permits replanning open sprint items, and the engine explicitly handles an item “renamed or removed by a planner” ([decisions.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/decisions.md:197), [docs/spec.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/docs/spec.md:1877)). Such a run can reach `COMPLETED` and pass every seed example, yet the validator rejects it because every original A0 name must remain and receive exactly one validation ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P10/design.md:61)).
-
-ROUTE: fail

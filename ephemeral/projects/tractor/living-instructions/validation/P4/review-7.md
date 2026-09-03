@@ -1,7 +1,0 @@
-1. No substantive game is apparent. Fresh scratch execution blocks prebuilt evidence, while timeline ordering, snapshots, turn transcripts, and semantic inference jointly reject routing theater, cosmetic redesigns, and unread feedback ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P4/design.md:30), [ledger.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/ledger.md:51)).
-
-2. No. The automatically passing `validation.json` is redundant but still distinguishes engine marking from hand-marking; review meaning and note use are captured through prompts, responses, tool segments, and snapshots ([ledger.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/ledger.md:59)).
-
-3. Yes. The command rejects notes having no line of at least forty characters ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P4/design.md:41)), although reviewer notes explicitly have “no format” ([decisions.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/decisions.md:279)). A correct reviewer could write short lines such as “Fail.” and “`command: true` proves nothing.”; design could read them, materially fix the validator, and later pass, satisfying P4 while this command fails.
-
-ROUTE: fail

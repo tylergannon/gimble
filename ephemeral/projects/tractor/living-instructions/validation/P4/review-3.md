@@ -1,7 +1,0 @@
-1. Yes. Cheapest game: make the second `design` turn merely read the notes, then have the second `review` turn edit `design.md` and return `ROUTE: pass`. The validator checks the final design and the stage sequence, but never snapshots `design.md` when the second design stage completes ([design.md:31-49](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P4/design.md:31)). Thus all genuine engine events can pass although the routed-to design turn did no redesign.
-
-2. Yes. The semantic inference depends on uncaptured authorship: it compares the first design with the final file, not the file before and after the second design stage. It therefore cannot establish that `design`, rather than the following reviewer, made the substantive changes. The notes-read tool call proves access, but not who performed the redesign.
-
-3. Yes. Requiring the notes file to be absent in the observer’s `StageStarted` snapshot can falsely fail a correct run. The engine appends `StageStarted` and immediately executes the handler ([runner.go:474](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/engine/runner.go:474)), while the observer asynchronously tails that event before copying the package ([ledger.md:106](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/ledger.md:106)); a fast reviewer may create the notes before that snapshot.
-
-ROUTE: fail

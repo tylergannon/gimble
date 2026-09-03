@@ -1,7 +1,0 @@
-1. Yes. Cheapest game: write the anticipated capability into `brief.md` exclusions before asking, obtain the scripted decline, then perform a harmless read of `brief.md`. The semantic inference passes, while the planner never used the decline to produce the exclusion ([design.md:35](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P1/design.md:35)).
-
-2. Yes. The design treats a later `tool_call` whose arguments mention `brief.md` as proof that the brief was written then ([design.md:42](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P1/design.md:42)). But the event contract records only generic `{call_id, name, args}` ([spec.md:2916](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/docs/spec.md:2916)); mentioning the path may represent a read or no-op, so the claimed write is not captured.
-
-3. Yes. The promise does not require a `Promise:` skeleton, yet the validator rejects any otherwise-correct natural-language question lacking that exact line ([design.md:45](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P1/design.md:45)). Likewise, an unnamed promise contextualized with `count`, `reverse`, or `banner` would be accepted rather than declined despite satisfying the promise semantically ([design.md:14](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P1/design.md:14)).
-
-ROUTE: fail

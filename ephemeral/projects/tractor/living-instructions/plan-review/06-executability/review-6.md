@@ -1,3 +1,0 @@
-1. Chapter 4’s sprint documents contain paths that do not resolve from the repository root. `SPRINT-01.md` says, “Read `research/workflow-package-inventory/migration-inventory.md` first,” while `SPRINT-03.md` names “`chapters/04-library/prove/lib.sh`.” Neither root-relative path exists; the files are under `ephemeral/projects/tractor/living-instructions/...`. The same broken shorthand recurs in `CHAPTER.md`, `SPRINT-02.md`, `SPRINT-04.md`, and `SPRINT-05.md`. An agent instructed to work from the repository root cannot execute those reading/copying instructions as written. Owning node: decompose.
-
-ROUTE: fail

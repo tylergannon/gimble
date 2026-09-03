@@ -1,9 +1,0 @@
-1. No obvious substantive game survives the intended `infer` check: delivery is independently bound by the verdict, steering audit, and matching later `user` event, while the pre-steer write and snapshots establish a changed artifact ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P7/design.md:35)). Gaming those facts cleanly would generally require false engine/harness records, which the shared rules exclude.
-
-2. Yes. The “package at delivery” snapshot is not actually captured at delivery. The engine hands off the steer and writes its audit before appending `SupervisorVerdict` ([supervisor.go](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/engine/supervisor.go:471)); only afterward does the asynchronously tailing observer notice that event and copy the package ([ledger.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/ledger.md:119)). The target can resume and mutate or complete during that gap, so the check depends on an uncaptured delivery-time state. The design also fails to state this residual race despite the shared rule requiring it ([ledger.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/ledger.md:93)).
-
-3. Yes. P7 requires only some difference between the output before and after the steer, but the validator requires removal of a designated dashboard/audit/roles item and instructs `infer` to fail if the agent kept building what the steer named ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P7/design.md:40)). A correct turn could instead add an exclusion, qualification, or other responsive change while retaining the original roadmap item; P7 would be true, yet this validator would reject it or remain inconclusive.
-
-ROUTE: fail
-
-
