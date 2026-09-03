@@ -1,14 +1,17 @@
 # P9: an agent reading only the docs uses plan, show, and ask correctly
 
-Archetype: scenario, judged by inference. Lap 5; answers `review-4.md`.
+Archetype: scenario, judged by inference. Lap 6; answers `review-5.md`.
 
 ## Story
 
 1. The check builds the binary and makes a scratch directory holding
-   only: the docs listed below, the binary, and an empty git
-   repository. `XDG_STATE_HOME` for the reader is set inside the
-   scratch directory, so any run it starts without `--logs` also lands
-   there. No other part of the Tractor repository is reachable.
+   only: the promised sources, which are the docs site pages
+   (`src/content/docs/planning.md`, `interviews.md`, `loops.md`),
+   `docs/spec.md`, and the skill bundle (`skills/tractor/`); the
+   binary; and an empty git repository. `llms.txt` and the library
+   README are not included; P9 names the site, the spec, and the skill.
+   `XDG_STATE_HOME` for the reader is set inside the scratch directory,
+   so any run it starts without `--logs` also lands there.
 2. It runs a one-node pipeline, `reader` (codergen, claude, fresh
    context, workdir the scratch directory), with `observer.sh` attached
    to the reader run. The prompt describes four tasks in plain words and
@@ -18,9 +21,8 @@ Archetype: scenario, judged by inference. Lap 5; answers `review-4.md`.
    the answer; answer the first question the planning run asks; print,
    with the command the docs give for it, the prompt the planner node
    will receive; and say where the interview directory and a universal
-   promise's holdout live and which step of planning puts the holdout
-   there. Run the commands, do not describe them, and finish with a
-   short report.
+   promise's holdout live and which planning step produces each. Run
+   the commands, do not describe them, and finish with a short report.
 3. Wait for `COMPLETED` of the reader run.
 
 ## Evidence
@@ -32,9 +34,8 @@ Archetype: scenario, judged by inference. Lap 5; answers `review-4.md`.
   directory, whether by `--logs` or the state root): `timeline.jsonl`,
   `interview/`, the planner stage's `prompt.md` and segment (its
   `tractor ask` `tool_call` and paired `tool_result`).
-- The docs at that commit: `docs/spec.md` section 3.1.2 and the library
-  subsection, `src/content/docs/planning.md`, `interviews.md`,
-  `skills/tractor/SKILL.md`, `llms.txt`, `workflow/library/README.md`.
+- The promised sources at that commit, and the `--help` of `workflow
+  run`, `workflow show`, `ask`, `answer`.
 - The holdout root as the software renders it: `show large --node
   verify --raw` for the reader's project, produced by the script.
 
@@ -55,18 +56,22 @@ run sent); `response.md` names the interview directory the plan run
 used (the directory of E's path) and the holdout root that `show large
 --node verify --raw` renders.
 
-`infer` (files: the reader's `response.md` and segment, the docs, the
-help output, `planning-workflow.md` section 3): "For the four tasks
-only: did every command, flag, and path the agent used come from the
-docs, and did it work as run? Does the agent's account of where the
-interview directory and the holdout live, and of which planning step
-writes the holdout, agree with the docs and with the run? Fail on any
-command, flag, or path for these tasks that the help text contradicts,
-on any statement in the docs about these four tasks that the help text
-contradicts, and on any disagreement in the account."
+`infer` (files: the reader's `response.md` and segment, the promised
+sources, the help output, `planning-workflow.md` section 3): "For the
+four tasks only: did every command, flag, and path the agent used come
+from the promised sources, and did it work as run? Does the agent's
+account of where the interview directory and the holdout live and
+which planning step produces each agree with the promised sources and
+with `planning-workflow.md`? Fail on any command, flag, or path for
+these tasks that the help text contradicts, on any statement in the
+promised sources about these four tasks that the help text contradicts,
+and on any disagreement in the account."
 
 ## Not proven
 
-Completeness of the docs beyond these four tasks. The holdout handoff
-itself (P6's `verify` reads it); here that the docs, the agent, and the
-rendered verify prompt agree on where it lives and where it comes from.
+Completeness of the docs beyond these four tasks. Statements in
+`llms.txt` or the library README; they are outside P9. The holdout
+handoff itself and which node in a real run writes it (P6's `verify`
+reads it; chapter 6 sprint 2's own check covers the writer); here that
+the promised sources, the agent, and the rendered verify prompt agree
+on where it lives and what the docs say produces it.

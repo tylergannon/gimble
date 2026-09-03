@@ -2,10 +2,12 @@
 # Proves: show, render test, orphan walk. Parts:
 #   nodes     - headed `show` lists the same id/type set the YAML declares.
 #   equality  - a dumper the script writes calls workflow.Build directly;
-#               `show --raw` must equal it for every node.
-#   content   - each node's header names its library file; a per-file
-#               sentinel appended in a copy of the tree must appear in
-#               that node's output and no other file's sentinel may.
+#               `show --raw` must equal it for every node that carries a
+#               prompt, command, or checklist, whatever its kind.
+#   content   - each prompt-bearing node's header names its library file;
+#               a per-file sentinel appended in a copy of the tree must
+#               appear in that node's output and no other file's may;
+#               every rendered line is library text or a short data value.
 #   orphans   - an injected uncited page fails the orphan test by name.
 #   rendering - an injected broken action fails the render test by name.
 set -eu
@@ -26,9 +28,9 @@ show_headed() { # bin workflow
   else "$1" workflow show "$2" --project demo --workdir "$tmp/demo"; fi
 }
 # Header form: "== <id> (<type>) [<library file>]"; the file is present for
-# codergen nodes.
-shown_nodes() { show_headed "$1" "$2" | sed -n 's/^== \([^ ]*\) (\([a-z]*\)).*/\1 \2/p' | sort; }
-shown_file() { show_headed "$1" "$2" | sed -n "s/^== $3 ([a-z]*) \(.*\)$/\1/p"; }
+# every node that carries a prompt.
+shown_nodes() { show_headed "$1" "$2" | sed -n 's/^== \([^ ]*\) (\([a-z_]*\)).*/\1 \2/p' | sort; }
+shown_file() { show_headed "$1" "$2" | sed -n "s/^== $3 ([a-z_]*) \(.*\)$/\1/p"; }
 yaml_nodes() { awk '/^  - id:/{id=$3} /^    type:/{print id, $2}' "workflow/library/workflows/$1.yaml" | sort; }
 
 # ---- copy of the tracked tree, with a Build dumper --------------------
@@ -37,7 +39,8 @@ mkdir -p "$tmp/src/cmd/builddump"
 cat > "$tmp/src/cmd/builddump/main.go" <<'EOF'
 // builddump prints what workflow.Build materialized for one node. It is
 // written by the proof script, not the coder, so the comparison with
-// `show --raw` is bound to Build itself.
+// `show --raw` is bound to Build itself. Exit 3 means the node carries
+// nothing to print (a plain parallel or fan-in without a prompt).
 package main
 
 import (
@@ -65,6 +68,12 @@ func main() {
 		switch v := n.(type) {
 		case *graph.CodergenNode:
 			fmt.Print(v.PromptValue())
+		case *graph.SupervisorNode:
+			fmt.Print(v.Prompt)
+		case *graph.FanInNode:
+			fmt.Print(v.PromptValue())
+		case *graph.ParallelNode:
+			fmt.Print(v.PromptValue())
 		case *graph.ToolNode:
 			fmt.Print(v.ToolCommand)
 		case *graph.LoopNode:
@@ -80,16 +89,18 @@ func main() {
 }
 EOF
 (cd "$tmp/src" && go build -o "$tmp/bin/tractor" ./cmd/tractor && go build -o "$tmp/bin/builddump" ./cmd/builddump)
+workflows="$(ls workflow/library/workflows/*.yaml | xargs -n1 basename | sed 's/\.yaml$//')"
 
 # ---- nodes and equality with Build ------------------------------------
-for wf in plan medium large; do
+for wf in $workflows; do
   shown_nodes "$tmp/bin/tractor" "$wf" > "$tmp/shown.txt"
   yaml_nodes "$wf" > "$tmp/declared.txt"
   cmp -s "$tmp/shown.txt" "$tmp/declared.txt" || { echo "show $wf lists different nodes than workflows/$wf.yaml"; diff "$tmp/declared.txt" "$tmp/shown.txt"; exit 1; }
   while read -r node kind; do
-    case "$kind" in codergen|tool|loop) ;; *) continue ;; esac
     if [ "$wf" = plan ]; then s="$seed"; else s=""; fi
-    "$tmp/bin/builddump" "$wf" "$node" "$tmp/demo" "$tmp/bin/tractor" "$s" > "$tmp/want.txt"
+    if ! "$tmp/bin/builddump" "$wf" "$node" "$tmp/demo" "$tmp/bin/tractor" "$s" > "$tmp/want.txt" 2>"$tmp/dump.err"; then
+      cat "$tmp/dump.err"; exit 1
+    fi
     show_raw "$tmp/bin/tractor" "$wf" "$node" > "$tmp/got.txt"
     cmp -s "$tmp/want.txt" "$tmp/got.txt" || { echo "show $wf --node $node differs from Build"; diff "$tmp/want.txt" "$tmp/got.txt" | head -20; exit 1; }
   done < "$tmp/declared.txt"
@@ -111,6 +122,22 @@ if "$tmp/bin/tractor" workflow show plan --project demo --seed "$seed" --workdir
   echo "show --stage missed a diff"; exit 1
 fi
 
+# ---- data only: every rendered line is library text or a short value --
+lib_real=workflow/library
+cat "$lib_real"/prompts/*/* "$lib_real"/supervisors/* "$lib_real"/passes/* "$lib_real"/doctrine/* "$lib_real"/templates/* 2>/dev/null > "$tmp/library-text.txt" || true
+for wf in $workflows; do
+  yaml_nodes "$wf" | while read -r node kind; do
+    file="$(shown_file "$tmp/bin/tractor" "$wf" "$node")"
+    [ -n "$file" ] || continue
+    show_raw "$tmp/bin/tractor" "$wf" "$node" | while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      if [ "${#line}" -ge 200 ] && ! grep -qxF -- "$line" "$tmp/library-text.txt"; then
+        echo "data-only: $wf/$node renders a long line found in no library file: ${line%%??????????????????????????????????????????????????????????????????????????????????????????}..."; exit 1
+      fi
+    done
+  done
+done
+
 # ---- content: one sentinel per file, in the copy ------------------------
 lib="$tmp/src/workflow/library"
 stamp="SENTINEL-$(date +%s)-$$"
@@ -122,11 +149,13 @@ page="$(find "$lib/doctrine" -type f -name '*.md' 2>/dev/null | head -1 || true)
 if [ -n "$page" ]; then printf '\n%s DOCTRINE %s\n' "$stamp" "$(basename "$page" .md)" >> "$page"; fi
 printf '# uncited\n\nNo prompt cites this page.\n' > "$lib/doctrine/zz-uncited.md"
 (cd "$tmp/src" && go build -o "$tmp/bin/mutated" ./cmd/tractor)
-for wf in plan medium large; do
+for wf in $workflows; do
   yaml_nodes "$wf" | while read -r node kind; do
-    [ "$kind" = codergen ] || continue
     file="$(shown_file "$tmp/bin/mutated" "$wf" "$node")"
-    test -n "$file" || { echo "content: $wf/$node header names no library file"; exit 1; }
+    case "$kind" in
+      codergen|supervisor) test -n "$file" || { echo "content: $wf/$node header names no library file"; exit 1; } ;;
+    esac
+    [ -n "$file" ] || continue
     show_raw "$tmp/bin/mutated" "$wf" "$node" > "$tmp/mut.txt"
     grep -q "^$stamp FILE $file\$" "$tmp/mut.txt" || { echo "content: $wf/$node does not render $file"; exit 1; }
     others="$(grep "^$stamp FILE " "$tmp/mut.txt" | grep -v " $file\$" || true)"

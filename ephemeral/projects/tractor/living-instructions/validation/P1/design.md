@@ -1,6 +1,6 @@
 # P1: elicitation adds a promise; a declined promise becomes an exclusion
 
-Archetype: scenario. Lap 5; answers `review-4.md`.
+Archetype: scenario. Lap 6; answers `review-5.md`.
 
 ## Story
 
@@ -29,8 +29,9 @@ Archetype: scenario. Lap 5; answers `review-4.md`.
 - `timeline.jsonl`: `QuestionAsked(question, ts)`, `PipelineCompleted`.
 - Every segment under `events/`: each `tool_call` that invoked `tractor
   ask`, with its `ts`, and its paired `tool_result` with its `ts`.
-- `observer/`: the package copies at the declined `QuestionAsked` and
-  immediately before its answer; `answers.log` with answer timestamps.
+- `observer/`: the package copy taken immediately before the declined
+  question's answer; `answers.log` with answer timestamps (the
+  observer's own record of what it was shown and what it answered).
 - `interview/NNNN.md` and `.answer.md`; the generated seed.
 - `brief.md` from the package at the end.
 
@@ -39,33 +40,34 @@ Archetype: scenario. Lap 5; answers `review-4.md`.
 `command`: `prove/p1-elicitation.sh`: the run completed
 (`PipelineCompleted` present, last `StageCompleted` has `next: success`);
 `answers.log` has at least one decline line; that line's question id has
-a `QuestionAsked` event E whose `question` path is that file; exactly one
-`tractor ask` `tool_call` in any segment has `ts` before E and a paired
+a `QuestionAsked` event E whose `question` path is that file; some
+`tractor ask` `tool_call` in some segment has `ts` before E and a paired
 `tool_result` (same `call_id`) with `ts` after the answer timestamp in
-`answers.log`, and no other `tractor ask` call is in flight across E
-(the ask that produced E is identified by bracketing, since `tractor
-ask` records only the numbered destination; the calling turn blocked
-until the human answered); the `.answer.md` for that id contains the
-decline text; in the copy taken immediately before the answer,
-`brief.md` either does not exist or has no Exclusions entry; the final
-`brief.md` has an `## Exclusions` section with at least one entry. If no
-question file carried a `Promise:` line, the script fails with
-"question-file seam not used". If every candidate named a chosen
-feature, so nothing was declined, it exits "inconclusive: nothing to
-decline" and the item stays open.
+`answers.log` (a turn asked through `tractor ask` and blocked until the
+human answered; concurrent asks are allowed, any bracketing call
+qualifies); the `.answer.md` for that id contains the decline text; in
+the copy taken immediately before the answer, `brief.md` either does
+not exist or has no Exclusions entry; the final `brief.md` has an
+`## Exclusions` section with at least one entry. If no question file
+carried a `Promise:` line, the script fails with "question-file seam
+not used". If every candidate named a chosen feature, so nothing was
+declined, it exits "inconclusive: nothing to decline" and the item
+stays open.
 
-`infer` (files: the generated seed, the declined question file, the
-`brief.md` copy before the answer, the final `brief.md`): "Read the
-`Promise:` line the decline rule matched (quoted in answers.log). Name
-the capability it describes. Fail unless the seed does not mention that
-capability, the copy's exclusions did not already decline it, and the
-final brief.md declines it under Exclusions, in any wording."
+`infer` (files: the generated seed, the declined question file in full,
+the `brief.md` copy before the answer, the final `brief.md`): "Read the
+whole question file. Does it actually ask the human to decide the
+promise on the `Promise:` line the decline rule matched (quoted in
+answers.log), with that line belonging to the question rather than
+standing apart from it? Name the capability the line describes. Fail
+unless the question asks about it, the seed does not mention it, the
+copy's exclusions did not already decline it, and the final brief.md
+declines it under Exclusions, in any wording."
 
 ## Not proven
 
 That the anticipated promise was a good one, or that the planner would
 anticipate what a real user cares about; a planner that always asks one
-generic unnamed promise satisfies P1 as written. Which node asked; P1
-constrains `plan`, not a node. An anticipated promise phrased around a
-chosen feature is accepted rather than declined, which can only make
-the run inconclusive.
+generic unnamed promise satisfies P1 as written. Which node asked. An
+anticipated promise phrased around a chosen feature is accepted rather
+than declined, which can only make the run inconclusive.
