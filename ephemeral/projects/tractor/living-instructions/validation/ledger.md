@@ -52,53 +52,78 @@ and what the design does not prove.
   workflow run ... --logs <dir>`) after the coder's turn has ended.
   Nothing that exists before the check is evidence. The coder's
   deliverable is the binary and the library; the run that proves them is
-  made by the check. The residual game, a binary that writes false
-  events, is what the chapter's `verify` node exists for: it operates
-  the software itself and reads the same run directory (decision 41).
+  made by the check.
 - **Only recorded evidence.** A check reads what the run directory
-  records (spec sections 5.6, 10, 12.4): `timeline.jsonl` events with
-  their documented fields; `stages/<seq>-<node>/` contents, where
-  `tool.log` exists only for tool nodes and `steering.jsonl` holds
-  delivered steers with a timestamp and origin; `events/<seq>-<node>.jsonl`
-  segments, whose `tool_call` events carry the arguments an agent used,
-  including every path it wrote; and `checkpoint.json`, whose `sessions`
-  map records, per node, the harness that served it and whether its
-  thread mode was fresh (the key carries the NUL-prefixed `none:` marker
-  the backend uses for no-thread nodes). The run records the harness,
-  never the model, so no design claims a model.
-- **Agents never mark ledgers.** Where a promise says the engine marked
-  an item, the check requires a `LoopValidated` event with `passed: true`
-  for that item and no `tool_call` in any agent segment whose arguments
-  name the ledger path. An item hand-marked `done: true` is honored by
-  the loop without a `LoopValidated` event (engine/loop.go), which is
-  exactly what makes the event the discriminator.
-- **Semantic checks go to `infer`.** Where the promise is about meaning
-  (an exclusion matches a declined promise, a question asks rather than
-  announces), the `command` binds identity and order and the `infer`
-  judge reads the text. No `command` requires verbatim containment.
+  records (spec sections 5.6, 10, 12.4) and what the observer below
+  captures. Run-directory facts used here: `timeline.jsonl` events with
+  their documented fields; `stages/<seq>-<node>/`, where `tool.log`
+  exists only for tool nodes, `prompt.md` and `response.md` only for
+  codergen turns, and `steering.jsonl` holds delivered steers with
+  origin and time; `response.md`, whose front matter carries the agent's
+  own chosen `next` and whose body is the agent's notes;
+  `events/<seq>-<node>.jsonl` segments, where a steer appears as a
+  second `user` event at the moment it was handed to the harness; and
+  `checkpoint.json`, whose `sessions` map records per node the harness
+  that served it (`codex`, `claude`, `agy`, the routes of the providers
+  `openai`, `anthropic`, `gemini`) and, by a NUL-prefixed `none:` key,
+  that its thread mode was fresh. The run records the harness, never the
+  model, so no design claims a model.
+- **Content is coder-owned, so names prove nothing.** The graph, the
+  prompts, and the edge conditions are library content the coder edits.
+  A check therefore never trusts a node's name or an edge's target alone.
+  It binds a node to its kind by what the engine records for that kind
+  (a `tool.log`; a `prompt.md`, `response.md`, and segment; a
+  `LoopValidated`), and binds a route to its meaning by the agent's own
+  words: the `response.md` body of a review or verify turn states its
+  verdict, and the verdict must agree with the `next` it chose. A graph
+  whose edges are relabelled cannot make a reviewer write "pass" when it
+  found a defect.
+- **Ledgers change only across the loop's own stage.** Where a promise
+  says the engine marked an item, the check uses the observer's
+  snapshots: the item is not `done` in the snapshot at the loop stage's
+  `StageStarted`, a `LoopValidated` with `passed: true` for that item
+  is emitted during that stage, and the item is `done` at its
+  `StageCompleted`; and the item's `done` never changes across any other
+  stage. An item hand-marked by an agent flips across that agent's
+  stage, with no event. Commandless items validate as passed by
+  construction (decision 57); the event still records that the engine,
+  not an agent, marked them, which is what the promises claim.
+- **Semantic checks go to `infer`.** Where the promise is about meaning,
+  the `command` binds identity and order and the `infer` judge reads the
+  text. No `command` requires verbatim containment.
 - **Inconclusive is not pass.** A scenario that depends on model
-  behaviour it cannot force (P7's drift) exits with a distinct message
-  when the behaviour did not occur; the item stays open and the scenario
-  is rerun.
+  behaviour it cannot force exits with a distinct message when the
+  behaviour did not occur; the item stays open and the scenario is rerun.
+- **Out of scope for every check.** The engine and harness are excluded
+  from this project (no engine change; `promises.md` exclusions). A game
+  that needs the engine or a harness adapter to record false events,
+  reuse a session it reports as fresh, or misroute, is a defect in code
+  the coder is not allowed to touch; the required checks (`go test
+  ./...`) and the diff review cover that boundary.
 
 ## Shared evidence tooling
 
-`validation/answerer.sh <run-dir> <rules-file>` is the scripted human.
-It tails `<run-dir>/timeline.jsonl` and acts only on `QuestionAsked`
-events, never on files it finds by polling, so a question file an agent
-wrote without `tractor ask` is never answered. On each event it: copies
-the question file, `promises.md`, and `research/findings.md` as they are
-at that moment into `<run-dir>/answers/<id>/`; matches the question
-against ordered rules (a substring or a `Promise:` line predicate, and an
-answer); writes the answer with `tractor answer`; and appends
-`<id> <rule> <ts> <matched line>` (tab-separated) to
-`<run-dir>/answers/answers.log`. The rules file is part of the scenario;
-the `answers/` tree is part of the evidence. Built once, in chapter 5
-sprint 3, and reused by every later scenario.
+`validation/observer.sh <run-dir> <rules-file>` is the scripted human
+and the witness. It tails `<run-dir>/timeline.jsonl` and:
 
-`validation/lib/run-plan.sh <seed> <rules>` makes a scratch repository,
-runs `plan` with the answerer attached, waits for completion, and prints
-the run directory. `validation/lib/timeline.sh` holds the `jq` idioms the
-proof scripts share (last stage of a node, nearest preceding stage, event
-by item, segment for a stage). Both are written with the first proof
-script that needs them.
+- on every `StageStarted`, `StageCompleted`, `QuestionAsked`, and
+  `SupervisorVerdict` event, copies the package directory
+  (`ephemeral/projects/<build>/`, without `research/` leaves) into
+  `<run-dir>/observer/<n>-<event>-<node>/`, so any file's state at any
+  stage boundary is evidence the agents never wrote;
+- on `QuestionAsked` only, reads the question file, matches it against
+  ordered rules (a substring or a `Promise:` line predicate, and an
+  answer), writes the answer with `tractor answer`, and appends
+  `<id> <rule> <ts> <matched line>` (tab-separated) to
+  `<run-dir>/observer/answers.log`. It never answers a file it found by
+  polling, so a question written without `tractor ask` is never
+  answered.
+
+The rules file is part of the scenario; the `observer/` tree is part of
+the evidence. Built once, in chapter 5 sprint 3, and reused by every
+later scenario. `validation/lib/run-plan.sh <seed> <rules>` makes a
+scratch repository, runs `plan` with the observer attached, waits for
+completion, and prints the run directory. `validation/lib/timeline.sh`
+holds the `jq` idioms the proof scripts share (last stage of a node,
+nearest preceding stage, event by item, snapshot before and after a
+stage). Both are written with the first proof script that needs them.

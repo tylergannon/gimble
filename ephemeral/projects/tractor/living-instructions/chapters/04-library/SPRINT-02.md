@@ -43,30 +43,38 @@ the same data so a syntax error in a page fails here, not at run time.
 ## Orphan walk
 
 `TestLibraryNoOrphans`: walk the embedded tree; every file under
-`doctrine/` and `templates/` must be named by an `include` or `doctrine`
-action in at least one file under `prompts/`, `supervisors/`, or
-`passes/`. All three directories are prompts in P8's sense: text the
-library sends to an agent. Prove it fails: the test constructs a
+`doctrine/` must be named by a `doctrine` action in at least one file
+under `prompts/`, `supervisors/`, or `passes/`. All three directories
+are prompts in P8's sense: text the library sends to an agent.
+Skeletons under `templates/` are not in the walk; P8 does not promise
+that every skeleton is used, and sprint 3's script checks its own
+skeletons are cited. Prove the walk fails: the test constructs a
 synthetic `fs.FS` with one uncited page and asserts the walk reports it
 by name. This needs the `BuildFrom(fs.FS)` or equivalent seam from
-sprint 1.
+sprint 1. The proof script injects its own uncited page into a copy of
+the tree as well, so the walk is proven against the real embedded tree,
+not only the test's synthetic one.
 
 The walk is written from scratch; no surveyed tool has one
 (`research/prompt-libraries/goose.md` has the inverse and still drifted).
 
 ## Proof script
 
-`prove/show-and-orphan-walk.sh`: builds the binary; for every file under
-`workflow/testdata/<workflow>/`, runs `show <workflow> --node <node>
---raw` with the snapshot's fixed parameters (real paths substituted
-back) and requires byte equality with the snapshot, which was captured
-from `Build` before the migration; asserts the headed output names every
-node and prints no frame; builds a stage directory from the committed
-frame preamble (`fixtures/frame-preamble.txt`), a synthetic iterate
-block, and the planner snapshot, and asserts `--stage` exits 0 on it and
-1 after one byte is appended; runs the two tests by name with `-v` and
-requires their `--- PASS:` lines, since `go test -run` with no matching
-test exits 0.
+`prove/show-and-orphan-walk.sh`, three parts. Content: in a copy of the
+tracked tree, append a sentinel line to every file under `prompts/`,
+`supervisors/`, and `passes/` and to one doctrine page, build, and
+require `show --raw` for every codergen node to print its file's
+sentinel and every prompt citing the page to print the page's sentinel.
+Equality: in the real tree, for every node header the headed `show`
+prints, `show --raw` with the snapshot's fixed parameters (real paths
+substituted back) is byte-equal to `workflow/testdata/<wf>/<node>.txt`;
+a stage directory built from the committed frame preamble
+(`fixtures/frame-preamble.txt`), a synthetic iterate block, and the
+planner snapshot makes `--stage` exit 0, and 1 after one byte is
+appended. Orphans: the injected `doctrine/zz-uncited.md` in the copy
+makes `go test -run TestLibraryNoOrphans` fail naming it; in the real
+tree the two tests run by name with `-v` and their `--- PASS:` lines
+are required, since `go test -run` with no matching test exits 0.
 
 ## Ask the reviewer
 

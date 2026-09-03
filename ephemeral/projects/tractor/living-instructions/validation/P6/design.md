@@ -1,45 +1,51 @@
 # P6: `large` completes and every chapter is marked only after `verify` routed pass
 
-Archetype: scenario. Lap 2; answers `review-1.md`.
+Archetype: scenario. Lap 3; answers `review-2.md`.
 
 ## Story
 
 1. A LARGE package produced at check time by `plan` on
-   `seeds/ledger-tool.md` (P10's second leg makes it; this script takes
-   that run's package, or makes its own when run alone).
+   `seeds/ledger-tool.md` (the script runs `plan` itself; when the
+   recommendation is not `large`, it exits "inconclusive: package sized
+   medium" and the item stays open).
 2. `tractor workflow run large --project <build> --logs <fresh dir>` with
-   the coder on codex, `verify` on claude, `answerer.sh` accepting any
-   question.
+   `observer.sh` accepting any question. `models.yaml` puts `implement`
+   on one provider and `verify` on another.
 3. Wait for `COMPLETED`.
 
 ## Evidence
 
-- `timeline.jsonl`: `StageCompleted(name, next)`, `LoopItemSelected`,
-  `LoopValidated(node, item, passed)`, `PipelineCompleted`.
-- Segments of every `plan`, `implement`, `replan`, and `verify` stage:
-  `tool_call` arguments.
-- `stages/<seq>-verify/`: the verifier's `response.md` and whatever it
-  captured under the run directory.
-- The chapter ledger (`checklist.md`) and each chapter's `sprints.md` at
-  the end.
+- `timeline.jsonl`: `StageStarted`, `StageCompleted(name, next)`,
+  `LoopItemSelected`, `LoopValidated(node, item, passed)`,
+  `PipelineCompleted`.
+- `stages/<seq>-verify/`: `prompt.md`, `response.md` (chosen `next`,
+  the verifier's notes with its verdict line and what it ran).
+- `observer/` snapshots of the chapter ledger and every chapter's
+  `sprints.md` at every stage boundary.
+- `checkpoint.json` `sessions`: harness for `verify` and `implement`.
 
 ## Validator
 
 `command`: `prove/p6-verify-before-done.sh <large run dir>`: the last
 `StageCompleted` has `next: success` and `PipelineCompleted` follows it;
-every item in the chapter ledger is `done: true` and has a
-`LoopValidated` on the `chapters` loop with `passed: true`; for each such
-event, the nearest preceding `StageCompleted` of a node other than the
-two loops is a `verify` stage with `next: chapters`; no `plan`,
-`implement`, `replan`, or `verify` segment has a `tool_call` whose
-arguments name the chapter ledger path; every `replan` segment's writing
-`tool_call`s name only the current chapter's `sprints.md` (the chapter
-from the enclosing `LoopItemSelected`).
+every chapter item is `done: true`; for each, exactly one `chapters`
+loop stage flips it, with a `LoopValidated` on `chapters` with
+`passed: true` during that stage and no change across any other stage
+(no agent marked it, whatever it read); for each such loop stage the
+nearest preceding `StageCompleted` of a node other than the two loops is
+a `verify` stage with `next: chapters`, whose `response.md` front matter
+agrees and whose body contains `ROUTE: pass`; every `verify` stage
+directory has `prompt.md`, `response.md`, and a segment in
+`events/index.jsonl` (a codergen turn; a tool node has `tool.log` and
+none of these); `checkpoint.json` records different harnesses for
+`verify` and `implement`; the chapter ledger is byte-identical across
+every `plan`, `implement`, `replan`, and `verify` stage; each `replan`
+stage changes only the current chapter's `sprints.md` (the chapter from
+the enclosing `LoopItemSelected`) and no other package file.
 
-`infer` (files: each `replan` segment, the final `sprints.md` of each
-chapter): "Each replan segment's tool calls carry the edits it made. Did
-any replan change an item that was already `done: true` when it ran?
-Fail if so."
+`infer` (files: each `replan` stage's before and after snapshots of the
+sprint ledger): "Did any replan change an item that was `done: true`
+before it ran? Fail if so."
 
 ## Not proven
 

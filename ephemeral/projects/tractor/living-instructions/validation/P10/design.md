@@ -1,12 +1,12 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 2; answers `review-1.md`.
+Archetype: scenario, twice. Lap 3; answers `review-2.md`.
 
 ## Story
 
-The seeds exist now, under `seeds/`, fixed at commit `6dec5dc8cd23e6f340e838beb9c0c2a442dffef4`
-(recorded when they were committed; the proof script fails if either
-seed differs from that commit's version):
+The seeds exist now, under `seeds/`, fixed at commit
+`6dec5dc8cd23e6f340e838beb9c0c2a442dffef4` (the proof script fails if
+either seed differs from that commit's version):
 
 - `seeds/greeter.md`: a CLI that greets by name, with a flag for
   shouting and a file of names, with four acceptance examples and their
@@ -16,30 +16,33 @@ seed differs from that commit's version):
   their exact output. Expected LARGE; same.
 
 For each seed the check: makes an empty scratch repository
-(`mktemp -d`, `git init`); runs `plan` with `answerer.sh` accepting
-everything and answering "Proceed with your recommendation." to open
-prompts; runs the printed `Next:` handoff verbatim with a fresh
-`--logs`; waits for `COMPLETED`; then builds the program as the scratch
-repository's `README.md` says and runs every acceptance example from
-the seed, comparing stdout, stderr, and exit status exactly.
+(`mktemp -d`, `git init`); runs `plan` with `observer.sh` accepting
+everything, answering "Proceed with your recommendation." to open
+prompts, and answering the approval question "Yes."; runs the printed
+`Next:` handoff verbatim with a fresh `--logs`; waits for `COMPLETED`;
+then builds the program as the scratch repository's `README.md` says
+and runs every acceptance example from the seed, comparing stdout,
+stderr, and exit status exactly.
 
 ## Evidence
 
 - Both plan run directories and both execution run directories, in
-  full.
+  full, with their `observer/` trees.
 - Both packages.
 - The scratch repositories at the end, and the probe transcript
   (`probes.log`: each example's command, expected, actual).
 
 ## Validator
 
-`command`: `prove/p10-end-to-end.sh`: `git show 6dec5dc8cd23e6f340e838beb9c0c2a442dffef4:<seed>`
-equals each seed as checked out; for each seed, `plan` completed,
-`validate-plan` accepts the package, `recommendation.md` names `medium`
+`command`: `prove/p10-end-to-end.sh`: `git show
+6dec5dc8cd23e6f340e838beb9c0c2a442dffef4:<seed>` equals each seed as
+checked out; for each seed: `plan` completed; the package was approved
+through the human gate: the last `QuestionAsked` of the plan run was
+emitted during the `approve` stage, `answers.log` records the "Yes."
+rule for it, and `approve`'s `StageCompleted` has `next: success`;
+`validate-plan` accepts the package; `recommendation.md` names `medium`
 or `large` and the handoff it prints ran to `COMPLETED`; every
-acceptance example in the seed matches exactly; when the ledger-tool
-package ran as `large`, `prove/p6-verify-before-done.sh` passes on that
-execution run directory.
+acceptance example in the seed matches exactly.
 
 `infer` (files: each seed, each scratch repository's `README.md`,
 `probes.log`): "Build and run the program yourself from the README.
@@ -51,6 +54,7 @@ not work, or the program does not run."
 
 Generality beyond seeds of this size. Whether the sizes match the
 expectations noted in the seeds; either size satisfies the promise.
-Whether the packages' own checklist commands are strong: that is P3's
-reviewer's job and the `verify` node's, and the acceptance examples
-here are the independent probe.
+Verify-before-done ordering in the large run; that is P6, which makes
+its own run. Whether the packages' own checklist commands are strong:
+that is P3's reviewer's job and the `verify` node's; the acceptance
+examples here are the independent probe.

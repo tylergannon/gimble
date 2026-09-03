@@ -1,6 +1,6 @@
 # P4: a rejected validation design is re-designed with the reviewer's notes and later passes
 
-Archetype: scenario. Lap 2; answers `review-1.md`.
+Archetype: scenario. Lap 3; answers `review-2.md`.
 
 ## Story
 
@@ -9,45 +9,51 @@ Archetype: scenario. Lap 2; answers `review-1.md`.
    first promise's validation design, propose `command: true` and no
    `infer`, then accept whatever the reviewer says." The seed is data;
    the design node reads it as it reads any seed.
-2. `plan` runs with `answerer.sh` accepting everything.
+2. `plan` runs with `observer.sh` accepting everything.
 3. Wait for `COMPLETED`.
 
 ## Evidence
 
 - `timeline.jsonl`: `StageStarted`, `StageCompleted(next)`,
   `LoopItemSelected(item, lap)`, `LoopValidated` for the first item.
-- The segments of the two `design` stages and the first `review` stage:
-  `tool_call` arguments (paths written) and `tool_result` outputs (files
-  read). The first review's segment holds the design it read, in the
-  `tool_result` of its read.
-- The reviewer's notes file under `validation/<item>/` and the final
-  `design.md` there.
-- The second design stage's `prompt.md`.
+- `stages/<seq>-review/response.md` for both review turns: chosen
+  `next` and the notes with their verdict line.
+- The first review's segment: the `tool_result` of its read of
+  `design.md` (the first design, as the reviewer saw it).
+- The reviewer's notes file under `validation/<item>/` and the observer
+  snapshots around the first review stage.
+- The second design stage: `prompt.md`, and its segment's `tool_call`
+  and paired `tool_result` for the notes path.
+- The final `design.md`.
 
 ## Validator
 
 `command`: `prove/p4-reentry.sh`: for the first item in
 `validation/ledger.md`, the timeline shows, in order: `design`, `review`
-with `next: design`, `design`, `review` with `next:` the loop node, and
-`LoopValidated` with `passed: true`; the first `review` segment has a
-`tool_call` that writes a file under `validation/<item>/` and that file
-exists (the notes); the second `design` stage read the notes: its
-`prompt.md` names the notes path, and either its `prompt.md` contains
-the notes' first line or its segment has a `tool_result` whose output
-contains it.
+with `next: design`, `design`, `review` with `next:` the loop node, then
+the loop stage whose `LoopValidated` marks the item; the first review's
+`response.md` front matter says `next: design` and its body contains
+`ROUTE: fail`, the second's says the loop node and `ROUTE: pass` (the
+reviewer's words agree with the routes, so a relabelled graph cannot
+fake the sequence); the notes file appears across the first review
+stage (absent at its `StageStarted` snapshot, present at
+`StageCompleted`); the second design stage's `prompt.md` names the
+notes path, and its segment has a `tool_call` whose arguments contain
+that path with a paired `tool_result` (same `call_id`) whose output
+contains the notes' first line.
 
 `infer` (files: the first review segment, the notes, the final
 `design.md`): "The reviewer's segment contains the design it read. Did
-the final design change in the way the notes asked? Fail if an objection
-in the notes is unaddressed, or if the final design is the first design
-with only cosmetic edits."
+the redesign respond to the notes? Fail only if the final design
+ignores the notes: the objections are neither addressed nor answered,
+or the final design is the first with cosmetic edits."
 
 ## Not proven
 
 How often reviewers reject in practice. Whether the model follows the
 seed's instruction: if the first review routes pass, the scenario exits
-with "inconclusive: first design was not rejected", the item stays open,
-and the scenario is rerun with the instruction moved into the design
+"inconclusive: first design was not rejected", the item stays open, and
+the scenario is rerun with the instruction moved into the design
 prompt's documented test hook (`TRACTOR_TEST_TRIVIAL_FIRST=1`, honored
-only when the seed asks for it). No check on the shape of the final
-validator; the second reviewer's pass is that judgment.
+only when the seed asks for it). Whether every objection was resolved;
+the second reviewer's pass is that judgment.

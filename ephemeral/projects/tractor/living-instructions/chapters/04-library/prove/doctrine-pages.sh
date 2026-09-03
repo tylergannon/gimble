@@ -1,7 +1,8 @@
 #!/bin/sh
 # Proves: the sprint 3 doctrine pages and skeletons exist, each page
-# points at its source, and every page renders and is cited. This is the
-# sprint's demonstration, not P8's proof (validation/P8/design.md).
+# points at its source, every skeleton is cited by a prompt, and every
+# page renders and is cited. This is the sprint's demonstration, not
+# P8's proof (validation/P8/design.md).
 set -eu
 cd "$(git rev-parse --show-toplevel)"
 lib=workflow/library
@@ -16,10 +17,10 @@ for p in promises elicit-then-prune question-files promise-adjacent-seams \
 done
 for t in brief.md promises.md recommendation.md CHAPTER.md SPRINT.md ledger.md; do
   test -f "$lib/templates/$t" || { echo "missing $lib/templates/$t"; exit 1; }
+  grep -rq "$t" "$lib/prompts" || { echo "no prompt cites templates/$t"; exit 1; }
 done
 
-# Rendering and citation are the tests' job; they must run, not merely
-# not fail to be selected.
+# Rendering and doctrine citation are the tests' job; they must run.
 go test -v -run 'TestLibraryNoOrphans|TestLibraryRendersAll' ./workflow/ -count=1 > "$tmp/test.log" 2>&1 || { cat "$tmp/test.log"; exit 1; }
 grep -q -- '--- PASS: TestLibraryRendersAll' "$tmp/test.log" || { echo "TestLibraryRendersAll did not run"; exit 1; }
 grep -q -- '--- PASS: TestLibraryNoOrphans' "$tmp/test.log" || { echo "TestLibraryNoOrphans did not run"; exit 1; }
