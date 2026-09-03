@@ -39,7 +39,10 @@ for the pass in between (the owning node returns to the reviewer, not
 to the loop; a commandless item would otherwise pass on return); every completed
 reviewer stage has `prompt.md`, `response.md`, and a segment (a
 `StageFailed` attempt with no `response.md` is a retry and is skipped,
-as P3 does); in
+as P3 does); every `LoopValidated`, `LoopItemSelected`, `StageStarted`,
+and `StageCompleted` this check relies on arrived in the observer's
+mirror while no other stage was live (ledger rules: the engine wrote
+it, not a turn); in
 `checkpoint.json` the `reviewer` harness differs from the harness of
 every planner node (harness names are the routes of providers), and the
 `reviewer` key carries the no-thread marker, the engine's record that
@@ -62,10 +65,7 @@ disagree with its route."
 
 ## Not proven
 
-That no agent or tool node forged run-directory records: the run
-directory is writable by every turn, and a planner that fabricated
-reviewer stages would be a defect of the diff review of the graph and
-prompts, not of this check (the same concession as P6 and P10). That
+That
 the passes catch every defect, or that seven is the right number.
 The order the passes ran in; P5 does not promise one. Project-added
 passes: a run cannot complete with one open. The model within the

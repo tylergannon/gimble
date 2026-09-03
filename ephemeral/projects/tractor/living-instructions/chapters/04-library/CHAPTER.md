@@ -2,8 +2,8 @@
 
 Status: active
 
-Everything an agent is told by a built-in workflow becomes a file under
-`workflow/library/`, embedded in the binary and rendered with
+Every prompt body, doctrine page, supervisor brief, pass, and skeleton a
+built-in workflow uses becomes a file under `workflow/library/`, embedded in the binary and rendered with
 `text/template`. After this chapter, every later chapter adds content
 and `workflow`-package Go, never engine code. Promise P8.
 

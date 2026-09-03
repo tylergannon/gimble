@@ -4,7 +4,13 @@ items:
   - name: prompts become library files
     check: "`workflow/library/` holds the three graphs and the four prompts as embedded files rendered with `text/template` under non-default delimiters; `Build` returns the same graphs it returned before, byte for byte in every prompt and command; no prompt body remains in a Go string."
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/SPRINT-01.md
-    command: go build ./... && go vet ./... && go test ./workflow/... ./cmd/tractor/... && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/prompts-are-library-files.sh
+    command: go build ./... && go vet ./... && go test ./workflow/... ./cmd/tractor/... && mkdir -p ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/prompts-are-library-files.sh > ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/prompts-are-library-files.log 2>&1; rc=$?; cat ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/prompts-are-library-files.log; test $rc -eq 0
+    infer:
+      files:
+        - workflow/*.go
+        - workflow/library/README.md
+        - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/prompts-are-library-files.log
+      prompt: Read the non-test Go under workflow/ and the log. Does any Go string carry prompt text (instructions to an agent) rather than a data value, and did the log show every node's payload byte-equal to the pre-migration baseline built from the commit in prove/base-commit.txt? Fail on either.
   - name: workflow show
     check: "`tractor workflow show <name>` prints every node the graph declares and, for each, the prompt, command, or checklist exactly as `Build` materialized it for the given parameters, naming the library file each prompt came from; `--node --raw`, `--values`, and `--stage <dir>` (a diff against a stage's prompt.md with the frame stripped) work as the sprint doc says."
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/SPRINT-02.md

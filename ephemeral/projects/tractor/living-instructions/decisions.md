@@ -247,8 +247,8 @@ planner node is withdrawn.
     questions inside the validation design loop, and final approval. All
     through `tractor ask`.
 51. **Sizes.** SIMPLE: the same graph, with `decompose` writing a
-    one-item ledger, one validation lap, and the holistic review pass
-    only; recommend self-execution (clarified 2026-09-03 by the
+    one-item ledger, one validation lap per promise, and all seven
+    review passes; recommend self-execution (clarified 2026-09-03 by the
     consistency pass). MEDIUM: the full graph, decomposed into sprints. LARGE:
     the full graph, decomposed into chapters. Intake guesses; the human
     confirms at the brief gate.

@@ -9,25 +9,25 @@ build_copy
 # ---- nodes and equality with Build ------------------------------------
 for wf in $workflows; do
   shown_nodes "$tmp/bin/tractor" "$wf" > "$tmp/shown.txt"
-  yaml_ids "$wf" > "$tmp/declared-ids.txt"
-  cmp -s "$tmp/shown.txt" "$tmp/declared-ids.txt" || { echo "show $wf lists different nodes than workflows/$wf.yaml"; diff "$tmp/declared-ids.txt" "$tmp/shown.txt"; exit 1; }
-  echo "nodes: show $wf lists every declared node"
-  yaml_nodes "$wf" > "$tmp/declared.txt"
-  while read -r node kind; do
+  built_ids "$wf" > "$tmp/built-ids.txt"
+  cmp -s "$tmp/shown.txt" "$tmp/built-ids.txt" || { echo "show $wf lists different nodes than Build returns"; diff "$tmp/built-ids.txt" "$tmp/shown.txt"; exit 1; }
+  echo "nodes: show $wf lists every node Build returns ($(wc -l < "$tmp/built-ids.txt" | tr -d ' '))"
+  while read -r node; do
     if [ "$wf" = plan ]; then s="$seed"; else s=""; fi
     if ! "$tmp/bin/builddump" "$wf" "$node" "$tmp/demo" "$tmp/bin/tractor" "$s" > "$tmp/want.txt" 2>"$tmp/dump.err"; then
       cat "$tmp/dump.err"; exit 1
     fi
     show_raw "$tmp/bin/tractor" "$wf" "$node" > "$tmp/got.txt"
     cmp -s "$tmp/want.txt" "$tmp/got.txt" || { echo "show $wf --node $node differs from Build"; diff "$tmp/want.txt" "$tmp/got.txt" | head -20; exit 1; }
-  done < "$tmp/declared.txt"
+    echo "equality: $wf/$node equals Build"
+  done < "$tmp/built-ids.txt"
 done
 show_headed "$tmp/bin/tractor" plan | grep -q '<iterate' && { echo "show printed a frame"; exit 1; }
 # The headed form carries every payload: the body under each header
 # equals the node's --raw output.
 for wf in $workflows; do
   show_headed "$tmp/bin/tractor" "$wf" > "$tmp/headed.txt"
-  yaml_ids "$wf" | while read -r node; do
+  built_ids "$wf" | while read -r node; do
     awk -v id="$node" 'BEGIN{p=0} /^== /{ if (p) exit; p = ($2==id) ; next } p{print}' "$tmp/headed.txt" > "$tmp/headed-body.txt"
     show_raw "$tmp/bin/tractor" "$wf" "$node" > "$tmp/raw-body.txt"
     sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$tmp/headed-body.txt" > "$tmp/headed-body.n"

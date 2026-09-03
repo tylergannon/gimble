@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 21; answers `review-20.md`.
+Archetype: scenario, twice. Lap 22; answers `review-21.md`.
 
 ## Story
 
@@ -57,7 +57,7 @@ chapter 5, as P10 says); for each seed: the plan run's `timeline.jsonl` ends wit
 `PipelineCompleted` after a `StageCompleted` with `next: success`; the
 human gate was passed: the last `QuestionAsked` of the plan run E has a
 `tractor ask` `tool_call` before it in the `approve` stage's segment
-whose paired `tool_result` contains E's nonce, `answers.log` records
+whose paired `tool_result` contains E's token, `answers.log` records
 the "Yes." rule for E, and the copy of the whole package, research leaves included, that
 the observer takes immediately before that answer (for the approval
 question the observer copies everything, not the leafless package it
@@ -108,12 +108,17 @@ that stage) with that stage's `response.md` naming it (decision 44:
 replan edits open items with a reason; an item whose fields change
 across an `implement` or any other stage, or after being marked,
 fails); every item in the final ledger(s) is `done: true` with the same
-event and record; the final ledger(s) are not empty; every acceptance
+event and record, and every such event arrived in the observer's mirror
+while no other stage was live (ledger rules: the engine, not a turn,
+wrote it); the final ledger(s) are not empty; every acceptance
 example in the seed matches exactly.
 
-`infer` (files: the approval question file and its answer, the
-`approve` turn's `prompt.md` and `response.md`, the package as
-approved (`promises.md`, `checklist.md`, chapter or sprint docs,
+`infer` (files: the scratch repository at the end (the whole tree, the
+built program included), `check.log`, the approval question as the
+observer copied it before answering (its own copy at its random path,
+not the live file, which `tractor answer` or a later turn could
+rewrite) and its answer, the `approve` turn's `prompt.md` and `response.md`, the
+package as approved (`promises.md`, `checklist.md`, chapter or sprint docs,
 `plan-review/ledger.md`); the approved and final chapter ledgers and docs for a LARGE package
 with, for each difference, the `response.md` and segment of the stage
 that made it and every question and answer file of the execution run's
@@ -121,7 +126,8 @@ interview directory; each `replan` turn's `response.md` for items it
 changed;
 the check's own copy of each seed, taken from the pinned
 commit, and `probes.log`): "Three judgments. First: did
-the approval question put this package in front of the human,
+the approval question, as the observer copied it before answering, put
+this package in front of the human,
 describing its promises, its slices, and its review outcomes as they
 actually stand in the package files, and ask whether to approve it?
 Fail if the question describes a package other than the one in the
@@ -141,14 +147,7 @@ yourself against the built program and fail if any does not hold."
 That the graph `show` prints afterwards is the graph the run walked:
 the run records neither its graph nor its loop's checklist path, and
 this design relies, as P2 does, on P8's proof that `show` prints what
-`Build` materialized in the same binary for the same parameters. That
-no workflow tool node forged run-directory records: every tool
-command receives the run directory's path and could write loop stage
-files or append events; the observer tree is at a random path the
-agents cannot find, but the run directory is theirs to write. The graph
-is content the diff review reads, and a forging tool node is a defect
-of that review, not of this check (the same concession as P6).
-Generality beyond seeds of this size. Whether the sizes match the
+`Build` materialized in the same binary for the same parameters. Generality beyond seeds of this size. Whether the sizes match the
 expectations noted in the seeds; either size satisfies the promise.
 Behaviour the seed's prose names but its examples do not exercise, and
 the README's build instructions; P10 promises the examples.

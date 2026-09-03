@@ -115,6 +115,21 @@ and what the design does not prove.
 - **Inconclusive is not pass.** A scenario that depends on model
   behaviour it cannot force exits with a distinct message when the
   behaviour did not occur; the item stays open and the scenario is rerun.
+- **The observer's mirror catches forged records.** The observer copies
+  every `timeline.jsonl` event as it arrives into its own append-only
+  mirror with an arrival time and the stage it saw live at that moment
+  (from the `StageStarted` and `StageCompleted` events it has already
+  mirrored). The engine appends events between and around stages; a
+  tool or agent turn can only write while its own stage is live. So an
+  event that belongs to another stage or to a loop (`LoopValidated`,
+  another node's `StageStarted` or `StageCompleted`, `PipelineCompleted`)
+  arriving while a tool or codergen stage is live was forged by that
+  stage, and a stage directory whose `StageStarted` arrived while some
+  other stage was live is forged. Checks that rest on engine records
+  require those records to have arrived when the engine, and nothing
+  else, could have written them. This closes the forgery the run
+  directory's writability leaves open; the mirror lives with the
+  observer, outside the run directory, at its random path.
 - **Out of scope for every check.** The engine and harness are excluded
   from this project (no engine change; `promises.md` exclusions). A game
   that needs the engine or a harness adapter to record false events,
@@ -142,15 +157,17 @@ no agent can find it to edit it. It tails
   matches it against ordered rules (a substring or a `Promise:` line
   predicate, and an answer), composes the answer (when the question
   numbers its candidates the answer mirrors the numbering, one line per
-  candidate, decision 39) and ends it with a line `observer: <id>
-  <nonce>` (a random token per answer), copies the package again
+  candidate, decision 39) and works a random token into it (a made-up
+  word inside an ordinary sentence, different every time, with no fixed
+  marker such as a label or a trailing line, so nothing distinguishes an
+  observed run from a human-answered one), copies the package again
   immediately before writing the answer with `tractor answer` (so a
   change made between the ask and the answer is visible), and appends
   `<id> <rule> <ts> <candidate number> <nonce> <matched line>`
   (tab-separated) to `<observer-tree>/answers.log`. `tractor ask`
-  prints the answer it received, so the `tool_result` of the ask that
-  waited on a question contains that question's nonce: that is how a
-  check binds an ask call to its `QuestionAsked` event. It never answers a file it found by
+prints the answer it received, so the `tool_result` of the ask that
+waited on a question contains that question's token: that is how a
+check binds an ask call to its `QuestionAsked` event. It never answers a file it found by
   polling, so a question written without `tractor ask` is never
   answered.
 

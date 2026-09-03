@@ -22,8 +22,8 @@ Archetype: scenario. Lap 12; answers `review-11.md`.
      recommendation."
    The `Promise:` line is part of the question-file seam (declaration
    section 4). When a question numbers its candidates, the observer's
-   answer mirrors the numbering (decision 39). Every answer ends with an
-   `observer:` nonce line.
+   answer mirrors the numbering (decision 39). Every answer carries a random token the
+   observer records (no fixed marker).
 3. Wait for `COMPLETED`.
 
 ## Evidence
@@ -31,10 +31,10 @@ Archetype: scenario. Lap 12; answers `review-11.md`.
 - `timeline.jsonl`: `QuestionAsked(question, ts)`, `PipelineCompleted`.
 - Every segment under `events/`: each `tool_call` that invoked `tractor
   ask`, with its `ts`, and its paired `tool_result` (the answer text
-  `tractor ask` printed, nonce included) with its `ts`.
+  `tractor ask` printed, token included) with its `ts`.
 - The observer tree: the package copy taken immediately before the
   declined question's answer; `answers.log` with answer timestamps,
-  nonces, and, for the decline, the quoted `Promise:` line and its
+  tokens, and, for the decline, the quoted `Promise:` line and its
   number.
 - `interview/NNNN.md` and `.answer.md`; the generated seed.
 - `brief.md` from the package at the end.
@@ -47,14 +47,14 @@ Archetype: scenario. Lap 12; answers `review-11.md`.
 a `QuestionAsked` event E whose `question` path is that file; the ask blocked a turn and its
 answer reached an agent: either some segment has a `tractor ask`
 `tool_call` with `ts` before E and a paired `tool_result` with `ts`
-after the answer timestamp, with E's nonce appearing in that segment at
+after the answer timestamp, with E's token appearing in that segment at
 or after the result (in the result itself, or in a later tool result
 or assistant text when the agent captured the answer through command
 substitution and read it back), or a tool stage's `StageStarted`
 precedes E, its `StageCompleted` follows the answer timestamp, its
-`tool.log` contains E's nonce (a tool node running `tractor ask`), and
-a later codergen segment's `tool_result` contains the nonce (an agent
-read the answer); concurrent asks are fine because the nonce picks the
+`tool.log` contains E's token (a tool node running `tractor ask`), and
+a later codergen segment's `tool_result` contains the token (an agent
+read the answer); concurrent asks are fine because the token picks the
 right one; the `.answer.md` for that id contains
 the decline text, under the candidate's number when the question
 numbered them; the final `brief.md` has an exclusions section with

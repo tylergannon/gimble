@@ -18,7 +18,7 @@ Archetype: scenario. Lap 14; answers `review-13.md`.
    format, export; it answers "Yes. Change the promise: the export is
    JSON, not CSV." Other `Promise:` lines "Yes."; default "Proceed
    with your recommendation." Every answer ends with an `observer:`
-   nonce line. A question that paraphrases the finding past every
+   token line. A question that paraphrases the finding past every
    listed word matches no rule and makes the run inconclusive, never a
    false pass; the infer judge, not the rule, decides citation.
 3. Wait for `COMPLETED`.
@@ -47,7 +47,7 @@ Archetype: scenario. Lap 14; answers `review-13.md`.
   segments (what they read and wrote).
 - Every segment's `tractor ask` `tool_call` and paired `tool_result`.
 - Observer copies: at every stage boundary; immediately before the
-  citing question's answer. `answers.log` with nonces.
+  citing question's answer. `answers.log` with tokens.
 - The question and answer files; the final `promises.md` and `brief.md`.
 
 ## Validator
@@ -70,7 +70,7 @@ the finding rule (`answers.log`); call the first E; E lies between a
 before the loop ended, as decision 46 orders; a question asked by
 `decompose` afterwards does not count); some `tractor ask`
 `tool_call` has `ts` before E and a paired `tool_result` with `ts`
-after the answer timestamp, with E's nonce appearing in that segment at
+after the answer timestamp, with E's token appearing in that segment at
 or after the result (the call waited on this question; the asking turn
 blocked on the human); the finding was research's: `research/findings.md` first
 contains it in the copy at a research branch or fan-in
@@ -78,11 +78,11 @@ contains it in the copy at a research branch or fan-in
 preceding that research stage; no copy taken before the answer has
 `promises.md` or `brief.md` saying the export is JSON (neither the
 promise nor the brief was changed before the human said so; a brief
-that writes them only after the answer is fine); no promise row of
-`promises.md` and no sentence of `brief.md` differs, whitespace aside,
-between the copies before and after every research branch and fan-in
-stage (research applied nothing; a whitespace normalisation is not an
-application).
+that writes them only after the answer is fine); the CSV promise's row in
+`promises.md` and every sentence of `brief.md` that states it are
+identical, whitespace aside, between the copies before and after every
+research branch and fan-in stage (research did not apply the finding;
+other edits are not this promise's concern).
 
 `infer` (files: the research branches' and fan-in's `prompt.md`,
 `response.md`, and segments; the `brief` stage's `prompt.md` and

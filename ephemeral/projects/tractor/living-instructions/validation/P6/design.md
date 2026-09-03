@@ -63,7 +63,10 @@ chapters` (a verify turn belonging to that marking, not a stale one; a
 no agent segment writes `done: true` for any chapter (agents never
 mark, transiently or otherwise); every completed `verify` stage
 has `prompt.md`, `response.md`, and a segment (a codergen turn, not a
-tool).
+tool); every event this check relies on, and every `verify` stage's
+`StageStarted`, arrived in the observer's mirror while no other stage
+was live (ledger rules: a tool node cannot forge a verify stage or a
+mark without its own stage being live at the time).
 
 `infer` (files: every completed verify turn's `prompt.md`,
 `response.md`, and segment; the chapter's validation design; for a
@@ -77,10 +80,7 @@ turn's segment show no marking of it? Fail on any no."
 
 ## Not proven
 
-That no workflow tool node forged run-directory records: every tool
-command receives the run directory's path and could write stage files
-or append events; the graph is content the diff review reads, and a
-forging tool node is a defect of that review, not of this check. That
+That
 the software the package describes is good; the verifier's catch
 rate (research R2); whether a removed chapter's promise is still
 covered (P6 is about marking, not coverage; pass 1 of the plan review

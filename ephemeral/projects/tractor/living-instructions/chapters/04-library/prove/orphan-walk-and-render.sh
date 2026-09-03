@@ -11,7 +11,7 @@ build_copy
 # `show --raw` (which equals Build, per show-equals-build.sh) must equal
 # the check's own standalone workflow.Render of the node's header file.
 for wf in $workflows; do
-  yaml_nodes "$wf" | while read -r node kind; do
+  built_ids "$wf" | while read -r node; do
     file="$(shown_file "$tmp/bin/tractor" "$wf" "$node")"
     [ -n "$file" ] || continue
     "$tmp/bin/builddump" render "$file" "$tmp/demo" "$tmp/bin/tractor" "$seed" > "$tmp/render.txt" 2>"$tmp/render.err" \
@@ -47,7 +47,7 @@ printf '# uncited\n\nNo prompt cites this page.\n' > "$mlib/doctrine/$orphan.md"
 (cd "$tmp/src" && go build -o "$tmp/bin/mutated" ./cmd/tractor)
 closure_lib="$mlib"
 for wf in $workflows; do
-  yaml_nodes "$wf" | while read -r node kind; do
+  built_ids "$wf" | while read -r node; do
     file="$(shown_file "$tmp/bin/mutated" "$wf" "$node")"
     case "$kind" in
       codergen|supervisor) test -n "$file" || { echo "content: $wf/$node header names no library file"; exit 1; } ;;
@@ -81,7 +81,7 @@ sed -n 's/^- params: *//p' "$mlib/README.md" > "$tmp/param-sets.txt"
 printf -- '--project demo --seed %s\n' "$seed" >> "$tmp/param-sets.txt"
 while read -r pset; do
   for wf in $workflows; do
-    yaml_nodes "$wf" | while read -r node kind; do
+    built_ids "$wf" | while read -r node; do
       # shellcheck disable=SC2086
       "$tmp/bin/mutated" workflow show "$wf" $pset --workdir "$tmp/demo" --node "$node" --raw 2>/dev/null \
         | grep "^$stamp DOCTRINE " | sed "s/^$stamp DOCTRINE //"
@@ -97,7 +97,7 @@ done
 # ---- every skeleton is included by some rendered prompt ------------------
 : > "$tmp/seen-templates.txt"
 for wf in $workflows; do
-  yaml_nodes "$wf" | while read -r node kind; do
+  built_ids "$wf" | while read -r node; do
     file="$(shown_file "$tmp/bin/mutated" "$wf" "$node")"
     [ -n "$file" ] || continue
     show_raw "$tmp/bin/mutated" "$wf" "$node" | grep "^$stamp FILE templates/" | sed "s/^$stamp FILE //"

@@ -21,13 +21,43 @@ fi
 grep -q 'go:embed' workflow/library.go || { echo "no embed in workflow/library.go"; exit 1; }
 grep -q 'text/template' workflow/*.go || { echo "text/template not used"; exit 1; }
 
-# The byte-equality snapshot exists (captured from Build before the
-# migration) and the test that compares Build against it runs and passes.
-# A `go test -run` with no matching test exits 0, so the PASS line is
-# required, not the exit status alone.
-for f in plan/planner.txt plan/validate.txt medium/implement.txt large/plan.txt large/implement.txt; do
-  test -f "workflow/testdata/$f" || { echo "missing snapshot workflow/testdata/$f"; exit 1; }
+# The immutable baseline: the commit recorded in prove/base-commit.txt,
+# made before sprint 1 touched the workflow package. The check extracts
+# that commit, builds a dumper against its Build, and compares every
+# node's payload with the current show --raw for the same parameters.
+# Snapshots and tests the coder owns are not the baseline; this is.
+tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+base="$(cat ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/base-commit.txt)"
+mkdir -p "$tmp/base" "$tmp/bin" "$tmp/demo"
+git archive "$base" | tar -x -C "$tmp/base"
+mkdir -p "$tmp/base/cmd/builddump"
+sed -n '/^  cat > "\$tmp\/src\/cmd\/builddump\/main.go" <<'"'"'EOF'"'"'$/,/^EOF$/p' ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/lib.sh \
+  | sed '1d;$d' > "$tmp/base/cmd/builddump/main.go"
+# The baseline package has no Render; keep only the Build path.
+python3 - "$tmp/base/cmd/builddump/main.go" <<'PYEOF'
+import re, sys
+p = sys.argv[1]; s = open(p).read()
+s = re.sub(r'\t// "render" mode.*?\n\t}\n', '', s, flags=re.S)
+open(p, "w").write(s)
+PYEOF
+(cd "$tmp/base" && go build -o "$tmp/bin/basedump" ./cmd/builddump)
+go build -o "$tmp/bin/tractor" ./cmd/tractor
+printf 'Print a greeting.\n' > "$tmp/demo/seed.md"
+for wf in plan medium large; do
+  awk '/^  - id:/{print $3}' "$tmp/base/workflow/$wf.yaml" | while read -r node; do
+    if [ "$wf" = plan ]; then s="$tmp/demo/seed.md"; else s=""; fi
+    "$tmp/bin/basedump" "$wf" "$node" "$tmp/demo" "$tmp/bin/tractor" "$s" > "$tmp/want.txt" 2>/dev/null || continue
+    if [ "$wf" = plan ]; then
+      "$tmp/bin/tractor" workflow show "$wf" --project demo --seed "$s" --workdir "$tmp/demo" --node "$node" --raw > "$tmp/got.txt"
+    else
+      "$tmp/bin/tractor" workflow show "$wf" --project demo --workdir "$tmp/demo" --node "$node" --raw > "$tmp/got.txt"
+    fi
+    cmp -s "$tmp/want.txt" "$tmp/got.txt" || { echo "baseline: $wf/$node differs from the pre-migration Build at $base"; diff "$tmp/want.txt" "$tmp/got.txt" | head -20; exit 1; }
+    echo "baseline: $wf/$node equals the pre-migration Build"
+  done
 done
+# The coder's snapshot test is the tripwire for later content edits; it
+# must run and pass too.
 go test -v -run 'TestBuildMatchesSnapshot' ./workflow/ -count=1 2>&1 | tee /dev/stderr \
   | grep -q -- '--- PASS: TestBuildMatchesSnapshot' || { echo "TestBuildMatchesSnapshot did not pass"; exit 1; }
 echo "prompts-are-library-files.sh: ok"

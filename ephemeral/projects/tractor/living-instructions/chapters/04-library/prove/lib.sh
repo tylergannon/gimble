@@ -27,6 +27,11 @@ shown_nodes() { show_headed "$1" "$2" | sed -n 's/^== \([^ ]*\).*/\1/p' | sort; 
 shown_file() { show_headed "$1" "$2" | sed -n "s/^== $3 \(([a-z_.]*) \)\{0,1\}\(.*\)$/\2/p"; }
 yaml_nodes() { awk '/^  - id:/{id=$3} /^    type:/{print id, $2}' "workflow/library/workflows/$1.yaml" | sort; }
 yaml_ids() { awk '/^  - id:/{print $3}' "workflow/library/workflows/$1.yaml" | sort; }
+# built_ids WORKFLOW: every node id Build returns, from the check's dumper.
+built_ids() {
+  if [ "$1" = plan ]; then "$tmp/bin/builddump" list "$1" "$tmp/demo" "$tmp/bin/tractor" "$seed"
+  else "$tmp/bin/builddump" list "$1" "$tmp/demo" "$tmp/bin/tractor" ""; fi | sort
+}
 workflows="$(ls workflow/library/workflows/*.yaml | xargs -n1 basename | sed 's/\.yaml$//')"
 
 # closure FILE: prints FILE and every prompt/supervisor/pass file reachable
@@ -72,6 +77,19 @@ func main() {
 	params := workflow.Parameters{
 		Project: "demo", Workdir: workdir, Executable: exe,
 		Plan: workflow.PlanParameters{Seed: seed},
+	}
+	// "list" mode: print every node id Build returns for the workflow
+	// named by the second argument, synthesized branch nodes included.
+	if name == "list" {
+		g, err := workflow.Build(node, params)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		for _, n := range g.Nodes {
+			fmt.Println(n.Base().ID)
+		}
+		return
 	}
 	// "render" mode: print the standalone rendering of one library file.
 	if name == "render" {

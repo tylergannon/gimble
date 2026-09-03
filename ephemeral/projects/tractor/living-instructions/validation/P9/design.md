@@ -59,7 +59,7 @@ Archetype: scenario, judged by inference. Lap 14; answers `review-13.md`.
 `command`: `prove/p9-docs.sh`: the reader run completed; the reader's
 own timeline has a `QuestionAsked` answered through the observer, and
 the reader's segment has a `tractor ask` `tool_call` whose paired
-`tool_result` contains the observer's nonce for that question (the
+`tool_result` contains the observer's token for that question (the
 reader used `tractor ask` and received the answer the observer wrote,
 not canned text); the reader started exactly one plan
 run, found by the check in this order: a `--logs` argument on the

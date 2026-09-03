@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 21; answers `review-20.md`.
+Lap 22; answers `review-21.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -37,8 +37,10 @@ pass leg of the check below is empty until then and runs then.
   `workflow/library.go`, `workflow/testdata/`, and the README's list of
   the data fields templates may read (the template contract, section 4
   of the declaration) with how each derives from `Parameters`.
-- The graph files `workflow/library/workflows/*.yaml`: node ids and
-  types, read by the check itself.
+- The node census of each graph as `Build` returns it (`g.Nodes`,
+  synthesized branch nodes included), printed by the check's own
+  program in its `list` mode; the YAML is not the universe, the built
+  graph is.
 - `Build`'s output, captured by the check itself through a throwaway
   program it writes into a copy of the tree, for every node that
   carries a prompt, command, or checklist; and, through the same
@@ -70,13 +72,18 @@ pass leg of the check below is empty until then and runs then.
 `prove/p8-passes-are-files.sh`, then at chapter 6
 `prove/p8-show-stage.sh`.
 
-- `prove/prompts-are-library-files.sh`: the sprint's tripwire (library
-  files exist, no planner sentence in Go, snapshot test runs and
-  passes). Not the proof.
+- `prove/prompts-are-library-files.sh`: every node's `show --raw`
+  equals the payload the pre-migration `Build` produced, built by the
+  check from the commit recorded in `prove/base-commit.txt` (an
+  immutable baseline the coder cannot update), and the library files
+  exist; the coder's snapshot test is a tripwire for later content
+  edits, not the baseline. Its ledger item's judge reads the Go under
+  `workflow/` for prompt text in strings.
 - `prove/show-equals-build.sh` (sprint 2) and
   `prove/orphan-walk-and-render.sh` (sprint 3). Nodes: the set of
-node ids the headed `show` prints equals the set the workflow YAML
-declares (order free; the type in the header is a convenience, not a
+node ids the headed `show` prints equals the set of ids in `g.Nodes`
+as the check's dumper lists them from `Build` (order free; synthesized
+branch nodes included; the type in the header is a convenience, not a
 requirement), and the body the headed output prints under each header
 equals that node's `--raw` output (the headed form is the primary
 output and carries every payload, not only headers). Equality: for every node of any kind that carries a
@@ -133,9 +140,10 @@ output and carries every payload, not only headers). Equality: for every node of
   concatenated, cannot pass this.
 - `prove/p8-show-stage.sh` (chapter 6): runs `plan` on
   `seeds/greeter.md` into a fresh run directory, then for the first
-  completed stage of each prompt-bearing node runs `show plan --node
-  <n> --stage <that stage dir> --goal <the run's goal from
-  manifest.json>` with the parameters the script passed to `run`, and
+  completed stage of each codergen node (a fan-in's `prompt.md` carries
+  the branch results the engine appends at run time and is not diffed;
+  a supervisor has no stage) runs `show plan --node <n> --stage <that
+  stage dir> --goal <the run's goal from manifest.json>` with the parameters the script passed to `run`, and
   expects exit 0 (`--stage` strips the frame and, given `--goal`,
   expands `$goal` as the engine does, so a library prompt that uses
   `$goal` is not a false diff); does the same for the first `implement`

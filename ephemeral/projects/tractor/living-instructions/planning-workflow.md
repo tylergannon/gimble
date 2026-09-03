@@ -185,7 +185,7 @@ summary and the seven pass outcomes. Yes routes to `success`. No routes to
 
 | Size | Path through the graph | Next |
 |---|---|---|
-| SIMPLE | the full graph; `decompose` writes a one-item sprint ledger, the validation loop runs one lap, the review loop runs the holistic pass only | "Execute the plan yourself." |
+| SIMPLE | the full graph; `decompose` writes a one-item sprint ledger; the validation loop runs one lap per promise and the review loop runs all seven passes, as for any size | "Execute the plan yourself." |
 | MEDIUM | full graph; decompose into sprints | `tractor workflow run medium --project <build>` |
 | LARGE | full graph; decompose into chapters | `tractor workflow run large --project <build>` |
 
@@ -243,8 +243,9 @@ Holdouts: `$XDG_STATE_HOME/tractor/holdouts/<build>-<token>/`.
 
 ## 6a. The library (decision 53)
 
-The workflows are content. Everything an agent is told lives as a file
-under `workflow/library/`, embedded with `embed.FS`, rendered with
+The workflows are content. Every prompt body, doctrine page, supervisor
+brief, pass, and skeleton lives as a file under `workflow/library/`
+(frames and `$goal` are the engine's, added at run time), embedded with `embed.FS`, rendered with
 `text/template` from the workflow `Parameters`. `workflow.go` keeps the
 graph surgery (`Build`, path resolution, validation) and nothing an editor
 would want to change.
@@ -288,8 +289,9 @@ recommended pair.
 - `tractor workflow show <name> [--project …]` prints each node's payload (a
   prompt, a tool command, or a checklist path) and each supervisor's
   brief exactly as `Build` materialized them for those parameters; `--stage <dir>` diffs against a real stage with the frame
-  stripped. Frames and `$goal` are engine additions `show` never
-  reproduces (research F1).
+  stripped. Frames and `$goal` are engine additions the raw output never
+  reproduces (research F1); `--stage --goal` expands `$goal` the
+  engine's way for the comparison only.
 - The skill bundle (`skills/tractor`) and the docs site teach the same
   things from the same files where they overlap (question-file format,
   ledger format, recommendation contract), so there is one source.
