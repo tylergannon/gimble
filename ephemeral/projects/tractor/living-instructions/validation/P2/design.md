@@ -1,6 +1,6 @@
 # P2: the brief/research loop halts through the tool node, and a finding is asked, not applied
 
-Archetype: scenario. Lap 10; answers `review-9.md`.
+Archetype: scenario. Lap 11; answers `review-10.md`.
 
 ## Story
 
@@ -11,11 +11,16 @@ Archetype: scenario. Lap 10; answers `review-9.md`.
    CSV". Research reads the cache before it searches, so the leaf is
    indexed on the first research lap and contradicts a stated promise.
 2. `plan` runs with `observer.sh`. Rules: the finding rule matches a
-   question that mentions any of: the planted leaf's path, its title
-   ("integration guide"), a finding id (`F<n>`), or the word JSON; it
-   answers "Yes. Change the promise: the export is JSON, not CSV."
-   Other `Promise:` lines "Yes."; default "Proceed with your
-   recommendation." Every answer ends with an `observer:` nonce line.
+   question, asked after `research/findings.md` first holds the
+   finding, that mentions any of: the planted leaf's path, its title
+   ("integration guide"), a finding id (`F<n>`), or the export's
+   format in any of the words JSON, CSV, comma, delimited, encoding,
+   format, export; it answers "Yes. Change the promise: the export is
+   JSON, not CSV." Other `Promise:` lines "Yes."; default "Proceed
+   with your recommendation." Every answer ends with an `observer:`
+   nonce line. A question that paraphrases the finding past every
+   listed word matches no rule and makes the run inconclusive, never a
+   false pass; the infer judge, not the rule, decides citation.
 3. Wait for `COMPLETED`.
 4. The check then exercises the halt predicate itself: it takes the
    halt node's command as `show plan --node halt --raw` prints it for
@@ -50,11 +55,12 @@ error, and `brief`'s successor is the research node; the halt command
 run by the check exits non-zero under each of the two open states and
 zero under the clear state; every `halt` stage directory contains
 `tool.log` (a tool node); the last `halt` `StageCompleted` has `next:
-decompose`; exactly one question matched the finding rule
-(`answers.log`), with event E; some `tractor ask` `tool_call` has `ts`
-before E and a paired `tool_result` whose output contains E's nonce
-(the call that waited on this question; the asking turn blocked on the
-human); the finding was research's: `research/findings.md` first
+decompose`; at least one question matched
+the finding rule (`answers.log`); call the first E; some `tractor ask`
+`tool_call` has `ts` before E and a paired `tool_result` with `ts`
+after the answer timestamp, with E's nonce appearing in that segment at
+or after the result (the call waited on this question; the asking turn
+blocked on the human); the finding was research's: `research/findings.md` first
 contains it in the copy at a research branch or fan-in
 `StageCompleted`, and not in the copy at the `StageCompleted`
 preceding that research stage; no copy taken before the answer has
@@ -76,7 +82,9 @@ made in the promise list or the brief? Fail on any no."
 
 ## Not proven
 
-Convergence on arbitrary seeds; how many laps the loop takes; whether
+A finding cited in words the rule does not list; that run is
+inconclusive and is rerun with the rule widened. Convergence on
+arbitrary seeds; how many laps the loop takes; whether
 the first halt sent the loop back (a run in which research resolves the
 finding before the first halt satisfies P2); whether and where the
 accepted change was applied afterwards (P2 promises the ask, not the

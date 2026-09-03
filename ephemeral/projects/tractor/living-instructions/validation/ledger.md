@@ -12,6 +12,7 @@ items:
   - name: P4 re-entry
     check: The design under validation/P4 proves P4 and cannot be satisfied while P4 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P4/design.md
+    done: true
   - name: P5 seven passes
     check: The design under validation/P5 proves P5 and cannot be satisfied while P5 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P5/design.md

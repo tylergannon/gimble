@@ -1,7 +1,7 @@
 # P3: every promise is marked done in the validation ledger after an independent review routed pass
 
 Archetype: universal over the promises of a run. Checked exhaustively;
-no holdout. Lap 10; answers `review-9.md`.
+no holdout. Lap 11; answers `review-10.md`.
 
 ## Story
 
@@ -22,7 +22,11 @@ Any `plan` run the check makes itself at check time
 - `stages/<seq>-<loop>/validation.json` for every validation loop turn.
 - Observer copies of `validation/<id>/design.md` at every stage
   boundary (which stage wrote each design).
-- For each item's reviewing stage: `prompt.md` and `response.md`.
+- For each item's reviewing stage: `prompt.md` and `response.md`, and
+  the observer copy of that item's `design.md` at the `StageCompleted`
+  before the reviewing stage (the design as the reviewer saw it; a
+  later plan-review lap may rewrite the design after the mark, and P3
+  is about the review that marked it).
 - `checkpoint.json` `sessions`: the entries under each reviewing node's
   and each designing node's binding keys (the NUL-prefixed `none:<id>`
   for a no-thread node, else its thread id).
@@ -55,7 +59,8 @@ differing from each; every reviewing stage has `prompt.md`,
 `response.md`, and a segment.
 
 `infer` (files: for every item, its reviewing stage's `prompt.md` and
-`response.md`; `promises.md`; the designs): "For each item's reviewing
+`response.md`; `promises.md`; the copy of each design as its reviewer
+saw it): "For each item's reviewing
 turn: was it given that item's promise statement and that item's
 design, and asked whether a coder could satisfy the design while the
 promise is false? Do its notes answer that for that design, and does

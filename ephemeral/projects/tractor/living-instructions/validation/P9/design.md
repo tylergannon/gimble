@@ -1,6 +1,6 @@
 # P9: an agent reading only the docs uses plan, show, and ask correctly
 
-Archetype: scenario, judged by inference. Lap 10; answers `review-9.md`.
+Archetype: scenario, judged by inference. Lap 11; answers `review-10.md`.
 
 ## Story
 
@@ -35,8 +35,9 @@ Archetype: scenario, judged by inference. Lap 10; answers `review-9.md`.
 - The reader run directory: `timeline.jsonl` (its own `QuestionAsked`),
   its segment (every command it ran and what came back), `response.md`,
   the observer's `answers.log`.
-- The plan run directory the reader created (found under the scratch
-  directory, whether by `--logs` or the state root): `timeline.jsonl`,
+- The plan run directory the reader created, found from the `Logs:`
+  line in the reader's segment (the `tool_result` of its `workflow run`
+  call), wherever `--logs` or the state root put it: `timeline.jsonl`,
   `interview/`, the planner stage's `prompt.md` and segment (its
   `tractor ask` `tool_call` and paired `tool_result`), its own
   observer tree.
@@ -53,8 +54,9 @@ Archetype: scenario, judged by inference. Lap 10; answers `review-9.md`.
 
 `command`: `prove/p9-docs.sh`: the reader run completed; the reader's
 own timeline has a `QuestionAsked` answered through the observer (the
-reader used `tractor ask`); exactly one plan run directory exists under
-the scratch directory and its `timeline.jsonl` ends with
+reader used `tractor ask`); the reader's segment has exactly one
+`workflow run plan` call whose `tool_result` carries a `Logs:` line,
+that directory exists, and its `timeline.jsonl` ends with
 `PipelineCompleted` (the run the reader started finished); its first
 `QuestionAsked` E was answered by the reader: the reader's segment has
 a `tool_call` invoking `tractor answer` for E's file, and the plan
@@ -75,10 +77,12 @@ sources, the help output, `planning-workflow.md` section 3): "For the
 three promised commands (`workflow run plan`, `workflow show`, `ask`,
 with `answer` as `ask`'s counterpart): did the agent's use of each come
 from the promised sources, and did each work as run? Helper commands
-the agent used to write a seed or a question file are not judged. Does
-the agent's account of where the interview directory and the holdout
-live and which planning step produces each agree with the promised
-sources and with `planning-workflow.md`? Fail on any use of the
+the agent used to write a seed or a question file are not judged. Do the promised sources themselves state where the interview
+directory and the holdout live and which planning step produces each
+(quote the passages; if the sources are silent, fail: the agent may
+have discovered the paths at run time, and P9 promises that the docs
+teach them), and does the agent's account agree with those passages
+and with `planning-workflow.md`? Fail on any use of the
 promised commands that the help text contradicts, on any statement in
 the promised sources about them that the help text contradicts, and on
 any disagreement in the account."

@@ -70,9 +70,10 @@ find "$mlib/prompts" "$mlib/supervisors" "$mlib/passes" -type f 2>/dev/null | wh
   rel="${f#$mlib/}"
   printf '\n%s FILE %s\n' "$stamp" "$rel" >> "$f"
 done
-page="$(find "$mlib/doctrine" -type f -name '*.md' 2>/dev/null | head -1 || true)"
+page="$(find "$mlib/doctrine" -type f -name '*.md' 2>/dev/null | sort -R | head -1 || true)"
 if [ -n "$page" ]; then printf '\n%s DOCTRINE %s\n' "$stamp" "$(basename "$page" .md)" >> "$page"; fi
-printf '# uncited\n\nNo prompt cites this page.\n' > "$mlib/doctrine/zz-uncited.md"
+orphan="probe-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
+printf '# uncited\n\nNo prompt cites this page.\n' > "$mlib/doctrine/$orphan.md"
 (cd "$tmp/src" && go build -o "$tmp/bin/mutated" ./cmd/tractor)
 closure_lib="$mlib"
 : > "$tmp/used.txt"
@@ -90,9 +91,9 @@ for wf in $workflows; do
     grep "^$stamp FILE " "$tmp/mut.txt" | sed "s/^$stamp FILE //" | while read -r seen; do
       grep -qxF -- "$seen" "$tmp/closure.txt" || { echo "content: $wf/$node renders $seen, outside the include closure of $file"; exit 1; }
     done
-    while read -r inc; do
-      grep -q "^$stamp FILE $inc\$" "$tmp/mut.txt" || { echo "content: $wf/$node includes $inc but does not render it"; exit 1; }
-    done < "$tmp/closure.txt"
+    # A conditional include may not fire for the check's parameters, so a
+    # closure file's sentinel is allowed to be absent; a file outside the
+    # closure is not allowed to appear.
     if [ -n "$page" ] && grep -q "$(basename "$page" .md)" "$mlib/$file"; then
       grep -q "^$stamp DOCTRINE " "$tmp/mut.txt" || { echo "content: $wf/$node names $(basename "$page") but does not render it"; exit 1; }
     fi
@@ -107,13 +108,13 @@ done
 
 # ---- orphans: the injected page must be reported by name ---------------
 (cd "$tmp/src" && go test -run 'TestLibraryNoOrphans' ./workflow/ -count=1 > "$tmp/orphan.log" 2>&1) \
-  && { echo "orphans: injected zz-uncited.md was not reported"; cat "$tmp/orphan.log"; exit 1; }
-grep -q 'zz-uncited' "$tmp/orphan.log" || { echo "orphans: test failed but did not name zz-uncited.md"; cat "$tmp/orphan.log"; exit 1; }
+  && { echo "orphans: injected $orphan.md was not reported"; cat "$tmp/orphan.log"; exit 1; }
+grep -q "$orphan" "$tmp/orphan.log" || { echo "orphans: test failed but did not name $orphan.md"; cat "$tmp/orphan.log"; exit 1; }
 
 # ---- rendering: a broken action must be reported by name ---------------
-rm -f "$mlib/doctrine/zz-uncited.md"
+rm -f "$mlib/doctrine/$orphan.md"
 if [ -n "$page" ]; then
-  printf '\n%s broken-action-never-closed\n' "$delim_open" >> "$page"
+  printf '\n%s broken-%s\n' "$delim_open" "$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')" >> "$page"
   (cd "$tmp/src" && go test -run 'TestLibraryRendersAll' ./workflow/ -count=1 > "$tmp/render.log" 2>&1) \
     && { echo "rendering: broken page was not reported"; cat "$tmp/render.log"; exit 1; }
   grep -q "$(basename "$page")" "$tmp/render.log" || { echo "rendering: test failed but did not name $(basename "$page")"; cat "$tmp/render.log"; exit 1; }

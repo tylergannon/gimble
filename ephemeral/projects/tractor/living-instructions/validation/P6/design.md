@@ -1,6 +1,6 @@
 # P6: `large` completes and every chapter is marked only after `verify` routed pass
 
-Archetype: scenario. Lap 10; answers `review-9.md`.
+Archetype: scenario. Lap 11; answers `review-10.md`.
 
 ## Story
 
@@ -29,8 +29,8 @@ Archetype: scenario. Lap 10; answers `review-9.md`.
   its segment.
 - For any chapter that left the ledger during the run: the observer
   copies of the chapter ledger at every stage boundary, the removing
-  stage's `response.md` and segment (every `tool_call` with its
-  arguments), and the interview files.
+  stage's `response.md`, every agent segment of the run (every
+  `tool_call` with its arguments), and the interview files.
 
 ## Validator
 
@@ -45,24 +45,28 @@ chapter ledger with a reason; silent disappearance is a fail), and
 either the chapter has its own `LoopValidated` `passed: true` and
 `validation.json` from before it left (engine-marked after verify, then
 restructured away, which P6 allows) or it is not `done: true` in any
-copy and no `tool_call` in the removing stage's segment writes `done:
-true` for it (never marked, not even inside the removing turn); the
+copy and no `tool_call` in any agent segment of the run writes `done:
+true` for it (never marked, not even transiently inside a turn; the
+segments record every write an agent made); the
 final ledger is not empty; every chapter item at the end is `done:
-true`; for each, exactly one `LoopValidated` with `passed: true` names
-it on `chapters` and one `chapters` loop stage's `validation.json`
-names it (engine-marked; a hand-marked item has neither); for each such
-item, between its `LoopItemSelected` on `chapters` and its
-`LoopValidated`, the last completed codergen stage is a `verify` stage
-whose `StageCompleted` has `next: chapters` (a verify turn belonging to
-this chapter, not a stale one; a `StageFailed` attempt with no
-`response.md` is a retry and is skipped); every completed `verify` stage
+true`; for each, at least one `LoopValidated` with `passed: true` names
+it on `chapters`, each with a `chapters` loop stage's `validation.json`
+naming it (engine-marked; a hand-marked item has neither; a chapter
+reopened with a reason and verified again has two, which P6 allows);
+for every such `LoopValidated`, between the `LoopItemSelected` on
+`chapters` that preceded it and the event itself, the last completed
+codergen stage is a `verify` stage whose `StageCompleted` has `next:
+chapters` (a verify turn belonging to that marking, not a stale one; a
+`StageFailed` attempt with no `response.md` is a retry and is skipped);
+no agent segment writes `done: true` for any chapter (agents never
+mark, transiently or otherwise); every completed `verify` stage
 has `prompt.md`, `response.md`, and a segment (a codergen turn, not a
 tool).
 
 `infer` (files: every completed verify turn's `prompt.md`,
 `response.md`, and segment; the chapter's validation design; for a
-removed chapter, the removing stage's `response.md` and segment, or
-the question and answer): "Was each verifier told which chapter to
+removed chapter, the removing stage's `response.md` and every segment
+that names the chapter, or the question and answer): "Was each verifier told which chapter to
 verify and the design to follow? Did it operate the software (run it,
 not only read files; decision 41 and P6's statement), and do its notes
 report what it did and a verdict that agrees with its route? If a

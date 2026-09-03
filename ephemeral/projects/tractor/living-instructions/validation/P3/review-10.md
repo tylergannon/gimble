@@ -1,0 +1,9 @@
+1. No qualifying game. Hand-marking ledger items is the cheapest attempt, but it produces neither `LoopValidated` nor `validation.json`; the engine only marks after validation passes ([engine/loop.go](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/engine/loop.go:83)). Relabeling a node also fails because the validator checks the reviewing turn’s prompt, response, route, provider, and harness binding ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P3/design.md:40)).
+
+2. No substantive check is trivial or dependent on uncaptured evidence. `show` supplies the materialized provider, while `checkpoint.json` independently records the harness actually used ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P3/design.md:14)); the CLI’s provider-to-harness routing is fixed and one-to-one ([backend.go](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/harness/backend.go:16)). Requiring both is redundant corroboration, not an evidentiary gap.
+
+3. Yes. After P3’s validation review marks an item, the permitted later plan-review loop can fail a proof-quality pass, route to `design`, materially rewrite that item’s design, then return directly to the plan-review loop without reopening the validation ledger ([planning-workflow.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/planning-workflow.md:130)). P3 remains historically true, but its infer judge reads the final designs and requires the earlier reviewing turn to have received and answered for “that item’s design” ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P3/design.md:57)); a materially changed final design would therefore cause a false failure.
+
+ROUTE: fail
+
+

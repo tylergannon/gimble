@@ -1,6 +1,6 @@
 # P1: elicitation adds a promise; a declined promise becomes an exclusion
 
-Archetype: scenario. Lap 10; answers `review-9.md`.
+Archetype: scenario. Lap 11; answers `review-10.md`.
 
 ## Story
 
@@ -46,9 +46,12 @@ Archetype: scenario. Lap 10; answers `review-9.md`.
 `answers.log` has at least one decline line; that line's question id has
 a `QuestionAsked` event E whose `question` path is that file; some
 `tractor ask` `tool_call` has `ts` before E and a paired `tool_result`
-whose output contains E's nonce (the call that waited on this question,
-and blocked until the human answered; concurrent asks are fine because
-the nonce picks the right one); the `.answer.md` for that id contains
+with `ts` after the answer timestamp, and E's nonce appears in that
+segment at or after that `tool_result` (in the result itself, or in a
+later tool result or assistant text when the agent captured the answer
+through command substitution and read it back): the call waited on
+this question and the answer reached the agent; concurrent asks are
+fine because the nonce picks the right one; the `.answer.md` for that id contains
 the decline text, under the candidate's number when the question
 numbered them; the final `brief.md` has an exclusions section with
 content, where an exclusions section is any Markdown heading, at any

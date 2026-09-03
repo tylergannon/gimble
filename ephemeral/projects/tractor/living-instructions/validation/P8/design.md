@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 10; answers `review-9.md`.
+Lap 11; answers `review-10.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -42,8 +42,10 @@ pass leg of the check below is empty until then and runs then.
   `show --values` output for the same parameters, which must agree.
 - Mutated copies of the tree the check makes: every library prompt file
   and one doctrine page with a sentinel naming that file appended; one
-  uncited doctrine page added; and, separately, one doctrine page with a
-  broken template action.
+  uncited doctrine page added under a name the check draws at random
+  each run; and, separately, one doctrine page chosen at random with a
+  broken template action whose text the check draws at random. A test
+  that recognises a fixed probe cannot pass twice.
 - At chapter 5 and after: a `plan` run the check makes itself from a
   copy of the tree in which every file under `passes/` carries its own
   sentinel; the `plan-review/ledger.md` it generated and every reviewer
@@ -70,9 +72,10 @@ pass leg of the check below is empty until then and runs then.
   Content: each prompt-bearing node's header names its library file;
   with a distinct sentinel appended to every file under `prompts/`,
   `supervisors/`, and `passes/`, each node's `show --raw` contains the
-  sentinel of the file its header names, contains the sentinel of every
-  prompt file in that file's include closure, and contains no sentinel
-  of a prompt file outside the closure; with a sentinel appended to a
+  sentinel of the file its header names and contains no sentinel of a
+  prompt file outside that file's include closure (a conditional
+  include that does not fire for the check's parameters is allowed to
+  be absent; a file outside the closure is not allowed to appear); with a sentinel appended to a
   doctrine page, every prompt whose closure names that page prints it.
   No unused prompt file: every file under `prompts/` and `supervisors/`
   is in the closure of some node's header file in some workflow (a file
@@ -89,10 +92,11 @@ pass leg of the check below is empty until then and runs then.
   every rendered residue line to equal some residue line of that
   closure. Text parked in another file, in a comment, or supplied by Go
   fails; a `quote`d or `shell`-quoted value passes; a fragment included
-  twice passes. Orphans: an injected `doctrine/zz-uncited.md` makes
-  `TestLibraryNoOrphans` fail naming it. Rendering: an injected broken
-  action in a doctrine page makes `TestLibraryRendersAll` fail naming
-  the page. In the real tree both tests run and pass.
+  twice passes. Orphans: an injected uncited page, named at random per run, makes
+  `TestLibraryNoOrphans` fail naming it. Rendering: an unclosed action
+  with random text appended to a doctrine page chosen at random makes
+  `TestLibraryRendersAll` fail naming the page. In the real tree both
+  tests run and pass.
 - `prove/p8-passes-are-files.sh` (chapter 5): in a copy of the tree
   with a distinct sentinel appended to every file under `passes/`, a
   `plan` run's generated `plan-review/ledger.md` has one item per pass
