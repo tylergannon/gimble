@@ -119,21 +119,28 @@ and what the design does not prove.
 ## Shared evidence tooling
 
 `validation/observer.sh <run-dir> <rules-file>` is the scripted human
-and the witness. It tails `<run-dir>/timeline.jsonl` and:
+and the witness. Its own tree lives beside the run directory, at
+`<run-dir>.observer/`, never inside it, so nothing under
+`TRACTOR_RUN_DIR` betrays its presence to the agents. It tails
+`<run-dir>/timeline.jsonl` and:
 
 - on every `StageStarted`, `StageCompleted`, `QuestionAsked`, and
   `SupervisorVerdict` event, copies the package directory
   (`ephemeral/projects/<build>/`, without `research/` leaves) into
-  `<run-dir>/observer/<n>-<event>-<node>/`;
+  `<run-dir>.observer/<n>-<event>-<node>/`;
 - on `QuestionAsked` only: copies the package, reads the question file,
   matches it against ordered rules (a substring or a `Promise:` line
   predicate, and an answer), composes the answer (when the question
   numbers its candidates the answer mirrors the numbering, one line per
-  candidate, decision 39), copies the package again immediately before
-  writing the answer with `tractor answer` (so a change made between
-  the ask and the answer is visible), and appends
-  `<id> <rule> <ts> <candidate number> <matched line>` (tab-separated) to
-  `<run-dir>/observer/answers.log`. It never answers a file it found by
+  candidate, decision 39) and ends it with a line `observer: <id>
+  <nonce>` (a random token per answer), copies the package again
+  immediately before writing the answer with `tractor answer` (so a
+  change made between the ask and the answer is visible), and appends
+  `<id> <rule> <ts> <candidate number> <nonce> <matched line>`
+  (tab-separated) to `<run-dir>.observer/answers.log`. `tractor ask`
+  prints the answer it received, so the `tool_result` of the ask that
+  waited on a question contains that question's nonce: that is how a
+  check binds an ask call to its `QuestionAsked` event. It never answers a file it found by
   polling, so a question written without `tractor ask` is never
   answered.
 

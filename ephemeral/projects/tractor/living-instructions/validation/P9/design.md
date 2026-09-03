@@ -1,6 +1,6 @@
 # P9: an agent reading only the docs uses plan, show, and ask correctly
 
-Archetype: scenario, judged by inference. Lap 9; answers `review-8.md`.
+Archetype: scenario, judged by inference. Lap 10; answers `review-9.md`.
 
 ## Story
 
@@ -34,18 +34,18 @@ Archetype: scenario, judged by inference. Lap 9; answers `review-8.md`.
 
 - The reader run directory: `timeline.jsonl` (its own `QuestionAsked`),
   its segment (every command it ran and what came back), `response.md`,
-  `observer/answers.log`.
+  the observer's `answers.log`.
 - The plan run directory the reader created (found under the scratch
   directory, whether by `--logs` or the state root): `timeline.jsonl`,
   `interview/`, the planner stage's `prompt.md` and segment (its
   `tractor ask` `tool_call` and paired `tool_result`), its own
-  `observer/`.
+  observer tree.
 - The promised sources at that commit, and the `--help` of `workflow
   run`, `workflow show`, `ask`, `answer`.
-- The planner prompt as the check itself prints it with `show plan
-  --node planner --raw` for the reader's project and seed, and the
-  exit status of the check's own `show plan --node planner --stage
-  <the planner stage dir>`.
+- The planner prompt as the plan run recorded it: the check strips the
+  frame from the planner stage's `prompt.md` itself (everything through
+  the last `</iterate>` line and the blank lines after it; the shape is
+  the engine's, `engine/frames.go`) and keeps the remainder as T.
 - The holdout root as the software renders it: `show large --node
   verify --raw` for the reader's project, produced by the check.
 
@@ -55,32 +55,33 @@ Archetype: scenario, judged by inference. Lap 9; answers `review-8.md`.
 own timeline has a `QuestionAsked` answered through the observer (the
 reader used `tractor ask`); exactly one plan run directory exists under
 the scratch directory and its `timeline.jsonl` ends with
-`PipelineCompleted` (the run the reader started finished; a run left
-hanging or failed is a fail); its first `QuestionAsked` E was answered
-by the reader: the reader's segment has a `tool_call` invoking `tractor
-answer` for E's file at time A, and the plan run's planner segment has
-a `tractor ask` `tool_call` before E with its paired `tool_result`
-after A (the reader's answer released the planner's blocked ask); the
-reader's segment has a `tool_call` invoking `tractor workflow show`
-whose paired `tool_result` text contains, trailing whitespace aside,
-the whole of the check's own `show plan --node planner --raw` output
-for the same project (the headed form and the raw form both satisfy
-this; a prefix does not), and the check's `show --stage` against the
-plan run's planner stage exits 0 (what `show` prints is what the run
-sent, frame aside); `response.md` names the interview directory the
-plan run used (the directory of E's path) and the holdout root that
-`show large --node verify --raw` renders.
+`PipelineCompleted` (the run the reader started finished); its first
+`QuestionAsked` E was answered by the reader: the reader's segment has
+a `tool_call` invoking `tractor answer` for E's file, and the plan
+run's planner segment has a `tractor ask` `tool_call` before E whose
+paired `tool_result` contains the reader's answer text (the reader's
+answer is what released the planner's blocked ask); the reader's
+segment has a `tool_call` invoking `tractor workflow show` whose paired
+`tool_result` text contains, trailing whitespace aside, the whole of T
+(the reader printed, with the promised command, the prompt the run
+actually sent; the check compares against the run's own record, not
+against another `show` call, and a prefix or canned text fails);
+`response.md` names the interview directory the plan run used (the
+directory of E's path) and the holdout root that `show large --node
+verify --raw` renders.
 
 `infer` (files: the reader's `response.md` and segment, the promised
 sources, the help output, `planning-workflow.md` section 3): "For the
-tasks only: did every command, flag, and path the agent used come from
-the promised sources, and did it work as run? Does the agent's account
-of where the interview directory and the holdout live and which
-planning step produces each agree with the promised sources and with
-`planning-workflow.md`? Fail on any command, flag, or path for these
-tasks that the help text contradicts, on any statement in the promised
-sources about these tasks that the help text contradicts, and on any
-disagreement in the account."
+three promised commands (`workflow run plan`, `workflow show`, `ask`,
+with `answer` as `ask`'s counterpart): did the agent's use of each come
+from the promised sources, and did each work as run? Helper commands
+the agent used to write a seed or a question file are not judged. Does
+the agent's account of where the interview directory and the holdout
+live and which planning step produces each agree with the promised
+sources and with `planning-workflow.md`? Fail on any use of the
+promised commands that the help text contradicts, on any statement in
+the promised sources about them that the help text contradicts, and on
+any disagreement in the account."
 
 ## Not proven
 
@@ -89,4 +90,6 @@ or the library README; they are outside P9. The holdout handoff itself
 and which node in a real run writes it (P6's `verify` reads it; chapter
 6 sprint 2's own check covers the writer); here that the promised
 sources, the agent, and the rendered verify prompt agree on where it
-lives and what the docs say produces it.
+lives and what the docs say produces it. That `show` equals `Build`;
+that is P8, and this check compares the reader's output with the run's
+recorded prompt instead.

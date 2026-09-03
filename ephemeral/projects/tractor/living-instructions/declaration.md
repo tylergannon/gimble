@@ -53,7 +53,7 @@ Each promise: the statement, what it must not imply, the archetype
 | P3 | Every promise in `promises.md` is marked done in `validation/ledger.md` by the engine after a `review` turn on a provider other than the planner's routed pass. | That the designs are good, only that they were reviewed independently. | Universal over promises | Inspector over the ledger and the run's events (provider and routing per stage). No holdout: the set is small and checked exhaustively. |
 | P4 | A validation design the reviewer routes to fail is re-designed with the reviewer's notes available and later routes to pass. | Anything about how often designs are rejected. | Scenario | A test seed whose first design lap is instructed to propose a trivial check; the timeline shows `review` routing to `design`, then to the loop; the item ends `done: true`. |
 | P5 | All seven review passes end `done: true` in `plan-review/ledger.md`, each marked by the engine after a fresh reviewer on another provider routed pass. | That the passes catch every defect. | Universal over passes | Inspector over ledger and events. |
-| P6 | `tractor workflow run large` on a v2 package reaches `COMPLETED`, and every chapter's `done: true` is preceded in the timeline by a `verify` turn for that chapter routing pass. | That the software the package describes is good. | Scenario | Nested run on a small package; timeline order check. |
+| P6 | `tractor workflow run large` on a v2 package reaches `COMPLETED`, and every chapter's `done: true` is preceded in the timeline by a `verify` turn for that chapter that operated the software and routed pass. | That the software the package describes is good. | Scenario | Nested run on a small package; timeline order check; judge over the verifier's turn. |
 | P7 | `scope_cop` delivers at least one steer during a planning run, and the steered turn's output differs from what it was writing before the steer. | That supervisors improve plans. | Scenario | Timeline `steer` verdict with a delivered disposition; diff of the stage output before and after. |
 | P8 | Every prompt body, doctrine page, supervisor brief, pass, and skeleton is a library file and Go supplies only data values to templates; every doctrine page is referenced by at least one prompt; `tractor workflow show <name>` prints every node of the graph, each node's prompt exactly as `Build` materialized it for the given parameters, and the library file each prompt came from, and `--stage <dir>` diffs that against a real stage with the frame stripped. | That the content is well written, or that `show` reproduces run-time frames. | Universal over library files | Render test; orphan walk over the embedded tree; `show --stage` against a recorded run reports no diff. Exhaustive, no holdout. |
 | P9 | An agent reading only the docs site, spec, and skill bundle runs `workflow run plan`, `workflow show`, and `ask` correctly, including where the interview directory and the holdout come from. | That the docs are complete. | Scenario | `infer` judge over the docs, failing on any claim the `--help` text contradicts (the chapter 1 sprint 3 pattern). |
@@ -74,7 +74,7 @@ and the implementer owns it.
 | Checklist item | ledgers ↔ engine | `loop-node.md` §2. Exists; unchanged. |
 | Question and answer files | agents ↔ humans and the future web client | `tractor ask`/`answer` as built; batched questions (decision 39) are a convention inside the file, not a format change. Inside a question file, a promise candidate is one line beginning `Promise:`; a scripted or programmatic answerer keys on that line. |
 | Holdout handoff | design lap → `verify` prompt materialization | Path under `$XDG_STATE_HOME/tractor/holdouts/<build>-<token>/`, recorded in the run's private workflow state, rendered only into `verify`. |
-| Library template contract | content editors ↔ the workflow package | `{{doctrine "name"}}`, `{{template "name"}}`, and the `Parameters` fields templates may read. Documented in `workflow/library/README.md`; the render test is its check. |
+| Library template contract | content editors ↔ the workflow package | `text/template` under non-default delimiters (`<<` `>>` unless the README says otherwise); the `include "name"` and `doctrine "name"` actions; the `Parameters`-derived fields templates may read, listed in `workflow/library/README.md` with their derivations. The render test is its check. |
 | Supervisor digests and verdicts | engine ↔ supervisor turns | Spec §3.10. Exists; unchanged. |
 
 ## 5. Chapters
@@ -84,13 +84,15 @@ docs-and-skill sprint, as chapter 1 did, so the docs never lag by more
 than one chapter. Chapter 4's sprints are written up front as the
 hand-written standard; later chapters start with a backlog sketch and are
 re-planned each lap (decision 44). No engine change anywhere; chapters 5
-and 6 are content plus workflow-package Go.
+and 6 are library content plus Go in the `workflow` package and
+`cmd/tractor`.
 
 ### Chapter 4: the library
 
-Promise P8. Everything later is content, so this comes first.
+Promise P8. Everything later is content plus workflow-package Go, so
+this comes first.
 
-1. Move the three graphs and three prompts into `workflow/library/`,
+1. Move the three graphs and four prompts into `workflow/library/`,
    embedded, rendered with `text/template`; `Build` unchanged from the
    outside; existing tests pass. Check: no `fmt.Sprintf` prompt remains;
    `go test ./workflow/...`.
@@ -99,9 +101,10 @@ Promise P8. Everything later is content, so this comes first.
    Check: `show plan` output equals a real run's `prompt.md` minus frames.
 3. Doctrine pages, distilled from `sources/` one page each with a
    provenance pointer, and the artifact skeletons. Written by Claude, not
-   the coder (see question 5). Check: page list matches
-   `planning-workflow.md` §6a; `infer` judge that each page is under a
-   screen and cites its source.
+   the coder (see question 5). Check: the pages the three
+   existing prompts can cite (the subset of `planning-workflow.md` §6a
+   listed in `SPRINT-03.md`) exist; `infer` judge that each page is under
+   a screen and cites its source under `sources/` or in `decisions.md`.
 4. Docs and skill. Check: the chapter 1 sprint 3 pattern.
 
 ### Chapter 5: the planner

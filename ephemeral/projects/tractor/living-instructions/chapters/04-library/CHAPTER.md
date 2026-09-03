@@ -4,8 +4,8 @@ Status: active
 
 Everything an agent is told by a built-in workflow becomes a file under
 `workflow/library/`, embedded in the binary and rendered with
-`text/template`. After this chapter, every later chapter adds content,
-not code. Promise P8.
+`text/template`. After this chapter, every later chapter adds content
+and `workflow`-package Go, never engine code. Promise P8.
 
 ## Pyramid index
 

@@ -1,19 +1,19 @@
 # P1: elicitation adds a promise; a declined promise becomes an exclusion
 
-Archetype: scenario. Lap 9; answers `review-8.md`.
+Archetype: scenario. Lap 10; answers `review-9.md`.
 
 ## Story
 
 1. The check makes an empty scratch repository and a fresh run directory
    (`validation/lib/run-plan.sh`). It writes the seed itself at check
-   time from `seeds/three-features.tmpl`: a one-paragraph CLI with three
-   named features and nothing about error handling, encodings,
-   configuration, stdin, or exit codes. As a sprint check the three
-   features come from a pool in the template; at chapter verification
-   the `verify` node writes its own three features into the template,
-   unseen by the coder, so a planner that special-cases a known pool
-   gains nothing there. The chosen three are the scenario's tokens.
-2. `plan` runs with `observer.sh` on the run directory. Rules, in order:
+   time from `seeds/three-features.tmpl`: a one-paragraph CLI whose three
+   features are drawn at random from a pool of twelve in the template,
+   with nothing about error handling, encodings, configuration, stdin,
+   or exit codes. The chosen three are the scenario's tokens.
+2. `plan` runs with `observer.sh` on the run directory. The observer's
+   tree lives beside the run directory, not under it, so nothing under
+   `TRACTOR_RUN_DIR` tells the planner it is being watched. Rules, in
+   order:
    - decline: the first `Promise:` line in a question file that names
      none of the three chosen features; answer for that candidate "No.
      Record it under exclusions."
@@ -22,20 +22,20 @@ Archetype: scenario. Lap 9; answers `review-8.md`.
      recommendation."
    The `Promise:` line is part of the question-file seam (declaration
    section 4). When a question numbers its candidates, the observer's
-   answer mirrors the numbering, one line per candidate (decision 39),
-   so a batched question gets an unambiguous answer.
+   answer mirrors the numbering (decision 39). Every answer ends with an
+   `observer:` nonce line.
 3. Wait for `COMPLETED`.
 
 ## Evidence
 
 - `timeline.jsonl`: `QuestionAsked(question, ts)`, `PipelineCompleted`.
 - Every segment under `events/`: each `tool_call` that invoked `tractor
-  ask`, with its `ts`, and its paired `tool_result` with its `ts`.
-- `observer/`: the package copy taken immediately before the declined
-  question's answer; `answers.log` with answer timestamps and, for the
-  decline, the quoted `Promise:` line and its number in the question
-  (the observer's own record of what it was shown and what it
-  answered).
+  ask`, with its `ts`, and its paired `tool_result` (the answer text
+  `tractor ask` printed, nonce included) with its `ts`.
+- The observer tree: the package copy taken immediately before the
+  declined question's answer; `answers.log` with answer timestamps,
+  nonces, and, for the decline, the quoted `Promise:` line and its
+  number.
 - `interview/NNNN.md` and `.answer.md`; the generated seed.
 - `brief.md` from the package at the end.
 
@@ -45,20 +45,19 @@ Archetype: scenario. Lap 9; answers `review-8.md`.
 (`PipelineCompleted` present, last `StageCompleted` has `next: success`);
 `answers.log` has at least one decline line; that line's question id has
 a `QuestionAsked` event E whose `question` path is that file; some
-`tractor ask` `tool_call` in some segment has `ts` before E and a paired
-`tool_result` (same `call_id`) with `ts` after the answer timestamp in
-`answers.log` (a turn asked through `tractor ask` and blocked until the
-human answered; concurrent asks are allowed, any bracketing call
-qualifies); the `.answer.md` for that id contains the decline text,
-under the candidate's number when the question numbered them; the
-final `brief.md` has an exclusions section with at least one entry,
-where an exclusions section is any Markdown heading, at any level,
-whose text contains "exclusions" (case-insensitive), followed by at
-least one list item or paragraph before the next heading. If no
-question file carried a `Promise:` line, the script fails with
-"question-file seam not used". If every candidate named a chosen
-feature, so nothing was declined, it exits "inconclusive: nothing to
-decline" and the item stays open.
+`tractor ask` `tool_call` has `ts` before E and a paired `tool_result`
+whose output contains E's nonce (the call that waited on this question,
+and blocked until the human answered; concurrent asks are fine because
+the nonce picks the right one); the `.answer.md` for that id contains
+the decline text, under the candidate's number when the question
+numbered them; the final `brief.md` has an exclusions section with
+content, where an exclusions section is any Markdown heading, at any
+level, whose text contains "exclusions" (case-insensitive), followed by
+at least one non-empty line (list item, paragraph, or table row) before
+the next heading. If no question file carried a `Promise:` line, the
+script fails with "question-file seam not used". If every candidate
+named a chosen feature, so nothing was declined, it exits "inconclusive:
+nothing to decline" and the item stays open.
 
 `infer` (files: the generated seed, the declined question file in full,
 its answer file, `answers.log`, the `brief.md` copy before the answer,
@@ -71,14 +70,17 @@ Name the capability the line describes. Fail unless the question asks
 about it, the seed does not mention it, the copy taken before the
 answer does not already exclude that capability (other exclusions may
 exist), and the final brief.md declines it under its exclusions, in any
-wording."
+wording or layout."
 
 ## Not proven
 
 That the anticipated promise was a good one, or that the planner would
 anticipate what a real user cares about; a planner that always asks one
 generic unnamed promise satisfies P1 as written, and one that
-special-cases the sprint pool is caught only at chapter verification.
-Which node asked. An anticipated promise phrased around a chosen
-feature is accepted rather than declined, which can only make the run
-inconclusive.
+special-cases the twelve-feature pool is not caught (the pool is
+committed; no holdout in this project). That the planner behaves the
+same unobserved: the observer leaves no trace under the run directory,
+and the promise is about what `plan` does on this seed, which is what
+the run shows. Which node asked. An anticipated promise phrased around
+a chosen feature is accepted rather than declined, which can only make
+the run inconclusive.

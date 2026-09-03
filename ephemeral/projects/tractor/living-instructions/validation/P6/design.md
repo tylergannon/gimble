@@ -1,6 +1,6 @@
 # P6: `large` completes and every chapter is marked only after `verify` routed pass
 
-Archetype: scenario. Lap 9; answers `review-8.md`.
+Archetype: scenario. Lap 10; answers `review-9.md`.
 
 ## Story
 
@@ -12,8 +12,9 @@ Archetype: scenario. Lap 9; answers `review-8.md`.
    is not `large` it exits "inconclusive: package sized medium", and a
    one-chapter or empty LARGE ledger is a fail, not inconclusive. It
    records the chapter ledger as `plan` left it (C0).
-2. `tractor workflow run large --project <build> --logs <fresh dir>` with
-   `observer.sh` accepting any question.
+2. `tractor workflow run large --project <build>` with `observer.sh`
+   accepting any question; the check reads the run directory from the
+   `Logs:` line.
 3. Wait for `COMPLETED`.
 
 ## Evidence
@@ -26,10 +27,10 @@ Archetype: scenario. Lap 9; answers `review-8.md`.
 - Every completed `verify` stage: `prompt.md`, `response.md` (chosen
   `next`, the verifier's notes with its verdict and what it ran), and
   its segment.
-- For any chapter that left the ledger during the run: the `observer/`
-  copies of the chapter ledger at the `StageCompleted` before the
-  removing stage and at its end, that stage's `response.md`, and the
-  interview files.
+- For any chapter that left the ledger during the run: the observer
+  copies of the chapter ledger at every stage boundary, the removing
+  stage's `response.md` and segment (every `tool_call` with its
+  arguments), and the interview files.
 
 ## Validator
 
@@ -37,33 +38,36 @@ Archetype: scenario. Lap 9; answers `review-8.md`.
 `validate-plan` accepted the package and C0 has at least two items; the
 last `StageCompleted` has `next: success` and `PipelineCompleted`
 follows it; every chapter named in C0 is either present at the end or
-left the ledger with a recorded reason and without ever being marked:
-the stage across which it left is a codergen stage whose `response.md`
-names the chapter or a question asked during the run names it
-(decision 44: the planner or the human may edit the chapter ledger with
-a reason; silent disappearance is a fail), and in the copy at the
-`StageCompleted` before that stage the chapter is not `done: true` (a
-chapter hand-marked and then removed fails; every chapter that was
-ever marked was marked by the engine after verify, or never); every
-chapter item at the end is `done: true`; for each, exactly one
-`LoopValidated` with `passed: true` names it on `chapters` and one
-`chapters` loop stage's `validation.json` names it (engine-marked; a
-hand-marked item has neither); for each such item, between its
-`LoopItemSelected` on `chapters` and its `LoopValidated`, the last
-completed codergen stage is a `verify` stage whose `StageCompleted` has
-`next: chapters` (a verify turn belonging to this chapter, not a stale
-one; a `StageFailed` attempt with no `response.md` is a retry and is
-skipped); every completed `verify` stage has `prompt.md`, `response.md`,
-and a segment (a codergen turn, not a tool).
+left the ledger honestly: the stage across which it left is a codergen
+stage whose `response.md` names the chapter or a question asked during
+the run names it (decision 44: the planner or the human may edit the
+chapter ledger with a reason; silent disappearance is a fail), and
+either the chapter has its own `LoopValidated` `passed: true` and
+`validation.json` from before it left (engine-marked after verify, then
+restructured away, which P6 allows) or it is not `done: true` in any
+copy and no `tool_call` in the removing stage's segment writes `done:
+true` for it (never marked, not even inside the removing turn); the
+final ledger is not empty; every chapter item at the end is `done:
+true`; for each, exactly one `LoopValidated` with `passed: true` names
+it on `chapters` and one `chapters` loop stage's `validation.json`
+names it (engine-marked; a hand-marked item has neither); for each such
+item, between its `LoopItemSelected` on `chapters` and its
+`LoopValidated`, the last completed codergen stage is a `verify` stage
+whose `StageCompleted` has `next: chapters` (a verify turn belonging to
+this chapter, not a stale one; a `StageFailed` attempt with no
+`response.md` is a retry and is skipped); every completed `verify` stage
+has `prompt.md`, `response.md`, and a segment (a codergen turn, not a
+tool).
 
 `infer` (files: every completed verify turn's `prompt.md`,
 `response.md`, and segment; the chapter's validation design; for a
-removed chapter, the removing stage's `response.md` or the question and
-answer): "Was each verifier told which chapter to verify and the design
-to follow? Did it operate the software (run it, not only read files),
-and do its notes report what it did and a verdict that agrees with its
-route? If a chapter was removed, is a reason recorded for it? Fail on
-any no."
+removed chapter, the removing stage's `response.md` and segment, or
+the question and answer): "Was each verifier told which chapter to
+verify and the design to follow? Did it operate the software (run it,
+not only read files; decision 41 and P6's statement), and do its notes
+report what it did and a verdict that agrees with its route? If a
+chapter was removed, is a reason recorded for it, and does the removing
+turn's segment show no marking of it? Fail on any no."
 
 ## Not proven
 

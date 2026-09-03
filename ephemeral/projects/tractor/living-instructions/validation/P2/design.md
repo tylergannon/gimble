@@ -1,6 +1,6 @@
 # P2: the brief/research loop halts through the tool node, and a finding is asked, not applied
 
-Archetype: scenario. Lap 9; answers `review-8.md`.
+Archetype: scenario. Lap 10; answers `review-9.md`.
 
 ## Story
 
@@ -15,7 +15,7 @@ Archetype: scenario. Lap 9; answers `review-8.md`.
    ("integration guide"), a finding id (`F<n>`), or the word JSON; it
    answers "Yes. Change the promise: the export is JSON, not CSV."
    Other `Promise:` lines "Yes."; default "Proceed with your
-   recommendation."
+   recommendation." Every answer ends with an `observer:` nonce line.
 3. Wait for `COMPLETED`.
 4. The check then exercises the halt predicate itself: it takes the
    halt node's command as `show plan --node halt --raw` prints it for
@@ -35,43 +35,44 @@ Archetype: scenario. Lap 9; answers `review-8.md`.
   research branches and fan-in; `QuestionAsked`.
 - `stages/<seq>-halt/tool.log` for every halt turn; the check's own
   transcript of running the halt command under the three states.
-- The research fan-in's `prompt.md` and `response.md`, and its segment
-  (what it read).
+- The research branches' and fan-in's `prompt.md`, `response.md`, and
+  segments (what they read and wrote).
 - Every segment's `tractor ask` `tool_call` and paired `tool_result`.
-- `observer/` copies: at every stage boundary; immediately before the
-  citing question's answer. `answers.log`.
-- The question and answer files; the final `promises.md`.
+- Observer copies: at every stage boundary; immediately before the
+  citing question's answer. `answers.log` with nonces.
+- The question and answer files; the final `promises.md` and `brief.md`.
 
 ## Validator
 
 `command`: `prove/p2-halt.sh`: the graph is the loop decision 46
 describes: `halt` routes to `decompose` on success and to `brief` on
-error, and `brief`'s successor is the research node (so a return from
-halt goes through brief and research again, not straight back to halt);
-the halt command run by the check exits non-zero under each of the two
-open states and zero under the clear state; every `halt` stage
-directory contains `tool.log` (a tool node); the last `halt`
-`StageCompleted` has `next: decompose`; exactly one question matched
-the finding rule (`answers.log`), with event E; some `tractor ask`
-`tool_call` has `ts` before E and a paired `tool_result` after the
-answer timestamp (the asking turn blocked on the human); the finding
-was research's: `research/findings.md` first contains it in the copy at
-a research branch or fan-in `StageCompleted`, and not in the copy at
-the `StageCompleted` preceding that research stage; no copy taken
-before the answer has `promises.md` saying JSON (the promise was not
-changed before the human said so; a brief that writes `promises.md`
-only after the answer is fine); `promises.md` and `brief.md` are
-byte-identical between the copies before and after every research
-branch and fan-in stage (research applied nothing).
+error, and `brief`'s successor is the research node; the halt command
+run by the check exits non-zero under each of the two open states and
+zero under the clear state; every `halt` stage directory contains
+`tool.log` (a tool node); the last `halt` `StageCompleted` has `next:
+decompose`; exactly one question matched the finding rule
+(`answers.log`), with event E; some `tractor ask` `tool_call` has `ts`
+before E and a paired `tool_result` whose output contains E's nonce
+(the call that waited on this question; the asking turn blocked on the
+human); the finding was research's: `research/findings.md` first
+contains it in the copy at a research branch or fan-in
+`StageCompleted`, and not in the copy at the `StageCompleted`
+preceding that research stage; no copy taken before the answer has
+`promises.md` or `brief.md` saying the export is JSON (neither the
+promise nor the brief was changed before the human said so; a brief
+that writes them only after the answer is fine); `promises.md` and
+`brief.md` are byte-identical between the copies before and after
+every research branch and fan-in stage (research applied nothing).
 
-`infer` (files: the fan-in's `prompt.md`, `response.md`, and segment;
-the matched question, its answer, the `findings.md` copy at the
-question, the `promises.md` copies before the answer and at the end):
-"Two judgments. Did the fan-in derive the finding from the planted
-leaf (its segment shows the leaf read and its response cites it)? Does
-the question cite that finding, in any wording, and ask whether to
-apply it to the promise, rather than report a change already made?
-Fail on any no."
+`infer` (files: the research branches' and fan-in's `prompt.md`,
+`response.md`, and segments; the matched question, its answer, the
+`findings.md` copy at the question, the `promises.md` and `brief.md`
+copies before the answer and at the end): "Two judgments. Did the
+research stages derive the finding from the planted leaf (some research
+segment shows the leaf read, and the finding in findings.md rests on
+it)? Does the question cite that finding, in any wording, and ask
+whether to apply it to the promise, rather than report a change already
+made in the promise list or the brief? Fail on any no."
 
 ## Not proven
 
@@ -81,8 +82,7 @@ finding before the first halt satisfies P2); whether and where the
 accepted change was applied afterwards (P2 promises the ask, not the
 application). That the command `show` prints is the command the run
 executed: the run does not record it, and this design relies on P8's
-proof that `show` prints what `Build` materialized in the same binary;
-a `show` that lies about `Build` fails P8's check, not this one.
+proof that `show` prints what `Build` materialized in the same binary.
 Exhaustion of `max_visits` needs no check: it fails the run. The
 snapshot race (ledger rules) applies to the research-stage identity
 checks; the ask-then-block check and the halt predicate check do not

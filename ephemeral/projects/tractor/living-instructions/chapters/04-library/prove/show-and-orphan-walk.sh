@@ -67,13 +67,13 @@ func main() {
 		}
 		switch v := n.(type) {
 		case *graph.CodergenNode:
-			fmt.Print(v.PromptValue())
+			fmt.Print(v.PromptValue(v.DisplayLabel()))
 		case *graph.SupervisorNode:
 			fmt.Print(v.Prompt)
 		case *graph.FanInNode:
-			fmt.Print(v.PromptValue())
+			fmt.Print(v.PromptValue(v.DisplayLabel()))
 		case *graph.ParallelNode:
-			fmt.Print(v.PromptValue())
+			fmt.Print(v.PromptValue(v.DisplayLabel()))
 		case *graph.ToolNode:
 			fmt.Print(v.ToolCommand)
 		case *graph.LoopNode:

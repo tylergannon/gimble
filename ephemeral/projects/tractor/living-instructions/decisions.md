@@ -216,7 +216,9 @@ planner node is withdrawn.
 47. **Validation design loop.** A loop node with one item per promise. Each
     lap writes the user story, the evidence specification, the holdout
     where the archetype calls for one, the UI sketch where a screen is
-    involved, and fills the checklist item's `command` and `infer`. An
+    involved, and fills the `command` and `infer` of the sprint item that
+    will demonstrate the promise (the validation ledger's own item has
+    none). An
     adversarial reviewer (other provider, fresh context, told only the
     promise and the design) answers: can a coder satisfy this while the
     promise is false; is any check trivially true; is the design stricter
@@ -228,7 +230,8 @@ planner node is withdrawn.
     quality, scope, executability. A failed pass routes its finding to the
     owning node and is re-selected after the fix. The ledger is a project
     file, so a project may add a pass. The human approves after the loop,
-    with the verdicts beside the package.
+    with the verdicts beside the package. (Amended by decision 58: seven
+    passes, the seventh holistic.)
 49. **Supervisors, named by their question.** `research_auditor`,
     `scope_cop` (brief, decompose, validation design), `slice_critic`,
     `proof_skeptic`. Fresh context, a provider other than the node they
@@ -287,10 +290,11 @@ planner node is withdrawn.
 2. Loop node (this branch; see `loop-node.md`). **Done.**
 3. Built-in planning workflow, embedded, ends with plan and recommendation.
    **Done as a single node** (chapter 2). Superseded by decisions 37–52;
-   the v2 workflow is `planning-workflow.md` (chapter 4, not started).
+   the v2 workflow is `planning-workflow.md` (chapter 5, after the
+   library in chapter 4).
 4. Built-in execution workflows (MEDIUM loop, LARGE nested loops). **Done**
    (chapter 3); LARGE not proven live. Gains the `replan` and `verify`
-   nodes from decisions 41 and 44 with chapter 4.
+   nodes from decisions 41 and 44 with chapter 6.
 5. Web client, then audio, then Slack.
 6. Complexity-signals research: which cheap mechanical signals (volume per
    cell, cyclomatic complexity, public surface, fan-in/out, cross-directory

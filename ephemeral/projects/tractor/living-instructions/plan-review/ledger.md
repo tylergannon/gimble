@@ -3,6 +3,7 @@ items:
   - name: traceability
     check: Every promise in promises.md reaches a chapter or sprint item, and every chapter and sprint item serves at least one promise.
     doc: ephemeral/projects/tractor/living-instructions/plan-review/01-traceability.md
+    done: true
   - name: consistency
     check: One name per concept and no rule stated twice with drift across declaration.md, planning-workflow.md, decisions.md, the chapter docs, and the sprint docs.
     doc: ephemeral/projects/tractor/living-instructions/plan-review/02-consistency.md
@@ -28,7 +29,7 @@ items:
 Seven passes (decision 58), one fresh reviewer each on a provider other
 than the planner's, told only the pass question and the package. In the
 manual run the reviewer is a codex session; its answer is saved as
-`<pass>/review.md` and its route is its last line. A fail names the
+`<pass>/review-N.md` and its route is its last line. A fail names the
 owning node; the planner fixes and the pass is re-selected.
 
 The package under review: `declaration.md` (brief and promises),

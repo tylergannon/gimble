@@ -28,8 +28,12 @@ re-entry) edits open items after every lap (decision 44).
 5. Validation ledger generation; `design` with both archetypes and the
    holdout writer; `review` with pass and fail edges. Proof: P3 and P4
    scenarios.
-6. Pass files, generated review ledger, `reviewer` with routes to the
-   owning node; assemble; approve. Proof: P5 scenario.
-7. The four supervisors in the YAML with `models.yaml` roles. Proof: P7
+6. Pass files, the generated review ledger, and `reviewer` with routes
+   to the owning node. Proof: a nested run in which one pass fails, its
+   owning node runs, and the pass is re-selected and marked.
+7. `assemble` and `approve`, the human gate. Proof: P5 scenario.
+8. The four supervisors in the YAML with `models.yaml` roles. Proof: P7
    scenario.
-8. Docs and skill.
+9. Docs and skill: an agent reading only the docs starts a nested plan
+   run on a one-line seed and answers its first question (the chapter
+   5 portion of P9's reader). Proof: the reader's run directory.

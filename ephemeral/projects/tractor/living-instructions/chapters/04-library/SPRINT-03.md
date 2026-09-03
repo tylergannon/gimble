@@ -1,8 +1,12 @@
 # Sprint 3: doctrine pages and skeletons
 
-Written by Claude, not the coder (interview 0013 round, question 5). The
-pages are the design; the coder's part is limited to the `include`
-wiring if the func map from sprint 1 needs adjusting.
+Written by Claude, not the coder (interview 0013 round, question 5),
+before the chapter's run starts, and committed under
+`chapters/04-library/content/doctrine/` and `content/templates/`. The
+coder's turn copies them into `workflow/library/doctrine/` and
+`workflow/library/templates/`, adds the `doctrine` includes to the
+three migrated prompts, updates the snapshot, and runs the proof
+script. The pages are the design; the sprint is the wiring.
 
 ## Pages
 

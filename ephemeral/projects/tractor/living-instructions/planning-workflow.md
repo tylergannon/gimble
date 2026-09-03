@@ -99,7 +99,7 @@ a slice and every slice serves a promise. MEDIUM writes `checklist.md` as
 a flat sprint ledger with an upfront backlog and one sprint doc per item.
 LARGE writes `checklist.md` as the chapter ledger (decision 35) with a
 chapter doc (pyramid index, vector, review posture, non-goals) and a
-sprint ledger per chapter; sprint ledgers may start with a backlog. The
+sprint ledger per chapter; sprint ledgers start with a backlog. The
 chapter ledger is durable (decision 44); it is edited only with a reason.
 
 **validation design loop** (loop over `validation/ledger.md`, one item per
@@ -110,8 +110,10 @@ captured, where), the UI sketch when a screen is involved, and, for a
 universal promise, the holdout sample under the XDG state root in a
 random-token directory whose path is recorded only in the verifier prompt
 the workflow will later materialize (decision 43). It then fills the
-promise's checklist item with `command` (the required checks) and `infer`
-(the judgment over the captured evidence). Where the mechanism of proof is
+sprint item that will demonstrate the promise, in the chapter or sprint
+ledger, with `command` (the required checks) and `infer` (the judgment
+over the captured evidence); the validation ledger's own item stays
+without a command. Where the mechanism of proof is
 not derivable it asks the human. `review` (codergen, other provider, fresh
 context) is told only the promise and the design and answers three
 questions: can a coder satisfy this while the promise is false; is any
@@ -202,7 +204,7 @@ ephemeral/projects/<build>/
   research/                     plan.md, findings.md, INDEX.md, leaves
   validation/
     ledger.md                   one item per promise
-    <promise>/                  story.md, evidence.md, sketch.*, review notes
+    <promise>/                  design.md (story, evidence, validator, not proven), sketch.*, review notes
   plan-review/
     ledger.md                   one item per pass
     <pass>/                     reviewer findings
@@ -249,9 +251,9 @@ Rules:
   page is written, because doctrine text contains `{{` (research F5).
   A teaching is edited in one place and every prompt that cites it
   changes.
-- Tests render every template with representative parameters, fail on an
-  unreferenced doctrine or template file, and fail on any prompt that is
-  a Go string.
+- Tests render every template with representative parameters, fail on a
+  doctrine page no rendered prompt references, and fail on any prompt
+  that is a Go string.
 - `tractor workflow show <name> [--project …]` prints each node's prompt
   and supervisor brief exactly as `Build` materialized them for those
   parameters; `--stage <dir>` diffs against a real stage with the frame
@@ -274,11 +276,13 @@ materialization. Initial table:
 | Role | Provider, model, effort | Constraint |
 |---|---|---|
 | coder (`implement`) | codex, gpt-5.6-sol, high | |
-| planner nodes (intake, brief, decompose, design, assemble, approve) | claude, claude-fable-5-1, high | |
-| research branches | codex, gpt-5.6-sol, high | |
-| validation reviewer, plan-review reviewer, `verify` | claude, claude-fable-5-1, high | not the provider of the node judged |
-| supervisors | claude, claude-fable-5-1, high | not the provider of the node watched |
-| `replan`, `infer` judges, halt | claude, `sonnet` alias, medium | |
+| planner nodes (intake, brief, decompose, design, approve) | claude, claude-fable-5-1, high | |
+| research branches and fan-in | claude, `sonnet` alias, medium | |
+| validation reviewer, plan-review reviewer | codex, gpt-5.6-sol, high | not the provider of the node judged (the planner) |
+| `verify` | claude, claude-fable-5-1, high | not the provider of the coder |
+| supervisors | codex, gpt-5.6-sol, high | not the provider of the node watched (all watched nodes are claude) |
+| `assemble`, `replan`, `infer` judges | claude, `sonnet` alias, medium | |
+| `halt`, the index quality gate | tool nodes; no model | |
 | answerer | human, or the calling agent | |
 
 ## 7. Not in this version

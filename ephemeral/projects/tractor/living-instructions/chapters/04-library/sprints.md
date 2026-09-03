@@ -10,14 +10,14 @@ items:
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/SPRINT-02.md
     command: go build ./... && go vet ./... && go test ./workflow/... ./cmd/tractor/... && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/show-and-orphan-walk.sh
   - name: doctrine pages and skeletons
-    check: "The doctrine pages and artifact skeletons the three existing prompts can cite exist under the library, each a page or less with a provenance pointer into `sources/`, and the migrated prompts include them so the orphan walk passes; the pages say what decisions 37 to 59 say, in the library's voice."
+    check: "The doctrine pages and artifact skeletons the three existing prompts can cite exist under the library, each a page or less with a provenance pointer into `sources/` or `decisions.md`, and the migrated prompts include them so the orphan walk passes; the pages say what decisions 37 to 59 say, in the library's voice."
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/SPRINT-03.md
     command: go build ./... && go test ./workflow/... && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/doctrine-pages.sh
     infer:
       files:
         - workflow/library/doctrine/*.md
         - workflow/library/templates/*
-      prompt: Judge each doctrine page against decisions 37 to 59 in ephemeral/projects/tractor/living-instructions/decisions.md. Fail if any page contradicts a decision, exceeds about sixty lines, lacks a pointer to its source under ephemeral/projects/tractor/living-instructions/sources/.
+      prompt: Judge each doctrine page against decisions 37 to 59 in ephemeral/projects/tractor/living-instructions/decisions.md. Fail if any page contradicts a decision, exceeds about sixty lines, lacks a pointer to its source under ephemeral/projects/tractor/living-instructions/sources/ or in ephemeral/projects/tractor/living-instructions/decisions.md.
   - name: docs and skill
     check: "The spec, the docs site, the skill bundle, and llms.txt teach the library layout, the template contract, and `workflow show` accurately enough that an agent reading only them can add a doctrine page and see it in `show` output."
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/SPRINT-04.md

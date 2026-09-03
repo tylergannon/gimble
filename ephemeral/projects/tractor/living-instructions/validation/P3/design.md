@@ -1,7 +1,7 @@
 # P3: every promise is marked done in the validation ledger after an independent review routed pass
 
 Archetype: universal over the promises of a run. Checked exhaustively;
-no holdout. Lap 9; answers `review-8.md`.
+no holdout. Lap 10; answers `review-9.md`.
 
 ## Story
 
@@ -10,7 +10,7 @@ Any `plan` run the check makes itself at check time
 
 ## Evidence
 
-- `validation/ledger.md` from the package.
+- `validation/ledger.md` from the package: each item's `name` and `doc`.
 - `tractor workflow show plan` output for the run's parameters: per
   node id, the `checklist` path (loops) and the `provider` and `thread`
   (`none` or the thread id) the materialized graph carries (chapter 5
@@ -20,7 +20,7 @@ Any `plan` run the check makes itself at check time
 - `timeline.jsonl`: `LoopItemSelected(node, item)`, `LoopValidated(node,
   item, passed)`, `StageCompleted(name, next)`, `StageFailed`.
 - `stages/<seq>-<loop>/validation.json` for every validation loop turn.
-- `observer/` copies of `validation/<item>/design.md` at every stage
+- Observer copies of `validation/<id>/design.md` at every stage
   boundary (which stage wrote each design).
 - For each item's reviewing stage: `prompt.md` and `response.md`.
 - `checkpoint.json` `sessions`: the entries under each reviewing node's
@@ -31,25 +31,28 @@ Any `plan` run the check makes itself at check time
 
 `command`: `prove/p3-independent-review.sh`: the validation loop node's
 `checklist`, as `show` prints it, is the package's
-`validation/ledger.md`; every id in `promises.md` is the prefix of
-exactly one item name and every item name begins with an id (each
-promise is represented once; naming beyond the id is free); every item
-is `done: true` in the final ledger; for every item there is exactly
-one `LoopValidated` with `passed: true` naming it on the validation
-loop and one loop stage whose `validation.json` names it; for every
-item, let R(item) be the node of the last completed codergen stage
-between its last `LoopItemSelected` and its `LoopValidated` (a
-`StageFailed` stage with no `response.md` is a retried attempt and is
-skipped): that stage's `StageCompleted` `next` leads to the loop (the
-review turn belonging to this item; different items may have different
-reviewing nodes); let D(item) be the set of nodes across whose stages
-that item's `design.md` changed (from the observer copies before and
-after each stage): R(item) is not in D(item), D(item) is not empty,
-the materialized graph gives R(item) a provider different from every
-node in D(item), and `checkpoint.json` records, under R(item)'s binding
-key and under each D(item) node's key, harnesses that are the routes of
-those providers, R(item)'s differing from each; every reviewing stage
-has `prompt.md`, `response.md`, and a segment.
+`validation/ledger.md`; each promise id in `promises.md` is bound to
+exactly one item, where an item is bound to id X when its `doc` path
+lies under `validation/X/` or its name is X followed by a non-word
+character or the end of the name (so `P1` never claims `P10`), and
+every item is bound to some id (one item per promise, decision 47;
+naming is free); every item is `done: true` in the final ledger; for
+every item there is exactly one `LoopValidated` with `passed: true`
+naming it on the validation loop and one loop stage whose
+`validation.json` names it; for every item, let R(item) be the node of
+the last completed codergen stage between its last `LoopItemSelected`
+and its `LoopValidated` (a `StageFailed` stage with no `response.md` is
+a retried attempt and is skipped): that stage's `StageCompleted` `next`
+leads to the loop (the review turn belonging to this item; different
+items may have different reviewing nodes); let D(item) be the set of
+nodes across whose stages that item's `design.md` changed (from the
+observer copies before and after each stage): R(item) is not in
+D(item), D(item) is not empty, the materialized graph gives R(item) a
+provider different from every node in D(item), and `checkpoint.json`
+records, under R(item)'s binding key and under each D(item) node's
+key, harnesses that are the routes of those providers, R(item)'s
+differing from each; every reviewing stage has `prompt.md`,
+`response.md`, and a segment.
 
 `infer` (files: for every item, its reviewing stage's `prompt.md` and
 `response.md`; `promises.md`; the designs): "For each item's reviewing

@@ -27,28 +27,31 @@ items:
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/CHAPTER.md
     checklist: ephemeral/projects/tractor/living-instructions/chapters/04-library/sprints.md
     command: >-
-      go build ./... && go test ./... && test -d workflow/library && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/04-library/sprints.md)" -ge 4
+      go build ./... && go vet ./... && golangci-lint run ./... && go test ./... && test -d workflow/library && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/04-library/sprints.md)" -ge 4
   - name: The planner
     check: The `plan` workflow is the v2 graph with the brief/research loop, the validation design loop, the seven-pass review loop, and four supervisors, all as library content with `models.yaml` roles; P1 to P5 and P7 demonstrated by nested runs.
     doc: ephemeral/projects/tractor/living-instructions/chapters/05-planner/CHAPTER.md
     checklist: ephemeral/projects/tractor/living-instructions/chapters/05-planner/sprints.md
     command: >-
-      go build ./... && go test ./... && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/05-planner/sprints.md)" -ge 7
+      go build ./... && go vet ./... && golangci-lint run ./... && go test ./... && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/05-planner/sprints.md)" -ge 8
   - name: Execution and the live proof
     check: "`medium` and `large` carry `replan`, `large` carries `verify` with the holdout handoff, two seeds run end to end through plan and execution, and the proof record is written; P6, P9, P10."
     doc: ephemeral/projects/tractor/living-instructions/chapters/06-execution/CHAPTER.md
     checklist: ephemeral/projects/tractor/living-instructions/chapters/06-execution/sprints.md
     command: >-
-      go build ./... && go test ./... && test -f ephemeral/projects/tractor/living-instructions/proof/planning-v2/README.md && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/06-execution/sprints.md)" -ge 4
+      go build ./... && go vet ./... && golangci-lint run ./... && go test ./... && test -f ephemeral/projects/tractor/living-instructions/proof/planning-v2/README.md && test "$(grep -c 'done: true' ephemeral/projects/tractor/living-instructions/chapters/06-execution/sprints.md)" -ge 4
 ---
 
 # Living instructions: the chapter ledger
 
-Three chapters, in order. Each item's `checklist` is the chapter's sprint
+Six chapters, in order: three built (1 to 3) and three for the planning
+workflow v2 (4 to 6). Each item's `checklist` is the chapter's sprint
 ledger and its `doc` is the chapter doc. The engine marks a chapter done
-when its sprint loop exits and the command above holds. The commands count
-finished sprints so that a chapter whose planner appended nothing cannot
-pass vacuously.
+when its sprint loop exits and the command above holds; from chapter 6
+on, the `large` workflow puts a `verify` turn between the sprint loop's
+exit and the mark, and the mark follows only a pass (P6). The commands
+count finished sprints so that a chapter whose planner appended nothing
+cannot pass vacuously.
 
 Chapter 1 has its sprints written up front. Chapters 2 and 3 start with an
 empty ledger; the `plan` node interviews the reviewer and writes them.

@@ -15,9 +15,10 @@ Empty ledger; written when the chapter is entered, re-planned each lap.
    targets; the holdout path recorded at design time and rendered only
    here. Proof: a small package with one universal promise whose holdout
    sample the coder never sees.
-3. The two seeds, written before sprint 1 of this chapter starts, and the
-   end-to-end runs: `plan` then `medium` for one, `plan` then `large` for
-   the other. Proof: P10.
+3. The two seeds (fixed before chapter 5 started, commit 6dec5dc) run
+   end to end: `plan` then `medium` for one, `plan` then `large` for the
+   other; the proof record under `proof/planning-v2/` is written from
+   these runs in the same sprint. Proof: P10.
 4. Docs and skill (P9), including where the interview directory and the
-   holdout come from.
-5. Proof record and closeout.
+   holdout come from: the docs-only reader runs plan, ask, answer, and
+   show. Proof: P9.
