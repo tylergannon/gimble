@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 16; answers `review-15.md`.
+Lap 17; answers `review-16.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -35,17 +35,16 @@ pass leg of the check below is empty until then and runs then.
 - `Build`'s output, captured by the check itself through a throwaway
   program it writes into a copy of the tree, for every node that
   carries a prompt, command, or checklist; and, through the same
-  program, the standalone rendering of any single library file with the
-  same data (`workflow.Render`, the seam sprint 1 exports for the
-  render test), for every file in a node's closure.
+  program, the standalone rendering of the node's header file
+  (`workflow.Render`, the seam sprint 1 exports for the render test).
 - The include closure of each header file: the files named by
   `include` and `doctrine` actions in it, transitively, read by the
   check from the files themselves; and the doctrine and template files
   those name.
 - The data values for the check's parameters, computed by the check
   itself from the parameters it supplied and the derivations the README
-  states, in raw, Go-quoted (`quote`), and shell-quoted (`shell`) form;
-  `show --values` output for the same parameters, which must agree.
+  states; `show --values` output for the same parameters, which must
+  list exactly them.
 - Mutated copies of the tree the check makes: every library prompt file
   and one doctrine page with a sentinel naming that file appended; one
   uncited doctrine page added under a name the check draws at random
@@ -91,25 +90,17 @@ ignores the frame).
   an inline skeleton fails; a file under `templates/` not in the list
   may exist unused) (a conditional
   include that does not fire for the check's parameters is allowed to
-  be absent; a file outside the closure is not allowed to appear); with a sentinel appended to a
-  doctrine page, every prompt whose closure names that page prints it.
+  be absent; a file outside the closure is not allowed to appear). Doctrine pages are covered by the orphan probes and the render
+  probe below, not by a sentinel: a page a prompt includes only under a
+  condition may stay silent for the check's parameters.
   A citation counts for the orphan walk only from a file some node
   renders (the walk's own rule, sprint 3); an unused prompt or
-  supervisor file may exist and is not a defect. Text from the closure only: the check computes
-  the data values itself (the parameters it passed and the
-  README-stated derivations, in raw, `quote`d, and `shell`-quoted
-  forms) and requires `show --values` to list exactly those values,
-  none missing and none extra; then, for each node, it renders every
-  file of the node's closure standalone with the same data through its
-  own program (the header file, the prompt files it includes, and the
-  doctrine and template files any of them name), removes every data
-  value form from each line of the node's `show --raw` output and of
-  those renderings, and requires every rendered residue line to equal
-  some line of the closure's renderings. Text supplied by Go around the
-  template, text parked in a branch that never renders, and text in a
-  file outside the closure all fail; an inline include, a `quote`d or
-  `shell`-quoted value, and a fragment included twice pass, because
-  the closure is compared rendered, not raw. Orphans: an injected uncited page, named at random per run, makes
+  supervisor file may exist and is not a defect. Rendering is the whole of `Build`: `show --raw` for each node equals
+  the check's own standalone `workflow.Render` of the node's header
+  file, so `Build` adds nothing to what the library file renders; the
+  check computes the data values itself and requires `show --values`
+  to list exactly them; what `Render` itself could add beyond those
+  values is Go the judge reads (below). Orphans: an injected uncited page, named at random per run, makes
   `TestLibraryNoOrphans` fail naming it, and so does removing every
   citation of one existing page chosen at random (a test that allows
   the original filenames and rejects only additions fails the second
@@ -130,26 +121,30 @@ ignores the frame).
   `seeds/greeter.md` into a fresh run directory, then for the first
   completed stage of each prompt-bearing node runs `show plan --node
   <n> --stage <that stage dir>` with the parameters the script passed
-  to `run`, and expects exit 0; and does the same for the first
-  `implement` stage of P10's `large` run, whose `prompt.md` carries the
+  to `run`, and expects exit 0; does the same for the first `implement`
+  stage of P10's `medium` run and for the first `implement` stage of
+  P10's `large` run, whose `prompt.md` carries the
   nested chapters-and-sprints frame, so a `--stage` that strips only
   one frame fails there.
 
 `infer` (files: the two proof scripts and their logs under
-`prove/last-run/`: each ledger command captures its script's stdout,
+`prove/last-run/`, the non-test Go under `workflow/` and
+`cmd/tractor/workflow.go` (where `run` hands `Build`'s graph to the
+engine): each ledger command captures its script's stdout,
 which names every probe and its outcome (the stage perturbation's byte
 and offset, each node's sentinel result, each skeleton's rendering),
 to `prove/last-run/<script>.log`, and the orphan script copies the `go
 test` output of every probe run beside it before the scratch directory
 is removed;
-`workflow/library_test.go`; the non-test Go files under `workflow/`): "For each probe the log
+`workflow/library_test.go`): "For each probe the log
 names (the random orphan page, the page whose citation was removed, the
 random broken action, the random stage perturbation, the per-file
 sentinels), did the test or check fail for the injected reason and name
 the injected file, and does the test's code walk the tree rather than
-recognise probe names? Read the Go under `workflow/`: does any Go code
-supply prompt text beyond the data values the README lists and the
-four functions, or rely on a template branch that never renders? Fail
+recognise probe names? Read the Go under `workflow/` and `cmd/tractor/workflow.go`: does any
+Go code supply prompt text beyond the data values the README lists and
+the four functions, rely on a template branch that never renders, or
+alter a node between `Build` and the engine? Fail
 if any probe's failure is generic, names the wrong file, the test
 special-cases probes, or Go carries prompt text." This is the model
 judgment over recorded evidence that decision 41 requires; the scripts

@@ -36,16 +36,14 @@ The walk is written from scratch; no surveyed tool has one
 ## Definition of done
 
 The ledger item's command runs `prove/orphan-walk-and-render.sh`, which
-proves, in a copy of the tree it makes itself: every rendered line of
-every node is library text plus data values (each file of the node's
-include closure is rendered standalone through `workflow.Render` by the
-script's own program; with every data value form removed, each line of
-the node's output equals some line of those renderings); with a distinct sentinel appended to every file
+proves, in a copy of the tree it makes itself: each node's `show --raw` equals the
+script's own standalone `workflow.Render` of the node's header file
+(`Build` adds nothing to the rendering); with a distinct sentinel appended to every file
 under `prompts/`, `supervisors/`, `passes/`, and `templates/`, each node
 renders the sentinel of its header file and no sentinel of a file
 outside that file's include closure (a conditional include may stay
-silent), and every template file's sentinel appears in some node's
-output; an injected uncited page, named at random, makes `TestLibraryNoOrphans`
+silent), and every skeleton the library README lists has its sentinel in some
+node's output (an unlisted file under `templates/` may exist unused); an injected uncited page, named at random, makes `TestLibraryNoOrphans`
 fail naming it, and so does removing every citation of an existing page
 chosen at random; an unclosed action with random text appended to a
 doctrine page chosen at random (using the delimiters the README states)

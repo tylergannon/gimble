@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 16; answers `review-15.md`.
+Archetype: scenario, twice. Lap 17; answers `review-16.md`.
 
 ## Story
 
@@ -78,9 +78,13 @@ reported twice); the approved package was what ran: the execution graph's loop n
 items name the sprint ledgers), so the items the engine iterated are
 the package's, not a shadow copy; for a LARGE package, the chapter
 ledger at the end equals the approved copy except for `done` flags and
-for edits made with a reason under P6's rule (across a stage whose
-`response.md` names the chapter, or after a question that names it;
-decision 44); an unexplained rewrite fails; a
+for edits the human approved: every other difference between the two
+copies (a chapter's `check`, `checklist`, `doc`, or `command`, or a
+chapter added or removed) appears after a `QuestionAsked` whose
+question file names that chapter and whose answer accepts the edit
+(decision 44's reason, given to the human; a planner's unasked rewrite
+of the approved chapters fails, and a chapter's `checklist` may never
+point anywhere but the approved sprint ledger); a
 sprint item is identified by its ledger path and name, and for a LARGE
 package the events for a chapter's items are those between that
 chapter's `LoopItemSelected` on `chapters` and its `LoopValidated`, so
@@ -111,7 +115,9 @@ actually stand in the package files, and ask whether to approve it?
 Fail if the question describes a package other than the one in the
 files or does not ask for approval. Second: for every item replan
 changed, renamed, or removed, does its response give a reason grounded
-in work already done? Third: run the seed's acceptance examples
+in work already done, and for every difference between the approved
+and final chapter ledgers, does the question that preceded it describe
+exactly that edit and does the answer accept it? Third: run the seed's acceptance examples
 yourself against the built program and fail if any does not hold."
 
 ## Not proven

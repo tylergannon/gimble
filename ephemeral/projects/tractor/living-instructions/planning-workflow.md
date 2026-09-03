@@ -27,7 +27,7 @@ promise.
 ## 2. The graph
 
 ```
-intake ─▶ research ─▶ gate ─▶ brief ─▶ research ─▶ gate ─▶ halt? ──no──▶ brief …
+intake ─▶ research ─▶ index_gate ─▶ brief ─▶ research ─▶ index_gate ─▶ halt? ──no──▶ brief …
                                             │
                                            yes
                                             ▼
@@ -110,7 +110,9 @@ nothing is the terminal one.
 a slice and every slice serves a promise. MEDIUM writes `checklist.md` as
 a flat sprint ledger with an upfront backlog and one sprint doc per item.
 LARGE writes `checklist.md` as the chapter ledger (decision 35) with a
-chapter doc (pyramid index, vector, review posture, non-goals) and a
+chapter doc (pyramid index, vector, review posture, non-goals; design
+direction, architecture principles, sprint horizon, and planning notes
+when the chapter has them) and a
 sprint ledger per chapter; sprint ledgers start with a backlog. A
 chapter planned before its predecessor is built carries its backlog as
 prose in the ledger body and an empty item list; the `plan` node turns
@@ -151,7 +153,9 @@ pass; body `reviewer`). Each lap starts a fresh reviewer on a provider
 other than the planner, whose prompt names the pass question and the
 package and nothing else. It routes pass to the loop node, which marks the
 pass done, or fail to the owning node (brief, decompose, or design), whose
-edge returns to the loop node, which re-selects the still-open pass. The
+edge returns to `reviewer` for the same pass; only a passing reviewer
+returns to the loop, since a commandless item passes when its lap
+returns (loop-node.md section 2). The
 reviewer's findings are ordinary files under `plan-review/<pass>/`. The
 built-in passes, in order:
 
@@ -226,7 +230,7 @@ ephemeral/projects/<build>/
   research/                     plan.md, findings.md, INDEX.md, leaves
   validation/
     ledger.md                   one item per promise
-    <promise>/                  design.md (story, evidence, validator, not proven), sketch.*, review notes
+    <id>/                       design.md (story, evidence, validator, not proven), sketch.*, review notes
   plan-review/
     ledger.md                   one item per pass
     <pass>/                     reviewer findings
@@ -329,7 +333,7 @@ Fan-out drafts of chapter docs. Any engine change. The web client.
    exhaustively needs none, decision 42 as amended.)
 4. A validation design that a reviewer rejects is re-entered with the
    reviewer's notes available (read from their files under
-   `validation/<promise>/`) and later passes.
+   `validation/<id>/`) and later passes.
 5. All seven review passes end `done: true` in `plan-review/ledger.md`, each
    marked by the engine after a reviewer on a provider other than the
    planner's routed pass.

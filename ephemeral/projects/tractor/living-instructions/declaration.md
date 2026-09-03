@@ -85,7 +85,9 @@ Three chapters, numbered after the three built. Each chapter carries a
 docs-and-skill sprint, as chapter 1 did, so the docs never lag by more
 than one chapter. Chapter 4's sprints are written up front as the
 hand-written standard; later chapters start with a backlog sketch and are
-re-planned each lap (decision 44). No engine change anywhere; chapters 5
+re-planned each lap once `replan` exists (chapter 6; until then the
+plan node edits the backlog when it runs; decision 44). No engine change
+anywhere; chapters 5
 and 6 are library content plus Go in the `workflow` package and
 `cmd/tractor`.
 

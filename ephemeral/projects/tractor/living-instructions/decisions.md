@@ -193,7 +193,7 @@ planner node is withdrawn.
     reading of decision 56, which rules out a holdout in this project's
     proof; interview 0014, question 4, asks Tyler to confirm or reverse).
 43. **Holdout storage, simple.** Under the XDG state root in a directory
-    named by a random token, written by the design lap, referenced only
+    named by the build and a random token (`<build>-<token>`), written by the design lap, referenced only
     from the verifier's prompt. Not in the workdir, not under the run
     directory, not committed. Obscure, not secret; a sandbox that hides one
     directory is the eventual fix.
@@ -231,7 +231,10 @@ planner node is withdrawn.
     review passes, one question each, one fresh reviewer per lap on another
     provider. Passes, in order: traceability, consistency, slicing, proof
     quality, scope, executability. A failed pass routes its finding to the
-    owning node and is re-selected after the fix. The ledger is a project
+    owning node, whose edge returns to the reviewer for the same pass;
+    only the reviewer's pass edge returns to the loop, because a
+    commandless item passes when its lap returns (corrected 2026-09-03
+    by the consistency pass). The ledger is a project
     file, so a project may add a pass. The human approves after the loop,
     with the verdicts beside the package. (Amended by decision 58: seven
     passes, the seventh holistic.)
@@ -252,7 +255,7 @@ planner node is withdrawn.
 52. **Research output.** A research directory in the project (the token
     cache) with leaves carrying pinned revisions, licenses, and bounded
     comparisons ("like X but only Y", never an adoption frame), a routing
-    index over it, and a pointer file. Execution prompts inline resolved
+    index over it (`research/INDEX.md`). Execution prompts inline resolved
     index hits, not a pointer. At most five research branches in parallel.
 
 53. **The library is content.** Every prompt, supervisor brief, review
@@ -281,7 +284,7 @@ planner node is withdrawn.
 58. **Seven review passes.** The sixth is executability; the seventh is
     holistic and rubric-free, last, because single-criterion judges miss
     trade-offs (research F2, 2026-09-02).
-59. **P8 restated.** Prompt bodies, doctrine, briefs, passes, and
+59. **P8 restated.** Prompt bodies, doctrine, supervisor briefs, passes, and
     skeletons are library files and Go supplies only data values, the
     value functions `quote` and `shell`, and the composition actions
     `include` and `doctrine`; `show`

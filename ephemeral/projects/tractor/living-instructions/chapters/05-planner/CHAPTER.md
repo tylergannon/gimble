@@ -25,7 +25,8 @@ chapter 4. Promises P1 to P5 and P7.
   - The plan review loop: seven passes, each a fresh reviewer routing
     pass or fail to the owning node.
   - Four supervisors named by their question; assemble and approve.
-- L2: sprints in `sprints.md` (backlog, re-planned each lap); node
+- L2: sprints in `sprints.md` (backlog; edited when the plan node runs
+  until chapter 6 adds `replan`); node
   contracts in `planning-workflow.md` §3; models in §6b; passes in §3.
 
 ## Vector

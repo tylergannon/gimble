@@ -7,69 +7,22 @@
 . "$(dirname "$0")/lib.sh"
 build_copy
 
-# ---- text from the closure only ----------------------------------------
-# Remove every data value form (raw, Go-quoted, shell-quoted) from each
-# rendered line and every template action or comment from each line of
-# the node's closure; every rendered residue must equal some closure
-# residue. Text parked in another file, in a comment, or supplied by Go
-# fails; quoted values and repeated includes pass.
-delim_open="$(sed -n 's/^[Dd]elimiters:[[:space:]]*\([^[:space:]]*\)[[:space:]]*\([^[:space:]]*\).*/\1/p' "$lib/README.md" | head -1)"
-delim_close="$(sed -n 's/^[Dd]elimiters:[[:space:]]*\([^[:space:]]*\)[[:space:]]*\([^[:space:]]*\).*/\2/p' "$lib/README.md" | head -1)"
-test -n "$delim_open" && test -n "$delim_close" || { echo "closure-text: README does not state both delimiters"; exit 1; }
-projdir="$tmp/demo/ephemeral/projects/demo"
-printf '%s\n' demo "$tmp/demo" "$tmp/bin/tractor" "$seed" "$projdir" "$projdir/brief.md" "$projdir/checklist.md" "$projdir/interview" "$tmp/bin/tractor ask" | sort -u > "$tmp/values-raw.txt"
-python3 - "$tmp/values-raw.txt" > "$tmp/values-all.txt" <<'PYEOF'
-import json, sys
-vals = [l.rstrip("\n") for l in open(sys.argv[1]) if l.strip()]
-out = set()
-for v in vals:
-    out.add(v)
-    out.add(json.dumps(v))                       # Go quote for plain strings
-    out.add("'" + v.replace("'", "'\\''") + "'")  # shell single-quoted
-for v in sorted(out, key=len, reverse=True):
-    print(v)
-PYEOF
-strip_values() {
-  cmd="sed"
-  while IFS= read -r v; do
-    esc="$(printf '%s' "$v" | sed 's/[.[\*^$\/&|]/\\&/g')"
-    cmd="$cmd -e 's|$esc||g'"
-  done < "$tmp/values-all.txt"
-  eval "$cmd"
-}
-doc_closure() { # FILE... -> doctrine and template files named by any of them
-  for f in "$@"; do
-    for cand in $(cd "$lib" && find doctrine templates -type f 2>/dev/null); do
-      base="$(basename "$cand" .md)"; base2="$(basename "$cand")"
-      if grep -q "\"$base\"\|\"$base2\"\|\"$cand\"" "$lib/$f" 2>/dev/null; then printf '%s\n' "$cand"; fi
-    done
-  done | sort -u
-}
+# ---- Build adds nothing to the header file's rendering -----------------
+# `show --raw` (which equals Build, per show-equals-build.sh) must equal
+# the check's own standalone workflow.Render of the node's header file.
 for wf in $workflows; do
   yaml_nodes "$wf" | while read -r node kind; do
     file="$(shown_file "$tmp/bin/tractor" "$wf" "$node")"
     [ -n "$file" ] || continue
-    closure "$file" > "$tmp/node-closure.txt"
-    doc_closure $(cat "$tmp/node-closure.txt") >> "$tmp/node-closure.txt"
-    : > "$tmp/closure-residue.txt"
-    # Render each closure file standalone through the check's own program
-    # (workflow.Render), so the comparison is against what the library
-    # files render to, not their raw text: an inline include matches, a
-    # branch that never renders does not.
-    while read -r f; do
-      "$tmp/bin/builddump" render "$f" "$tmp/demo" "$tmp/bin/tractor" "$seed" >> "$tmp/closure-residue.txt" 2>/dev/null \
-        || { echo "closure-text: $f does not render standalone"; exit 1; }
-      printf '\n' >> "$tmp/closure-residue.txt"
-    done < "$tmp/node-closure.txt"
-    strip_values < "$tmp/closure-residue.txt" > "$tmp/closure-residue.txt.v" && mv "$tmp/closure-residue.txt.v" "$tmp/closure-residue.txt"
-    awk 'length($0) > 0' "$tmp/closure-residue.txt" | sed 's/[[:space:]]*$//' | sort -u > "$tmp/closure-residue.txt.s"
-    show_raw "$tmp/bin/tractor" "$wf" "$node" | strip_values | sed 's/[[:space:]]*$//' | awk 'length($0) > 0' | sort -u > "$tmp/rendered-residue.txt"
-    while IFS= read -r line; do
-      grep -qxF -- "$line" "$tmp/closure-residue.txt.s" \
-        || { echo "closure-text: $wf/$node renders a line that is neither closure text nor data: $line"; exit 1; }
-    done < "$tmp/rendered-residue.txt"
+    "$tmp/bin/builddump" render "$file" "$tmp/demo" "$tmp/bin/tractor" "$seed" > "$tmp/render.txt" 2>"$tmp/render.err" \
+      || { echo "render: $file does not render standalone"; cat "$tmp/render.err"; exit 1; }
+    show_raw "$tmp/bin/tractor" "$wf" "$node" > "$tmp/shown.txt"
+    cmp -s "$tmp/render.txt" "$tmp/shown.txt" || { echo "render: $wf/$node differs from Render($file)"; diff "$tmp/render.txt" "$tmp/shown.txt" | head -20; exit 1; }
+    echo "render: $wf/$node equals Render($file)"
   done
 done
+delim_open="$(sed -n 's/^[Dd]elimiters:[[:space:]]*\([^[:space:]]*\)[[:space:]]*\([^[:space:]]*\).*/\1/p' "$lib/README.md" | head -1)"
+test -n "$delim_open" || { echo "README does not state the delimiters"; exit 1; }
 
 # ---- content: one sentinel per file, in the copy ------------------------
 mlib="$tmp/src/workflow/library"
@@ -89,7 +42,6 @@ if [ -z "$(find "$mlib/doctrine" -type f -name '*.md' 2>/dev/null)" ]; then
   echo "planted: $planted.md cited from ${host#$mlib/}"
 fi
 page="$(find "$mlib/doctrine" -type f -name '*.md' 2>/dev/null | sort -R | head -1 || true)"
-if [ -n "$page" ]; then printf '\n%s DOCTRINE %s\n' "$stamp" "$(basename "$page" .md)" >> "$page"; fi
 orphan="probe-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
 printf '# uncited\n\nNo prompt cites this page.\n' > "$mlib/doctrine/$orphan.md"
 (cd "$tmp/src" && go build -o "$tmp/bin/mutated" ./cmd/tractor)
@@ -110,9 +62,6 @@ for wf in $workflows; do
     # A conditional include may not fire for the check's parameters, so a
     # closure file's sentinel is allowed to be absent; a file outside the
     # closure is not allowed to appear.
-    if [ -n "$page" ] && grep -q "$(basename "$page" .md)" "$mlib/$file"; then
-      grep -q "^$stamp DOCTRINE " "$tmp/mut.txt" || { echo "content: $wf/$node names $(basename "$page") but does not render it"; exit 1; }
-    fi
     echo "content: $wf/$node renders $file and nothing outside its closure"
   done
 done

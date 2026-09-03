@@ -1,7 +1,8 @@
 # P5: all seven review passes are engine-marked after a fresh reviewer on another provider routed pass
 
 Archetype: universal over the passes of a run. Exhaustive; no holdout.
-Lap 4; answers `review-3.md`.
+Lap 17 (re-opened after the plan-review loop's routing was corrected;
+marked on lap 4); answers `review-3.md`.
 
 ## Story
 
@@ -30,9 +31,12 @@ there is exactly one `LoopValidated` with `passed: true` naming it on
 the plan-review loop and one loop stage whose `validation.json` names
 it; for each such loop stage the nearest preceding `StageCompleted` is
 a `reviewer` stage whose `next` is the loop node and whose `response.md`
-front matter agrees; for every `reviewer` stage whose `next` is
-`brief`, `decompose`, or `design`, the next `StageStarted` is that node
-and a later `LoopItemSelected` names the same pass; every reviewer
+front matter agrees; for
+every `reviewer` stage whose `next` is `brief`, `decompose`, or
+`design`, the next `StageStarted` is that node and the stage after that
+node is a `reviewer` stage for the same pass, with no `LoopValidated`
+for the pass in between (the owning node returns to the reviewer, not
+to the loop; a commandless item would otherwise pass on return); every reviewer
 stage has `prompt.md`, `response.md`, and a segment; in
 `checkpoint.json` the `reviewer` harness differs from the harness of
 every planner node (harness names are the routes of providers), and the

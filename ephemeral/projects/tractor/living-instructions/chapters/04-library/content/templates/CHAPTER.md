@@ -21,16 +21,16 @@ promises it serves.>
 
 ## Design direction
 
-<Themes to preserve.>
+<Optional. Themes to preserve.>
 
 ## Architecture principles
 
-<Boundaries, sources of truth, what may not move; the seams a promise
+<Optional. Boundaries, sources of truth, what may not move; the seams a promise
 crosses, by name.>
 
 ## Sprint horizon
 
-- <kind of sprint that belongs here>
+- <Optional. A kind of sprint that belongs here.>
 
 ## Review posture
 
@@ -43,4 +43,4 @@ operates at chapter exit, and the validation design it follows.>
 
 ## Sprint planning notes
 
-<Instructions the next planner carries forward.>
+<Optional. Instructions the next planner carries forward.>
