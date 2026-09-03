@@ -5,7 +5,7 @@ promise or design point it bears on, the evidence, and a proposed change.
 Research never edits the declaration; the brief lap asks about these and
 records the outcome. An entry is closed when the brief has ruled.
 
-## Open
+## Closed by the brief (interview 0013, all accepted)
 
 ### F1. P8 "show is byte-equal to the engine's prompt.md" is ill-defined (R5, R1)
 
@@ -60,7 +60,7 @@ the claude backend; gemini flash names through agy with an explicit
 and halt; always set the provider explicitly in `models.yaml`. See
 `models-and-providers/tractor-provider-selection.md`.
 
-## Closed without a promise change
+## Closed without a promise change (no question asked)
 
 - **Provider separation is supported by mechanism, not measured directly**
   (R2: Preference Leakage never measures an unrelated provider). Keep it;

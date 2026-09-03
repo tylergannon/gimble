@@ -267,6 +267,15 @@ planner node is withdrawn.
     and research branches; portions are automated as they are built.
 56. **Three chapters** for v2: library, planner, execution and proof. No
     engine change in any of them. No holdout in this project's proof.
+58. **Seven review passes.** The sixth is executability; the seventh is
+    holistic and rubric-free, last, because single-criterion judges miss
+    trade-offs (research F2, 2026-09-02).
+59. **P8 restated.** Prompt bodies, doctrine, briefs, passes, and
+    skeletons are library files and Go supplies only data values; `show`
+    prints what `Build` materialized, with `--stage` to diff a real
+    stage minus its frame. Cheap roles use the `sonnet` alias on claude;
+    providers are always explicit; template delimiters are non-default
+    (interview 0013).
 57. **No verdict files.** Review and verification are codergen nodes with
     pass and fail edges. A reviewed item has no `command`; the pass edge
     returning to the loop is the pass. Reviewer notes are ordinary files

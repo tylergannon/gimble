@@ -145,10 +145,14 @@ built-in passes, in order:
 5. **scope**: nothing exceeds the promises; exclusions respected.
 6. **executability**: every sprint fits one agent turn, every command
    runs from the workdir, every path resolves, every ledger parses. This
-   is today's `validate-plan`, kept as the last pass.
+   is today's `validate-plan`.
+7. **holistic**: rubric-free. "Would you accept this as the plan for
+   this product, and what one thing would stop you." Last, because
+   single-criterion judges credit mere mention and miss trade-offs
+   between criteria (research F2).
 
 **approve** (codergen, one `tractor ask`). Shows the human the package
-summary and the six verdicts. Yes routes to `success`. No routes to
+summary and the seven pass outcomes. Yes routes to `success`. No routes to
 `brief` with the reason as the only open question.
 
 ## 4. Sizes
@@ -225,7 +229,7 @@ workflow/library/
     medium/            implement.md replan.md
     large/             plan.md implement.md replan.md verify.md
   supervisors/         research_auditor.md scope_cop.md slice_critic.md proof_skeptic.md
-  passes/              01-traceability.md … 06-executability.md
+  passes/              01-traceability.md … 07-holistic.md
                        (the plan-review ledger is generated from this directory)
   doctrine/            the teachings, included by prompts by name:
                        promises.md elicit-then-prune.md question-files.md
@@ -240,14 +244,19 @@ workflow/library/
 
 Rules:
 
-- A prompt includes doctrine with `{{doctrine "promises"}}`. A teaching is
-  edited in one place and every prompt that cites it changes.
+- A prompt includes doctrine with a `doctrine "promises"` action. The
+  template delimiters are non-default, chosen by the coder before any
+  page is written, because doctrine text contains `{{` (research F5).
+  A teaching is edited in one place and every prompt that cites it
+  changes.
 - Tests render every template with representative parameters, fail on an
   unreferenced doctrine or template file, and fail on any prompt that is
   a Go string.
-- `tractor workflow show <name> [--project …]` prints the materialized
-  prompts and supervisor briefs, so an editor sees exactly what agents
-  will see before committing a content change.
+- `tractor workflow show <name> [--project …]` prints each node's prompt
+  and supervisor brief exactly as `Build` materialized them for those
+  parameters; `--stage <dir>` diffs against a real stage with the frame
+  stripped. Frames and `$goal` are engine additions `show` never
+  reproduces (research F1).
 - The skill bundle (`skills/tractor`) and the docs site teach the same
   things from the same files where they overlap (question-file format,
   ledger format, recommendation contract), so there is one source.
@@ -257,7 +266,8 @@ Rules:
 ## 6b. Models (decision 54)
 
 `workflow/library/models.yaml` maps roles to provider, model, and
-reasoning effort, and is deployed with the binary. A role may carry
+reasoning effort, and is deployed with the binary. The provider is always
+explicit; nothing relies on name-based detection (research R4). A role may carry
 `not: <role>` meaning its provider must differ from that role's at
 materialization. Initial table:
 
@@ -268,7 +278,7 @@ materialization. Initial table:
 | research branches | codex, gpt-5.6-sol, high | |
 | validation reviewer, plan-review reviewer, `verify` | claude, claude-fable-5-1, high | not the provider of the node judged |
 | supervisors | claude, claude-fable-5-1, high | not the provider of the node watched |
-| `replan`, `infer` judges, halt | claude, claude-sonnet-5, medium | |
+| `replan`, `infer` judges, halt | claude, `sonnet` alias, medium | |
 | answerer | human, or the calling agent | |
 
 ## 7. Not in this version
@@ -299,3 +309,6 @@ Fan-out drafts of chapter docs. Any engine change. The web client.
    `verify` turn routing pass, never a sprint count alone.
 7. `scope_cop` delivers at least one steer during the run, recorded in the
    timeline, and the steered turn's output changes.
+8. `show --stage` against a recorded stage of a real run reports no
+   diff, and the orphan walk fails when a doctrine page is added with no
+   prompt citing it.
