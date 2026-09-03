@@ -1,8 +1,0 @@
-{
-  "item": "live planning proof",
-  "command": "go build ./... \u0026\u0026 go vet ./... \u0026\u0026 go test ./... \u0026\u0026 sh ephemeral/projects/tractor/living-instructions/chapters/02-planning/check-sprint-04.sh",
-  "exit_code": 1,
-  "log_tail": "Saved\"}\n{\"index\":2,\"name\":\"validate\",\"ts\":\"2026-09-02T20:38:59.681642Z\",\"type\":\"StageStarted\"}\n{\"duration\":\"18.31025ms\",\"index\":2,\"name\":\"validate\",\"next\":\"success\",\"ts\":\"2026-09-02T20:38:59.699972Z\",\"type\":\"StageCompleted\"}\n{\"node_id\":\"validate\",\"ts\":\"2026-09-02T20:38:59.700256Z\",\"type\":\"CheckpointSaved\"}\n{\"duration\":\"1m23.228860875s\",\"ts\":\"2026-09-02T20:38:59.700294Z\",\"type\":\"PipelineCompleted\"}",
-  "passed": false,
-  "summary": "exit 1 — Saved\"}\n{\"index\":2,\"name\":\"validate\",\"ts\":\"2026-09-02T20:38:59.681642Z\",\"type\":\"StageStarted\"}\n{\"duration\":\"18.31025ms\",\"index\":2,\"name\":\"validate\",\"next\":\"success\",\"ts\":\"2026-09-02T20:38:59.699972Z\",\"type\":\"StageCompleted\"}\n{\"node_id\":\"validate\",\"ts\":\"2026-09-02T20:38:59.700256Z\",\"type\":\"CheckpointSaved\"}\n{\"duration\":\"1m23.228860875s\",\"ts\":\"2026-09-02T20:38:59.700294Z\",\"type\":\"PipelineCompleted\"}"
-}

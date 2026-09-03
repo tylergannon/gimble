@@ -1,8 +1,0 @@
-{
-  "item": "embedded MEDIUM workflow",
-  "command": "go build ./... \u0026\u0026 go vet ./... \u0026\u0026 sh ephemeral/projects/tractor/living-instructions/chapters/03-execution/check-sprint-02.sh",
-  "exit_code": 0,
-  "log_tail": "=== RUN   TestBuiltInMedium\n--- PASS: TestBuiltInMedium (0.00s)\n=== RUN   TestMediumRunsPlanningChecklist\n--- PASS: TestMediumRunsPlanningChecklist (0.05s)\nPASS\nok  \tgithub.com/tylergannon/tractor/workflow\t0.318s",
-  "passed": true,
-  "summary": "passed"
-}

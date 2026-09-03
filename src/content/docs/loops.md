@@ -2,7 +2,7 @@
 title: Loops
 description: A loop is a thing that runs iteratively until it's done — in Tractor, two nodes pointing at each other. Start from a copy-and-run example and change two strings.
 eyebrow: Pattern guide
-order: 2
+order: 1
 sourceLabel: Browse the runnable examples
 sourceUrl: https://github.com/tylergannon/tractor/tree/main/examples/loops
 ---
@@ -54,12 +54,12 @@ different lab inherits none of the author's framing.
 judge run each result before merging the winner. The judge is told to
 decide on demonstrated behavior, not on the reports.
 
-**Milestone loop** is an execution shape for far-off goals after the built-in
-planning workflow has established the brief and recommended a long-running
-loop. A chooser looks at that contract and the repository _as it is now_, names
-the smallest next step that ends in something runnable, an implementer does it,
-a command checks it, repeat. The approved brief stays authoritative while the
-chooser avoids a detailed upfront implementation plan going stale.
+**Milestone loop** is for far-off goals: a chooser looks at the goal and
+the repository _as it is now_, names the smallest next step that ends in
+something runnable, an implementer does it, a command checks it, repeat.
+No upfront plan to go stale. When you want to read and approve a plan
+before the tokens burn, add a planner node in front — the two shapes differ
+by exactly one node.
 
 **Checklist loop** is for work that is already a list of claims. A `loop`
 node iterates a markdown file whose YAML frontmatter lists items, each
@@ -73,42 +73,6 @@ agent never marks items; the file is the only loop state, so a planner
 (or a person) can append, reorder, or hand-mark items between laps. Copy
 [`checklist-loop.md`](https://github.com/tylergannon/tractor/blob/main/examples/loops/checklist-loop.md)
 beside it to start.
-
-## Run a planned checklist
-
-Use the planner's exact `Next:` command when the plan is MEDIUM or LARGE:
-
-```sh
-tractor workflow run medium --project my-build
-tractor workflow run large --project my-build
-```
-
-Add `--workdir <repository>` when you are not running from the repository the
-planner used. Both commands first print an absolute `Logs:` path; without
-`--logs <empty-directory>` it is a fresh allocation below Tractor's state
-root. Follow `<printed-logs>/timeline.jsonl` while the foreground command runs.
-
-MEDIUM is one loop over the project's `checklist.md`: one sprint turn returns,
-the engine runs its command and then its infer judge, and only a passing item
-is marked before the next sprint begins. LARGE adds an outer chapter loop. Its
-planning turn fills the current chapter's sprint ledger, the nested loop runs
-and validates every sprint, then the outer loop marks the completed chapter
-and advances. One Tractor run covers the whole execution; neither shape starts
-child runs or parallel sprints.
-
-An implementation turn may ask its reviewer when no runnable validator exists
-or repeated validation exposes a material question. The LARGE chapter planner
-may ask when the chapter document cannot settle sprint scope or validation.
-Find the `QuestionAsked` event in `timeline.jsonl`, open its `question` path,
-and answer it without restarting the run:
-
-```sh
-tractor answer <question-path> "Use the repository's integration gate."
-```
-
-For a failed item, inspect `validation.log` and `validation.json` in the latest
-loop stage. The engine alone runs validators and writes `done: true`; the agent
-never marks its own sprint or chapter complete.
 
 ## Writing node prompts
 

@@ -12,47 +12,6 @@ after the current session ends, fan out across several models or approaches
 by another model. Runs are detached processes; every prompt, response,
 routing decision, and collected artifact lands in a browsable run directory.
 
-## Plan before choosing a workflow
-
-When a request needs planning or its execution shape is unclear, start with the
-embedded planning workflow rather than choosing an example prematurely:
-
-```sh
-tractor workflow list
-tractor workflow run plan \
-  --project <safe-project-name> \
-  --seed <seed-file> \
-  --workdir <target-repository>
-```
-
-Capture the absolute directory from the first `Logs:` line. Without `--logs`,
-Tractor allocates it below `$XDG_STATE_HOME/tractor/workflow-runs/` or
-`~/.local/state/tractor/workflow-runs/`; an explicit `--logs` must be fresh.
-Watch its `timeline.jsonl` for `QuestionAsked`, open each event's numbered
-question path, and answer it with `tractor answer <question-path> [text]`.
-The completed run prints `brief.md`, `checklist.md`, and `recommendation.md`
-beneath `ephemeral/projects/<project>/`, followed by a SIMPLE, MEDIUM, or LARGE
-size and its exact `Next:` action.
-
-SIMPLE is at most one sprint; execute its checklist yourself. MEDIUM is more
-than one sprint but fewer than two chapters. LARGE is multiple chapters. Run
-the printed handoff from the same repository, or pass the planning workdir:
-
-```sh
-tractor workflow run medium --project <safe-project-name>
-tractor workflow run large --project <safe-project-name>
-```
-
-MEDIUM runs one checklist loop. LARGE runs an outer chapter loop whose planner
-fills the current chapter's sprint ledger, then a nested loop executes it.
-Each command is one foreground run for the whole plan; neither starts child
-runs or parallel sprints. The workflows may ask a material blocking question
-through `QuestionAsked`; answer it with `tractor answer` and the current turn
-continues. The engine runs each item's command followed by its infer judge,
-records results in the loop stage's `validation.log` and `validation.json`,
-and is the only writer of `done: true`. Failed validation leaves the item open
-for another lap.
-
 ## Start from an example
 
 Copy-and-run loop pipelines live in `examples/loops/` (also bundled with the

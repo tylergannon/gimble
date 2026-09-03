@@ -2,7 +2,7 @@
 title: Interviews
 description: Let an agent pause inside one run, ask its caller a file-shaped question, and continue with the answer in the same turn.
 eyebrow: Operator guide
-order: 4
+order: 3
 sourceLabel: Read the normative interview contract
 sourceUrl: https://github.com/tylergannon/tractor/blob/main/docs/spec.md#311-blocking-interviews
 ---
