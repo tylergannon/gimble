@@ -67,13 +67,17 @@ func TestLoopCompletesThreeItemChecklistInThreeLaps(t *testing.T) {
 	if list.Body != wantBody {
 		t.Fatalf("body = %q, want %q", list.Body, wantBody)
 	}
-	if _, err := os.Stat(filepath.Join(root, "stages", "000001-items", "validation.log")); !os.IsNotExist(err) {
+	if matches, err := filepath.Glob(filepath.Join(root, "stages", "000001-items", "validation-*.log")); err != nil || len(matches) != 0 {
 		t.Fatalf("first arrival wrote a validation log: %v", err)
 	}
-	for _, stage := range []string{"000003-items", "000005-items", "000007-items"} {
-		for _, name := range []string{"validation.log", "validation.json"} {
-			if _, err := os.Stat(filepath.Join(root, "stages", stage, name)); err != nil {
-				t.Fatalf("%s/%s: %v", stage, name, err)
+	for index, stage := range []string{"000003-items", "000005-items", "000007-items"} {
+		records := readValidationRecords(t, filepath.Join(root, "stages", stage, "validation.json"))
+		if len(records) != index+1 {
+			t.Fatalf("%s recorded %d validations, want %d", stage, len(records), index+1)
+		}
+		for _, record := range records {
+			if _, err := os.Stat(record.LogPath); err != nil {
+				t.Fatalf("%s: %v", record.LogPath, err)
 			}
 		}
 	}
@@ -93,6 +97,85 @@ func TestLoopCompletesThreeItemChecklistInThreeLaps(t *testing.T) {
 	}
 	if validated != 3 || completed != 1 {
 		t.Fatalf("timeline has %d LoopValidated and %d LoopCompleted", validated, completed)
+	}
+}
+
+func TestLoopRevalidatesDoneItemsAndUnmarksRegressions(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	path := filepath.Join(workdir, "sprint.md")
+	writeFile(t, path, `---
+items:
+  - name: First
+    check: The first proof exists
+    command: test -f first.ok
+  - name: Second
+    check: The second proof exists
+    command: test -f second.ok
+---
+`)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	laps := 0
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+		laps++
+		switch laps {
+		case 1:
+			writeFile(t, filepath.Join(scope.Workdir, "first.ok"), "ok\n")
+		case 2:
+			if err := os.Remove(filepath.Join(scope.Workdir, "first.ok")); err != nil {
+				t.Fatal(err)
+			}
+		case 3:
+			list := mustChecklist(t, path)
+			if list.Items[0].Done || list.Items[1].Done {
+				t.Fatalf("regressed and framed items were not both open: %#v", list.Items)
+			}
+			writeFile(t, filepath.Join(scope.Workdir, "first.ok"), "ok\n")
+			writeFile(t, filepath.Join(scope.Workdir, "second.ok"), "ok\n")
+		}
+	}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, nil).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || laps != 4 {
+		t.Fatalf("result = %#v after %d laps", result, laps)
+	}
+	records := readValidationRecords(t, filepath.Join(root, "stages", "000005-items", "validation.json"))
+	if len(records) != 2 || records[0].Item != "First" || records[0].Passed || records[1].Item != "Second" || records[1].Passed {
+		t.Fatalf("regression validation = %#v", records)
+	}
+	if records[0].LogPath == records[1].LogPath {
+		t.Fatalf("validation logs collided: %#v", records)
+	}
+	for _, record := range records {
+		if _, err := os.Stat(record.LogPath); err != nil {
+			t.Fatalf("validation log %s: %v", record.LogPath, err)
+		}
+	}
+	prompt := readFile(t, filepath.Join(root, "stages", "000006-implement", "prompt.md"))
+	for _, want := range []string{"item: First", "item: Second", records[0].LogPath, records[1].LogPath} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("regression prompt %q lacks %q", prompt, want)
+		}
+	}
+	foundList := false
+	for _, event := range mustTimeline(t, root) {
+		if event["type"] != "LoopValidated" || event["passed"] != false {
+			continue
+		}
+		validations, ok := event["validations"].([]any)
+		if ok && len(validations) == 2 {
+			foundList = true
+		}
+	}
+	if !foundList {
+		t.Fatal("timeline lacks the two-item failed validation list")
 	}
 }
 
@@ -137,8 +220,8 @@ items:
 		t.Fatalf("first lap prompt = %q", first)
 	}
 	second := readFile(t, filepath.Join(root, "stages", "000004-implement", "prompt.md"))
-	failedLog := filepath.Join(root, "stages", "000003-items", "validation.log")
-	for _, want := range []string{`lap="2"`, "last validation: failed — exit 1", "\n  validation log: " + failedLog + "\n", "name: Flag", "command: test -f flag", "\n\nimplement"} {
+	failedLog := filepath.Join(root, "stages", "000003-items", "validation-001.log")
+	for _, want := range []string{`lap="2"`, "last validation: failed", "item: Flag", "summary: exit 1", "validation log: " + failedLog, "name: Flag", "command: test -f flag", "\n\nimplement"} {
 		if !strings.Contains(second, want) {
 			t.Fatalf("second lap prompt %q lacks %q", second, want)
 		}
@@ -147,13 +230,11 @@ items:
 	if strings.Contains(third, "last validation") || strings.Contains(third, "validation log:") || !strings.Contains(third, `item="2/2" lap="1"`) {
 		t.Fatalf("prompt after the pass = %q", third)
 	}
-	var failed validationRecord
-	readJSON(t, filepath.Join(root, "stages", "000003-items", "validation.json"), &failed)
+	failed := readValidationRecords(t, filepath.Join(root, "stages", "000003-items", "validation.json"))[0]
 	if failed.Passed || failed.ExitCode != 1 || !strings.HasPrefix(failed.Summary, "exit 1") || failed.Item != "Flag" {
 		t.Fatalf("failed validation = %#v", failed)
 	}
-	var passed validationRecord
-	readJSON(t, filepath.Join(root, "stages", "000005-items", "validation.json"), &passed)
+	passed := readValidationRecords(t, filepath.Join(root, "stages", "000005-items", "validation.json"))[0]
 	if !passed.Passed || passed.ExitCode != 0 {
 		t.Fatalf("passed validation = %#v", passed)
 	}
@@ -199,16 +280,14 @@ items:
 	if result.Status != RunCompleted || laps != 2 || len(backend.turns) != 2 {
 		t.Fatalf("result = %#v after %d laps and %d judge turns", result, laps, len(backend.turns))
 	}
-	var first validationRecord
-	readJSON(t, filepath.Join(root, "stages", "000003-items", "validation.json"), &first)
+	first := readValidationRecords(t, filepath.Join(root, "stages", "000003-items", "validation.json"))[0]
 	if first.Passed || first.Infer == nil || first.Infer.Verdict != "fail" || first.Summary != "judge: the button is missing" {
 		t.Fatalf("first validation = %#v infer=%#v", first, first.Infer)
 	}
 	if len(first.Infer.Files) != 1 || first.Infer.Files[0] != filepath.Join("captures", "shot.png") {
 		t.Fatalf("evidence files = %v", first.Infer.Files)
 	}
-	var second validationRecord
-	readJSON(t, filepath.Join(root, "stages", "000005-items", "validation.json"), &second)
+	second := readValidationRecords(t, filepath.Join(root, "stages", "000005-items", "validation.json"))[0]
 	if !second.Passed || second.Infer == nil || second.Infer.Verdict != "pass" || second.Infer.Notes != "all screens usable" {
 		t.Fatalf("second validation = %#v infer=%#v", second, second.Infer)
 	}
@@ -332,8 +411,7 @@ items:
 	if len(backend.turns) != 0 {
 		t.Fatalf("judge ran %d times without evidence", len(backend.turns))
 	}
-	var record validationRecord
-	readJSON(t, filepath.Join(root, "stages", "000003-items", "validation.json"), &record)
+	record := readValidationRecords(t, filepath.Join(root, "stages", "000003-items", "validation.json"))[0]
 	if record.Passed || record.Summary != "no evidence files matched captures/*.png, shots/*.jpg" {
 		t.Fatalf("validation = %#v", record)
 	}
@@ -460,7 +538,7 @@ items:
 	}
 }
 
-func TestLoopHonorsHandMarkedItemWithoutValidating(t *testing.T) {
+func TestLoopHandMarkedFailingItemIsUnmarkedAndReselected(t *testing.T) {
 	root, workdir := t.TempDir(), t.TempDir()
 	path := filepath.Join(workdir, "sprint.md")
 	writeFile(t, path, `---
@@ -476,24 +554,35 @@ items:
 		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
 	)
 	registry := NewRegistry()
+	laps := 0
 	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {
-		writeFile(t, path, strings.Replace(readFile(t, path), "command: \"false\"\n", "command: \"false\"\n    done: true\n", 1))
+		laps++
+		text := readFile(t, path)
+		if laps == 1 {
+			text = strings.Replace(text, "command: \"false\"\n", "command: \"false\"\n    done: true\n", 1)
+		} else {
+			text = strings.Replace(text, "command: \"false\"\n", "command: \"true\"\n", 1)
+		}
+		writeFile(t, path, text)
 	}))
 
 	result, err := newLoopRunner(t, pipeline, registry, root, workdir, nil).Run()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != RunCompleted {
-		t.Fatalf("result = %#v", result)
+	if result.Status != RunCompleted || laps != 2 {
+		t.Fatalf("result = %#v after %d laps", result, laps)
 	}
-	if _, err := os.Stat(filepath.Join(root, "stages", "000003-items", "validation.log")); !os.IsNotExist(err) {
-		t.Fatalf("hand-marked item was validated: %v", err)
+	failed := readValidationRecords(t, filepath.Join(root, "stages", "000003-items", "validation.json"))
+	if len(failed) != 1 || failed[0].Item != "Manual" || failed[0].Passed {
+		t.Fatalf("hand-marked validation = %#v", failed)
 	}
-	for _, event := range mustTimeline(t, root) {
-		if event["type"] == "LoopValidated" {
-			t.Fatalf("hand-marked item produced %v", event)
-		}
+	prompt := readFile(t, filepath.Join(root, "stages", "000004-implement", "prompt.md"))
+	if !strings.Contains(prompt, `item="1/1" lap="2"`) || !strings.Contains(prompt, "last validation: failed") {
+		t.Fatalf("reselected prompt = %q", prompt)
+	}
+	if item, _, _ := mustChecklist(t, path).Find("Manual"); !item.Done {
+		t.Fatal("item did not pass after being unmarked and reselected")
 	}
 }
 
@@ -909,8 +998,7 @@ items:
 	if result.Status != RunFailed || len(backend.turns) != 0 {
 		t.Fatalf("result = %#v after %d judge turns", result, len(backend.turns))
 	}
-	var record validationRecord
-	readJSON(t, filepath.Join(root, "stages", "000003-items", "validation.json"), &record)
+	record := readValidationRecords(t, filepath.Join(root, "stages", "000003-items", "validation.json"))[0]
 	if record.Passed || record.Summary != "invalid evidence pattern (must be relative to the workdir): ../captures/*.png" || record.Infer == nil || record.Infer.Verdict != "fail" {
 		t.Fatalf("validation = %#v infer=%#v", record, record.Infer)
 	}
@@ -1041,6 +1129,13 @@ func readJSON(t *testing.T, path string, value any) {
 	if err := json.Unmarshal([]byte(readFile(t, path)), value); err != nil {
 		t.Fatalf("%s: %v", path, err)
 	}
+}
+
+func readValidationRecords(t *testing.T, path string) []validationRecord {
+	t.Helper()
+	var report validationReport
+	readJSON(t, path, &report)
+	return report.Validations
 }
 
 func mustTimeline(t *testing.T, root string) []timelineEvent {

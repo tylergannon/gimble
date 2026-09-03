@@ -278,6 +278,47 @@ func TestMarkDone(t *testing.T) {
 	}
 }
 
+func TestUnmarkDone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sprint.md")
+	if err := os.WriteFile(path, []byte(commented), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := MarkDone(path, "Build the login screen"); err != nil {
+		t.Fatalf("MarkDone: %v", err)
+	}
+	before, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load before: %v", err)
+	}
+	if err := UnmarkDone(path, "Build the login screen"); err != nil {
+		t.Fatalf("UnmarkDone: %v", err)
+	}
+	after, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load after: %v", err)
+	}
+	if after.Items[0].Done || after.Body != before.Body {
+		t.Fatalf("after unmark = %+v", after)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "done: false") {
+		t.Fatalf("unmark did not write done: false:\n%s", raw)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("mode = %o, want 600", info.Mode().Perm())
+	}
+	if err := UnmarkDone(path, "Nope"); err == nil || !strings.Contains(err.Error(), "Nope") {
+		t.Fatalf("UnmarkDone unknown item error = %v", err)
+	}
+}
+
 func TestMarkDoneRoundTripsCRLFBody(t *testing.T) {
 	src := "---\r\nitems:\r\n  - name: a\r\n    check: c\r\n---\r\nbody\r\n"
 	path := filepath.Join(t.TempDir(), "crlf.md")

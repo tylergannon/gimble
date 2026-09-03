@@ -64,17 +64,21 @@ by exactly one node.
 **Checklist loop** is for work that is already a list of claims. A `loop`
 node iterates a markdown file whose YAML frontmatter lists items, each
 with a `check`, optionally a `command`, and optionally an `infer` judge
-over evidence files. On every arrival the engine re-reads the file,
-validates the item the previous lap worked on — runs its command, then
-asks the judge — marks it `done: true` itself when that passes, and
-injects the first open item into the body's prompt as a frame: the item,
-its command, the last failure, and the item's `doc` if it has one. The
+over evidence files. On every lap return the engine re-reads the file and
+validates the framed item plus every item already marked done, in file
+order — command, then judge, for each. The framed item becomes `done: true`
+only when the whole set passes; any failed item becomes `done: false` and
+is eligible for selection again. Each result and its distinct command-log
+path are recorded in `validation.json`, and the next frame lists every
+failure. The first open item is injected into the body's prompt with its
+command, the last failures, and its `doc` if it has one. The
 evidence globs support `*`, `?`, and `[...]` within a path segment and
 `**` across zero or more directories. They are relative to the workdir;
 a leading `./` is accepted, while absolute paths and `..` path segments
 are rejected. The agent never marks items; the file is the only loop
 state, so a planner (or a person) can append, reorder, or hand-mark items
-between laps. Copy
+between laps; hand-marking requests validation on the next return rather
+than bypassing it. Copy
 [`checklist-loop.md`](https://github.com/tylergannon/tractor/blob/main/examples/loops/checklist-loop.md)
 beside it to start.
 
@@ -118,7 +122,7 @@ you.
 | Agent guesses at a decision that wasn't its to make | Give it a door: an edge whose condition is "this decision isn't mine," leading to a node that asks a human or writes a report and routes to `failure`. Agents improvise when forward is the only offered route. |
 | Builds everything, nothing runs until the end       | Steer the chooser to vertical slices: "the step is done when you can run something that proves it." Stack-order plans (schema → services → API → UI) are the model's default tic; say no to them in the prompt. |
 | A long run starts believing its own stale plans     | Per-lap plans are working notes, not authority; they live with the run, the code is the record. Don't commit them.                                                                                              |
-| Item never gets marked                              | The engine marks it only after its command exits 0 and its `infer` judge passes; read `validation.log` in the loop node's stage directory.                                                                      |
+| Item never gets marked                              | The engine marks the framed item only when it and every previously done item pass; read `validation.json` and the per-item log paths it names in the loop node's stage directory.                              |
 
 Every run leaves its evidence — prompts, responses, routing decisions,
 collected artifacts — in a browsable run directory, so when a loop

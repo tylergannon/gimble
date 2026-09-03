@@ -21,20 +21,25 @@ const (
 	defaultLoopJudgeReasoningEffort = "medium"
 )
 
-// loopHandler iterates a checklist file: it validates the item the previous
-// lap worked on, marks it done when the validation passes, selects the first
-// open item as the lap's frame, and dispatches the body. With no open item
-// left it routes to on_done.
+// loopHandler iterates a checklist file: after every lap it validates the
+// framed item and every done item, reconciles done in both directions, selects
+// the first open item as the next lap's frame, and dispatches the body. With no
+// open item left it routes to on_done.
 type loopHandler struct {
 	runner *Runner
 	state  *engineState
 	store  *runStore
 }
 
-// validationRecord is stages/{seq}-{loop}/validation.json.
+// validationReport is stages/{seq}-{loop}/validation.json.
+type validationReport struct {
+	Validations []validationRecord `json:"validations"`
+}
+
 type validationRecord struct {
 	Item     string       `json:"item"`
 	Command  string       `json:"command"`
+	LogPath  string       `json:"log_path"`
 	ExitCode int          `json:"exit_code"`
 	LogTail  string       `json:"log_tail"`
 	Infer    *inferRecord `json:"infer,omitempty"`
@@ -83,28 +88,57 @@ func (h *loopHandler) Execute(node graph.Node, offered []graph.Edge, scope Execu
 		case !found:
 			notes = fmt.Sprintf("item vanished: %s; ", frame.item)
 			h.runner.popFrame(loop.ID)
-		case item.Done:
-			h.runner.popFrame(loop.ID)
 		default:
-			record, validateErr := h.validate(loop, item, scope, pipeline)
-			if validateErr != nil {
-				return harness.Outcome{}, validateErr
+			records := make([]validationRecord, 0, len(list.Items))
+			allPassed := true
+			for index, candidate := range list.Items {
+				if !candidate.Done && candidate.Name != frame.item {
+					continue
+				}
+				logPath := filepath.Join(scope.StageDir, fmt.Sprintf("validation-%03d.log", index+1))
+				record, validateErr := h.validate(loop, candidate, logPath, scope, pipeline)
+				if validateErr != nil {
+					return harness.Outcome{}, validateErr
+				}
+				records = append(records, record)
+				if !record.Passed {
+					allPassed = false
+				}
 			}
-			if err := writeJSON(filepath.Join(scope.StageDir, "validation.json"), record); err != nil {
+			report := validationReport{Validations: records}
+			if err := writeJSON(filepath.Join(scope.StageDir, "validation.json"), report); err != nil {
 				return harness.Outcome{}, terminalError(fmt.Sprintf("write validation record: %v", err))
 			}
 			if err := h.store.appendTimeline(timelineEvent{
-				"type": "LoopValidated", "node": loop.ID, "item": item.Name, "passed": record.Passed, "summary": record.Summary,
+				"type": "LoopValidated", "node": loop.ID, "passed": allPassed, "validations": records,
 			}); err != nil {
 				return harness.Outcome{}, terminalError(err.Error())
 			}
-			if record.Passed {
+
+			failures := make([]loopValidationFailure, 0, len(records))
+			for _, record := range records {
+				if record.Passed {
+					continue
+				}
+				if err := checklist.UnmarkDone(absolutePath, record.Item); err != nil {
+					return harness.Outcome{}, terminalError(err.Error())
+				}
+				failures = append(failures, loopValidationFailure{
+					item: record.Item, summary: record.Summary, logPath: record.LogPath,
+				})
+			}
+			if allPassed {
 				if err := checklist.MarkDone(absolutePath, item.Name); err != nil {
 					return harness.Outcome{}, terminalError(err.Error())
 				}
 				h.runner.popFrame(loop.ID)
 			} else {
-				h.runner.setFrameFailure(loop.ID, record.Summary, filepath.Join(scope.StageDir, "validation.log"))
+				// A hand-marked framed item is only trusted for this lap. Keep it
+				// open unless the whole validation set passed.
+				if err := checklist.UnmarkDone(absolutePath, item.Name); err != nil {
+					return harness.Outcome{}, terminalError(err.Error())
+				}
+				h.runner.setFrameFailures(loop.ID, failures)
 			}
 		}
 		list, err = checklist.Load(absolutePath)
@@ -129,22 +163,25 @@ func (h *loopHandler) Execute(node graph.Node, offered []graph.Edge, scope Execu
 	}
 
 	current, stillFramed := h.runner.frameFor(loop.ID)
-	lap, lastFailure, lastFailureLog := 1, "", ""
-	if stillFramed && current.item == next.Name {
-		lap, lastFailure, lastFailureLog = current.lap+1, current.lastFailure, current.lastFailureLog
+	lap := 1
+	var lastFailures []loopValidationFailure
+	if stillFramed {
+		lastFailures = current.lastFailures
+		if current.item == next.Name {
+			lap = current.lap + 1
+		}
 	}
 	h.runner.pushOrReplaceFrame(loopFrame{
-		loopID:         loop.ID,
-		checklist:      listPath,
-		item:           next.Name,
-		itemChecklist:  next.Checklist,
-		rendered:       next.Render(),
-		doc:            next.Doc,
-		index:          index + 1,
-		count:          len(list.Items),
-		lap:            lap,
-		lastFailure:    lastFailure,
-		lastFailureLog: lastFailureLog,
+		loopID:        loop.ID,
+		checklist:     listPath,
+		item:          next.Name,
+		itemChecklist: next.Checklist,
+		rendered:      next.Render(),
+		doc:           next.Doc,
+		index:         index + 1,
+		count:         len(list.Items),
+		lap:           lap,
+		lastFailures:  lastFailures,
 	})
 	if err := h.runner.writeFrames(); err != nil {
 		return harness.Outcome{}, terminalError(fmt.Sprintf("write frames: %v", err))
@@ -189,11 +226,10 @@ func (h *loopHandler) resolveChecklist(loop *graph.LoopNode, frame loopFrame, ha
 	return enclosing.itemChecklist, nil
 }
 
-// validate runs the item's command and then its infer judge, in the loop
-// node's stage directory. An item with neither passes.
-func (h *loopHandler) validate(loop *graph.LoopNode, item checklist.Item, scope ExecutionScope, pipeline *graph.Graph) (validationRecord, *harness.Error) {
-	record := validationRecord{Item: item.Name, Command: item.Command}
-	logPath := filepath.Join(scope.StageDir, "validation.log")
+// validate runs the item's command and then its infer judge. An item with
+// neither passes. logPath is unique to this item within the loop stage.
+func (h *loopHandler) validate(loop *graph.LoopNode, item checklist.Item, logPath string, scope ExecutionScope, pipeline *graph.Graph) (validationRecord, *harness.Error) {
+	record := validationRecord{Item: item.Name, Command: item.Command, LogPath: logPath}
 	if strings.TrimSpace(item.Command) != "" {
 		timeout, hasTimeout, timeoutErr := loopTimeout(loop)
 		if timeoutErr != nil {

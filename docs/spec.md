@@ -191,7 +191,7 @@ table in Section 2.5 is the complete list of what it admits.
 | `parallel`        | Parallel fan-out. Executes multiple branches concurrently (Section 4.6). |
 | `parallel.fan_in` | Parallel fan-in. Consolidates branch results and chooses what follows (Section 4.7). |
 | `tool`            | External tool execution (shell command). Routes on exit code (Section 4.5). |
-| `loop`            | Checklist iteration. Re-reads a checklist file on every arrival, validates the previous lap's item, and dispatches the body with the first open item as the lap's frame; routes to `on_done` when no open item remains (Section 4.8). |
+| `loop`            | Checklist iteration. Re-reads a checklist file on every arrival, validates the previous lap's framed item plus every done item, and dispatches the body with the first open item as the lap's frame; routes to `on_done` when no open item remains (Section 4.8). |
 | `supervisor`      | In-graph supervision. Outside the walk: observes a set of nodes through engine-fed digests and coaches them through targeted steering (Section 3.10). |
 
 **`codergen` and `parallel.fan_in` fields** (both run LLM turns; the
@@ -1673,11 +1673,13 @@ brings in a human (Section 6).
 ### 4.8 Loop Handler
 
 Iterates a checklist file. On every arrival the handler re-reads the
-file, validates the item the previous lap worked on, marks that item
-done when the validation passed, selects the first item not yet done,
-injects it as the lap's frame, and dispatches `body`. When no open item
-remains it routes to `on_done`. The engine owns selection, validation,
-marking, and injection; agents never write the `done` field. The
+file. After a lap returns, it validates every item already marked done
+plus the framed item, in file order. Only when the whole set passes does
+it mark the framed item done. Any failed item is set back to `done: false`.
+It then selects the first item not yet done, injects it as the lap's frame,
+and dispatches `body`. When no open item remains it routes to `on_done`.
+The engine owns selection, validation, marking, and injection; agents may
+edit the file, but an edited `done` value never bypasses validation. The
 checklist file is the only durable loop state: the engine caches,
 injects, and forgets. Nothing about the loop is checkpointed
 (Section 5.3).
@@ -1728,14 +1730,17 @@ Rules:
 - An item with neither `command` nor `infer` passes when its lap
   returns. This is what a chapter item looks like: its validation is
   the sub-checklist its lap iterated.
-- The engine writes exactly one thing: `done: true` on one item. The
+- The engine writes `done` in both directions: every failed item in the
+  validation set becomes `done: false`, and the framed item becomes
+  `done: true` only when every validation in the set passed. The
   markdown body is preserved byte for byte; the frontmatter is
   re-encoded from the parsed node tree, so key order and comments
   survive as far as the YAML library allows. The write is atomic, and a
   rewrite that would not parse back, would alter the body, or would
-  leave the item unmarked never reaches the file.
-- A hand-edited `done: true` is honored without validation. It is the
-  human override, and the file is the truth.
+  leave the requested value unwritten never reaches the file.
+- A hand-edited `done: true` is included in the next validation set. It is
+  retained only if it passes; a failing hand-marked item is unmarked and
+  re-selected.
 - An unknown item key, a missing `name` or `check`, an `infer` without
   `files` or `prompt`, or a `done` that is not a boolean makes the file
   unparseable, and the arrival returns an Error.
@@ -1763,18 +1768,26 @@ LoopHandler:
             item = list.find(frame.item)
             IF item is absent:               -- renamed or removed by a planner
                 note "item vanished"; frames.pop(node)
-            ELSE IF item.done:               -- hand-marked
-                frames.pop(node)
             ELSE:
-                result = validate(node, item, scope)     -- below
-                write validation.json and validation.log to
-                    scope.stage_dir
-                IF result.passed:
+                validation_set = every item where item.done is true,
+                    plus item, in checklist order with no duplicates
+                results = []
+                FOR candidate, index IN validation_set:
+                    result = validate(node, candidate,
+                        scope.stage_dir/validation-{index}.log, scope)
+                    results.append(result)   -- never short-circuit a failure
+                write {validations: results} to validation.json
+                append LoopValidated(node, passed=all_passed(results),
+                    validations=results)
+                FOR failed IN results where passed is false:
+                    checklist.unmark_done(path, failed.item)
+                IF all_passed(results):
                     checklist.mark_done(path, item.name)
                     frames.pop(node)
                 ELSE:
-                    frame.last_failure = result.summary
-                    frame.last_failure_log = scope.stage_dir/validation.log
+                    checklist.unmark_done(path, item.name)
+                    frame.last_failures = every failed result, including
+                        its item, summary, and validation log path
             list = checklist.load(path)      -- re-read after marking
 
         next, index = list.open()            -- first item not done
@@ -1787,7 +1800,7 @@ LoopHandler:
             IF frame is absent OR frame.item != next.name:
                 frames.push_or_replace(node, Frame{item: next.name,
                     index, count: size(list.items), lap: 1,
-                    last_failure: unset, last_failure_log: unset})
+                    last_failures: frame.last_failures})
             ELSE:
                 frame.lap += 1               -- same item, another lap
             write frames.json
@@ -1811,21 +1824,24 @@ while items remain fails the run, as an exhausted successor fails any
 node.
 
 **Validation.** Runs in the loop node's own stage directory,
-`stages/{seq}-{loop_id}/` (Section 5.6). The command runs first; the
-judge runs only if the command passed or is absent.
+`stages/{seq}-{loop_id}/` (Section 5.6). Each item gets a distinct
+`validation-{checklist position}.log`, so validating a set never overwrites
+another item's command output. The loop `timeout` applies independently to
+each command. For each item, the command runs first; the judge runs only if
+the command passed or is absent.
 
 ```
-FUNCTION validate(node, item, scope) -> ValidationResult:
+FUNCTION validate(node, item, log_path, scope) -> ValidationResult:
     IF item.command is set:
         result = run_shell_command("/bin/sh -c " + item.command,
                                    cwd=scope.workdir,
                                    timeout=node.timeout, stop=scope.stop)
-            -- stdout and stderr to validation.log; the process group
+            -- stdout and stderr to log_path; the process group
             -- is killed on stop or timeout, exactly as for a tool
             -- node (Section 4.5)
         IF result.exit_code != 0:
             RETURN failed(summary="exit " + result.exit_code + " -- " +
-                                  excerpt(validation.log))
+                                  excerpt(log_path))
                 -- the whole trimmed log up to 2000 runes; beyond that
                 -- its first 600 and last 1400 runes joined by one
                 -- line, "… (N runes omitted) …", so a check's stated
@@ -1874,22 +1890,27 @@ parts (Section 3.9) are no limitation here. The turn writes its own
 appends to a run-log segment allocated for it (Section 12.4). In
 simulation mode (no backend) the verdict is `pass`.
 
-`validation.json` is the record of one validation. `command`,
-`exit_code`, and `log_tail` are always present -- empty or zero when
-the item has no command; only `infer` is omitted, when the judge did
-not run:
+`validation.json` records the whole set in file order. Each entry's
+`command`, `exit_code`, `log_path`, and `log_tail` are always present --
+empty or zero when the item has no command; only `infer` is omitted when
+the judge did not run:
 
 ```
 {
-    "item":      "<name>",
-    "command":   "<command, or "" when the item has none>",
-    "exit_code": <integer; 0 when no command ran>,
-    "log_tail":  "<last 2000 characters of validation.log; "" when no command ran>",
-    "infer":     { "files": [<expanded paths>],
-                   "verdict": "pass" | "fail",
-                   "notes": "<the judge's reason>" },   -- only when infer ran
-    "passed":    true | false,
-    "summary":   "<what the next lap's frame carries as last validation>"
+    "validations": [
+        {
+            "item":      "<name>",
+            "command":   "<command, or "" when the item has none>",
+            "log_path":  "<absolute path of this item's validation log>",
+            "exit_code": <integer; 0 when no command ran>,
+            "log_tail":  "<last 2000 characters of the log; "" when no command ran>",
+            "infer":     { "files": [<expanded paths>],
+                           "verdict": "pass" | "fail",
+                           "notes": "<the judge's reason>" },
+            "passed":    true | false,
+            "summary":   "<what the next lap's failure block carries>"
+        }
+    ]
 }
 ```
 
@@ -1921,8 +1942,10 @@ infer:
   files:
     - ephemeral/captures/login/*.png
 doc: ephemeral/projects/mvp/sprints/SPRINT-0002.md
-last validation: failed -- exit 1 -- <log excerpt>
-validation log: <absolute path of that lap's validation.log>
+last validation: failed
+  - item: Build the login screen
+    summary: exit 1 -- <log excerpt>
+    validation log: <absolute path of this item's validation log>
 --- doc: ephemeral/projects/mvp/sprints/SPRINT-0002.md ---
 <file contents>
 </iterate>
@@ -1932,10 +1955,9 @@ The item is rendered as compact YAML: absent fields are omitted and
 `done` is never printed. `item` is the 1-based position of the item
 among all items in the file, `lap` how many times this item has been
 dispatched since it was selected. `last validation` appears only after
-a failed lap and carries that validation's `summary`; `validation log`
-follows it with the absolute path of the `validation.log` the summary
-was excerpted from, so the agent can read the whole log. Both clear
-once the item passes. The `doc` header
+a failed lap and lists every failure from that lap with its item,
+`summary`, and distinct validation-log path, so the agent can inspect each
+complete log. The block clears once the next validation set passes. The `doc` header
 and its contents appear only when the item has a `doc`; an unreadable
 doc renders as `doc: <path> (unreadable: <error>)` rather than failing
 the turn. Supervisors (Section 3.10) do not receive frames. `$goal`
@@ -2211,8 +2233,8 @@ Each pipeline execution produces a directory tree for logging, checkpoints, and 
             steering.jsonl       -- Steering audit records (Section 3.9)
             tool.log             -- Tool nodes: captured stdout/stderr (Section 4.5)
             branches.json        -- Parallel nodes: BranchResult evidence for the fan-in (Section 4.6)
-            validation.log       -- Loop nodes: the validated item's command stdout/stderr (Section 4.8)
-            validation.json      -- Loop nodes: the validation record -- item, exit code, log tail, judge verdict, summary (Section 4.8)
+            validation-{item_position}.log -- Loop nodes: one command log per validated item (Section 4.8)
+            validation.json      -- Loop nodes: ordered validation list -- item, log path, result, judge verdict, summary (Section 4.8)
         latest/
             {node_id}            -- Symlink to the node's most recent {seq}-{node_id}/, repointed by the engine after each successful execution (Section 3.5)
     supervisors/
@@ -2400,7 +2422,7 @@ The engine emits typed events during execution for UI, logging, and metrics inte
 
 **Loop events (Section 4.8):**
 - `LoopItemSelected(node, item, index, count, lap)` -- a loop node selected an open item and dispatched its body; `index` is the item's 1-based position among `count` items, `lap` how many times this item has been dispatched since it was selected
-- `LoopValidated(node, item, passed, summary)` -- a returned lap's item was validated; `summary` is the validation record's summary
+- `LoopValidated(node, passed, validations)` -- a returned lap's full validation set ran in file order; `passed` is true only when every entry passed
 - `LoopCompleted(node, count)` -- no open item remained and the loop routed to `on_done`
 
 **Interview events (Section 3.1.1):**
