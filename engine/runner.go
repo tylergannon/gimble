@@ -25,7 +25,7 @@ type ExecutionScope struct {
 	RunLog   string
 	Goal     string
 	// Frame is the rendered loop frame stack, outermost first, or empty when
-	// no loop is active. Codergen and fan-in turns prepend it to their prompt.
+	// no loop is active. Agent and fan-in turns prepend it to their prompt.
 	Frame string
 	Stop  *StopSignal
 }
@@ -50,7 +50,7 @@ type Registry struct {
 // NewRegistry returns a registry containing the non-LLM built-in handlers.
 func NewRegistry() *Registry {
 	registry := &Registry{handlers: make(map[string]Handler)}
-	registry.Register("tool", HandlerFunc(toolHandler))
+	registry.Register("command", HandlerFunc(commandHandler))
 	return registry
 }
 
@@ -107,7 +107,7 @@ type RunnerConfig struct {
 	LogsRoot               string
 	Workdir                string
 	Validate               ValidateFunc
-	Backend                harness.CodergenBackend
+	Backend                harness.AgentBackend
 	Stop                   *StopSignal
 	DefaultModel           string
 	DefaultProvider        string
@@ -313,7 +313,7 @@ func (r *Runner) Run() (RunResult, error) {
 	}); err != nil {
 		return RunResult{}, err
 	}
-	r.registry.Register("parallel", &parallelHandler{runner: r, state: state, store: store})
+	r.registry.Register("fan_out", &fanOutHandler{runner: r, state: state, store: store})
 	r.registry.Register("loop", &loopHandler{runner: r, state: state, store: store})
 	if r.resumeCheckpoint == nil {
 		if err := r.saveCheckpoint(store, state.checkpoint("", r.startID, false, r.bindings()), r.startID); err != nil {
@@ -642,7 +642,7 @@ func resolvedMaxRetries(node graph.Node, defaults graph.Defaults) int {
 	var present bool
 	var supported bool
 	switch current := node.(type) {
-	case *graph.CodergenNode:
+	case *graph.AgentNode:
 		supported = true
 		configured, present = current.MaxRetries.Value, current.MaxRetries.Present
 	case *graph.FanInNode:
@@ -728,15 +728,15 @@ func (r *Runner) bindings() map[string]harness.ThreadBinding {
 }
 
 func (r *Runner) resolveNext(node graph.Node, outcome harness.Outcome, offered []graph.Edge) (string, error) {
-	if node.NodeType() == "parallel" {
-		join, err := parallelFanIn(r.graph, node.Base().ID)
+	if node.NodeType() == "fan_out" {
+		join, err := fanOutFanIn(r.graph, node.Base().ID)
 		if err != nil {
 			return "", err
 		}
 		if outcome.Next == join.ID {
 			return join.ID, nil
 		}
-		return "", fmt.Errorf("parallel handler named invalid fan-in successor: %s", outcome.Next)
+		return "", fmt.Errorf("fan_out handler named invalid fan-in successor: %s", outcome.Next)
 	}
 	if outcome.Next == "" {
 		if len(offered) == 1 {
@@ -753,7 +753,7 @@ func (r *Runner) resolveNext(node graph.Node, outcome harness.Outcome, offered [
 }
 
 func (r *Runner) allocateRunLog(node graph.Node) (string, *harness.Error) {
-	if r.config.Backend == nil || (node.NodeType() != "codergen" && node.NodeType() != "parallel.fan_in") {
+	if r.config.Backend == nil || (node.NodeType() != "agent" && node.NodeType() != "fan_in") {
 		return "", nil
 	}
 	segment, err := r.runLogs.Allocate(node.Base().ID)

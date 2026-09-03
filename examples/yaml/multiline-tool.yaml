@@ -5,14 +5,16 @@ start: write
 nodes:
   # Literal blocks keep shell readable without JSON escaping.
   - id: write
-    type: tool
-    tool_command: |
+    type: command
+    command: |
       mkdir -p tractor-yaml-proof
       printf '%s\n' YAML_MULTILINE_WORKS > tractor-yaml-proof/result.txt
-    on_success: verify
+    edges:
+      success: verify
 
   - id: verify
-    type: tool
-    tool_command: |
+    type: command
+    command: |
       test "$(cat tractor-yaml-proof/result.txt)" = YAML_MULTILINE_WORKS
-    on_success: success
+    edges:
+      success: success

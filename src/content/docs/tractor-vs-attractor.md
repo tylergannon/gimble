@@ -20,11 +20,11 @@ Upstream Attractor is a broad, presentation-neutral NLSpec with a DOT DSL and mu
 | Pipeline syntax   | A constrained Graphviz DOT language                                                      | Closed typed JSON; YAML decodes through the same schema                                                         |
 | Graph model       | Separate nodes and edges; shape can infer handler type                                   | Flat discriminated node union; each node owns its outgoing routes                                               |
 | Routing           | Weighted and conditional edges interpreted by an algorithm                               | Agent chooser selects a prose-labelled target; tools route by exit code                                         |
-| Built-in nodes    | Start, exit, codergen, wait-for-human, conditional, parallel, fan-in, tool, manager loop | Codergen, tool, parallel, fan-in, loop, and supervisor; terminal states are pseudo-targets                      |
+| Built-in nodes    | Start, exit, codergen, wait-for-human, conditional, parallel, fan-in, tool, manager loop | Agent, command, fan-out, fan-in, loop, and supervisor; terminal states are pseudo-targets                       |
 | Extensibility     | Custom handlers, lint rules, AST transforms, stylesheets, hooks                          | Closed graph language; extensions live in authored nodes or build-time code                                     |
 | LLM layer         | Abstract `CodergenBackend`; implementations may call APIs or agents                      | Harness-backed sessions for Codex, Claude, and Antigravity/Gemini                                               |
 | Human interaction | Dedicated interviewer interface and wait-for-human handler                               | An authoring pattern using agent contact, blocking tools, or external steering                                  |
-| Parallel work     | Concurrent branches with merged context                                                  | Isolated-by-default or shared workspaces, per-branch Codergen settings, declared artifacts, and an agent fan-in |
+| Parallel work     | Concurrent branches with merged context                                                  | Isolated-by-default or shared workspaces, per-branch agent settings, declared artifacts, and an agent fan-in    |
 | Supervision       | A manager-loop handler inside the walk                                                   | Supervisor nodes patrol declared scopes outside the walk and steer active turns                                 |
 | Runtime control   | Events, cancellation, optional HTTP server, tool hooks                                   | Events/run logs, Unix control socket, detached MCP runs, steering, and native compaction                        |
 
@@ -54,7 +54,7 @@ Tractor chooses a closed typed document instead:
   "nodes": [
     {
       "id": "work",
-      "type": "codergen",
+      "type": "agent",
       "prompt": "Implement $goal.",
       "edges": [{ "to": "success" }]
     }
@@ -71,7 +71,7 @@ Upstream uses an edge-selection algorithm: evaluate conditions against context, 
 Tractor makes two narrower routing contracts:
 
 1. A model-backed chooser receives the currently offered successors as a strict output schema and selects one using prose `condition` text.
-2. A tool node follows `on_success` or `on_error` directly from its exit code.
+2. A command node follows `edges.success` or `edges.error` directly from its exit code.
 
 The engine never parses a model edge condition as an expression. This puts semantic judgment with the agent that just did the work, keeps mechanical checks mechanical, and removes a second expression language from the pipeline format.
 
@@ -81,8 +81,8 @@ Upstream explicitly specifies custom handlers, custom lints, AST transforms, gra
 
 Tractor applies a stricter cost razor. The graph admits six node types and no arbitrary attributes. New behavior normally belongs in:
 
-- a `codergen` prompt using tools available through its harness;
-- a `tool` command or authored program;
+- an `agent` prompt using tools available through its harness;
+- a `command` node or authored program;
 - a separate child pipeline launched by an ordinary node; or
 - build-time code that emits a valid Tractor graph.
 
@@ -100,7 +100,7 @@ The backend receives resolved turns—not graph objects—and returns semantic o
 
 Both specifications fan out work and converge at a fan-in. Tractor adds explicit workspace and artifact semantics because concurrent coding agents editing one directory is not always a useful abstraction.
 
-Legacy string branches reference authored branch roots and can walk several nodes before joining. Structured branches instead synthesize one ordinary Codergen node per branch. Each structured branch inherits the parallel node's Codergen configuration, can selectively override fields such as provider or model, and must declare the files or directories it produces.
+Legacy string branches reference authored branch roots and can walk several nodes before joining. Structured branches instead synthesize one ordinary agent node per branch. Each structured branch inherits the fan-out node's agent template, can selectively override fields such as provider or model, and must declare the files or directories it produces.
 
 With the isolated default, Tractor:
 
@@ -121,8 +121,8 @@ Upstream has a first-class interviewer interface, question and answer models, ti
 
 Tractor does not define a human node. Authors choose the primitive that matches the decision:
 
-- a codergen node can block within one turn on `tractor ask`, then interpret the caller's file-shaped answer;
-- a tool node can run a deterministic program that blocks for an answer; or
+- an agent node can block within one turn on `tractor ask`, then interpret the caller's file-shaped answer;
+- a command node can run a deterministic program that blocks for an answer; or
 - an external operator can watch events and steer an active agent turn.
 
 The interview transport is deliberately small: numbered Markdown or HTML questions, adjacent answer files, and a `QuestionAsked` timeline event. The agent keeps its context; the graph never routes to the caller.

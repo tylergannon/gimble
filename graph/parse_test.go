@@ -21,12 +21,12 @@ const representative = `{
   },
   "start":"code",
   "nodes":[
-    {"id":"code","type":"codergen","label":"Code","prompt":"work","llm_model":"override","thread_id":"shared","max_visits":3,"edges":[{"to":"tool"}]},
-    {"id":"tool","type":"tool","tool_command":"go test ./...","on_success":"parallel","on_error":"code"},
-    {"id":"parallel","type":"parallel","max_parallel":3,"branches":["left","right"]},
-    {"id":"left","type":"tool","tool_command":"true","on_success":"join"},
-    {"id":"right","type":"tool","tool_command":"true","on_success":"join"},
-    {"id":"join","type":"parallel.fan_in","prompt":"choose","edges":[{"to":"success"}]},
+    {"id":"code","type":"agent","label":"Code","prompt":"work","llm_model":"override","thread_id":"shared","max_visits":3,"edges":[{"to":"command"}]},
+    {"id":"command","type":"command","command":"go test ./...","edges":{"success":"fanout","error":"code"}},
+    {"id":"fanout","type":"fan_out","max_parallel":3,"branches":["left","right"]},
+    {"id":"left","type":"command","command":"true","edges":{"success":"join"}},
+    {"id":"right","type":"command","command":"true","edges":{"success":"join"}},
+    {"id":"join","type":"fan_in","prompt":"choose","edges":[{"to":"success"}]},
     {"id":"coach","type":"supervisor","prompt":"keep scope","supervises":["code","join"],"interval":"120s"}
   ]
 }`
@@ -39,20 +39,20 @@ func TestParseRepresentativeGraphAndResolveDefaults(t *testing.T) {
 	if pipeline.Start != "code" || pipeline.Name != "all_fields" || len(pipeline.Nodes) != 7 {
 		t.Fatalf("graph = %#v", pipeline)
 	}
-	code := mustNode[*CodergenNode](t, pipeline, "code")
+	code := mustNode[*AgentNode](t, pipeline, "code")
 	if code.DisplayLabel() != "Code" || code.LLMModel.Value != "override" || code.ThreadKey(code.ID) != "shared" {
-		t.Fatalf("codergen = %#v", code)
+		t.Fatalf("agent = %#v", code)
 	}
 	if code.MaxRetries.Value != 2 || code.FidelityValue() != "full" || code.Timeout.Value != "15m" {
-		t.Fatalf("codergen defaults = %#v", code.LLMNodeFields)
+		t.Fatalf("agent defaults = %#v", code.LLMNodeFields)
 	}
-	tool := mustNode[*ToolNode](t, pipeline, "tool")
-	if tool.OnSuccess != "parallel" || !tool.OnError.Present || tool.OnError.Value != "code" || tool.Timeout.Value != "15m" {
-		t.Fatalf("tool = %#v", tool)
+	command := mustNode[*CommandNode](t, pipeline, "command")
+	if command.Edges.Success != "fanout" || !command.Edges.Error.Present || command.Edges.Error.Value != "code" || command.Timeout.Value != "15m" {
+		t.Fatalf("command = %#v", command)
 	}
-	parallel := mustNode[*ParallelNode](t, pipeline, "parallel")
-	if parallel.MaxParallelValue() != 3 || !reflect.DeepEqual(parallel.BranchIDs(), []string{"left", "right"}) {
-		t.Fatalf("parallel = %#v", parallel)
+	fanOut := mustNode[*FanOutNode](t, pipeline, "fanout")
+	if fanOut.MaxParallelValue() != 3 || !reflect.DeepEqual(fanOut.BranchIDs(), []string{"left", "right"}) {
+		t.Fatalf("fan_out = %#v", fanOut)
 	}
 	join := mustNode[*FanInNode](t, pipeline, "join")
 	if join.LLMModel.Value != "default-model" || join.LLMProvider.Value != "openai" || join.ReasoningEffort.Value != "high" {
@@ -66,12 +66,12 @@ func TestParseRepresentativeGraphAndResolveDefaults(t *testing.T) {
 
 func TestParseAcceptsEveryNodeShape(t *testing.T) {
 	tests := []string{
-		`{"id":"c","type":"codergen","prompt":"p","max_retries":0,"fidelity":"none","thread_id":"t","timeout":"250ms","llm_model":"m","llm_provider":"p","reasoning_effort":"low","edges":[{"to":"success"}]}`,
-		`{"id":"p","type":"parallel","branches":["c"],"max_parallel":4}`,
-		`{"id":"f","type":"parallel.fan_in","prompt":"p","edges":[{"to":"success"}]}`,
-		`{"id":"t","type":"tool","tool_command":"true","on_success":"success","on_error":"failure","timeout":"2h"}`,
+		`{"id":"c","type":"agent","prompt":"p","max_retries":0,"fidelity":"none","thread_id":"t","timeout":"250ms","llm_model":"m","llm_provider":"p","reasoning_effort":"low","edges":[{"to":"success"}]}`,
+		`{"id":"p","type":"fan_out","branches":["c"],"max_parallel":4}`,
+		`{"id":"f","type":"fan_in","prompt":"p","edges":[{"to":"success"}]}`,
+		`{"id":"t","type":"command","command":"true","edges":{"success":"success","error":"failure"},"timeout":"2h"}`,
 		`{"id":"s","type":"supervisor","prompt":"watch","supervises":["c"]}`,
-		`{"id":"l","type":"loop","checklist":"list.md","body":"c","on_done":"success","max_visits":3,"timeout":"1m","llm_model":"m","llm_provider":"p","reasoning_effort":"low","evaluator_llm_model":"em","evaluator_llm_provider":"ep","evaluator_reasoning_effort":"high"}`,
+		`{"id":"l","type":"loop","checklist":"list.md","edges":{"loop":"c","exit":"success"},"max_visits":3,"timeout":"1m","llm_model":"m","llm_provider":"p","reasoning_effort":"low","evaluator_llm_model":"em","evaluator_llm_provider":"ep","evaluator_reasoning_effort":"high"}`,
 	}
 	for _, node := range tests {
 		document := `{"start":"c","nodes":[` + node + `]}`
@@ -83,71 +83,71 @@ func TestParseAcceptsEveryNodeShape(t *testing.T) {
 
 func TestParsePreservesOptionalPresence(t *testing.T) {
 	document := `{"start":"omitted","nodes":[
-    {"id":"omitted","type":"codergen"},
-    {"id":"empty","type":"codergen","label":"","prompt":""}
+    {"id":"omitted","type":"agent"},
+    {"id":"empty","type":"agent","label":"","prompt":""}
   ]}`
 	pipeline, err := Parse([]byte(document))
 	if err != nil {
 		t.Fatal(err)
 	}
-	omitted := mustNode[*CodergenNode](t, pipeline, "omitted")
+	omitted := mustNode[*AgentNode](t, pipeline, "omitted")
 	if omitted.Label.Present || omitted.Prompt.Present || omitted.DisplayLabel() != "omitted" {
 		t.Fatalf("omitted = %#v", omitted)
 	}
-	empty := mustNode[*CodergenNode](t, pipeline, "empty")
+	empty := mustNode[*AgentNode](t, pipeline, "empty")
 	if !empty.Label.Present || !empty.Prompt.Present || empty.DisplayLabel() != "" {
 		t.Fatalf("empty = %#v", empty)
 	}
 }
 
-func TestParseResolvesStructuredParallelCodergenBranches(t *testing.T) {
+func TestParseResolvesStructuredFanOutAgentBranches(t *testing.T) {
 	document := `{
   "start":"fanout",
   "nodes":[
     {
       "id":"fanout",
-      "type":"parallel",
+      "type":"fan_out",
       "workspace":"shared",
       "prompt":"Build the parent artifact",
       "llm_provider":"openai",
       "llm_model":"gpt-parent",
       "reasoning_effort":"high",
       "timeout":"3m",
-      "edges":[{"to":"join"}],
+      "branch_edges":[{"to":"join"}],
       "branches":[
-        {"id":"openai_branch","artifacts":["openai.txt"],"codergen":{"prompt":"Build OpenAI output"}},
-        {"id":"anthropic_branch","artifacts":["anthropic.txt"],"codergen":{"llm_provider":"anthropic","llm_model":"claude-child","reasoning_effort":"medium"}}
+        {"id":"openai_branch","artifacts":["openai.txt"],"agent":{"prompt":"Build OpenAI output"}},
+        {"id":"anthropic_branch","artifacts":["anthropic.txt"],"agent":{"llm_provider":"anthropic","llm_model":"claude-child","reasoning_effort":"medium"}}
       ]
     },
-    {"id":"join","type":"parallel.fan_in","edges":[{"to":"success"}]}
+    {"id":"join","type":"fan_in","edges":[{"to":"success"}]}
   ]
 }`
 	pipeline, err := Parse([]byte(document))
 	if err != nil {
 		t.Fatal(err)
 	}
-	parallel := mustNode[*ParallelNode](t, pipeline, "fanout")
-	if parallel.WorkspacePolicyValue() != WorkspaceShared || !reflect.DeepEqual(parallel.BranchIDs(), []string{"openai_branch", "anthropic_branch"}) {
-		t.Fatalf("parallel = %#v", parallel)
+	fanOut := mustNode[*FanOutNode](t, pipeline, "fanout")
+	if fanOut.WorkspacePolicyValue() != WorkspaceShared || !reflect.DeepEqual(fanOut.BranchIDs(), []string{"openai_branch", "anthropic_branch"}) {
+		t.Fatalf("fan_out = %#v", fanOut)
 	}
-	openai := mustNode[*CodergenNode](t, pipeline, "openai_branch")
+	openai := mustNode[*AgentNode](t, pipeline, "openai_branch")
 	if openai.Prompt.Value != "Build OpenAI output" || openai.LLMProvider.Value != "openai" || openai.LLMModel.Value != "gpt-parent" || openai.ReasoningEffort.Value != "high" || openai.Timeout.Value != "3m" {
 		t.Fatalf("inherited branch = %#v", openai)
 	}
-	anthropic := mustNode[*CodergenNode](t, pipeline, "anthropic_branch")
+	anthropic := mustNode[*AgentNode](t, pipeline, "anthropic_branch")
 	if anthropic.Prompt.Value != "Build the parent artifact" || anthropic.LLMProvider.Value != "anthropic" || anthropic.LLMModel.Value != "claude-child" || anthropic.ReasoningEffort.Value != "medium" || !reflect.DeepEqual(anthropic.Edges, []Edge{{To: "join"}}) {
 		t.Fatalf("overridden branch = %#v", anthropic)
 	}
 }
 
-func TestParseRejectsInvalidStructuredParallelBranches(t *testing.T) {
+func TestParseRejectsInvalidStructuredFanOutBranches(t *testing.T) {
 	tests := map[string]string{
-		"mixed branches":    `{"start":"p","nodes":[{"id":"p","type":"parallel","edges":[{"to":"join"}],"branches":["legacy",{"id":"variant","artifacts":["out.txt"]}]},{"id":"legacy","type":"codergen","edges":[{"to":"join"}]},{"id":"join","type":"parallel.fan_in","edges":[{"to":"success"}]}]}`,
-		"missing artifacts": `{"start":"p","nodes":[{"id":"p","type":"parallel","edges":[{"to":"join"}],"branches":[{"id":"variant"}]},{"id":"join","type":"parallel.fan_in","edges":[{"to":"success"}]}]}`,
-		"empty artifacts":   `{"start":"p","nodes":[{"id":"p","type":"parallel","edges":[{"to":"join"}],"branches":[{"id":"variant","artifacts":[]}]},{"id":"join","type":"parallel.fan_in","edges":[{"to":"success"}]}]}`,
-		"unsafe artifact":   `{"start":"p","nodes":[{"id":"p","type":"parallel","edges":[{"to":"join"}],"branches":[{"id":"variant","artifacts":["../out.txt"]}]},{"id":"join","type":"parallel.fan_in","edges":[{"to":"success"}]}]}`,
-		"missing edges":     `{"start":"p","nodes":[{"id":"p","type":"parallel","branches":[{"id":"variant","artifacts":["out.txt"]}]},{"id":"join","type":"parallel.fan_in","edges":[{"to":"success"}]}]}`,
-		"node collision":    `{"start":"p","nodes":[{"id":"p","type":"parallel","edges":[{"to":"join"}],"branches":[{"id":"join","artifacts":["out.txt"]}]},{"id":"join","type":"parallel.fan_in","edges":[{"to":"success"}]}]}`,
+		"mixed branches":       `{"start":"p","nodes":[{"id":"p","type":"fan_out","branch_edges":[{"to":"join"}],"branches":["legacy",{"id":"variant","artifacts":["out.txt"]}]},{"id":"legacy","type":"agent","edges":[{"to":"join"}]},{"id":"join","type":"fan_in","edges":[{"to":"success"}]}]}`,
+		"missing artifacts":    `{"start":"p","nodes":[{"id":"p","type":"fan_out","branch_edges":[{"to":"join"}],"branches":[{"id":"variant"}]},{"id":"join","type":"fan_in","edges":[{"to":"success"}]}]}`,
+		"empty artifacts":      `{"start":"p","nodes":[{"id":"p","type":"fan_out","branch_edges":[{"to":"join"}],"branches":[{"id":"variant","artifacts":[]}]},{"id":"join","type":"fan_in","edges":[{"to":"success"}]}]}`,
+		"unsafe artifact":      `{"start":"p","nodes":[{"id":"p","type":"fan_out","branch_edges":[{"to":"join"}],"branches":[{"id":"variant","artifacts":["../out.txt"]}]},{"id":"join","type":"fan_in","edges":[{"to":"success"}]}]}`,
+		"missing branch edges": `{"start":"p","nodes":[{"id":"p","type":"fan_out","branches":[{"id":"variant","artifacts":["out.txt"]}]},{"id":"join","type":"fan_in","edges":[{"to":"success"}]}]}`,
+		"node collision":       `{"start":"p","nodes":[{"id":"p","type":"fan_out","branch_edges":[{"to":"join"}],"branches":[{"id":"join","artifacts":["out.txt"]}]},{"id":"join","type":"fan_in","edges":[{"to":"success"}]}]}`,
 	}
 	for name, document := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -162,16 +162,24 @@ func TestParseRejectsStructuralViolations(t *testing.T) {
 	tests := map[string]string{
 		"missing start":             `{"nodes":[]}`,
 		"unknown type":              `{"start":"x","nodes":[{"id":"x","type":"notify.slack"}]}`,
-		"cross type field":          `{"start":"x","nodes":[{"id":"x","type":"tool","tool_command":"true","on_success":"success","prompt":"no"}]}`,
-		"missing tool command":      `{"start":"x","nodes":[{"id":"x","type":"tool","on_success":"success"}]}`,
-		"missing tool route":        `{"start":"x","nodes":[{"id":"x","type":"tool","tool_command":"true"}]}`,
-		"missing branches":          `{"start":"x","nodes":[{"id":"x","type":"parallel"}]}`,
+		"cross type field":          `{"start":"x","nodes":[{"id":"x","type":"command","command":"true","edges":{"success":"success"},"prompt":"no"}]}`,
+		"missing command":           `{"start":"x","nodes":[{"id":"x","type":"command","edges":{"success":"success"}}]}`,
+		"missing command edges":     `{"start":"x","nodes":[{"id":"x","type":"command","command":"true"}]}`,
+		"missing command success":   `{"start":"x","nodes":[{"id":"x","type":"command","command":"true","edges":{}}]}`,
+		"missing branches":          `{"start":"x","nodes":[{"id":"x","type":"fan_out"}]}`,
 		"missing supervisor prompt": `{"start":"x","nodes":[{"id":"x","type":"supervisor","supervises":["x"]}]}`,
 		"missing supervises":        `{"start":"x","nodes":[{"id":"x","type":"supervisor","prompt":"watch"}]}`,
-		"missing loop body":         `{"start":"x","nodes":[{"id":"x","type":"loop","on_done":"success"}]}`,
-		"missing loop on_done":      `{"start":"x","nodes":[{"id":"x","type":"loop","body":"x"}]}`,
-		"loop unknown field":        `{"start":"x","nodes":[{"id":"x","type":"loop","body":"x","on_done":"success","prompt":"no"}]}`,
-		"loop evaluator effort":     `{"start":"x","nodes":[{"id":"x","type":"loop","body":"x","on_done":"success","evaluator_reasoning_effort":"extreme"}]}`,
+		"missing loop edges":        `{"start":"x","nodes":[{"id":"x","type":"loop"}]}`,
+		"missing loop route":        `{"start":"x","nodes":[{"id":"x","type":"loop","edges":{"loop":"x"}}]}`,
+		"loop unknown field":        `{"start":"x","nodes":[{"id":"x","type":"loop","edges":{"loop":"x","exit":"success"},"prompt":"no"}]}`,
+		"loop evaluator effort":     `{"start":"x","nodes":[{"id":"x","type":"loop","edges":{"loop":"x","exit":"success"},"evaluator_reasoning_effort":"extreme"}]}`,
+		"old agent type":            `{"start":"x","nodes":[{"id":"x","type":"codergen"}]}`,
+		"old command type":          `{"start":"x","nodes":[{"id":"x","type":"tool","command":"true","edges":{"success":"success"}}]}`,
+		"old fan_out type":          `{"start":"x","nodes":[{"id":"x","type":"parallel","branches":[]}]}`,
+		"old fan_in type":           `{"start":"x","nodes":[{"id":"x","type":"parallel.fan_in","edges":[{"to":"success"}]}]}`,
+		"old command fields":        `{"start":"x","nodes":[{"id":"x","type":"command","tool_command":"true","on_success":"success"}]}`,
+		"old loop fields":           `{"start":"x","nodes":[{"id":"x","type":"loop","body":"x","on_done":"success"}]}`,
+		"old fan_out edges":         `{"start":"x","nodes":[{"id":"x","type":"fan_out","branches":[{"id":"b","artifacts":["b.txt"]}],"edges":[{"to":"success"}]}]}`,
 		"unknown top field":         `{"start":"x","nodes":[],"extra":1}`,
 		"unknown defaults":          `{"start":"x","defaults":{"max_visits":1},"nodes":[]}`,
 		"null":                      `{"start":"x","name":null,"nodes":[]}`,
@@ -191,8 +199,8 @@ func TestParseRejectsStructuralViolations(t *testing.T) {
 func TestParseRejectsDuplicateMembersAndNodeIDs(t *testing.T) {
 	for name, document := range map[string]string{
 		"top":  `{"start":"x","start":"y","nodes":[]}`,
-		"node": `{"start":"a","nodes":[{"id":"a","id":"b","type":"codergen"}]}`,
-		"edge": `{"start":"a","nodes":[{"id":"a","type":"codergen","edges":[{"to":"success","to":"failure"}]}]}`,
+		"node": `{"start":"a","nodes":[{"id":"a","id":"b","type":"agent"}]}`,
+		"edge": `{"start":"a","nodes":[{"id":"a","type":"agent","edges":[{"to":"success","to":"failure"}]}]}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := Parse([]byte(document))
@@ -201,7 +209,7 @@ func TestParseRejectsDuplicateMembersAndNodeIDs(t *testing.T) {
 			}
 		})
 	}
-	duplicate := `{"start":"same","nodes":[{"id":"same","type":"codergen"},{"id":"same","type":"codergen"}]}`
+	duplicate := `{"start":"same","nodes":[{"id":"same","type":"agent"},{"id":"same","type":"agent"}]}`
 	if _, err := Parse([]byte(duplicate)); err == nil || !strings.Contains(err.Error(), "duplicate node ID") {
 		t.Fatalf("duplicate error = %v", err)
 	}
@@ -209,7 +217,7 @@ func TestParseRejectsDuplicateMembersAndNodeIDs(t *testing.T) {
 
 func TestParseRejectsInvalidAndReservedNodeIDs(t *testing.T) {
 	for _, id := range []string{"", "1bad", "bad-name", "bad name", Success, Failure} {
-		document := `{"start":"x","nodes":[{"id":` + quoted(id) + `,"type":"codergen"}]}`
+		document := `{"start":"x","nodes":[{"id":` + quoted(id) + `,"type":"agent"}]}`
 		if _, err := Parse([]byte(document)); err == nil {
 			t.Errorf("invalid ID %q admitted", id)
 		}
@@ -225,12 +233,13 @@ start: work
 nodes:
   # Keep commands readable.
   - id: work
-    type: tool
+    type: command
     label: Run checks
-    tool_command: |
+    command: |
       printf '%s\n' first
       printf '%s\n' second
-    on_success: success
+    edges:
+      success: success
   - id: coach
     type: supervisor
     prompt: Watch the command
@@ -240,9 +249,9 @@ nodes:
 	if err != nil {
 		t.Fatal(err)
 	}
-	tool := mustNode[*ToolNode](t, pipeline, "work")
-	if tool.ToolCommand != "printf '%s\\n' first\nprintf '%s\\n' second\n" || tool.Timeout.Value != "2m" {
-		t.Fatalf("tool = %#v", tool)
+	command := mustNode[*CommandNode](t, pipeline, "work")
+	if command.Command != "printf '%s\\n' first\nprintf '%s\\n' second\n" || command.Timeout.Value != "2m" {
+		t.Fatalf("command = %#v", command)
 	}
 	if mustNode[*SupervisorNode](t, pipeline, "coach").IntervalValue() != "60s" {
 		t.Fatal("supervisor interval default missing")
@@ -272,13 +281,15 @@ nodes:
   - id: items
     type: loop
     checklist: ephemeral/checklist.md
-    body: implement
-    on_done: success
+    edges:
+      loop: implement
+      exit: success
     max_visits: 40
   - id: bare
     type: loop
-    body: implement
-    on_done: items
+    edges:
+      loop: implement
+      exit: items
     timeout: 1m
     llm_model: cheap
     llm_provider: anthropic
@@ -287,7 +298,7 @@ nodes:
     evaluator_llm_provider: gemini
     evaluator_reasoning_effort: medium
   - id: implement
-    type: codergen
+    type: agent
     prompt: Implement the current item.
     edges:
       - to: items
@@ -297,7 +308,7 @@ nodes:
 		t.Fatal(err)
 	}
 	items := mustNode[*LoopNode](t, pipeline, "items")
-	if items.NodeType() != "loop" || items.Checklist.Value != "ephemeral/checklist.md" || items.Body != "implement" || items.OnDone != Success || items.MaxVisits.Value != 40 {
+	if items.NodeType() != "loop" || items.Checklist.Value != "ephemeral/checklist.md" || items.Edges.Loop != "implement" || items.Edges.Exit != Success || items.MaxVisits.Value != 40 {
 		t.Fatalf("loop = %#v", items)
 	}
 	if items.Timeout.Value != "15m" || items.LLMModel.Present || items.LLMProvider.Present || items.ReasoningEffort.Present || items.EvaluatorLLMModel.Value != "default-model" || items.EvaluatorLLMProvider.Value != "openai" || items.EvaluatorReasoningEffort.Value != "low" {
@@ -323,7 +334,7 @@ func TestDurationSyntaxAndParsing(t *testing.T) {
 		"2h":    2 * time.Hour,
 		"1d":    24 * time.Hour,
 	} {
-		document := `{"start":"tool","nodes":[{"id":"tool","type":"tool","tool_command":"true","on_success":"success","timeout":` + quoted(value) + `}]}`
+		document := `{"start":"command","nodes":[{"id":"command","type":"command","command":"true","edges":{"success":"success"},"timeout":` + quoted(value) + `}]}`
 		if _, err := Parse([]byte(document)); err != nil {
 			t.Errorf("duration %q rejected: %v", value, err)
 		}
@@ -333,7 +344,7 @@ func TestDurationSyntaxAndParsing(t *testing.T) {
 		}
 	}
 	for _, value := range []string{"1.5s", "-1s", "1", "1 second", "1h30m", ""} {
-		document := `{"start":"tool","nodes":[{"id":"tool","type":"tool","tool_command":"true","on_success":"success","timeout":` + quoted(value) + `}]}`
+		document := `{"start":"command","nodes":[{"id":"command","type":"command","command":"true","edges":{"success":"success"},"timeout":` + quoted(value) + `}]}`
 		if _, err := Parse([]byte(document)); err == nil {
 			t.Errorf("duration %q admitted", value)
 		}
@@ -358,16 +369,16 @@ func TestGraphSchemaIsCommittedAndClosed(t *testing.T) {
 			t.Fatal("node schema is not closed")
 		}
 	}
-	codergen := options[0].(map[string]any)
-	if !reflect.DeepEqual(codergen["required"], []any{"type", "id"}) {
-		t.Fatalf("canonical codergen required fields = %#v", codergen["required"])
+	agent := options[0].(map[string]any)
+	if !reflect.DeepEqual(agent["required"], []any{"type", "id"}) {
+		t.Fatalf("canonical agent required fields = %#v", agent["required"])
 	}
-	parallel := options[1].(map[string]any)
-	branchOptions := parallel["properties"].(map[string]any)["branches"].(map[string]any)["items"].(map[string]any)["anyOf"].([]any)
+	fanOut := options[1].(map[string]any)
+	branchOptions := fanOut["properties"].(map[string]any)["branches"].(map[string]any)["items"].(map[string]any)["anyOf"].([]any)
 	structured := branchOptions[1].(map[string]any)
-	override := structured["properties"].(map[string]any)["codergen"].(map[string]any)
+	override := structured["properties"].(map[string]any)["agent"].(map[string]any)
 	if required, exists := override["required"]; exists && len(required.([]any)) != 0 {
-		t.Fatalf("Codergen override required fields = %#v", required)
+		t.Fatalf("agent override required fields = %#v", required)
 	}
 }
 

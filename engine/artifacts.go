@@ -18,7 +18,7 @@ type BranchArtifact struct {
 	Source   string `json:"source,omitempty"`
 }
 
-func (h *parallelHandler) collectArtifacts(stageDir string, parallel *graph.ParallelNode, results []BranchResult) {
+func (h *fanOutHandler) collectArtifacts(stageDir string, parallel *graph.FanOutNode, results []BranchResult) {
 	for index := range results {
 		result := &results[index]
 		if result.Error != nil {

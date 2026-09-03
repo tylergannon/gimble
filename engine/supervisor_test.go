@@ -22,7 +22,7 @@ func TestSupervisorPatrolSteersLiveTargetAndPersistsRecord(t *testing.T) {
 	pipeline := supervisedTestGraph("5ms")
 	registry := NewRegistry()
 	started := make(chan struct{})
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		close(started)
 		select {
 		case <-backend.steered:
@@ -82,7 +82,7 @@ func TestSupervisorPatrolSteersLiveTargetAndPersistsRecord(t *testing.T) {
 func TestSupervisorQuietScopeCostsNoTurn(t *testing.T) {
 	backend := newSupervisorBackend()
 	pipeline := graph.Graph{Start: "work", Nodes: []graph.Node{
-		&graph.ToolNode{NodeBase: graph.NodeBase{ID: "work"}, ToolCommand: "true", OnSuccess: graph.Success},
+		&graph.CommandNode{NodeBase: graph.NodeBase{ID: "work"}, Command: "true", Edges: graph.CommandEdges{Success: graph.Success}},
 		&graph.SupervisorNode{NodeBase: graph.NodeBase{ID: "coach"}, Prompt: "watch", Supervises: []string{"work"}, Interval: optional(graph.Duration("200ms"))},
 	}}
 	runner, err := NewRunner(pipeline, NewRegistry(), RunnerConfig{
@@ -127,7 +127,7 @@ func TestSupervisorResumePreservesBindingBacklogAndBriefing(t *testing.T) {
 	pipeline := supervisedTestGraph("2ms")
 	backend := newSupervisorBackend()
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		select {
 		case <-backend.started:
 			return harness.Outcome{}, terminalError("pause for resume")
@@ -158,7 +158,7 @@ func TestSupervisorResumePreservesBindingBacklogAndBriefing(t *testing.T) {
 	resumedBackend := newSupervisorBackend()
 	resumedBackend.bindings = cloneMap(checkpoint.Sessions)
 	resumedRegistry := NewRegistry()
-	resumedRegistry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	resumedRegistry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		select {
 		case <-resumedBackend.started:
 			return harness.Outcome{Notes: "resumed"}, nil
@@ -252,7 +252,7 @@ func TestSupervisorFlushesNeverOverlap(t *testing.T) {
 	backend.turnDelay = 20 * time.Millisecond
 	pipeline := supervisedTestGraph("2ms")
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		time.Sleep(70 * time.Millisecond)
 		return harness.Outcome{Notes: "done"}, nil
 	}))
@@ -285,7 +285,7 @@ func TestSupervisorStopAndFinalizeInterruptAndAwait(t *testing.T) {
 			backend.blockSupervisor = true
 			pipeline := supervisedTestGraph("2ms")
 			registry := NewRegistry()
-			registry.Register("codergen", HandlerFunc(func(_ graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+			registry.Register("agent", HandlerFunc(func(_ graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 				select {
 				case <-backend.started:
 				case <-time.After(2 * time.Second):
@@ -357,7 +357,7 @@ func TestStopPreventsNewPatrolWhileWorkDrains(t *testing.T) {
 	pipeline := supervisedTestGraph("50ms")
 	workStarted := make(chan struct{})
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(_ graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(_ graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		close(workStarted)
 		<-scope.Stop.done
 		time.Sleep(150 * time.Millisecond)
@@ -551,7 +551,7 @@ func TestMalformedSupervisorSteerDegradesToRecordedOK(t *testing.T) {
 
 func supervisedTestGraph(interval graph.Duration) graph.Graph {
 	return graph.Graph{Goal: "ship the task", Start: "work", Nodes: []graph.Node{
-		&graph.CodergenNode{NodeBase: graph.NodeBase{ID: "work"}, Edges: []graph.Edge{{To: graph.Success}}},
+		&graph.AgentNode{NodeBase: graph.NodeBase{ID: "work"}, Edges: []graph.Edge{{To: graph.Success}}},
 		&graph.SupervisorNode{
 			NodeBase: graph.NodeBase{ID: "coach"}, Prompt: "Keep $goal bounded.", Supervises: []string{"work"}, Interval: optional(interval),
 		},
@@ -645,7 +645,7 @@ func newSupervisorBackend() *supervisorBackend {
 	}
 }
 
-func (*supervisorBackend) Run(harness.CodergenTurn) (harness.Outcome, *harness.Error) {
+func (*supervisorBackend) Run(harness.AgentTurn) (harness.Outcome, *harness.Error) {
 	panic("walk handler owns the test execution")
 }
 

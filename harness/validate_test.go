@@ -60,8 +60,8 @@ func TestValidateRunTurnInput(t *testing.T) {
 	})
 }
 
-func TestValidateCodergenTurnFidelity(t *testing.T) {
-	turn := CodergenTurn{
+func TestValidateAgentTurnFidelity(t *testing.T) {
+	turn := AgentTurn{
 		NodeID:          "implement",
 		Parts:           []ContentPart{{Type: ContentPartText, Text: "do work"}},
 		OutputSchema:    json.RawMessage(`{"type":"object"}`),
@@ -73,20 +73,20 @@ func TestValidateCodergenTurnFidelity(t *testing.T) {
 		Workdir:         t.TempDir(),
 		RunLog:          "run.jsonl",
 	}
-	if err := ValidateCodergenTurn(turn); err != nil {
-		t.Fatalf("ValidateCodergenTurn() error = %v", err)
+	if err := ValidateAgentTurn(turn); err != nil {
+		t.Fatalf("ValidateAgentTurn() error = %v", err)
 	}
 
 	turn.Fidelity = FidelityNone
-	assertTerminalError(t, ValidateCodergenTurn(turn))
+	assertTerminalError(t, ValidateAgentTurn(turn))
 	turn.ThreadKey = ""
-	if err := ValidateCodergenTurn(turn); err != nil {
-		t.Fatalf("ValidateCodergenTurn() none fidelity error = %v", err)
+	if err := ValidateAgentTurn(turn); err != nil {
+		t.Fatalf("ValidateAgentTurn() none fidelity error = %v", err)
 	}
 	turn.Fidelity = FidelityFull
-	assertTerminalError(t, ValidateCodergenTurn(turn))
+	assertTerminalError(t, ValidateAgentTurn(turn))
 	turn.Fidelity = FidelityMode("unknown")
-	assertTerminalError(t, ValidateCodergenTurn(turn))
+	assertTerminalError(t, ValidateAgentTurn(turn))
 }
 
 func TestValidateSupervisorTurn(t *testing.T) {

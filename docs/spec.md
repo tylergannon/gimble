@@ -73,8 +73,8 @@ The execution engine does not know about handler internals.
 **Checkpoint and resume.** After each top-level node completes, the execution engine saves a serializable checkpoint. If the process crashes, execution resumes from the last checkpoint.
 
 **Human-in-the-loop.** Pipeline authors use ordinary nodes when a workflow
-needs human input. A codergen node asks its caller through the blocking file
-transport, or a tool node blocks in its own command; either remains in one
+needs human input. An agent node asks its caller through the blocking file
+transport, or a command node blocks in its own command; either remains in one
 node visit and routes after the answer arrives. An external operator can also
 supervise any run through its event and steering surfaces (Section 6). This
 supports approval gates, code review, and manual override.
@@ -83,15 +83,15 @@ supports approval gates, code review, and manual override.
 engine.** For an LLM node, the engine forwards the conditions
 described with the node's outgoing edges along with the prompt, so
 that the agent can choose a next node based on the outcome of its work
-and the supplied conditions.  A `tool` node routes on its command's
+and the supplied conditions.  A `command` node routes on its command's
 exit code; the engine only offers the successors and validates the
 choice (Section 3.3).
 
 ### 1.4 Layering and LLM Backends
 
-Attractor defines the orchestration layer: graph definition, traversal, state management, and extensibility. It does NOT require any specific LLM integration. The codergen handler (Section 4.3) needs a way to call an LLM and get a response -- how you provide that is up to you.
+Attractor defines the orchestration layer: graph definition, traversal, state management, and extensibility. It does NOT require any specific LLM integration. The agent handler (Section 4.3) needs a way to call an LLM and get a response -- how you provide that is up to you.
 
-The codergen handler calls a `CodergenBackend` (Section 4.3). The
+The agent handler calls a `AgentBackend` (Section 4.3). The
 implementor may wrap a coding-agent harness such as Claude Code or
 Codex, run agents in subprocesses or tmux panes, or call an LLM API
 directly. The backend choice does not change the pipeline definition.
@@ -110,9 +110,9 @@ Attractor pipelines are driven by an event stream (Section 10). TUI, web, and ID
 A pipeline is one JSON document: a single object carrying the pipeline's
 metadata, file-level defaults, and a flat array of nodes. **Routing
 belongs to its origin node**: a chooser node carries its `edges` array
-(each edge with the condition that selects it), a tool node carries
-`on_success`/`on_error`, a parallel node carries its `branches`, a loop
-node carries `body` and `on_done` -- so where a node can go reads as one
+(each edge with the condition that selects it), a command node carries
+`edges.success`/`edges.error`, a fan-out node carries its `branches`, a loop
+node carries `edges.loop` and `edges.exit` -- so where a node can go reads as one
 unit. There is no separate edge list.
 
 ```json
@@ -124,7 +124,7 @@ unit. There is no separate edge list.
   "nodes": [
     {
       "id": "implement",
-      "type": "codergen",
+      "type": "agent",
       "prompt": "Implement the plan. Choose: validate, or replan.",
       "max_visits": 5,
       "edges": [
@@ -167,8 +167,8 @@ that want richer authoring affordances are generated.
 
 A node's `type` field is required and selects both its handler
 (Section 4.2) and its schema: each type admits only its own fields, so a
-`tool` node cannot carry a `prompt` and a `codergen` node cannot carry a
-`tool_command` -- structural validation catches the mismatch before any
+`command` node cannot carry a `prompt` and a `agent` node cannot carry a
+`command` -- structural validation catches the mismatch before any
 lint runs. Every node names what it is: `type` is never inferred or
 defaulted.
 
@@ -176,7 +176,7 @@ Three fields appear on every node type:
 
 | Field         | Type       | Default   | Description |
 |---------------|------------|-----------|-------------|
-| `id`          | String     | required  | Node identity. Must match `[A-Za-z_][A-Za-z0-9_]*` and be unique in the file; routing fields (`to`, `on_success`, `on_error`, `branches`, `body`, `on_done`) and `supervises` reference it. |
+| `id`          | String     | required  | Node identity. Must match `[A-Za-z_][A-Za-z0-9_]*` and be unique in the file; routing fields (`to`, `edges.success`, `edges.error`, `branches`, `edges.loop`, `edges.exit`) and `supervises` reference it. |
 | `type`        | String     | required  | Discriminator: one of the built-in types of Section 2.5. Any other value is a parse error. |
 | `label`       | String     | node ID   | Display name shown in UI, prompts, and telemetry. |
 
@@ -187,14 +187,14 @@ table in Section 2.5 is the complete list of what it admits.
 
 | Type              | Description |
 |-------------------|-------------|
-| `codergen`        | LLM task (code generation, analysis, planning). |
-| `parallel`        | Parallel fan-out. Executes multiple branches concurrently (Section 4.6). |
-| `parallel.fan_in` | Parallel fan-in. Consolidates branch results and chooses what follows (Section 4.7). |
-| `tool`            | External tool execution (shell command). Routes on exit code (Section 4.5). |
+| `agent`        | LLM task (code generation, analysis, planning). |
+| `fan_out`        | Parallel fan-out. Executes multiple branches concurrently (Section 4.6). |
+| `fan_in` | Fan-in node. Consolidates branch results and chooses what follows (Section 4.7). |
+| `command`         | External command execution. Routes on exit code (Section 4.5). |
 | `loop`            | Checklist iteration. Re-reads a checklist file on every arrival, validates the previous lap's framed item plus every done item, and after every passing lap asks an evaluator whether the prose definition of done is met or another open item should be dispatched (Section 4.8). |
 | `supervisor`      | In-graph supervision. Outside the walk: observes a set of nodes through engine-fed digests and coaches them through targeted steering (Section 3.10). |
 
-**`codergen` and `parallel.fan_in` fields** (both run LLM turns; the
+**`agent` and `fan_in` fields** (both run LLM turns; the
 fan-in's turn evaluates branch evidence):
 
 | Field              | Type     | Default       | Description |
@@ -210,31 +210,36 @@ fan-in's turn evaluates branch evidence):
 | `llm_provider`     | String   | auto-detected | LLM provider key. Auto-detected from model if unset. |
 | `reasoning_effort` | String   | inherited     | LLM reasoning effort: `low`, `medium`, `high` (Section 8; recommended system default `high`). |
 
-**`tool` fields:**
+**`command` fields:**
 
 | Field          | Type     | Default  | Description |
 |----------------|----------|----------|-------------|
-| `tool_command` | String   | required | Shell command to execute (Section 4.5). |
-| `on_success`   | String   | required | Target followed on exit code 0: a node ID or pseudo-target. |
-| `on_error`     | String   | unset    | Target followed on a nonzero exit code. Absent, a nonzero exit is a terminal Error -- the command is an assertion (Section 4.5). |
+| `command`       | String   | required | Shell command to execute (Section 4.5). |
+| `edges`         | Object   | required | Engine-known routes from this node. |
+| `edges.success` | String   | required | Target followed on exit code 0: a node ID or pseudo-target. |
+| `edges.error`   | String   | unset    | Target followed on a nonzero exit code. Absent, a nonzero exit is a terminal Error -- the command is an assertion (Section 4.5). |
 | `timeout`      | Duration | unset    | Maximum duration of the command (Section 4.5). |
 | `max_visits`   | Integer  | unset    | Visit budget (Section 3.4). Unset means unlimited. |
 
-**`parallel` fields:**
+**`fan_out` fields:**
 
 | Field          | Type         | Default  | Description |
 |----------------|--------------|----------|-------------|
-| `branches`     | String array | required | IDs of the branch-root nodes fanned out concurrently (Section 4.6). Node IDs only -- a branch never ends the run, so pseudo-targets are forbidden (lint `parallel_fan_in`). |
-| `max_parallel` | Integer      | `4`      | Maximum branches walked concurrently (Section 4.6). Parallel nodes have no `timeout` of their own. |
+| `branches`     | String or structured branch array | required | Branches fanned out concurrently (Section 4.6). Every branch runs, so this stays top-level rather than becoming an `edges` entry. |
+| `branch_edges` | Edge array | `[]` | Template routes copied to each synthesized structured branch agent. These are not routes out of the fan-out node. |
+| `max_parallel` | Integer      | `4`      | Maximum branches walked concurrently (Section 4.6). |
 | `max_visits`   | Integer      | unset    | Visit budget (Section 3.4). Unset means unlimited. |
+| `workspace`    | String       | `isolated` | Branch workspace policy: `isolated` or `shared` (Section 4.6). |
+| `prompt`, `max_retries`, `fidelity`, `thread_id`, `timeout`, `llm_model`, `llm_provider`, `reasoning_effort` | As on `agent` | inherited as applicable | Agent-template fields copied to every synthesized structured branch. They do not execute on the fan-out node itself. |
 
 **`loop` fields** (Section 4.8):
 
 | Field              | Type     | Default       | Description |
 |--------------------|----------|---------------|-------------|
 | `checklist`        | String   | unset         | Path of the checklist file, relative to the execution's workdir (Section 4.8). May be omitted only when this node lies inside another loop node's body; it then iterates the `checklist` field of the item the enclosing loop's frame names (lint `loop_checklist_required`, Section 7.2). |
-| `body`             | String   | required      | Entry node of one lap: a node ID. Section 4.8 defines the body node-set it roots. |
-| `on_done`          | String   | required      | Target followed when the evaluator returns `done`: a node ID or a terminal pseudo-target. |
+| `edges`            | Object   | required      | Engine-known routes for another lap and for leaving the loop. |
+| `edges.loop`             | String   | required      | Entry node of one lap: a node ID. Section 4.8 defines the body node-set it roots. |
+| `edges.exit`          | String   | required      | Target followed when the evaluator returns `done`: a node ID or a terminal pseudo-target. |
 | `max_visits`       | Integer  | unset         | Visit budget (Section 3.4): arrivals at the loop node in one activation, laps plus one. A top-level loop has one activation per run; a nested loop gets a fresh activation when its enclosing loop selects a new item. The only loop ceiling. Unset means unlimited. |
 | `timeout`          | Duration | inherited     | Maximum duration of one item's validation command; also the infer judge and loop evaluator turns' timeout (Section 4.8). |
 | `llm_model`        | String   | `flash`       | LLM model identifier for the infer judge (Section 8). The alias resolves to `gemini-3.8-flash-medium`. |
@@ -248,7 +253,7 @@ fan-in's turn evaluates branch evidence):
 The infer judge's model, provider, and reasoning effort resolve from the
 loop node or the judge defaults above, independently of pipeline `defaults`.
 The evaluator fields are a separate slot: when omitted, they use the same
-pipeline or system defaults as a working codergen node. A loop node has no
+pipeline or system defaults as a working agent node. A loop node has no
 configurable `prompt`, `fidelity`, or `thread_id`: both internal prompts are
 engine-built, and both turns run with fidelity `none` on no thread (Section 4.8).
 
@@ -277,19 +282,19 @@ externally visible behavior must remain identical.
 Routing decisions belong to the choosers already positioned at branch
 points (Section 3.3). Human interaction is an authoring pattern over
 these same types (Sections 4.4, 6). And a child pipeline is its own
-run: a `codergen` or `tool` node launches it by invoking the CLI, and
+run: a `agent` or `command` node launches it by invoking the CLI, and
 a `supervisor` observes only the run it is declared in (Section 3.10).
 
 ### 2.6 Edge Fields
 
-Edges appear on the chooser node types, `codergen` and
-`parallel.fan_in` -- the nodes whose occupant reads conditions and
+Edges appear on the chooser node types, `agent` and
+`fan_in` -- the nodes whose occupant reads conditions and
 picks a route.
 
 | Field       | Type   | Required | Description |
 |-------------|--------|----------|-------------|
 | `to`        | String | yes      | Target: a node ID in this file, or a terminal pseudo-target -- `success` completes the run, `failure` fails it deliberately (Section 3.2; lint `edge_target_exists`, Section 7.2). |
-| `condition` | String | at branch points | Prose stating when this edge is the right choice; the engine sends it to the chooser and never reads it itself (Sections 3.3, 4.3). REQUIRED and non-blank on every edge of a `codergen` or `parallel.fan_in` node with more than one edge (lint ERROR `edge_condition_missing`, Section 7.2). Optional documentation elsewhere. |
+| `condition` | String | at branch points | Prose stating when this edge is the right choice; the engine sends it to the chooser and never reads it itself (Sections 3.3, 4.3). REQUIRED and non-blank on every edge of a `agent` or `fan_in` node with more than one edge (lint ERROR `edge_condition_missing`, Section 7.2). Optional documentation elsewhere. |
 
 The `condition` is for the model, not the machine: the engine never
 parses or evaluates it. Those two fields are the whole edge. Routing
@@ -324,15 +329,15 @@ this object. The loop evaluator's separately named fields do (Section 2.5).
 
 Anything else in `defaults` is a parse error. Identity, typing, routing,
 and each node's own work are always explicit at the node: `id`, `type`,
-`edges`, `on_success`, `on_error`, `branches`, `checklist`, `body`,
-`on_done`, `prompt`, `tool_command`, `thread_id`, `max_parallel`,
+`edges`, `edges.success`, `edges.error`, `branches`, `branch_edges`, `checklist`, `edges.loop`,
+`edges.exit`, `prompt`, `command`, `thread_id`, `max_parallel`,
 `max_visits`, `supervises`, and `interval` cannot be defaulted, so a reader of a
 node sees everything that decides where it routes and what it does. A default for a field a node type lacks (e.g. `max_retries`
-for a `tool` node, Section 2.5) simply does not apply to nodes of that
+for a `command` node, Section 2.5) simply does not apply to nodes of that
 type.
 
 Requiredness is structural and checked before default resolution:
-a required field (`tool_command` on a `tool` node) must appear inline on
+a required field (`command` on a `command` node) must appear inline on
 the node, and `defaults` can never satisfy it -- which keeps the
 published JSON Schema (Section 2.8) and the parser in exact agreement.
 
@@ -359,7 +364,7 @@ starts, Section 3.1); graph-shape problems found after parsing are
 - Every field has the type its table declares; `null` appears nowhere.
 - **Unknown fields are a parse error**, at every level -- top-level,
   node, and edge -- including a field that exists on some other node
-  type but not this one (`prompt` on a `tool` node). This catches
+  type but not this one (`prompt` on a `command` node). This catches
   typos (`max_visit` for `max_visits`) that a loose format would
   silently swallow.
 
@@ -377,10 +382,10 @@ can validate and complete pipeline files as they are written.
   "goal": "Run tests and report",
   "start": "run_tests",
   "nodes": [
-    { "id": "run_tests", "type": "codergen",
+    { "id": "run_tests", "type": "agent",
       "prompt": "Run the test suite and report results",
       "edges": [{ "to": "report" }] },
-    { "id": "report", "type": "codergen",
+    { "id": "report", "type": "agent",
       "prompt": "Summarize the test results",
       "edges": [{ "to": "success" }] }
   ]
@@ -396,10 +401,10 @@ can validate and complete pipeline files as they are written.
   "defaults": { "timeout": "900s" },
   "start": "plan",
   "nodes": [
-    { "id": "plan", "type": "codergen",
+    { "id": "plan", "type": "agent",
       "prompt": "Plan the implementation",
       "edges": [{ "to": "implement" }] },
-    { "id": "implement", "type": "codergen",
+    { "id": "implement", "type": "agent",
       "prompt": "Implement the plan. When you finish, choose: proceed to validation, return to planning if the plan proved unworkable, or declare the task impossible.",
       "max_visits": 5,
       "edges": [
@@ -407,9 +412,9 @@ can validate and complete pipeline files as they are written.
         { "to": "plan", "condition": "The plan proved unworkable; replan" },
         { "to": "failure", "condition": "The task is impossible as specified" }
       ] },
-    { "id": "run_tests", "type": "tool",
-      "tool_command": "./run_tests.sh",
-      "on_success": "success", "on_error": "implement" }
+    { "id": "run_tests", "type": "command",
+      "command": "./run_tests.sh",
+      "edges": { "success": "success", "error": "implement" } }
   ]
 }
 ```
@@ -419,8 +424,8 @@ ends -- each edge's `condition` is the text it chooses by. The
 `failure` edge is deliberate, reasoned failure: the agent that
 concludes the task cannot be done ends the run honestly instead of
 looping until a budget starves it. `run_tests` routes mechanically
-and carries no edges at all: exit code 0 follows `on_success`,
-nonzero follows `on_error`. The `max_visits` budget bounds the loop:
+through its `edges` mapping: exit code 0 follows `edges.success`,
+nonzero follows `edges.error`. The `max_visits` budget bounds the loop:
 once `implement` has run five times it is no longer offered, so a
 sixth visit cannot be chosen and the run fails instead of looping
 forever (Section 3.4).
@@ -432,24 +437,24 @@ forever (Section 3.4).
   "name": "review",
   "start": "review_gate",
   "nodes": [
-    { "id": "review_gate", "type": "codergen",
+    { "id": "review_gate", "type": "agent",
       "prompt": "Ask the caller with tractor ask whether these changes ship. Route on the answer.",
       "edges": [
         { "to": "ship_it", "condition": "Approved" },
         { "to": "fixes", "condition": "Fixes requested" }
       ] },
-    { "id": "ship_it", "type": "codergen", "prompt": "Ship the changes",
+    { "id": "ship_it", "type": "agent", "prompt": "Ship the changes",
       "edges": [{ "to": "success" }] },
-    { "id": "fixes", "type": "codergen", "prompt": "Apply the requested fixes",
+    { "id": "fixes", "type": "agent", "prompt": "Apply the requested fixes",
       "edges": [{ "to": "review_gate" }] }
   ]
 }
 ```
 
-`review_gate` is an ordinary codergen node: the agent blocks within its turn
+`review_gate` is an ordinary agent node: the agent blocks within its turn
 on the file transport of Section 3.1.1, interprets the printed answer, and
 then chooses a successor through the ordinary choice schema. A deterministic
-variant is a `tool` node whose own command blocks until a response arrives and
+variant is a `command` node whose own command blocks until a response arrives and
 exits 0 or nonzero (Section 4.4).
 
 **A supervisor patrolling a loop (Section 3.10):**
@@ -460,10 +465,10 @@ exits 0 or nonzero (Section 4.4).
   "goal": "Implement a feature without rabbit-holing",
   "start": "plan",
   "nodes": [
-    { "id": "plan", "type": "codergen",
+    { "id": "plan", "type": "agent",
       "prompt": "Plan the implementation",
       "edges": [{ "to": "implement" }] },
-    { "id": "implement", "type": "codergen",
+    { "id": "implement", "type": "agent",
       "prompt": "Implement the plan",
       "max_visits": 5,
       "edges": [
@@ -617,12 +622,12 @@ FUNCTION run(graph, config):
         -- Step 4: Resolve the chosen successor from the Outcome
         IF outcome.next is set:
             next_id = outcome.next    -- supplied by the node's chooser; for
-                                      -- a parallel node this is its fan-in
+                                      -- a fan-out node this is its fan-in
                                       -- (Section 4.6), valid despite not
                                       -- being an offered target
             IF next_id NOT IN allowed_targets(node, offered, graph):
                 -- allowed_targets = offered targets, plus the designated
-                -- fan-in when node is a parallel node
+                -- fan-in when node is a fan-out node
                 save_failure_checkpoint(state, node.id,
                                         retry_visit=true)
                 RETURN RunResult(status=FAILED,
@@ -660,9 +665,9 @@ a node's execution either produces an Outcome or an Error, and "how well it
 went" is expressed by where the chooser routed and what its notes say.
 
 Advance dispatches on the Outcome's `next`, never on the offered count alone:
-a handler that made a choice is always honored (a parallel node with a single
+a handler that made a choice is always honored (a fan-out node with a single
 offered branch still routes to its fan-in), and a handler that made none
-falls through to the lone offered successor. The `parallel` handler is the
+falls through to the lone offered successor. The `fan_out` handler is the
 one exception to the `next`-must-be-offered rule: its `next` names the fan-in
 node where the branches converge (Section 4.6), and the engine accepts it.
 
@@ -685,8 +690,8 @@ the engine.
 the offered set: the node's routing targets, minus any target that has
 exhausted its visit budget (Section 3.4). A node's routing targets are
 its type's routing fields read as a list: an `edges` array's `to`
-values, a tool's `on_success` and `on_error`, a parallel's `branches`,
-a loop's `body` and `on_done`.
+values, a command's `edges.success` and `edges.error`, a fan-out's `branches`,
+a loop's `edges.loop` and `edges.exit`.
 
 ```
 FUNCTION offered_successors(node, graph, node_visits) -> List<Target>:
@@ -705,32 +710,32 @@ FUNCTION offered_successors(node, graph, node_visits) -> List<Target>:
 **Choice rules:**
 
 - **One offered successor: no decision exists.** The engine follows it. No
-  `next` is required -- the codergen choice schema contains no `next`
+  `next` is required -- the agent choice schema contains no `next`
   property (Section 4.3) -- and a chooser that names the lone target anyway
-  (a tool's exit-code route) is validated identically.
+  (a command's exit-code route) is validated identically.
 - **Multiple offered successors: the chooser decides.** The Outcome's `next`
   names one offered target ID, produced by whoever occupies the node:
 
 | Node type          | Chooser        | Mechanism |
 |--------------------|----------------|-----------|
-| `codergen`         | the agent      | `next` in the choice schema, a string enum of offered target IDs whose property description maps each ID to its route meaning (Section 4.3) |
-| `tool`             | the exit code  | zero follows `on_success`, nonzero follows `on_error` (Section 4.5) |
-| `parallel`         | nobody         | all offered branches execute; `next` names the fan-in (Section 4.6) |
-| `loop`             | its evaluator  | `done` -> `on_done`; `not_done` -> first open checklist item and `body` (Section 4.8) |
+| `agent`            | the agent      | `next` in the choice schema, a string enum of offered target IDs whose property description maps each ID to its route meaning (Section 4.3) |
+| `command`          | the exit code  | zero follows `edges.success`, nonzero follows `edges.error` (Section 4.5) |
+| `fan_out`          | nobody         | all offered branches execute; `next` names the fan-in (Section 4.6) |
+| `loop`             | its evaluator  | `done` -> `edges.exit`; `not_done` -> first open checklist item and `edges.loop` (Section 4.8) |
 
 The loop's route is chosen by an internal evaluator turn after every passing
 lap and whenever an arrival has no open item. A `not_done` verdict still uses
 the ledger mechanically to select the first open item; a `done` verdict routes
-to `on_done` even if the ledger still has open items.
+to `edges.exit` even if the ledger still has open items.
 
 - **Validation.** The engine verifies `next` names an allowed successor --
   an offered target, or the designated fan-in when the node is a parallel
-  node (Section 3.2); a violation fails the run. For codergen nodes the
+  node (Section 3.2); a violation fails the run. For agent nodes the
   schema'd backend makes a violation unreachable -- the adapter only returns
   objects conforming to the choice schema (Section 12.2).
 - **Conditions inform the chooser, never the engine.** An edge's `condition` is the
   routing condition presented to whichever intelligence chooses at that
-  node (Section 4.3), and is required on every outgoing edge of a codergen
+  node (Section 4.3), and is required on every outgoing edge of an agent
   branch point (lint ERROR `edge_condition_missing`, Section 7.2). Engine
   routing logic never reads or compares condition text.
 
@@ -756,7 +761,7 @@ activation. Nodes outside checklist-loop bodies have one activation per run.
   (Section 3.7).
 - A routing target that has exhausted its budget is excluded from every
   offered set (Section 3.3). The chooser literally cannot choose it: for
-  codergen nodes it is absent from the schema enum.
+  agent nodes it is absent from the schema enum.
 - If exclusion leaves a node with an empty offered set, the run fails with an
   explicit reason. Authors who want a softer landing draw an edge to an
   escalation node (an agent that pages a human, a summarizing agent) so a
@@ -810,7 +815,7 @@ FUNCTION execute_with_retry(node, handler, offered, graph, state, stop,
             -- stages/{seq}-{node_id}/, and assembles the ExecutionScope
             -- (Section 4.1) from the supplied workdir, the new stage_dir,
             -- the graph goal, and the stop signal. For an execution that
-            -- runs a backend turn (codergen or fan-in, with a backend
+            -- runs a backend turn (agent or fan-in, with a backend
             -- configured -- simulation mode allocates nothing), it also
             -- allocates the run-log segment and publishes the registry
             -- entry (Sections 3.10, 12.4); a segment-allocation failure
@@ -860,7 +865,7 @@ when:
   (Section 3.4);
 - a chooser names an unoffered successor, or supplies none when a decision
   was required (Section 3.3);
-- a tool node exits nonzero with no `on_error` declared (Section 4.5);
+- a command node exits nonzero with no `edges.error` declared (Section 4.5);
 - a chooser routes to the `failure` pseudo-target (Section 3.2) --
   deliberate, reasoned failure: the walk is complete, the final
   checkpoint records it, and there is nothing to resume (Section 5.3).
@@ -886,7 +891,7 @@ alternative to recovery machinery (Section 12.2, note 10).
 
 The graph traversal is single-threaded. Only one node executes at a time in the top-level graph. This simplifies reasoning about engine state.
 
-Parallelism exists within the `parallel` handler, which walks multiple
+Parallelism exists within the `fan_out` handler, which walks multiple
 branches concurrently (Section 4.6), each in its own engine-owned git
 worktree. Branches exchange nothing while in flight; their products are
 worktree effects, run-log segments, and final notes, consumed at the fan-in
@@ -971,7 +976,7 @@ MAY additionally offer two Server-Sent Events streams on the same
 endpoint, so a remote operator needs no filesystem access:
 
 - `GET /events/lifecycle` -- the engine event stream (Section 10) as
-  it is emitted: stages, retries, parallel branches, checkpoints.
+  it is emitted: stages, retries, fan-out branches, checkpoints.
 - `GET /events/detail` -- the entries of all live run-log segments,
   merged as they are appended; each entry carries its originating
   node id (Section 12.4).
@@ -1006,7 +1011,7 @@ the registry never resolves a `supervisor` node.
 
 **Scope.** A node is *in scope* exactly when its ID appears in
 `supervises`. Membership is by node ID and follows the node everywhere
-it executes, including inside parallel branch walks.
+it executes, including inside fan-out branch walks.
 
 **The record: the inbox.** The inbox holds what finished; the run log
 holds what is happening now, and the patrol nudge below points the
@@ -1061,7 +1066,7 @@ supervisor turn; only its own patrol clock does. A quiet scope costs
 zero tokens.
 
 **The live-execution registry.** The engine records every execution it
-dispatches, at top level and inside parallel branch walks. It adds an
+dispatches, at top level and inside fan-out branch walks. It adds an
 entry at dispatch and removes the entry when the execution returns. A
 walk entry carries the node ID, the attempt number, and -- when the
 execution runs a backend turn -- the run-log segment path. A
@@ -1148,7 +1153,7 @@ Delivery splits on what the target is:
 - **A walk node.** The engine hands `[{"type": "text", "text":
   message}]` to the same internal delivery path the control server
   uses, under Section 3.9's rules unchanged (fire-and-forget, never
-  queued, rejected while a parallel node is the active top-level
+  queued, rejected while a fan-out node is the active top-level
   execution -- branch interiors are observe-only; coach at the fan-in)
   with one refinement the named target makes possible: the message is
   delivered only when the target IS the node of the active steerable
@@ -1236,7 +1241,7 @@ INTERFACE Handler:
 ExecutionScope:
     workdir   : Path        -- where this execution's workspace effects go:
                             -- the run's workspace at top level, the
-                            -- branch's worktree inside a parallel branch
+                            -- branch's worktree inside a fan-out branch
                             -- (Section 4.6). A tool command's cwd.
     stage_dir : Path        -- this execution's engine-created artifact
                             -- directory, stages/{seq}-{node_id}/
@@ -1246,13 +1251,13 @@ ExecutionScope:
     goal      : String      -- the top-level goal field; the source
                             -- for $goal expansion (Section 4.3)
     frame     : String | unset -- engine-rendered loop frame block(s),
-                            -- prepended to codergen and fan-in prompts
+                            -- prepended to agent and fan-in prompts
                             -- while a loop lap is active; unset
                             -- otherwise (Section 4.8)
     run_log   : Path | unset -- the execution's engine-allocated run-log
                             -- segment, created and indexed before
                             -- dispatch; set for executions that run a
-                            -- backend turn (codergen and fan-in, with a
+                            -- backend turn (agent and fan-in, with a
                             -- backend configured -- simulation mode
                             -- allocates none), unset for other handlers
                             -- (Sections 3.10, 12.4). The handler copies
@@ -1269,7 +1274,7 @@ StopSignal:
 The engine owns the one-shot `StopSignal`. It sets the signal when an
 operator stops the run (Section 3.1) and never clears it. An in-flight
 `execute()` MUST return `Error(interrupted)` promptly once the signal
-is set. Codergen handlers get this for free: the engine also calls the
+is set. Agent handlers get this for free: the engine also calls the
 backend's `interrupt_all()`, which ends the live turn (Section 12.1).
 Handlers that block elsewhere observe the signal themselves, by
 polling `is_set()` or racing against `wait()`. The engine closes the
@@ -1304,13 +1309,13 @@ total for a parsed graph -- an unknown `type` never survives parsing
 (Section 2.8) -- and the registry never resolves a `supervisor` node:
 supervision is engine machinery, not a handler (Section 3.10).
 
-### 4.3 Codergen Handler (LLM Task)
+### 4.3 Agent Handler (LLM Task)
 
-The codergen handler is the default for every node that invokes an
+The agent handler is the default for every node that invokes an
 LLM. It expands the node's prompt (`$goal`; `label` when `prompt` is
 empty), writes it as `prompt.md` in the stage directory, and -- when a
 backend is configured -- calls `backend.run` with a fully resolved
-`CodergenTurn` (below) carrying the mandatory choice schema; a backend
+`AgentTurn` (below) carrying the mandatory choice schema; a backend
 Error is returned unchanged for Section 3.5 to categorize. In
 simulation mode (no backend) it returns a valid simulated Outcome
 instead, naming the first offered target when a choice exists. It
@@ -1366,23 +1371,23 @@ FUNCTION describe_routes(node, offered, graph) -> String:
     -- Each offered ID's condition is looked up in node.edges (a
     -- budget-excluded edge drops out of the pairing with its target).
     -- Lint guarantees the condition exists wherever this function
-    -- runs: every outgoing edge of a codergen node with more than one
+    -- runs: every outgoing edge of an agent node with more than one
     -- outgoing edge must carry one (lint ERROR
     -- `edge_condition_missing`, Section 7.2). If an unlinted graph
     -- reaches here anyway, fall back to the target's label, then the
     -- target's ID.
 ```
 
-#### CodergenBackend Interface
+#### AgentBackend Interface
 
 ```
-CodergenTurn:
+AgentTurn:
     node_id          : String
         -- correlation and run-log identity only; does not expose the graph
     parts            : List<ContentPart>
         -- non-empty ordered user-message content (Section 3.9)
     output_schema    : JSON Schema
-        -- choice schema constructed by CodergenHandler (Section 4.3);
+        -- choice schema constructed by AgentHandler (Section 4.3);
         -- graph-specific constraints are opaque to the backend
     model            : String
     provider         : String
@@ -1415,7 +1420,7 @@ SupervisorTurn:                        -- a flush turn (Section 3.10)
     workdir          : Path
         -- always the run's top-level workspace
     run_log          : Path
-        -- engine-allocated segment, as on CodergenTurn
+        -- engine-allocated segment, as on AgentTurn
     timeout          : Duration | unset
     -- no fidelity and no steerable flag: a supervisor session is
     -- always continued in full, and every supervisor turn is advisory
@@ -1426,8 +1431,8 @@ Verdict:                               -- Section 3.10
     target  : String?    -- steer: the coached node ID
     message : String?    -- steer: the coaching text
 
-INTERFACE CodergenBackend:
-    FUNCTION run(turn: CodergenTurn) -> OneOf<Outcome, Error>
+INTERFACE AgentBackend:
+    FUNCTION run(turn: AgentTurn) -> OneOf<Outcome, Error>
     FUNCTION run_supervisor(turn: SupervisorTurn) -> OneOf<Verdict, Error>
         -- the supervision seam (Section 3.10): supervisors do not
         -- route, so their answer is a Verdict, not an Outcome
@@ -1465,14 +1470,14 @@ Human participation is an authoring
 pattern built from the primitives that already exist, chosen by how much
 judgment versus determinism the decision needs:
 
-- **Agent-conducted interview (judgment, N-way).** A codergen node whose
+- **Agent-conducted interview (judgment, N-way).** An agent node whose
   prompt says to write a Markdown or HTML question and run `tractor ask`
   (Section 3.1.1), wait for the caller's file-shaped answer, interpret it,
   and route through the ordinary choice schema (Section 4.3). The whole
   wait happens *inside one backend turn*, not engine turns or retry
   attempts. This is a *soft* gate: the schema constrains which target the
   agent names, not whether it interpreted the caller faithfully.
-- **Deterministic block (mechanical, two-way).** A `tool` node running a
+- **Deterministic block (mechanical, two-way).** A `command` node running a
   program that sends the message, blocks until a response arrives, and
   exits 0 or nonzero (Section 4.5). No model in the loop, exit-code
   routing -- deterministic in route selection, though not in external
@@ -1497,19 +1502,19 @@ coding agent watches the event stream, opens the numbered question, and runs
 turn through the independent control surface (Sections 3.9, 10). Section 6
 summarizes the pattern.
 
-### 4.5 Tool Handler
+### 4.5 Command Handler
 
 Executes an external shell command and routes on its exit code. This is a
 mechanical chooser: the only branching signal a command produces is its exit
-status, so that is the only branching the tool node offers.
+status, so that is the only branching the command node offers.
 
 ```
 ToolHandler:
     FUNCTION execute(node, offered, scope, graph)
         -> OneOf<Outcome, Error>:
-        command = node.tool_command
+        command = node.command
         IF command is empty:
-            RETURN Error("terminal", "no tool_command on " + node.id)
+            RETURN Error("terminal", "no command on " + node.id)
 
         result = run_shell_command(command, cwd=scope.workdir,
                                    timeout=node.timeout, stop=scope.stop)
@@ -1519,9 +1524,9 @@ ToolHandler:
         write stdout and stderr to scope.stage_dir (tool.log)
 
         IF result.exit_code == 0:
-            route = node.on_success
-        ELSE IF node.on_error is set:
-            route = node.on_error
+            route = node.edges.success
+        ELSE IF node.edges.error is set:
+            route = node.edges.error
         ELSE:
             RETURN Error("terminal",
                          command + " exited " + result.exit_code)
@@ -1537,21 +1542,21 @@ ToolHandler:
 
 **Routing rules:**
 
-- Exit code 0 follows `on_success`; nonzero follows `on_error`.
-- `on_error` absent, a nonzero exit is a terminal Error -- the command
-  was an assertion. (`on_error` naming the same target as `on_success`
+- Exit code 0 follows `edges.success`; nonzero follows `edges.error`.
+- `edges.error` absent, a nonzero exit is a terminal Error -- the command
+  was an assertion. (`edges.error` naming the same target as `edges.success`
   is permitted and makes the command advisory.)
 - The exit code fully designates the route. A mechanical chooser cannot pick
   an alternative, so if the designated target has exhausted its visit budget
   (Section 3.4) the handler returns a terminal Error naming the budget.
 
 A command that exceeds `timeout` is stopped and returns an interrupted Error
-(Appendix B). Tool nodes never invoke an LLM and have no session; a
+(Appendix B). Command nodes never invoke an LLM and have no session; a
 deterministic check costs zero tokens. Anything richer than exit-code
-branching -- judging output text, weighing multiple signals -- is a job for a
-codergen node, which has a shell of its own.
+branching -- judging output text, weighing multiple signals -- is a job for an
+agent node, which has a shell of its own.
 
-### 4.6 Parallel Handler
+### 4.6 Fan-Out Handler
 
 Fans out execution to multiple branches concurrently, waits for all of them
 to converge on the designated fan-in node, then hands control to the fan-in.
@@ -1562,10 +1567,20 @@ persists complete `BranchResult` evidence before returning, and either
 advances to its designated fan-in or fails as one replayable unit. The
 non-obvious constraints:
 
+`branches` accepts either node-ID strings or structured branch objects; one
+fan-out may not mix the two forms. A structured branch declares `id`, one or
+more `artifacts`, and an optional `codergen` object that overrides the
+fan-out's agent-template fields for that branch. The engine synthesizes an
+`agent` node per structured branch. It copies the fan-out's `branch_edges`,
+prompt, fidelity, thread, retry, timeout, and model fields to that node, then
+applies only the override fields that are present. `branch_edges` is a branch
+template, never a route out of the fan-out; the fan-out's actual outgoing
+routes are the top-level `branches`, all of which run.
+
 - **Branch roots are the offered `branches`**, not the declared ones: a
   root at its `max_visits` is excluded and the fan-out SHRINKS --
   normative, and usually not what an author wants (lint WARNING
-  `branch_root_max_visits`; bound loops at the parallel node instead).
+  `branch_root_max_visits`; bound loops at the fan-out node instead).
   At most `max_parallel` branches run at once (Section 2.5).
 - **One frozen parent state**: HEAD plus tracked modifications plus
   untracked-but-not-ignored files, captured without mutating the
@@ -1587,7 +1602,7 @@ non-obvious constraints:
   fan-out. On success the Outcome's `next` names the fan-in.
 
 The engine creates a fresh worktree for each branch on every execution
-of the parallel node, so concurrent agents never see one another's
+of the fan-out node, so concurrent agents never see one another's
 partial edits and each branch's product is an independent candidate.
 At creation the engine appends `{path, branch_id, ts}` to
 `{logs_root}/worktrees.jsonl`, the durable inventory Finalize sweeps
@@ -1597,11 +1612,11 @@ least until the fan-in completes. Finalize removes them after any run
 that ends at a pseudo-target -- `success` or deliberate `failure`,
 neither resumable (Section 5.3); only an error-failed run leaves them
 all on disk. A failure at or after the fan-in resumes at the fan-in,
-which needs the converged candidates it evaluates (Section 4.7). A failure of the parallel node
-itself resumes at the parallel node, which replays the fan-out in
+which needs the converged candidates it evaluates (Section 4.7). A failure of the fan-out node
+itself resumes at the fan-out node, which replays the fan-out in
 fresh worktrees; the old ones remain as evidence, never re-entered.
 
-`branches.json` is the fan-in's evidence, written to the parallel node's own
+`branches.json` is the fan-in's evidence, written to the fan-out node's own
 stage directory: one `BranchResult` per branch -- branch root ID, final
 outcome or error, notes, the node path walked, the branch's **worktree
 path**, its per-attempt stage directories, and its run-log segment paths.
@@ -1612,10 +1627,10 @@ observer surface (Section 5.6).
 writes no checkpoint between fan-out and convergence; a crash
 mid-fan-out resumes from the pre-parallel checkpoint and re-runs all
 branches, an accepted re-run (Section 12.2, note 10). Before
-dispatching a parallel node, the engine snapshots the visit and
+dispatching a fan-out node, the engine snapshots the visit and
 attempt counters. If the execution returns an Error, it restores that
 snapshot before writing the failure checkpoint, keeping only the
-parallel node's own increments -- they record reality -- so branch
+fan-out node's own increments -- they record reality -- so branch
 work that resume will redo is never double-counted against
 `max_visits`. Lingering branch thread bindings are stale by workdir
 and get fresh sessions when the replayed fan-out's new worktrees
@@ -1627,10 +1642,10 @@ partially resumed.
 set of nodes reachable from a branch root without passing through the
 designated fan-in; every branch-scoped rule quantifies over this set.
 Branch node-sets must be pairwise disjoint except for the shared
-fan-in, a parallel node may not appear inside a branch, and a
+fan-in, a fan-out node may not appear inside a branch, and a
 branch-interior node accepts incoming routes only from inside the same
-parallel's branches -- branch roots additionally accept their parallel
-node (lints `branch_disjoint`, `no_nested_parallel`, `branch_entry`,
+fan-out's branches -- branch roots additionally accept their fan-out
+node (lints `branch_disjoint`, `no_nested_fan_out`, `branch_entry`,
 Section 7.2). Shared intermediate nodes would race on visit budgets
 and double-execute; nested fan-out is out of scope for this version.
 
@@ -1640,13 +1655,13 @@ branches.
 
 With a harness-backed backend (Section 12): branches MUST NOT resolve to
 the same thread key concurrently -- statically checkable because thread
-resolution is static (lint ERROR `parallel_thread_disjoint`, Section 7.2)
+resolution is static (lint ERROR `fan_out_thread_disjoint`, Section 7.2)
 -- and each branch turn writes its own run-log segment, discovered through
 the segment index (Section 12.4).
 
 ### 4.7 Fan-In Handler
 
-Consolidates the results of the converged branches. The fan-in is a codergen
+Consolidates the results of the converged branches. The fan-in is an agent
 node with the branch evidence appended to its prompt: an agent that reads
 what the branches produced and chooses what follows.
 
@@ -1655,10 +1670,10 @@ FanInHandler:
     FUNCTION execute(node, offered, scope, graph)
         -> OneOf<Outcome, Error>:
         par = parallel_node_of(node, graph)
-            -- the parallel node that designates this fan-in; exactly one
-            -- exists (lint `fan_in_single_parallel`, Section 7.2)
+            -- the fan-out node that designates this fan-in; exactly one
+            -- exists (lint `fan_in_single_fan_out`, Section 7.2)
         results = read_json(stages_latest(scope, par.id) + "branches.json")
-            -- the BranchResults written by that parallel node's most
+            -- the BranchResults written by that fan-out node's most
             -- recent execution (Section 4.6), located through the
             -- stages/latest/{node_id} pointer (Section 5.6).
             -- stages_latest resolves against the handler's own stage
@@ -1668,11 +1683,11 @@ FanInHandler:
 
         prompt = node.prompt
         IF prompt is empty:
-            prompt = "Evaluate the results of the parallel branches."
+            prompt = "Evaluate the results of the fan-out branches."
         prompt = prompt + "\n\n" + render(results)
             -- per branch: its ID, its notes, and its worktree path
 
-        -- continue exactly as CodergenHandler (Section 4.3) with this
+        -- continue exactly as AgentHandler (Section 4.3) with this
         -- prompt: choice schema from offered, backend turn, response file.
         -- The fan-in runs in the run's main workspace (scope.workdir);
         -- the branch worktrees are still on disk at the paths the render
@@ -1682,7 +1697,7 @@ FanInHandler:
 The rendered results orient the agent; its real evaluation happens through
 its own tools -- reading and diffing the branch worktrees at their
 `BranchResult` paths, running checks, and applying the chosen candidate (or
-a synthesis) to the main workspace. Like any codergen node, the fan-in
+a synthesis) to the main workspace. Like any agent node, the fan-in
 routes by choosing among its own offered successors: proceed with the
 merged result, loop back for another round, or escalate to a node that
 brings in a human (Section 6).
@@ -1696,7 +1711,7 @@ it mark the framed item done. Any failed item is set back to `done: false`.
 After every passing validation set, an evaluator turn reads the checklist
 body, the items and their validation results, and the workspace. The same
 turn runs on any arrival with no open item, including an empty ledger's first
-arrival. Its `done` verdict routes to `on_done`; its `not_done` verdict makes
+arrival. Its `done` verdict routes to `edges.exit`; its `not_done` verdict makes
 the handler re-read the file and dispatch the first open item. A `not_done`
 verdict that leaves no open item is a terminal Error. Failed validation never
 runs the evaluator and re-enters through the ledger as before.
@@ -1769,8 +1784,8 @@ Rules:
   unparseable, and the arrival returns an Error.
 - Every path in the file (`command` cwd, `infer.files`, `doc`,
   `checklist`) is relative to the execution's workdir, which inside a
-  parallel branch would be the branch's worktree -- but a loop node
-  may not lie inside a branch (lint `loop_in_parallel`, Section 7.2).
+  fan-out branch would be the branch's worktree -- but a loop node
+  may not lie inside a branch (lint `loop_in_fan_out`, Section 7.2).
 
 **Arrival.**
 
@@ -1825,7 +1840,7 @@ LoopHandler:
             IF verdict is done:
                 frames.pop(node)
                 write frames.json
-                route = node.on_done
+                route = node.edges.exit
                 notes = "evaluator decided done"
             IF verdict is not_done AND list.open() is absent:
                 RETURN Error("terminal",
@@ -1840,7 +1855,7 @@ LoopHandler:
             ELSE:
                 frame.lap += 1                -- same failed item, another lap
             write frames.json
-            route = node.body
+            route = node.edges.loop
             notes = "item " + index + "/" + count + ": " + next.name +
                     " (lap " + frame.lap + ")"
 
@@ -1852,11 +1867,11 @@ LoopHandler:
 
 The body's last node routes back to the loop node with an ordinary
 edge. That edge is the lap's "this item is implemented" claim, and the
-engine tests the claim before believing it. `body` and `on_done` are
+engine tests the claim before believing it. `edges.loop` and `edges.exit` are
 the node's routing targets (Section 3.3), so the offered-set mechanism
-applies unchanged: a `body` that has exhausted its own `max_visits`
+applies unchanged: a `edges.loop` that has exhausted its own `max_visits`
 while the evaluator says work remains fails the run, as an exhausted
-successor fails any node. An exhausted `on_done` target also fails after a
+successor fails any node. An exhausted `edges.exit` target also fails after a
 `done` verdict.
 
 **Validation.** Runs in the loop node's own stage directory,
@@ -1897,7 +1912,7 @@ FUNCTION validate(node, item, log_path, scope) -> ValidationResult:
     RETURN passed
 ```
 
-The judge is one codergen turn through the configured backend
+The judge is one agent turn through the configured backend
 (Section 4.3): fidelity `none`, no thread, the loop node's resolved
 model, provider, effort, and `timeout`, and the standard choice schema
 with two offered targets whose conditions are the verdicts -- `pass`
@@ -1962,7 +1977,7 @@ unchanged or append, reorder, and rewrite open items. When it returns
 
 The evaluator uses the standard choice schema with two targets: `done` when
 the prose definition is satisfied in the workspace, and `not_done` when work
-remains. `done` routes to `on_done`. `not_done` reloads the checklist and
+remains. `done` routes to `edges.exit`. `not_done` reloads the checklist and
 dispatches the first open item; if none exists, the handler returns a terminal
 Error. A `LoopEvaluated` timeline event records the verdict and notes.
 
@@ -1975,7 +1990,7 @@ on the same model as the working agent. Like the judge, it uses fidelity
 judge artifact, and it allocates its own run-log segment. In simulation mode,
 it returns `not_done` while an item is open and `done` when none is open.
 
-**The frame.** For every codergen and fan-in turn executed while at
+**The frame.** For every agent and fan-in turn executed while at
 least one loop frame is active, the engine renders one block per
 active frame, each inner loop's block nested inside its enclosing
 loop's block and indented one level, and hands the rendered text down
@@ -2042,20 +2057,20 @@ frames (Section 5.3). A continuation outside every loop body resumes where
 it points.
 
 **Body node-set and lint.** The **body node-set** of a loop node is
-every node reachable from `body` without passing through the loop
-node. It may contain further loop nodes, parallel nodes, and edges to
+every node reachable from `edges.loop` without passing through the loop
+node. It may contain further loop nodes, fan-out nodes, and edges to
 `failure` (an escape hatch). Body nodes may not route to `success`:
 the only way out of a loop body to `success` is the loop's own
-evaluator-controlled `on_done`, so a body agent cannot bypass the evaluator. It is
-delimited the way a parallel branch is (Section 4.6), and five rules
+evaluator-controlled `edges.exit`, so a body agent cannot bypass the evaluator. It is
+delimited the way a fan-out branch is (Section 4.6), and five rules
 keep it honest (Section 7.2): `loop_body_entry` (a body node is
 entered only from another body node, or, for the body root, from its
-loop node's `body`; neither `on_done` nor the graph's `start` may name
-a body node), `loop_body_returns` (`body` names a node, and the loop
+loop node's `edges.loop`; neither `edges.exit` nor the graph's `start` may name
+a body node), `loop_body_returns` (`edges.loop` names a node, and the loop
 node is reachable from it within the body node-set), `loop_body_exit`
 (no body node routes to `success`), `loop_checklist_required` (a loop
 node without `checklist` lies inside another loop's body), and
-`loop_in_parallel` (a loop node never lies inside a parallel branch:
+`loop_in_fan_out` (a loop node never lies inside a fan-out branch:
 the frame stack is run-wide and branches run concurrently).
 `edge_target_exists`, `edge_target_unique`, `dead_end`,
 `max_visits_positive`, and `reachability` apply to loop nodes through
@@ -2239,7 +2254,7 @@ When fidelity resolves to `full` or `compacted`, the engine determines a thread 
 That is the whole rule. By default every node owns its own thread: revisits
 of a node continue that node's session -- which is what makes the default
 `compacted` fidelity matter for loops -- and distinct nodes (including
-parallel branch roots) get distinct keys automatically. Sharing one
+fan-out branch roots) get distinct keys automatically. Sharing one
 conversation across several nodes is opt-in via an explicit `thread_id`
 named on each sharing node (Section 2.7). Resolution is fully
 static: a node's thread key never depends on the path that reached it.
@@ -2260,7 +2275,7 @@ exists for other reasons:
 1. **The workspace.** Top-level nodes share the run's working directory. An
    agent that writes code, documents, or intermediate results to the repo
    has published them to every later node. This is the primary channel, and
-   it is durable, diffable, and versionable for free. (Parallel branches
+   it is durable, diffable, and versionable for free. (Fan-out branches
    are the deliberate exception: each works in its own worktree, and its
    product reaches later nodes through the fan-in's `BranchResult` paths,
    Sections 4.6-4.7.)
@@ -2293,8 +2308,8 @@ Each pipeline execution produces a directory tree for logging, checkpoints, and 
             outcome.json         -- The execution's Outcome, engine-written on success (Appendix A)
             error.json           -- The attempt's Error category and message, engine-written on failure (Section 3.5)
             steering.jsonl       -- Steering audit records (Section 3.9)
-            tool.log             -- Tool nodes: captured stdout/stderr (Section 4.5)
-            branches.json        -- Parallel nodes: BranchResult evidence for the fan-in (Section 4.6)
+            tool.log             -- Command nodes: captured stdout/stderr (Section 4.5)
+            branches.json        -- Fan-out nodes: BranchResult evidence for the fan-in (Section 4.6)
             validation-{item_position}.log -- Loop nodes: one command log per validated item (Section 4.8)
             validation-{item_position}-prompt.md   -- Loop nodes: one infer-judge prompt per validated item
             validation-{item_position}-response.md -- Loop nodes: its infer-judge response
@@ -2314,9 +2329,9 @@ Each pipeline execution produces a directory tree for logging, checkpoints, and 
 ## 6. Human-in-the-Loop (Authoring Pattern)
 
 A decision that needs a person or calling agent remains inside an ordinary
-node visit. A codergen node uses the blocking `tractor ask` transport
+node visit. An agent node uses the blocking `tractor ask` transport
 (Section 3.1.1), keeps its context while the caller writes the answer, and
-then continues its turn. A tool node MAY instead block in its own program and
+then continues its turn. A command node MAY instead block in its own program and
 route on the program's exit code (Section 4.4). Outside the run, an operator
 can also watch the event stream (Section 10) and steer a live turn (Section
 3.9). None of these mechanisms adds a human node or routes the graph to the
@@ -2350,35 +2365,35 @@ Severity:
 | `start_target`           | ERROR    | The top-level `start` must name an existing walk node -- not a supervisor, not a pseudo-target. |
 | `terminal_reachable`     | ERROR    | At least one routing target `success` must be reachable from the node `start` names: a pipeline that cannot succeed deliberately is an authoring error. |
 | `reachability`           | ERROR    | All walk nodes (every type but `supervisor`) must be reachable from the node `start` names via BFS/DFS traversal. Supervisor nodes are outside the walk (Section 3.10) and are exempt. |
-| `edge_target_exists`     | ERROR    | Every routing target -- an edge's `to`, a tool's `on_success`/`on_error`, a parallel's `branches` entry, a loop's `body`/`on_done` -- must reference an existing node ID or a terminal pseudo-target (Section 2.6). |
-| `edge_target_unique`     | ERROR    | No two edges of one node may share a `to`: the choice schema's enum would carry a duplicate value, and which condition text the model sees for that target would be ambiguous (Section 4.3). (A tool's `on_success` and `on_error` naming one target is fine -- there is no condition pairing to corrupt.) |
-| `dead_end`               | ERROR    | Every walk node must have at least one routing target: a codergen or fan-in node's `edges` must be non-empty, as must a parallel node's `branches` (a tool node always routes -- `on_success` is required -- and so does a loop node, whose `body` and `on_done` are required). Supervisor nodes route nowhere and are exempt. |
-| `parallel_fan_in`        | ERROR    | Every branch path from a parallel node must converge on a single `parallel.fan_in` node, and no routing target in `branches` or inside the branches may name a pseudo-target: branches converge, they never end the run (Section 4.6). |
-| `branch_disjoint`        | ERROR    | A parallel node's branch node-sets must be pairwise disjoint, except for the shared fan-in (Section 4.6). |
-| `no_nested_parallel`     | ERROR    | A parallel node may not appear inside another parallel node's branches; nested fan-out is out of scope for this version. |
-| `fan_in_single_parallel` | ERROR    | Every `parallel.fan_in` node is the designated fan-in of exactly one parallel node (Section 4.7 depends on this being unambiguous). |
-| `parallel_thread_disjoint`| ERROR   | No two nodes that can execute concurrently (nodes of different branches of one parallel node) may resolve to the same thread key (Sections 4.6, 5.4). Fully static. |
-| `thread_branch_boundary` | ERROR    | A thread key resolved by a node inside a parallel branch must not be resolved by any node outside that branch (fan-in included): sessions are workdir-bound and cannot span the worktree boundary (Section 12.1). Fully static. |
-| `fan_in_entry`           | ERROR    | Every incoming route of a `parallel.fan_in` node must originate inside its parallel node's branches -- a fan-in reached any other way would read branch evidence that does not exist (Section 4.7). |
-| `branch_entry`           | ERROR    | Every incoming route of a branch-interior node must originate inside the same parallel's branches; branch roots additionally accept their parallel node (Section 4.6 defines the branch node-set). |
+| `edge_target_exists`     | ERROR    | Every routing target -- an edge's `to`, a command's `edges.success`/`edges.error`, a fan-out's `branches` entry, a loop's `edges.loop`/`edges.exit` -- must reference an existing node ID or a terminal pseudo-target (Section 2.6). |
+| `edge_target_unique`     | ERROR    | No two edges of one node may share a `to`: the choice schema's enum would carry a duplicate value, and which condition text the model sees for that target would be ambiguous (Section 4.3). (A command's `edges.success` and `edges.error` naming one target is fine -- there is no condition pairing to corrupt.) |
+| `dead_end`               | ERROR    | Every walk node must have at least one routing target: an agent or fan-in node's `edges` must be non-empty, as must a fan-out node's `branches` (a command node always routes -- `edges.success` is required -- and so does a loop node, whose `edges.loop` and `edges.exit` are required). Supervisor nodes route nowhere and are exempt. |
+| `fan_out_fan_in`        | ERROR    | Every branch path from a fan-out node must converge on a single `fan_in` node, and no routing target in `branches` or inside the branches may name a pseudo-target: branches converge, they never end the run (Section 4.6). |
+| `branch_disjoint`        | ERROR    | A fan-out node's branch node-sets must be pairwise disjoint, except for the shared fan-in (Section 4.6). |
+| `no_nested_fan_out`     | ERROR    | A fan-out node may not appear inside another fan-out node's branches; nested fan-out is out of scope for this version. |
+| `fan_in_single_fan_out` | ERROR    | Every `fan_in` node is the designated fan-in of exactly one fan-out node (Section 4.7 depends on this being unambiguous). |
+| `fan_out_thread_disjoint`| ERROR   | No two nodes that can execute concurrently (nodes of different branches of one fan-out node) may resolve to the same thread key (Sections 4.6, 5.4). Fully static. |
+| `thread_branch_boundary` | ERROR    | A thread key resolved by a node inside a fan-out branch must not be resolved by any node outside that branch (fan-in included): sessions are workdir-bound and cannot span the worktree boundary (Section 12.1). Fully static. |
+| `fan_in_entry`           | ERROR    | Every incoming route of a `fan_in` node must originate inside its fan-out node's branches -- a fan-in reached any other way would read branch evidence that does not exist (Section 4.7). |
+| `branch_entry`           | ERROR    | Every incoming route of a branch-interior node must originate inside the same fan-out's branches; branch roots additionally accept their fan-out node (Section 4.6 defines the branch node-set). |
 | `max_visits_positive`    | ERROR    | `max_visits`, when set, must be a positive integer. |
 | `max_parallel_positive`  | ERROR    | `max_parallel`, when set, must be a positive integer. |
 | `max_retries_nonnegative`| ERROR    | `max_retries`, when set (on a node or in `defaults`), must be a nonnegative integer. |
-| `edge_condition_missing` | ERROR    | Every outgoing edge of a node that routes via the choice schema (codergen and `parallel.fan_in`) with more than one outgoing edge must have a `condition` that is non-empty after trimming whitespace -- the conditions are the routing text presented to the model (Section 4.3). An absent, empty, or whitespace-only condition all fail. |
+| `edge_condition_missing` | ERROR    | Every outgoing edge of a node that routes via the choice schema (`agent` and `fan_in`) with more than one outgoing edge must have a `condition` that is non-empty after trimming whitespace -- the conditions are the routing text presented to the model (Section 4.3). An absent, empty, or whitespace-only condition all fail. |
 | `supervises_valid`       | ERROR    | A supervisor's `supervises` array must be non-empty, contain no duplicates, and every entry must name an existing node ID other than the supervisor itself; its `interval` must be positive (Section 3.10). A missing `supervises` is already a parse error -- requiredness is structural (Section 2.7). A supervisor with nothing in its purview is an authoring error, not a quiet no-op. |
-| `supervisor_not_targeted`| ERROR    | No routing target (`to`, `on_success`, `on_error`, `branches`, `body`, `on_done`) may name a supervisor node: supervisors are outside the walk and can never be a successor (Section 3.10). |
+| `supervisor_not_targeted`| ERROR    | No routing target (`to`, `edges.success`, `edges.error`, `branches`, `edges.loop`, `edges.exit`) may name a supervisor node: supervisors are outside the walk and can never be a successor (Section 3.10). |
 | `supervisor_cycle`       | ERROR    | The supervision relation among supervisor nodes (A lists B in `supervises`) must be acyclic; in a cycle, each member's flush turn counts as live activity for the next member's patrol, so the participants could keep one another running indefinitely (Section 3.10). |
 | `fidelity_valid`         | ERROR    | Fidelity mode values must be one of `full`, `compacted`, `none`, or a mode the active implementation defines (Section 5.4). An unsupported mode is rejected, never given accidental runtime semantics (Section 12.1). |
 | `thread_id_collision`    | ERROR    | An explicit `thread_id` must not equal any node ID -- implicit per-node threads and named shared threads are separate namespaces (Section 5.4). |
 | `thread_harness_consistent`| ERROR  | Nodes sharing a resolved thread key under session-reusing fidelity modes (`full`, `compacted`) must resolve to models that route to the same harness (Section 12.1). Thread keys resolve statically (Section 5.4), so this check is fully static. |
-| `loop_body_entry`        | ERROR    | Every incoming route of a loop body node must originate inside the same loop's body node-set; the body root additionally accepts its loop node's `body`. `on_done` may not name a body node -- leaving the loop must leave the body -- and the graph's `start` may not name one either (a nested loop node included): a body entered from outside runs without a frame (Section 4.8 defines the body node-set). |
-| `loop_body_returns`      | ERROR    | `body` must name a node, not `success` or `failure`, and the loop node must be reachable from that node within the body node-set: a body that never routes back means no lap could ever be validated (Section 4.8). |
-| `loop_body_exit`         | ERROR    | No routing target of a loop body node may be `success`: the only way out of a loop body to `success` is the loop's own evaluator-controlled `on_done`. Edges to `failure` from body nodes stay legal (Section 4.8). |
+| `loop_body_entry`        | ERROR    | Every incoming route of a loop body node must originate inside the same loop's body node-set; the body root additionally accepts its loop node's `edges.loop`. `edges.exit` may not name a body node -- leaving the loop must leave the body -- and the graph's `start` may not name one either (a nested loop node included): a body entered from outside runs without a frame (Section 4.8 defines the body node-set). |
+| `loop_body_returns`      | ERROR    | `edges.loop` must name a node, not `success` or `failure`, and the loop node must be reachable from that node within the body node-set: a body that never routes back means no lap could ever be validated (Section 4.8). |
+| `loop_body_exit`         | ERROR    | No routing target of a loop body node may be `success`: the only way out of a loop body to `success` is the loop's own evaluator-controlled `edges.exit`. Edges to `failure` from body nodes stay legal (Section 4.8). |
 | `loop_checklist_required`| ERROR    | A loop node without a `checklist` must lie inside another loop node's body, where it iterates the enclosing item's `checklist` field; anywhere else it has nothing to iterate (Section 4.8). |
-| `loop_in_parallel`       | ERROR    | A loop node may not lie inside a parallel node's branch node-set: the frame stack is run-wide and branches run concurrently (Sections 4.6, 4.8). |
-| `fan_in_max_visits`      | WARNING  | `max_visits` on a `parallel.fan_in` node does not bound the loop at the parallel node (the fan-in is reached via the parallel's `next`, not an offered set); it takes effect only inside branch walks, where an exhausted fan-in starves the branches' final offered sets and fails the run (Sections 3.2-3.4). Bound the loop at the parallel node or a downstream node. |
-| `branch_root_max_visits` | WARNING  | `max_visits` on a parallel branch root silently shrinks later fan-outs: an exhausted root is excluded from the branches the fan-out runs (Section 4.6). Bound the loop at the parallel node instead. |
-| `prompt_on_llm_nodes`    | WARNING  | A codergen node's `prompt` should be present and non-empty: absent, the turn runs on the node's label or ID alone (Section 4.3). |
+| `loop_in_fan_out`       | ERROR    | A loop node may not lie inside a fan-out node's branch node-set: the frame stack is run-wide and branches run concurrently (Sections 4.6, 4.8). |
+| `fan_in_max_visits`      | WARNING  | `max_visits` on a `fan_in` node does not bound the loop at the fan-out node (the fan-in is reached via the fan-out's `next`, not an offered set); it takes effect only inside branch walks, where an exhausted fan-in starves the branches' final offered sets and fails the run (Sections 3.2-3.4). Bound the loop at the fan-out node or a downstream node. |
+| `branch_root_max_visits` | WARNING  | `max_visits` on a fan-out branch root silently shrinks later fan-outs: an exhausted root is excluded from the branches the fan-out runs (Section 4.6). Bound the loop at the fan-out node instead. |
+| `prompt_on_llm_nodes`    | WARNING  | An agent node's `prompt` should be present and non-empty: absent, the turn runs on the node's label or ID alone (Section 4.3). |
 
 ### 7.3 Validation API
 
@@ -2390,7 +2405,7 @@ the implementation defines (Section 9) -- and returns all diagnostics;
 
 ## 8. Model Selection
 
-Three node fields configure the LLM for a codergen or supervisor node:
+Three node fields configure the LLM for an agent or supervisor node:
 
 | Field              | Values                      | Description |
 |--------------------|-----------------------------|-------------|
@@ -2400,7 +2415,7 @@ Three node fields configure the LLM for a codergen or supervisor node:
 
 Each field resolves per node: the explicit node value, else the
 file-level `defaults` object (Section 2.7), else an
-implementation-configured system default. Every codergen and
+implementation-configured system default. Every agent and
 supervisor turn carries concrete resolved values -- the same
 resolution builds a `SupervisorTurn` (Section 12.2) -- and session
 bindings never supply defaults for later turns (Section 12.1). The
@@ -2412,12 +2427,12 @@ recommended system default for `reasoning_effort` is `high`.
   "defaults": { "llm_model": "claude-opus-4-6" },
   "start": "plan",
   "nodes": [
-    { "id": "plan", "type": "codergen",
+    { "id": "plan", "type": "agent",
       "llm_model": "claude-sonnet-4-5",
       "edges": [{ "to": "implement" }] },
-    { "id": "implement", "type": "codergen",
+    { "id": "implement", "type": "agent",
       "edges": [{ "to": "critical_review" }] },
-    { "id": "critical_review", "type": "codergen",
+    { "id": "critical_review", "type": "agent",
       "llm_model": "gpt-5.2", "reasoning_effort": "high",
       "edges": [{ "to": "success" }] }
   ]
@@ -2445,13 +2460,13 @@ engine:
   built-in table, reported through the same Diagnostic model
   (Section 7.1) in the same validation pass.
 - **Backends** (Sections 1.4, 12) -- anything satisfying
-  `CodergenBackend`.
+  `AgentBackend`.
 - **Additional content-part types** (Section 3.9) -- the steering parts
   array is an explicit extension point.
 
 **Variable expansion** is the one built-in graph preprocessing step: `$goal`
 in node prompts is replaced with the top-level `goal` field -- simple
-string replacement, applied by the codergen handler at prompt build time
+string replacement, applied by the agent handler at prompt build time
 (Section 4.3), not a templating engine.
 
 The list is exhaustive. The graph is data: anyone wanting
@@ -2490,7 +2505,7 @@ The engine emits typed events during execution for UI, logging, and metrics inte
 - `LoopItemSelected(node, item, index, count, lap)` -- a loop node selected an open item and dispatched its body; `index` is the item's 1-based position among `count` items, `lap` how many times this item has been dispatched since it was selected
 - `LoopValidated(node, passed, validations)` -- a returned lap's full validation set ran in file order; `passed` is true only when every entry passed
 - `LoopEvaluated(node, verdict, notes)` -- the evaluator returned `done` or `not_done` after a passing lap or an arrival with no open item
-- `LoopCompleted(node, count)` -- the evaluator returned `done` and the loop routed to `on_done`
+- `LoopCompleted(node, count)` -- the evaluator returned `done` and the loop routed to `edges.exit`
 
 **Interview events (Section 3.1.1):**
 - `QuestionAsked(question)` -- an agent moved a new numbered question into its interview directory and is waiting; `question` is the path the caller opens and passes to `tractor answer`
@@ -2624,10 +2639,10 @@ adapters** injected through the `adapters` map: test doubles that record
 calls, return prepared objects and Errors, and let every claim below run
 deterministically without a provider. The two certifications compose: a
 real adapter passing 11.1 behind a backend passing this section is the
-release-ready `CodergenBackend`.
+release-ready `AgentBackend`.
 
 A `HarnessBackend` implementation is done when an executable suite proves,
-through the public `CodergenBackend` surface plus `bindings()` and the run
+through the public `AgentBackend` surface plus `bindings()` and the run
 directory:
 
 - [ ] **Harness selection.** The resolved provider/model selects the
@@ -2703,7 +2718,7 @@ Section 3.10 defines the behavior; these items test only the
 integration boundaries inspection of one component cannot prove.
 Backend-seam conformance for supervisors is covered by 11.2.
 
-- [ ] Every in-scope handler attempt -- including attempts inside parallel branch walks, and replayed ones -- appends exactly one digest; out-of-scope attempts append nothing; a flush rotation concurrent with appends loses no digest (Section 3.10)
+- [ ] Every in-scope handler attempt -- including attempts inside fan-out branch walks, and replayed ones -- appends exactly one digest; out-of-scope attempts append nothing; a flush rotation concurrent with appends loses no digest (Section 3.10)
 - [ ] Flush turns for one supervisor never overlap and start only at a patrol tick whose registry snapshot holds an in-scope entry; they rotate a non-empty inbox to correctly numbered permanent batches and carry the nudge (the snapshot's entries -- attempt on walk entries only, segment path where one exists -- plus batch path and tally when rotated), with the briefing prepended exactly once per session (Sections 3.10, 12.4)
 - [ ] Verdict conditional rules are engine-enforced; a walk-target `steer` delivers only to the active steerable execution's matching node and is rejected during a parallel top-level step; a supervisor-target `steer` lands as a `coaching` digest read at the target's next live patrol (Sections 3.9, 3.10)
 - [ ] Session open triggers the checkpoint re-save; on resume the patrol clock restarts with the walk and the first live patrol flushes the pre-crash backlog, reclaiming the session or resending the briefing; a scope never alive at a tick costs zero turns and zero sessions (Sections 3.10, 5.3)
@@ -2712,7 +2727,7 @@ Backend-seam conformance for supervisors is covered by 11.2.
 
 ## 12. Harness-Backed Backends
 
-The recommended `CodergenBackend` implementation wraps third-party
+The recommended `AgentBackend` implementation wraps third-party
 coding-agent harness software such as ChatGPT's codex app-server or
 Claude Code, and routes calls to the correct harness and session ID. A
 `HarnessAdapter` translates this section's vocabulary into one
@@ -2726,7 +2741,7 @@ their own backend instead (Section 1.4).
 ### 12.1 The Backend
 
 ```
-HarnessBackend (implements CodergenBackend):
+HarnessBackend (implements AgentBackend):
     adapters : Map<String, HarnessAdapter>  -- harness name -> adapter
     threads  : Map<String, ThreadBinding>   -- thread key -> binding;
                                             -- checkpointed (Section 5.3)
@@ -2795,7 +2810,7 @@ backend treats the binding as stale and opens a fresh session in the
 turn's workdir -- sessions never move between working directories,
 because the stale session's context describes a workspace state that
 no longer exists. The one legitimate producer of this case is a
-re-executed parallel node: fresh worktrees mean its branch nodes'
+re-executed fan-out node: fresh worktrees mean its branch nodes'
 default threads rebind fresh per fan-out. A thread *explicitly* shared
 across a branch boundary would silently lose intended continuity, so
 that shape is a lint ERROR (`thread_branch_boundary`, Section 7.2).
@@ -2919,7 +2934,7 @@ usage       { ... }                  -- OPTIONAL; provider-reported
 
 ### 12.4 Run Log
 
-Each backend turn (codergen and fan-in executions, supervisor flush
+Each backend turn (agent and fan-in executions, supervisor flush
 turns, Section 3.10, and loop infer-judge turns, Section 4.8) appends its
 events to a segment file, and the run
 maintains an index and a live pointer:
@@ -2967,9 +2982,9 @@ maintains an index and a live pointer:
 The engine allocates segments and appends the index; the backend writes
 each turn's events into its segment and swaps
 `current.jsonl`; adapters only emit events through `on_event`. Nodes that
-run no backend turn (tool nodes) produce no segment;
+run no backend turn (command nodes) produce no segment;
 `current.jsonl` continues to point at the most recently started segment,
-and `timeline.jsonl` (Section 10) narrates those steps. The parallel node
+and `timeline.jsonl` (Section 10) narrates those steps. The fan-out node
 itself owns no run-log file -- its `branches.json` (Section 4.6) carries
 each branch's segment paths for after-the-fact readers, while the index
 serves the live watcher. Engine lifecycle stays out of the run log -- the
@@ -3012,7 +3027,7 @@ Structural defects in the pipeline itself -- a dangling `start`
 target, unreachable nodes -- are validation diagnostics (Section 7),
 caught before execution; they are not runtime Errors.
 
-Harness adapters and Codergen backends classify operational failures as
+Harness adapters and agent backends classify operational failures as
 `retryable`, `terminal`, or `interrupted`. A harness-backed backend returns its
 adapter's categorized Error without converting it into an Outcome, and the
 handler passes it to the engine unchanged: retryable errors are retried within

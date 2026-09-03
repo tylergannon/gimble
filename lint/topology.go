@@ -62,10 +62,10 @@ func EnclosingLoops(g graph.Graph, nodeID string) []string {
 	return ordered
 }
 
-// ParallelForFanIn returns the sole converged parallel node that owns fanInID.
-func ParallelForFanIn(g graph.Graph, fanInID string) (*graph.ParallelNode, error) {
+// FanOutForFanIn returns the sole converged fan-out node that owns fanInID.
+func FanOutForFanIn(g graph.Graph, fanInID string) (*graph.FanOutNode, error) {
 	analysis := newAnalysis(g, options{})
-	var owner *graph.ParallelNode
+	var owner *graph.FanOutNode
 	count := 0
 	for _, block := range analysis.parallelBlocks() {
 		if block.converged && block.candidate == fanInID {
@@ -74,7 +74,7 @@ func ParallelForFanIn(g graph.Graph, fanInID string) (*graph.ParallelNode, error
 		}
 	}
 	if count != 1 {
-		return nil, fmt.Errorf("fan-in %q must have exactly one owning parallel node; found %d", fanInID, count)
+		return nil, fmt.Errorf("fan-in %q must have exactly one owning fan-out node; found %d", fanInID, count)
 	}
 	return owner, nil
 }

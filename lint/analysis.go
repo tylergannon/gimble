@@ -99,7 +99,7 @@ type branchAnalysis struct {
 }
 
 type parallelBlock struct {
-	node       *graph.ParallelNode
+	node       *graph.FanOutNode
 	branches   []branchAnalysis
 	candidate  string
 	unresolved bool
@@ -114,7 +114,7 @@ func (a *analysis) parallelBlocks() []*parallelBlock {
 	}
 	a.parallelReady = true
 	for _, node := range a.graph.Nodes {
-		parallel, ok := node.(*graph.ParallelNode)
+		parallel, ok := node.(*graph.FanOutNode)
 		if !ok {
 			continue
 		}
@@ -123,7 +123,7 @@ func (a *analysis) parallelBlocks() []*parallelBlock {
 	return a.parallels
 }
 
-func (a *analysis) analyzeParallel(node *graph.ParallelNode) *parallelBlock {
+func (a *analysis) analyzeParallel(node *graph.FanOutNode) *parallelBlock {
 	block := &parallelBlock{node: node, disjoint: true, union: map[string]struct{}{}}
 	for _, target := range node.BranchIDs() {
 		block.branches = append(block.branches, a.walkToFirstFanIn(target))
@@ -207,7 +207,7 @@ func (a *analysis) loopBlocks() []*loopBlock {
 
 func (a *analysis) loopBodyNodes(loop *graph.LoopNode) map[string]struct{} {
 	nodes := map[string]struct{}{}
-	stack := []string{loop.Body}
+	stack := []string{loop.Edges.Loop}
 	for len(stack) > 0 {
 		id := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
@@ -371,7 +371,7 @@ func (a *analysis) resolvedModel(fields *graph.LLMNodeFields) (provider, model s
 
 func llmFields(node graph.Node) (*graph.LLMNodeFields, bool) {
 	switch node := node.(type) {
-	case *graph.CodergenNode:
+	case *graph.AgentNode:
 		return &node.LLMNodeFields, true
 	case *graph.FanInNode:
 		return &node.LLMNodeFields, true

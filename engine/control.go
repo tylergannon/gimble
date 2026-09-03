@@ -154,7 +154,7 @@ func (r *Runner) serveControl(store *runStore, response http.ResponseWriter, req
 
 	r.activeMu.Lock()
 	defer r.activeMu.Unlock()
-	if r.active == nil || r.active.stageDir == "" || r.active.nodeType == "parallel" || r.config.Backend == nil {
+	if r.active == nil || r.active.stageDir == "" || r.active.nodeType == "fan_out" || r.config.Backend == nil {
 		response.WriteHeader(http.StatusConflict)
 		return
 	}

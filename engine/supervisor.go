@@ -502,7 +502,7 @@ func (r *Runner) deliverSupervisorSteer(store *runStore, origin, target, message
 	parts := []harness.ContentPart{{Type: harness.ContentPartText, Text: message}}
 	r.activeMu.Lock()
 	defer r.activeMu.Unlock()
-	if r.active == nil || r.active.nodeID != target || r.active.stageDir == "" || r.active.nodeType == "parallel" || r.config.Backend == nil {
+	if r.active == nil || r.active.nodeID != target || r.active.stageDir == "" || r.active.nodeType == "fan_out" || r.config.Backend == nil {
 		return false, nil
 	}
 	if r.config.Backend.Steer(parts) != harness.SteerAccepted {

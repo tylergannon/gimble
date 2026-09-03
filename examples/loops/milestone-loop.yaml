@@ -17,14 +17,14 @@ defaults:
 # sees the workspace as it is NOW each lap — no upfront plan to go stale.
 # Routing is carried by the edge conditions; the engine turns them into a
 # structured choice the agent answers. To adapt: change the goal and the
-# check's tool_command.
+# check's command.
 #
-# Plan-first variant: add a planner codergen before pick that writes the
+# Plan-first variant: add a planner agent before pick that writes the
 # ordered steps to plan.md, when you want to read the plan before the
 # tokens burn.
 nodes:
   - id: pick
-    type: codergen
+    type: agent
     max_visits: 8
     prompt: >
       $goal
@@ -38,18 +38,19 @@ nodes:
         condition: Every claim in the goal is demonstrable now.
 
   - id: implement
-    type: codergen
+    type: agent
     max_visits: 8
     prompt: Complete the step recorded in STEP.md.
     edges:
       - to: check
 
   - id: check
-    type: tool
+    type: command
     max_visits: 16
-    tool_command: |
+    command: |
       set -eu
       test "$(sh calc.sh add 2 3)" = 5
       test "$(sh calc.sh mul 2 3)" = 6
-    on_success: success
-    on_error: pick
+    edges:
+      success: success
+      error: pick

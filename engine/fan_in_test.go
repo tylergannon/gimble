@@ -36,7 +36,7 @@ func TestFanInHandlerLoadsEvidenceAndDelegatesExactTurn(t *testing.T) {
 	pipeline := fanInGraph(join)
 	offered := []graph.Edge{{To: "accept", Condition: "A candidate is ready"}, {To: "retry", Condition: "More work is needed"}}
 
-	outcome, runErr := NewFanInHandler(CodergenConfig{Backend: backend, DefaultModel: "system-model"}).Execute(
+	outcome, runErr := NewFanInHandler(AgentConfig{Backend: backend, DefaultModel: "system-model"}).Execute(
 		join, offered, ExecutionScope{Workdir: "/main", StageDir: stageDir, RunLog: filepath.Join(stageDir, "events.jsonl"), Goal: "release", Stop: NewStopSignal()}, pipeline,
 	)
 	if runErr != nil {
@@ -73,7 +73,7 @@ func TestFanInHandlerUsesDefaultPrompt(t *testing.T) {
 		Workdir: "/worktrees/a", StageDirs: []string{}, Segments: []string{},
 	}})
 	join := &graph.FanInNode{NodeBase: graph.NodeBase{ID: "join"}, LLMNodeFields: graph.LLMNodeFields{Prompt: optional("")}}
-	outcome, runErr := NewFanInHandler(CodergenConfig{DefaultModel: "gpt-5.3-codex"}).Execute(
+	outcome, runErr := NewFanInHandler(AgentConfig{DefaultModel: "gpt-5.3-codex"}).Execute(
 		join, []graph.Edge{{To: "accept"}}, ExecutionScope{Workdir: "/main", StageDir: stageDir, Stop: NewStopSignal()}, fanInGraph(join),
 	)
 	if runErr != nil {
@@ -103,7 +103,7 @@ func TestFanInHandlerRejectsMissingMalformedOrEmptyEvidenceBeforeBackend(t *test
 			stageDir := prepareFanInStageRaw(t, test.evidence)
 			backend := &captureBackend{outcome: harness.Outcome{Notes: "must not run"}}
 			join := &graph.FanInNode{NodeBase: graph.NodeBase{ID: "join"}}
-			_, runErr := NewFanInHandler(CodergenConfig{Backend: backend, DefaultModel: "gpt-5.3-codex"}).Execute(
+			_, runErr := NewFanInHandler(AgentConfig{Backend: backend, DefaultModel: "gpt-5.3-codex"}).Execute(
 				join, []graph.Edge{{To: "accept"}}, ExecutionScope{Workdir: "/main", StageDir: stageDir, RunLog: filepath.Join(stageDir, "events.jsonl"), Stop: NewStopSignal()}, fanInGraph(join),
 			)
 			if runErr == nil || runErr.Category != harness.ErrorTerminal || !strings.Contains(runErr.Message, test.want) {
@@ -126,7 +126,7 @@ func TestFanInHandlerRejectsEvidenceForUnknownBranch(t *testing.T) {
 	}})
 	join := &graph.FanInNode{NodeBase: graph.NodeBase{ID: "join"}}
 	backend := &captureBackend{}
-	_, runErr := NewFanInHandler(CodergenConfig{Backend: backend, DefaultModel: "gpt-5.3-codex"}).Execute(
+	_, runErr := NewFanInHandler(AgentConfig{Backend: backend, DefaultModel: "gpt-5.3-codex"}).Execute(
 		join, []graph.Edge{{To: "accept"}}, ExecutionScope{Workdir: "/main", StageDir: stageDir, RunLog: filepath.Join(stageDir, "events.jsonl"), Stop: NewStopSignal()}, fanInGraph(join),
 	)
 	if runErr == nil || !strings.Contains(runErr.Message, `unknown branch "stranger"`) || len(backend.turns) != 0 {
@@ -141,14 +141,14 @@ func TestFanInHandlerRejectsAmbiguousOwnerBeforeBackend(t *testing.T) {
 	}
 	join := &graph.FanInNode{NodeBase: graph.NodeBase{ID: "join"}}
 	pipeline := &graph.Graph{Nodes: []graph.Node{
-		&graph.ParallelNode{NodeBase: graph.NodeBase{ID: "first"}, Branches: graph.LegacyParallelBranches("left")},
-		&graph.ParallelNode{NodeBase: graph.NodeBase{ID: "second"}, Branches: graph.LegacyParallelBranches("right")},
+		&graph.FanOutNode{NodeBase: graph.NodeBase{ID: "first"}, Branches: graph.LegacyFanOutBranches("left")},
+		&graph.FanOutNode{NodeBase: graph.NodeBase{ID: "second"}, Branches: graph.LegacyFanOutBranches("right")},
 		customNode("left", "task", []graph.Edge{{To: "join"}}, 0),
 		customNode("right", "task", []graph.Edge{{To: "join"}}, 0),
 		join,
 	}}
 	backend := &captureBackend{}
-	_, runErr := NewFanInHandler(CodergenConfig{Backend: backend, DefaultModel: "gpt-5.3-codex"}).Execute(
+	_, runErr := NewFanInHandler(AgentConfig{Backend: backend, DefaultModel: "gpt-5.3-codex"}).Execute(
 		join, []graph.Edge{{To: "accept"}}, ExecutionScope{Workdir: "/main", StageDir: stageDir, RunLog: filepath.Join(stageDir, "events.jsonl"), Stop: NewStopSignal()}, pipeline,
 	)
 	if runErr == nil || !strings.Contains(runErr.Message, "found 2") || len(backend.turns) != 0 {
@@ -158,7 +158,7 @@ func TestFanInHandlerRejectsAmbiguousOwnerBeforeBackend(t *testing.T) {
 
 func fanInGraph(join *graph.FanInNode) *graph.Graph {
 	return &graph.Graph{Defaults: graph.Defaults{LLMModel: optional("gpt-5.2")}, Nodes: []graph.Node{
-		&graph.ParallelNode{NodeBase: graph.NodeBase{ID: "fanout"}, Branches: graph.LegacyParallelBranches("branch-a", "branch-b")},
+		&graph.FanOutNode{NodeBase: graph.NodeBase{ID: "fanout"}, Branches: graph.LegacyFanOutBranches("branch-a", "branch-b")},
 		customNode("branch-a", "task", []graph.Edge{{To: "join"}}, 0),
 		customNode("branch-b", "task", []graph.Edge{{To: "join"}}, 0),
 		join,

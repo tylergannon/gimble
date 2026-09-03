@@ -14,16 +14,16 @@ import (
 	"github.com/tylergannon/tractor/harness"
 )
 
-func TestCodergenHandlerBuildsExactTurnSchemaAndArtifacts(t *testing.T) {
+func TestAgentHandlerBuildsExactTurnSchemaAndArtifacts(t *testing.T) {
 	stageDir := t.TempDir()
 	backend := &captureBackend{outcome: harness.Outcome{Next: "review", Notes: "approved\nwith details"}}
-	handler := NewCodergenHandler(CodergenConfig{
+	handler := NewAgentHandler(AgentConfig{
 		Backend:                backend,
 		DefaultModel:           "system-model",
 		DefaultProvider:        "system-provider",
 		DefaultReasoningEffort: "low",
 	})
-	node := &graph.CodergenNode{
+	node := &graph.AgentNode{
 		NodeBase: graph.NodeBase{ID: "plan", Label: optional("Plan")},
 		LLMNodeFields: graph.LLMNodeFields{
 			Prompt:          optional("Do $goal, then $goal"),
@@ -46,8 +46,8 @@ func TestCodergenHandlerBuildsExactTurnSchemaAndArtifacts(t *testing.T) {
 		},
 		Nodes: []graph.Node{
 			node,
-			&graph.CodergenNode{NodeBase: graph.NodeBase{ID: "implement", Label: optional("Implement")}},
-			&graph.CodergenNode{NodeBase: graph.NodeBase{ID: "review", Label: optional("Review")}},
+			&graph.AgentNode{NodeBase: graph.NodeBase{ID: "implement", Label: optional("Implement")}},
+			&graph.AgentNode{NodeBase: graph.NodeBase{ID: "review", Label: optional("Review")}},
 		},
 	}
 	offered := []graph.Edge{
@@ -69,7 +69,7 @@ func TestCodergenHandlerBuildsExactTurnSchemaAndArtifacts(t *testing.T) {
 		t.Fatalf("outcome = %#v", outcome)
 	}
 	wantSchema := `{"type":"object","properties":{"next":{"type":"string","enum":["implement","review"],"description":"Choose the next stage. Needs work: implement; Looks good: review"},"notes":{"type":"string","description":"Your account of this stage."}},"required":["next","notes"],"additionalProperties":false}`
-	wantTurn := harness.CodergenTurn{
+	wantTurn := harness.AgentTurn{
 		NodeID:          "plan",
 		Parts:           []harness.ContentPart{{Type: harness.ContentPartText, Text: "Do ship it, then ship it"}},
 		OutputSchema:    json.RawMessage(wantSchema),
@@ -82,19 +82,19 @@ func TestCodergenHandlerBuildsExactTurnSchemaAndArtifacts(t *testing.T) {
 		RunLog:          filepath.Join(stageDir, "events.jsonl"),
 		Timeout:         3 * time.Second,
 	}
-	if !reflect.DeepEqual(backend.turns, []harness.CodergenTurn{wantTurn}) {
+	if !reflect.DeepEqual(backend.turns, []harness.AgentTurn{wantTurn}) {
 		t.Fatalf("turn = %#v\nwant %#v", backend.turns, wantTurn)
 	}
 	assertTextFile(t, filepath.Join(stageDir, "prompt.md"), "Do ship it, then ship it")
 	assertTextFile(t, filepath.Join(stageDir, "response.md"), "---\nnext: review\n---\napproved\nwith details")
 }
 
-func TestCodergenHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.T) {
+func TestAgentHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.T) {
 	tests := []struct {
 		name          string
 		nodeFields    graph.LLMNodeFields
 		defaults      graph.Defaults
-		config        CodergenConfig
+		config        AgentConfig
 		wantModel     string
 		wantProvider  string
 		wantReasoning string
@@ -114,7 +114,7 @@ func TestCodergenHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.
 				ReasoningEffort: optional("medium"), Fidelity: optional("none"),
 				Timeout: optional(graph.Duration("8s")),
 			},
-			config:        CodergenConfig{DefaultModel: "system-model", DefaultProvider: "system-provider", DefaultReasoningEffort: "high"},
+			config:        AgentConfig{DefaultModel: "system-model", DefaultProvider: "system-provider", DefaultReasoningEffort: "high"},
 			wantModel:     "gpt-5.3-codex",
 			wantProvider:  "openai",
 			wantReasoning: "low",
@@ -130,7 +130,7 @@ func TestCodergenHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.
 				ReasoningEffort: optional("medium"), Fidelity: optional("compacted"),
 				Timeout: optional(graph.Duration("7s")),
 			},
-			config:        CodergenConfig{DefaultModel: "system-model", DefaultProvider: "system-provider", DefaultReasoningEffort: "high"},
+			config:        AgentConfig{DefaultModel: "system-model", DefaultProvider: "system-provider", DefaultReasoningEffort: "high"},
 			wantModel:     "file-model",
 			wantProvider:  "file-provider",
 			wantReasoning: "medium",
@@ -140,7 +140,7 @@ func TestCodergenHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.
 		},
 		{
 			name:          "system defaults",
-			config:        CodergenConfig{DefaultModel: "system-model", DefaultProvider: "system-provider", DefaultReasoningEffort: "medium"},
+			config:        AgentConfig{DefaultModel: "system-model", DefaultProvider: "system-provider", DefaultReasoningEffort: "medium"},
 			wantModel:     "system-model",
 			wantProvider:  "system-provider",
 			wantReasoning: "medium",
@@ -149,7 +149,7 @@ func TestCodergenHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.
 		},
 		{
 			name:          "system model auto-detects provider",
-			config:        CodergenConfig{DefaultModel: "claude-sonnet-4-5"},
+			config:        AgentConfig{DefaultModel: "claude-sonnet-4-5"},
 			wantModel:     "claude-sonnet-4-5",
 			wantProvider:  "anthropic",
 			wantReasoning: "high",
@@ -158,7 +158,7 @@ func TestCodergenHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.
 		},
 		{
 			name:          "unversioned Fable resolves to 5.1",
-			config:        CodergenConfig{DefaultModel: "fable"},
+			config:        AgentConfig{DefaultModel: "fable"},
 			wantModel:     "claude-fable-5-1",
 			wantProvider:  "anthropic",
 			wantReasoning: "high",
@@ -168,7 +168,7 @@ func TestCodergenHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.
 		{
 			name:          "none fidelity has no thread key",
 			nodeFields:    graph.LLMNodeFields{Fidelity: optional("none"), ThreadID: optional("ignored")},
-			config:        CodergenConfig{DefaultModel: "gemini-2.5-pro"},
+			config:        AgentConfig{DefaultModel: "gemini-2.5-pro"},
 			wantModel:     "gemini-2.5-pro",
 			wantProvider:  "gemini",
 			wantReasoning: "high",
@@ -180,10 +180,10 @@ func TestCodergenHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.
 		t.Run(test.name, func(t *testing.T) {
 			backend := &captureBackend{outcome: harness.Outcome{Notes: "ok"}}
 			test.config.Backend = backend
-			node := &graph.CodergenNode{NodeBase: graph.NodeBase{ID: "work", Label: optional("Work")}, LLMNodeFields: test.nodeFields}
+			node := &graph.AgentNode{NodeBase: graph.NodeBase{ID: "work", Label: optional("Work")}, LLMNodeFields: test.nodeFields}
 			pipeline := &graph.Graph{Defaults: test.defaults, Nodes: []graph.Node{node, exitNode("done")}}
 			stageDir := t.TempDir()
-			_, runErr := NewCodergenHandler(test.config).Execute(node, []graph.Edge{{To: "done"}}, ExecutionScope{
+			_, runErr := NewAgentHandler(test.config).Execute(node, []graph.Edge{{To: "done"}}, ExecutionScope{
 				Workdir: "/workspace", StageDir: stageDir, RunLog: filepath.Join(stageDir, "events.jsonl"), Stop: NewStopSignal(),
 			}, pipeline)
 			if runErr != nil {
@@ -198,8 +198,8 @@ func TestCodergenHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.
 	}
 }
 
-func TestCodergenHandlerRejectsProviderConflictWithModelAlias(t *testing.T) {
-	node := &graph.CodergenNode{
+func TestAgentHandlerRejectsProviderConflictWithModelAlias(t *testing.T) {
+	node := &graph.AgentNode{
 		NodeBase: graph.NodeBase{ID: "work"},
 		LLMNodeFields: graph.LLMNodeFields{
 			LLMProvider: optional("openai"),
@@ -208,7 +208,7 @@ func TestCodergenHandlerRejectsProviderConflictWithModelAlias(t *testing.T) {
 	}
 	pipeline := &graph.Graph{Nodes: []graph.Node{node, exitNode("done")}}
 	stageDir := t.TempDir()
-	_, runErr := NewCodergenHandler(CodergenConfig{}).Execute(node, []graph.Edge{{To: "done"}}, ExecutionScope{
+	_, runErr := NewAgentHandler(AgentConfig{}).Execute(node, []graph.Edge{{To: "done"}}, ExecutionScope{
 		Workdir: "/workspace", StageDir: stageDir, RunLog: filepath.Join(stageDir, "events.jsonl"), Stop: NewStopSignal(),
 	}, pipeline)
 	if runErr == nil || !strings.Contains(runErr.Message, `provider "openai" conflicts with model alias "fable"`) {
@@ -244,7 +244,7 @@ func TestChoiceSchemaRouteDescriptionFallsBackToLabelThenID(t *testing.T) {
 	}
 }
 
-func TestCodergenHandlerSimulationRoutingAndPromptFallback(t *testing.T) {
+func TestAgentHandlerSimulationRoutingAndPromptFallback(t *testing.T) {
 	tests := []struct {
 		name     string
 		offered  []graph.Edge
@@ -256,12 +256,12 @@ func TestCodergenHandlerSimulationRoutingAndPromptFallback(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			stageDir := t.TempDir()
-			node := &graph.CodergenNode{
+			node := &graph.AgentNode{
 				NodeBase:      graph.NodeBase{ID: "plan", Label: optional("Plan $goal")},
 				LLMNodeFields: graph.LLMNodeFields{Prompt: optional("")},
 			}
 			pipeline := &graph.Graph{Nodes: []graph.Node{node, exitNode("left"), exitNode("right")}}
-			outcome, runErr := NewCodergenHandler(CodergenConfig{DefaultModel: "gpt-5.3-codex"}).Execute(
+			outcome, runErr := NewAgentHandler(AgentConfig{DefaultModel: "gpt-5.3-codex"}).Execute(
 				node, test.offered, ExecutionScope{Workdir: "/workspace", StageDir: stageDir, Goal: "release", Stop: NewStopSignal()}, pipeline,
 			)
 			if runErr != nil {
@@ -282,12 +282,12 @@ func TestCodergenHandlerSimulationRoutingAndPromptFallback(t *testing.T) {
 	}
 }
 
-func TestCodergenHandlerPassesBackendErrorUnchanged(t *testing.T) {
+func TestAgentHandlerPassesBackendErrorUnchanged(t *testing.T) {
 	stageDir := t.TempDir()
 	wantError := &harness.Error{Category: harness.ErrorRetryable, Message: "try later"}
 	backend := &captureBackend{runErr: wantError}
-	node := &graph.CodergenNode{NodeBase: graph.NodeBase{ID: "work", Label: optional("Work")}}
-	_, runErr := NewCodergenHandler(CodergenConfig{Backend: backend, DefaultModel: "gpt-5.3-codex"}).Execute(
+	node := &graph.AgentNode{NodeBase: graph.NodeBase{ID: "work", Label: optional("Work")}}
+	_, runErr := NewAgentHandler(AgentConfig{Backend: backend, DefaultModel: "gpt-5.3-codex"}).Execute(
 		node, []graph.Edge{{To: "done"}}, ExecutionScope{Workdir: "/workspace", StageDir: stageDir, RunLog: filepath.Join(stageDir, "events.jsonl"), Stop: NewStopSignal()},
 		&graph.Graph{Nodes: []graph.Node{node, exitNode("done")}},
 	)
@@ -300,22 +300,22 @@ func TestCodergenHandlerPassesBackendErrorUnchanged(t *testing.T) {
 	}
 }
 
-func TestCodergenHandlerRejectsInvalidResolvedTurnInSimulation(t *testing.T) {
+func TestAgentHandlerRejectsInvalidResolvedTurnInSimulation(t *testing.T) {
 	tests := []struct {
 		name       string
-		config     CodergenConfig
+		config     AgentConfig
 		fields     graph.LLMNodeFields
 		wantReason string
 	}{
 		{name: "missing provider", wantReason: "provider must not be empty"},
-		{name: "missing model", config: CodergenConfig{DefaultProvider: "openai"}, wantReason: "model must not be empty"},
-		{name: "unsupported fidelity", config: CodergenConfig{DefaultModel: "gpt-5.3-codex"}, fields: graph.LLMNodeFields{Fidelity: optional("unknown")}, wantReason: `unsupported fidelity "unknown"`},
+		{name: "missing model", config: AgentConfig{DefaultProvider: "openai"}, wantReason: "model must not be empty"},
+		{name: "unsupported fidelity", config: AgentConfig{DefaultModel: "gpt-5.3-codex"}, fields: graph.LLMNodeFields{Fidelity: optional("unknown")}, wantReason: `unsupported fidelity "unknown"`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			stageDir := t.TempDir()
-			node := &graph.CodergenNode{NodeBase: graph.NodeBase{ID: "work", Label: optional("Work")}, LLMNodeFields: test.fields}
-			_, runErr := NewCodergenHandler(test.config).Execute(
+			node := &graph.AgentNode{NodeBase: graph.NodeBase{ID: "work", Label: optional("Work")}, LLMNodeFields: test.fields}
+			_, runErr := NewAgentHandler(test.config).Execute(
 				node, []graph.Edge{{To: "done"}}, ExecutionScope{Workdir: "/workspace", StageDir: stageDir, Stop: NewStopSignal()},
 				&graph.Graph{Nodes: []graph.Node{node, exitNode("done")}},
 			)
@@ -361,12 +361,12 @@ func assertTextFile(t *testing.T, path, want string) {
 }
 
 type captureBackend struct {
-	turns   []harness.CodergenTurn
+	turns   []harness.AgentTurn
 	outcome harness.Outcome
 	runErr  *harness.Error
 }
 
-func (b *captureBackend) Run(turn harness.CodergenTurn) (harness.Outcome, *harness.Error) {
+func (b *captureBackend) Run(turn harness.AgentTurn) (harness.Outcome, *harness.Error) {
 	b.turns = append(b.turns, turn)
 	return b.outcome, b.runErr
 }

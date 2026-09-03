@@ -25,7 +25,7 @@ import (
 	"github.com/tylergannon/tractor/harness"
 )
 
-const slowPipeline = `{"name":"slow","start":"wait","nodes":[{"id":"wait","type":"tool","tool_command":"sleep 30","on_success":"success"}]}`
+const slowPipeline = `{"name":"slow","start":"wait","nodes":[{"id":"wait","type":"command","command":"sleep 30","edges":{"success":"success"}}]}`
 
 func TestMCPStdioListsCompactToolsAndServesCurrentGraphSchema(t *testing.T) {
 	session, ctx := connectToTractorMCP(t)
@@ -66,7 +66,7 @@ func TestMCPStdioListsCompactToolsAndServesCurrentGraphSchema(t *testing.T) {
 		if len(raw) > 2_000 {
 			t.Fatalf("start_run input schema is unexpectedly large: %d bytes", len(raw))
 		}
-		if bytes.Contains(raw, []byte("parallel.fan_in")) {
+		if bytes.Contains(raw, []byte("fan_in")) {
 			t.Fatal("start_run input schema embeds the graph language")
 		}
 	}

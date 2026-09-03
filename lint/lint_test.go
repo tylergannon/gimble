@@ -40,19 +40,19 @@ func TestEveryBuiltInRule(t *testing.T) {
 			return g
 		}, lint.Options{}},
 		{"dead_end", lint.SeverityError, func() graph.Graph { g := validLinear(); coder(g, "work").Edges = nil; return g }, lint.Options{}},
-		{"parallel_fan_in", lint.SeverityError, func() graph.Graph {
+		{"fan_out_fan_in", lint.SeverityError, func() graph.Graph {
 			g := validParallel()
 			coder(g, "left").Edges = []graph.Edge{edge(graph.Success)}
 			return g
 		}, lint.Options{}},
 		{"branch_disjoint", lint.SeverityError, overlappingParallel, lint.Options{}},
-		{"no_nested_parallel", lint.SeverityError, nestedParallel, lint.Options{}},
-		{"fan_in_single_parallel", lint.SeverityError, func() graph.Graph {
+		{"no_nested_fan_out", lint.SeverityError, nestedParallel, lint.Options{}},
+		{"fan_in_single_fan_out", lint.SeverityError, func() graph.Graph {
 			g := validLinear()
 			g.Nodes = append(g.Nodes, fanIn("unowned", edge(graph.Success)))
 			return g
 		}, lint.Options{}},
-		{"parallel_thread_disjoint", lint.SeverityError, func() graph.Graph {
+		{"fan_out_thread_disjoint", lint.SeverityError, func() graph.Graph {
 			g := validParallel()
 			llm(g, "left").ThreadID = set("shared")
 			llm(g, "right").ThreadID = set("shared")
@@ -78,7 +78,7 @@ func TestEveryBuiltInRule(t *testing.T) {
 			loopNode(g, "items").Checklist = jsonschema.Optional[string]{}
 			return g
 		}, lint.Options{}},
-		{"loop_in_parallel", lint.SeverityError, loopInsideParallel, lint.Options{}},
+		{"loop_in_fan_out", lint.SeverityError, loopInsideParallel, lint.Options{}},
 		{"max_visits_positive", lint.SeverityError, func() graph.Graph { g := validLinear(); coder(g, "work").MaxVisits = set(0); return g }, lint.Options{}},
 		{"max_parallel_positive", lint.SeverityError, func() graph.Graph { g := validParallel(); parallel(g).MaxParallel = set(0); return g }, lint.Options{}},
 		{"max_retries_nonnegative", lint.SeverityError, func() graph.Graph { g := validLinear(); coder(g, "work").MaxRetries = set(-1); return g }, lint.Options{}},
@@ -145,7 +145,7 @@ func TestValidGraphsAndSupervisorExemption(t *testing.T) {
 }
 
 func TestLoopRulesAreSilentOnValidLoops(t *testing.T) {
-	loopRules := []string{"loop_body_entry", "loop_body_returns", "loop_body_exit", "loop_checklist_required", "loop_in_parallel"}
+	loopRules := []string{"loop_body_entry", "loop_body_returns", "loop_body_exit", "loop_checklist_required", "loop_in_fan_out"}
 	for name, g := range map[string]graph.Graph{"loop": validLoop(), "nested": validNestedLoop()} {
 		t.Run(name, func(t *testing.T) {
 			diagnostics := lint.Validate(g)
@@ -161,10 +161,10 @@ func TestLoopRulesAreSilentOnValidLoops(t *testing.T) {
 
 func TestLoopRuleDetails(t *testing.T) {
 	g := validLoop()
-	loopNode(g, "items").OnDone = "lap"
+	loopNode(g, "items").Edges.Exit = "lap"
 	finding, ok := findDiagnostic(lint.Validate(g), "loop_body_entry")
 	if !ok || finding.Edge == nil || *finding.Edge != (lint.EdgeRef{"items", "lap"}) {
-		t.Fatalf("on_done into body = %#v", finding)
+		t.Fatalf("edges.exit into body = %#v", finding)
 	}
 
 	g = externalLoopBodyEntry()
@@ -174,7 +174,7 @@ func TestLoopRuleDetails(t *testing.T) {
 	}
 
 	g = validLoop()
-	loopNode(g, "items").Body = "missing"
+	loopNode(g, "items").Edges.Loop = "missing"
 	diagnostics := lint.Validate(g)
 	if _, ok := findDiagnostic(diagnostics, "edge_target_exists"); !ok {
 		t.Fatal("missing edge_target_exists")
@@ -192,9 +192,9 @@ func TestLoopRuleDetails(t *testing.T) {
 func TestLoopBodyMustNameANode(t *testing.T) {
 	for _, target := range []string{graph.Success, graph.Failure} {
 		g := validLoop()
-		loopNode(g, "items").Body = target
+		loopNode(g, "items").Edges.Loop = target
 		finding, ok := findDiagnostic(lint.Validate(g), "loop_body_returns")
-		if !ok || finding.NodeID != "items" || finding.Message != `loop body must name a node, not "`+target+`"` {
+		if !ok || finding.NodeID != "items" || finding.Message != `edges.loop must name a node, not "`+target+`"` {
 			t.Fatalf("body %s = %#v", target, finding)
 		}
 	}
@@ -206,17 +206,17 @@ func TestLoopBodyExit(t *testing.T) {
 	if !ok || finding.Edge == nil || *finding.Edge != (lint.EdgeRef{"lap", graph.Success}) {
 		t.Fatalf("body exit = %#v", finding)
 	}
-	if want := `loop body node "lap" may not route to success; route back to loop "items" and let on_done end the run`; finding.Message != want {
+	if want := `loop body node "lap" may not route to success; route back to loop "items" and let edges.exit end the run`; finding.Message != want {
 		t.Fatalf("message = %q, want %q", finding.Message, want)
 	}
 
-	// A nested loop whose on_done is success would end the run with outer
+	// A nested loop whose edges.exit is success would end the run with outer
 	// items open: it is a body node of the outer loop.
 	g = validNestedLoop()
-	loopNode(g, "inner").OnDone = graph.Success
+	loopNode(g, "inner").Edges.Exit = graph.Success
 	finding, ok = findDiagnostic(lint.Validate(g), "loop_body_exit")
 	if !ok || finding.Edge == nil || *finding.Edge != (lint.EdgeRef{"inner", graph.Success}) {
-		t.Fatalf("nested on_done exit = %#v", finding)
+		t.Fatalf("nested edges.exit = %#v", finding)
 	}
 
 	// failure stays an escape hatch.
@@ -322,7 +322,7 @@ func TestSupervisorValidationDetails(t *testing.T) {
 
 func TestPseudoTargetsAndMechanicalToolRoutes(t *testing.T) {
 	g := graph.Graph{Start: "check", Nodes: []graph.Node{
-		&graph.ToolNode{NodeBase: graph.NodeBase{ID: "check"}, ToolCommand: "true", OnSuccess: graph.Success, OnError: set(graph.Success)},
+		&graph.CommandNode{NodeBase: graph.NodeBase{ID: "check"}, Command: "true", Edges: graph.CommandEdges{Success: graph.Success, Error: set(graph.Success)}},
 	}}
 	diagnostics := lint.Validate(g)
 	assertNoRule(t, diagnostics, "edge_target_exists")
@@ -345,12 +345,12 @@ func TestParallelConvergenceAllowsCycleWithRouteToFanIn(t *testing.T) {
 
 func TestMissingBranchTargetDoesNotCascade(t *testing.T) {
 	g := validParallel()
-	parallel(g).Branches[0] = graph.LegacyParallelBranch("missing")
+	parallel(g).Branches[0] = graph.LegacyFanOutBranch("missing")
 	diagnostics := lint.Validate(g)
 	if _, ok := findDiagnostic(diagnostics, "edge_target_exists"); !ok {
 		t.Fatal("missing edge_target_exists")
 	}
-	for _, rule := range []string{"parallel_fan_in", "branch_disjoint", "no_nested_parallel", "parallel_thread_disjoint", "thread_branch_boundary", "fan_in_entry", "branch_entry"} {
+	for _, rule := range []string{"fan_out_fan_in", "branch_disjoint", "no_nested_fan_out", "fan_out_thread_disjoint", "thread_branch_boundary", "fan_in_entry", "branch_entry"} {
 		assertNoRule(t, diagnostics, rule)
 	}
 }
@@ -362,7 +362,7 @@ func TestThreadRulesUseResolvedReusableSessions(t *testing.T) {
 		fields.ThreadID = set("shared")
 		fields.Fidelity = set("none")
 	}
-	assertNoRule(t, lint.Validate(g), "parallel_thread_disjoint")
+	assertNoRule(t, lint.Validate(g), "fan_out_thread_disjoint")
 
 	g = sharedThreadLinear()
 	validator := lint.New(lint.Options{ResolveHarness: func(_, _ string) (string, error) { return "shared", nil }})
@@ -419,7 +419,7 @@ func validLinear() graph.Graph {
 
 func validParallel() graph.Graph {
 	return graph.Graph{Start: "parallel", Nodes: []graph.Node{
-		&graph.ParallelNode{NodeBase: graph.NodeBase{ID: "parallel"}, Branches: graph.LegacyParallelBranches("left", "right")},
+		&graph.FanOutNode{NodeBase: graph.NodeBase{ID: "parallel"}, Branches: graph.LegacyFanOutBranches("left", "right")},
 		codergen("left", edge("join")),
 		codergen("right", edge("join")),
 		fanIn("join", edge(graph.Success)),
@@ -436,7 +436,7 @@ func overlappingParallel() graph.Graph {
 
 func nestedParallel() graph.Graph {
 	g := validParallel()
-	g.Nodes = append(g.Nodes, &graph.ParallelNode{NodeBase: graph.NodeBase{ID: "nested"}, Branches: graph.LegacyParallelBranches("join")})
+	g.Nodes = append(g.Nodes, &graph.FanOutNode{NodeBase: graph.NodeBase{ID: "nested"}, Branches: graph.LegacyFanOutBranches("join")})
 	coder(g, "left").Edges = []graph.Edge{edge("nested")}
 	return g
 }
@@ -513,8 +513,8 @@ func sharedThreadLinear() graph.Graph {
 	return g
 }
 
-func codergen(id string, edges ...graph.Edge) *graph.CodergenNode {
-	return &graph.CodergenNode{NodeBase: graph.NodeBase{ID: id}, Edges: edges, LLMNodeFields: graph.LLMNodeFields{Prompt: set("work")}}
+func codergen(id string, edges ...graph.Edge) *graph.AgentNode {
+	return &graph.AgentNode{NodeBase: graph.NodeBase{ID: id}, Edges: edges, LLMNodeFields: graph.LLMNodeFields{Prompt: set("work")}}
 }
 
 func fanIn(id string, edges ...graph.Edge) *graph.FanInNode {
@@ -522,7 +522,7 @@ func fanIn(id string, edges ...graph.Edge) *graph.FanInNode {
 }
 
 func loop(id, checklist, body, onDone string) *graph.LoopNode {
-	node := &graph.LoopNode{NodeBase: graph.NodeBase{ID: id}, Body: body, OnDone: onDone}
+	node := &graph.LoopNode{NodeBase: graph.NodeBase{ID: id}, Edges: graph.LoopEdges{Loop: body, Exit: onDone}}
 	if checklist != "" {
 		node.Checklist = set(checklist)
 	}
@@ -542,10 +542,10 @@ func supervisor(id string, supervises ...string) *graph.SupervisorNode {
 	return &graph.SupervisorNode{NodeBase: graph.NodeBase{ID: id}, Prompt: "watch", Supervises: supervises}
 }
 
-func coder(g graph.Graph, id string) *graph.CodergenNode {
+func coder(g graph.Graph, id string) *graph.AgentNode {
 	for _, node := range g.Nodes {
 		if node.Base().ID == id {
-			return node.(*graph.CodergenNode)
+			return node.(*graph.AgentNode)
 		}
 	}
 	panic("missing codergen " + id)
@@ -560,7 +560,7 @@ func fan(g graph.Graph, id string) *graph.FanInNode {
 	panic("missing fan-in " + id)
 }
 
-func parallel(g graph.Graph) *graph.ParallelNode { return g.Nodes[0].(*graph.ParallelNode) }
+func parallel(g graph.Graph) *graph.FanOutNode { return g.Nodes[0].(*graph.FanOutNode) }
 
 func llm(g graph.Graph, id string) *graph.LLMNodeFields {
 	for _, node := range g.Nodes {
@@ -568,7 +568,7 @@ func llm(g graph.Graph, id string) *graph.LLMNodeFields {
 			continue
 		}
 		switch node := node.(type) {
-		case *graph.CodergenNode:
+		case *graph.AgentNode:
 			return &node.LLMNodeFields
 		case *graph.FanInNode:
 			return &node.LLMNodeFields

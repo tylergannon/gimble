@@ -74,7 +74,7 @@ you.
 | Symptom | Fix |
 |---|---|
 | Runs forever | `max_visits` on the looping node. That's the budget; there is no other ceremony. |
-| Says it's done when it isn't | Make "done" a command (`tool` node). If the tests pass but the feature doesn't work, the command is checking the wrong thing — check the behavior you actually want. |
+| Says it's done when it isn't | Make "done" a `command` node. If the tests pass but the feature doesn't work, the command is checking the wrong thing — check the behavior you actually want. |
 | Re-derives the same dead end every lap | Tell the prompt to keep a short notes file: "append what the next attempt should do differently; read it first." |
 | Reviewer rubber-stamps | Don't tell it what to find or ask it to confirm your fix. Fresh session (`fidelity: none`), whole target, every round. A different provider makes the independence real. |
 | Fan-in averages instead of deciding | Tell it to inspect the work itself and adjudicate each finding with evidence — never count votes or concatenate reports. |

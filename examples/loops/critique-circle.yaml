@@ -14,18 +14,19 @@ defaults:
 # write_topic puts in TOPIC.md.
 nodes:
   - id: write_topic
-    type: tool
-    tool_command: |
+    type: command
+    command: |
       printf '%s\n' 'Propose a three-sentence README tagline for a tool that runs multi-model agent pipelines. State your reasoning in one short paragraph.' > TOPIC.md
-    on_success: propose
+    edges:
+      success: propose
 
   - id: propose
-    type: parallel
+    type: fan_out
     max_parallel: 3
     branches:
       - id: claude_proposal
         artifacts: [claude_proposal.md]
-        codergen:
+        agent:
           llm_provider: anthropic
           llm_model: claude-sonnet-5
           reasoning_effort: low
@@ -35,7 +36,7 @@ nodes:
             Write your own proposal to claude_proposal.md.
       - id: codex_proposal
         artifacts: [codex_proposal.md]
-        codergen:
+        agent:
           llm_provider: openai
           llm_model: gpt-5.6-sol
           reasoning_effort: low
@@ -45,7 +46,7 @@ nodes:
             Write your own proposal to codex_proposal.md.
       - id: gemini_proposal
         artifacts: [gemini_proposal.md]
-        codergen:
+        agent:
           llm_provider: gemini
           llm_model: gemini-3.1-pro-low
           reasoning_effort: low
@@ -53,11 +54,11 @@ nodes:
             $goal
 
             Write your own proposal to gemini_proposal.md.
-    edges:
+    branch_edges:
       - to: collect_proposals
 
   - id: collect_proposals
-    type: parallel.fan_in
+    type: fan_in
     llm_provider: anthropic
     llm_model: claude-sonnet-5
     reasoning_effort: low
@@ -69,12 +70,12 @@ nodes:
       - to: critique
 
   - id: critique
-    type: parallel
+    type: fan_out
     max_parallel: 3
     branches:
       - id: claude_critique
         artifacts: [claude_critique.md]
-        codergen:
+        agent:
           llm_provider: anthropic
           llm_model: claude-sonnet-5
           reasoning_effort: low
@@ -85,7 +86,7 @@ nodes:
             agree on.
       - id: codex_critique
         artifacts: [codex_critique.md]
-        codergen:
+        agent:
           llm_provider: openai
           llm_model: gpt-5.6-sol
           reasoning_effort: low
@@ -96,7 +97,7 @@ nodes:
             agree on.
       - id: gemini_critique
         artifacts: [gemini_critique.md]
-        codergen:
+        agent:
           llm_provider: gemini
           llm_model: gemini-3.1-pro-low
           reasoning_effort: low
@@ -105,11 +106,11 @@ nodes:
             proposals/gemini.md — in gemini_critique.md: where each is
             strong, where it is weak or wrong, and what all three of you
             agree on.
-    edges:
+    branch_edges:
       - to: collect_critiques
 
   - id: collect_critiques
-    type: parallel.fan_in
+    type: fan_in
     llm_provider: anthropic
     llm_model: claude-sonnet-5
     reasoning_effort: low

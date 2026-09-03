@@ -168,26 +168,26 @@ func __jsonUnmarshal__graph__Node__Graph__Nodes(data []byte) (Node, error) {
 		return nil, __jsonschema__unmarshalDiscriminatorError(_tempDiscriminator, err)
 	}
 	switch discriminator {
-	case "codergen":
-		var obj CodergenNode
+	case "agent":
+		var obj AgentNode
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return &obj, nil
-	case "parallel":
-		var obj ParallelNode
+	case "fan_out":
+		var obj FanOutNode
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return &obj, nil
-	case "parallel.fan_in":
+	case "fan_in":
 		var obj FanInNode
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return &obj, nil
-	case "tool":
-		var obj ToolNode
+	case "command":
+		var obj CommandNode
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}

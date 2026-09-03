@@ -20,20 +20,21 @@ goal: Implement the TODO in cmd/server/routes.go and make the tests pass
 start: implement
 nodes:
   - id: implement
-    type: codergen # an agent turn
+    type: agent # an agent turn
     max_visits: 5 # the budget; nothing else stops a loop
     prompt: $goal # the goal is the whole prompt
     edges:
       - to: check
   - id: check
-    type: tool # a command decides what "done" means
-    tool_command: go test ./...
-    on_success: success
-    on_error: implement # failure routes back — that's the loop
+    type: command # a command decides what "done" means
+    command: go test ./...
+    edges:
+      success: success
+      error: implement # failure routes back — that's the loop
 ```
 
 An agent works, a command decides, failure routes back. Fan-out shapes add
-`parallel` branches (one per provider) and a `parallel.fan_in` node to judge.
+`fan_out` branches (one per provider) and a `fan_in` node to judge.
 
 ## Writing node prompts
 
@@ -60,7 +61,7 @@ if neither is at hand, the pipeline above is a complete start.
 
 1. Copy the chosen example into the target project (a git repo).
 2. Replace its placeholders with the user's goal; command-gated loops also
-   need the check node's `tool_command`. Read the file — examples differ.
+   need the check node's `command`. Read the file — examples differ.
 3. `start_run` with the copied file as `pipeline_path` and the repo as
    `workdir` — it lints the graph first and refuses to launch a broken one,
    so fix what it rejects and call it again. A fresh run needs an empty or
@@ -71,7 +72,7 @@ if neither is at hand, the pipeline above is a complete start.
 
 ## Make "done" honest
 
-The tool node is the only thing that decides. Point it at the closest
+The command node is the only thing that decides. Point it at the closest
 observable proof of the user's claim — run the app, curl the endpoint, assert
 on the artifact. Tests and linters are worth requiring, but prove the claim
 only when they exercise that behavior.

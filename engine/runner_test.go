@@ -23,7 +23,7 @@ func TestRunnerCompletesLinearGraphAndWritesFinalCheckpoint(t *testing.T) {
 		exitNode("done"),
 	)
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(node graph.Node, offered []graph.Edge, scope ExecutionScope, got *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(node graph.Node, offered []graph.Edge, scope ExecutionScope, got *graph.Graph) (harness.Outcome, *harness.Error) {
 		if node.Base().ID != "work" || !reflect.DeepEqual(offered, []graph.Edge{{To: graph.Success}}) {
 			t.Fatalf("handler input node=%q offered=%v", node.Base().ID, offered)
 		}
@@ -61,7 +61,7 @@ func TestRunnerCompletesLinearGraphAndWritesFinalCheckpoint(t *testing.T) {
 	assertJSONFile(t, filepath.Join(root, "stages", "000001-work", "outcome.json"), harness.Outcome{Notes: strings.Repeat("ø", 205)})
 }
 
-func TestRunnerExportsAbsoluteLogsRootToToolNode(t *testing.T) {
+func TestRunnerExportsAbsoluteLogsRootToCommandNode(t *testing.T) {
 	workdir := t.TempDir()
 	logsRoot := filepath.Join(t.TempDir(), "run")
 	currentDir, err := os.Getwd()
@@ -115,7 +115,7 @@ func TestRunnerLoopsUntilTargetVisitBudgetIsExhausted(t *testing.T) {
 		exitNode("done"),
 	)
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(node graph.Node, offered []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(node graph.Node, offered []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		if node.Base().ID == "a" {
 			return harness.Outcome{Notes: "to b"}, nil
 		}
@@ -153,7 +153,7 @@ func TestRunnerFailsWithoutDispatchWhenAllSuccessorsAreExhausted(t *testing.T) {
 	)
 	registry := NewRegistry()
 	gateCalled := false
-	registry.Register("codergen", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		if node.Base().ID == "gate" {
 			gateCalled = true
 		}
@@ -198,7 +198,7 @@ func TestRunnerRoutingRules(t *testing.T) {
 			root := t.TempDir()
 			nodes := []graph.Node{startNode("start", "choose"), customNode("choose", "task", test.edges, 0)}
 			registry := NewRegistry()
-			registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+			registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 				return test.outcome, nil
 			}))
 			result, err := newTestRunner(t, testGraph(nodes...), registry, root, nil).Run()
@@ -226,7 +226,7 @@ func TestRunnerUnknownHandlerIsPreExecutionFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != RunFailed || result.FailureReason != "unknown handler type: codergen" {
+	if result.Status != RunFailed || result.FailureReason != "unknown handler type: agent" {
 		t.Fatalf("result = %#v", result)
 	}
 	checkpoint := mustCheckpoint(t, root)
@@ -243,7 +243,7 @@ func TestRunnerExecutionFailureWritesFailureCheckpointAndErrorArtifact(t *testin
 	pipeline := testGraph(startNode("start", "work"), customNode("work", "task", []graph.Edge{{To: "done"}}, 0), exitNode("done"))
 	registry := NewRegistry()
 	wantError := &harness.Error{Category: harness.ErrorTerminal, Message: "broken"}
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		return harness.Outcome{}, wantError
 	}))
 	backend := &fakeBackend{bindings: map[string]harness.ThreadBinding{"work": {Harness: "codex", SessionID: "thread-1", Workdir: "/workspace"}}}
@@ -274,7 +274,7 @@ func TestRunnerRetriesRetryableErrorsWithFreshStagesAndOneVisit(t *testing.T) {
 	pipeline.Defaults.MaxRetries = jsonschema.Optional[int]{Present: true, Value: 2}
 	registry := NewRegistry()
 	calls := 0
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		calls++
 		if calls == 2 {
 			checkpoint := mustCheckpoint(t, root)
@@ -321,12 +321,12 @@ func TestRunnerRetryBudgetAndNonRetryableCategories(t *testing.T) {
 	t.Run("node budget overrides default", func(t *testing.T) {
 		root := t.TempDir()
 		work := customNode("work", "task", []graph.Edge{{To: "done"}}, 0)
-		work.(*graph.CodergenNode).MaxRetries = jsonschema.Optional[int]{Present: true, Value: 1}
+		work.(*graph.AgentNode).MaxRetries = jsonschema.Optional[int]{Present: true, Value: 1}
 		pipeline := testGraph(startNode("start", "work"), work, exitNode("done"))
 		pipeline.Defaults.MaxRetries = jsonschema.Optional[int]{Present: true, Value: 3}
 		registry := NewRegistry()
 		calls := 0
-		registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+		registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 			calls++
 			return harness.Outcome{}, &harness.Error{Category: harness.ErrorRetryable, Message: "still unavailable"}
 		}))
@@ -349,10 +349,10 @@ func TestRunnerRetryBudgetAndNonRetryableCategories(t *testing.T) {
 		t.Run(string(category), func(t *testing.T) {
 			root := t.TempDir()
 			work := customNode("work", "task", []graph.Edge{{To: "done"}}, 0)
-			work.(*graph.CodergenNode).MaxRetries = jsonschema.Optional[int]{Present: true, Value: 3}
+			work.(*graph.AgentNode).MaxRetries = jsonschema.Optional[int]{Present: true, Value: 3}
 			registry := NewRegistry()
 			calls := 0
-			registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+			registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 				calls++
 				return harness.Outcome{}, &harness.Error{Category: category, Message: "stop"}
 			}))
@@ -374,9 +374,9 @@ func TestRunnerRetryBudgetAndNonRetryableCategories(t *testing.T) {
 
 func TestExecuteWithRetryRejectsNegativeBudgetWithoutDispatch(t *testing.T) {
 	work := customNode("work", "task", []graph.Edge{{To: "done"}}, 0)
-	work.(*graph.CodergenNode).MaxRetries = jsonschema.Optional[int]{Present: true, Value: -1}
+	work.(*graph.AgentNode).MaxRetries = jsonschema.Optional[int]{Present: true, Value: -1}
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		t.Fatal("handler dispatched with a negative retry budget")
 		return harness.Outcome{}, nil
 	}))
@@ -397,10 +397,10 @@ func TestExecuteWithRetryRejectsNegativeBudgetWithoutDispatch(t *testing.T) {
 func TestRunnerStopDuringBackoffEndsWithoutAnotherAttempt(t *testing.T) {
 	root := t.TempDir()
 	work := customNode("work", "task", []graph.Edge{{To: "done"}}, 0)
-	work.(*graph.CodergenNode).MaxRetries = jsonschema.Optional[int]{Present: true, Value: 2}
+	work.(*graph.AgentNode).MaxRetries = jsonschema.Optional[int]{Present: true, Value: 2}
 	registry := NewRegistry()
 	firstAttempt := make(chan struct{})
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		close(firstAttempt)
 		return harness.Outcome{}, &harness.Error{Category: harness.ErrorRetryable, Message: "temporary"}
 	}))
@@ -496,7 +496,7 @@ func TestRunnerConvertsHandlerPanicToTerminalFailure(t *testing.T) {
 	root := t.TempDir()
 	pipeline := testGraph(startNode("start", "work"), customNode("work", "task", []graph.Edge{{To: "done"}}, 0), exitNode("done"))
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		panic("boom")
 	}))
 
@@ -541,7 +541,7 @@ func TestRunnerStopBeforeDispatchPreservesInitialCheckpoint(t *testing.T) {
 func TestRunnerReachingPseudoTargetNeverDispatchesIt(t *testing.T) {
 	root := t.TempDir()
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		return harness.Outcome{Notes: "done"}, nil
 	}))
 	pipeline := graph.Graph{Start: "work", Nodes: []graph.Node{customNode("work", "task", []graph.Edge{{To: graph.Success}}, 0)}}
@@ -562,7 +562,7 @@ func TestResumeRunnerContinuesInitialCheckpointWithoutRewritingIt(t *testing.T) 
 	root := t.TempDir()
 	pipeline := graph.Graph{Start: "work", Nodes: []graph.Node{customNode("work", "task", []graph.Edge{{To: graph.Success}}, 0)}}
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		return harness.Outcome{Notes: "resumed work"}, nil
 	}))
 	initial := newTestRunner(t, pipeline, registry, root, nil)
@@ -577,7 +577,7 @@ func TestResumeRunnerContinuesInitialCheckpointWithoutRewritingIt(t *testing.T) 
 	}
 
 	registry = NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		gotCheckpoint, err := os.ReadFile(filepath.Join(root, "checkpoint.json"))
 		if err != nil {
 			t.Fatal(err)
@@ -609,7 +609,7 @@ func TestResumeRunnerUsesResolvedSuccessorAndRecoversCrashedStageSequence(t *tes
 	)
 	registry := NewRegistry()
 	var initial *Runner
-	registry.Register("codergen", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		if node.Base().ID != "choose" {
 			t.Fatalf("unexpected initial dispatch: %s", node.Base().ID)
 		}
@@ -630,7 +630,7 @@ func TestResumeRunnerUsesResolvedSuccessorAndRecoversCrashedStageSequence(t *tes
 	}
 
 	resumedRegistry := NewRegistry()
-	resumedRegistry.Register("codergen", HandlerFunc(func(node graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+	resumedRegistry.Register("agent", HandlerFunc(func(node graph.Node, _ []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
 		if node.Base().ID == "choose" {
 			t.Fatal("resume re-asked the completed routing decision")
 		}
@@ -659,7 +659,7 @@ func TestResumeRunnerRepeatedFailureContinuesOneVisit(t *testing.T) {
 
 	runWork := func(succeed bool, resume bool) RunResult {
 		registry := NewRegistry()
-		registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+		registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 			if succeed {
 				return harness.Outcome{Notes: "recovered"}, nil
 			}
@@ -706,7 +706,7 @@ func TestResumeRunnerSnapshotsBindingsFromReconstructedBackend(t *testing.T) {
 	}
 	initialBackend := &fakeBackend{bindings: initialBindings}
 	failingRegistry := NewRegistry()
-	failingRegistry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	failingRegistry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		return harness.Outcome{}, &harness.Error{Category: harness.ErrorTerminal, Message: "restart me"}
 	}))
 	if result, err := newTestRunner(t, pipeline, failingRegistry, root, initialBackend).Run(); err != nil || result.Status != RunFailed {
@@ -721,7 +721,7 @@ func TestResumeRunnerSnapshotsBindingsFromReconstructedBackend(t *testing.T) {
 	restoredBindings["review"] = harness.ThreadBinding{Harness: "claude", SessionID: "new-session", Workdir: "/workspace"}
 	reconstructedBackend := &fakeBackend{bindings: restoredBindings}
 	successRegistry := NewRegistry()
-	successRegistry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	successRegistry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		return harness.Outcome{Notes: "resumed session"}, nil
 	}))
 	if result, err := newTestResumeRunner(t, pipeline, successRegistry, root, reconstructedBackend).Run(); err != nil || result.Status != RunCompleted {
@@ -737,7 +737,7 @@ func TestResumeRunnerFinalCheckpointReturnsWithoutDispatchOrRewrite(t *testing.T
 	root := t.TempDir()
 	pipeline := graph.Graph{Start: "work", Nodes: []graph.Node{customNode("work", "task", []graph.Edge{{To: graph.Success}}, 0)}}
 	registry := NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		return harness.Outcome{Notes: "done"}, nil
 	}))
 	if result, err := newTestRunner(t, pipeline, registry, root, nil).Run(); err != nil || result.Status != RunCompleted {
@@ -748,7 +748,7 @@ func TestResumeRunnerFinalCheckpointReturnsWithoutDispatchOrRewrite(t *testing.T
 		t.Fatal(err)
 	}
 	registry = NewRegistry()
-	registry.Register("codergen", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
+	registry.Register("agent", HandlerFunc(func(graph.Node, []graph.Edge, ExecutionScope, *graph.Graph) (harness.Outcome, *harness.Error) {
 		t.Fatal("final checkpoint dispatched work")
 		return harness.Outcome{}, nil
 	}))
@@ -846,7 +846,7 @@ func TestStopSignalIsOneShotAndWaits(t *testing.T) {
 	}
 }
 
-func newTestRunner(t *testing.T, pipeline graph.Graph, registry *Registry, root string, backend harness.CodergenBackend) *Runner {
+func newTestRunner(t *testing.T, pipeline graph.Graph, registry *Registry, root string, backend harness.AgentBackend) *Runner {
 	t.Helper()
 	runner, err := NewRunner(pipeline, registry, RunnerConfig{
 		LogsRoot: root,
@@ -860,7 +860,7 @@ func newTestRunner(t *testing.T, pipeline graph.Graph, registry *Registry, root 
 	return runner
 }
 
-func newTestResumeRunner(t *testing.T, pipeline graph.Graph, registry *Registry, root string, backend harness.CodergenBackend) *Runner {
+func newTestResumeRunner(t *testing.T, pipeline graph.Graph, registry *Registry, root string, backend harness.AgentBackend) *Runner {
 	t.Helper()
 	runner, err := ResumeRunner(pipeline, registry, RunnerConfig{
 		LogsRoot: root,
@@ -895,7 +895,7 @@ func testGraph(nodes ...graph.Node) graph.Graph {
 			exits[marker.ID] = target
 			continue
 		}
-		if marker, ok := node.(*graph.CodergenNode); ok && marker.Prompt.Present && marker.Prompt.Value == "__test_start__" {
+		if marker, ok := node.(*graph.AgentNode); ok && marker.Prompt.Present && marker.Prompt.Value == "__test_start__" {
 			pipeline.Start = marker.Edges[0].To
 			continue
 		}
@@ -903,17 +903,17 @@ func testGraph(nodes ...graph.Node) graph.Graph {
 	}
 	for _, node := range pipeline.Nodes {
 		switch node := node.(type) {
-		case *graph.CodergenNode:
+		case *graph.AgentNode:
 			rewriteTestExitTargets(node.Edges, exits)
 		case *graph.FanInNode:
 			rewriteTestExitTargets(node.Edges, exits)
-		case *graph.ToolNode:
-			if target := exits[node.OnSuccess]; target != "" {
-				node.OnSuccess = target
+		case *graph.CommandNode:
+			if target := exits[node.Edges.Success]; target != "" {
+				node.Edges.Success = target
 			}
-			if node.OnError.Present {
-				if target := exits[node.OnError.Value]; target != "" {
-					node.OnError.Value = target
+			if node.Edges.Error.Present {
+				if target := exits[node.Edges.Error.Value]; target != "" {
+					node.Edges.Error.Value = target
 				}
 			}
 		}
@@ -925,7 +925,7 @@ func testGraph(nodes ...graph.Node) graph.Graph {
 }
 
 func startNode(id, next string) graph.Node {
-	node := &graph.CodergenNode{NodeBase: graph.NodeBase{ID: id}, Edges: []graph.Edge{{To: next}}}
+	node := &graph.AgentNode{NodeBase: graph.NodeBase{ID: id}, Edges: []graph.Edge{{To: next}}}
 	node.Prompt = optional("__test_start__")
 	return node
 }
@@ -935,7 +935,7 @@ func exitNode(id string) graph.Node {
 }
 
 func customNode(id, nodeType string, edges []graph.Edge, maxVisits int) graph.Node {
-	node := &graph.CodergenNode{NodeBase: graph.NodeBase{ID: id}, Edges: edges}
+	node := &graph.AgentNode{NodeBase: graph.NodeBase{ID: id}, Edges: edges}
 	if maxVisits > 0 {
 		node.MaxVisits = jsonschema.Optional[int]{Present: true, Value: maxVisits}
 	}
@@ -955,7 +955,7 @@ type fakeBackend struct {
 	interrupts int
 }
 
-func (*fakeBackend) Run(harness.CodergenTurn) (harness.Outcome, *harness.Error) {
+func (*fakeBackend) Run(harness.AgentTurn) (harness.Outcome, *harness.Error) {
 	panic("not used")
 }
 
