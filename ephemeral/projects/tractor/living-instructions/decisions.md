@@ -162,7 +162,11 @@ planner node is withdrawn.
     `done: true` is the attestation. A chapter item's gates are its
     `command` (required checks and count guards) and the `verify` turn
     (decision 41), not an `infer`; the commandless chapter item of
-    chapters 1 to 3 is the pre-v2 shape (amended by consistency lap 26).
+    chapters 1 to 3 is the pre-v2 shape, and chapters 4 to 6 of this
+    project, built by runs that predate `verify`, are marked by the
+    engine on their command alone; verifier-gated marking starts with
+    runs begun after chapter 6 sprint 2 (amended by consistency laps 26
+    and 35).
 38. **Elicit, then prune.** Before asking, the planner drafts the promises a
     user of this thing would expect, from the seed, the repo, and research,
     and asks "do you promise this, and what must it not imply", with a

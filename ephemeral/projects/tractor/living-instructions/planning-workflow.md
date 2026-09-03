@@ -289,7 +289,7 @@ workflow/library/
   prompts/             one file per prompt-bearing node, Go text/template
                        (tool nodes, halt and index_gate, keep their commands
                        in the workflow YAML: those are Build's own, not prompts)
-    plan/              intake.md research.md brief.md decompose.md
+    plan/              intake.md research.md brief.md ceiling.md decompose.md
                        design.md review.md assemble.md approve.md
     medium/            implement.md replan.md
     large/             plan.md implement.md replan.md verify.md
@@ -303,8 +303,10 @@ workflow/library/
                        prior-art.md research-leaf.md chapter-doc.md sprint-doc.md
                        pyramid-index.md reviewer-independence.md ledger.md
   templates/           skeletons the planner fills: brief.md promises.md
-                       CHAPTER.md SPRINT.md design.md
-                       recommendation.md ledger.md
+                       CHAPTER.md SPRINT.md recommendation.md ledger.md
+                       (chapter 4); design.md arrives with the design
+                       node in chapter 5, as do the doctrine pages above
+                       that chapter 4's content/ does not carry
 ```
 
 Rules:
@@ -348,7 +350,7 @@ materialization. Initial table:
 | validation reviewer, plan-review reviewer | codex, gpt-5.6-sol, high | not the provider of the node judged (the planner) |
 | `verify` | claude, claude-fable-5-1, high | not the provider of the coder |
 | supervisors | codex, gpt-5.6-sol, high | not the provider of the node watched (all watched nodes are claude) |
-| `assemble`, `replan`, `infer` judges | claude, `sonnet` alias, medium | |
+| `assemble`, `ceiling`, `replan`, `infer` judges | claude, `sonnet` alias, medium | |
 | `halt`, `index_gate` | tool nodes; no model | |
 | answerer | human, or the calling agent | |
 

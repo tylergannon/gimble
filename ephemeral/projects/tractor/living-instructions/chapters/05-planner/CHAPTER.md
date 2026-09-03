@@ -7,7 +7,7 @@ the brief/research loop with its tool-node halt and its `ceiling` gate
 to `halted`, decompose, the
 validation design loop, assemble, the plan review loop, approve; four
 supervisors; `models.yaml`. Every node is content in the library from
-chapter 4. Promises P1 to P5, P7, P8's chapter 5 leg (the passes, the supervisor briefs, and the prompts and doctrine pages of nodes that first exist in chapter 5); sprint 11 and every sprint that adds a node), and the chapter 5 portion of P9.
+chapter 4. Promises P1 to P5, P7, P8's chapter 5 leg (the passes, the supervisor briefs, and the prompts, doctrine pages, and skeletons of nodes that first exist in chapter 5, such as `design.md`); sprint 11 and every sprint that adds a node), and the chapter 5 portion of P9.
 
 ## Pyramid index
 

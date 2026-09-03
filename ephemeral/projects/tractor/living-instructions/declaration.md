@@ -118,7 +118,7 @@ and 6 are library content plus Go in the `workflow` package and
 
 ### Chapter 4: the library
 
-Promise P8 for the nodes that exist in chapter 4, except its chapter 5 leg (the passes, the supervisor briefs, and the prompts and doctrine pages of nodes that first exist in chapter 5), proven in chapter 5, and its real-stage leg (chapter 6), and the chapter 4 portion of P9 (the docs sprint).
+Promise P8 for the nodes that exist in chapter 4, except its chapter 5 leg (the passes, the supervisor briefs, and the prompts, doctrine pages, and skeletons of nodes that first exist in chapter 5, such as `design.md`), proven in chapter 5, and its real-stage leg (chapter 6), and the chapter 4 portion of P9 (the docs sprint).
 Everything later is content plus workflow-package Go, so this comes
 first.
 
@@ -143,7 +143,7 @@ first.
 
 ### Chapter 5: the planner
 
-Promises P1 to P5, P7, P8's chapter 5 leg (the passes, the supervisor briefs, and the prompts and doctrine pages of nodes that first exist in chapter 5), and
+Promises P1 to P5, P7, P8's chapter 5 leg (the passes, the supervisor briefs, and the prompts, doctrine pages, and skeletons of nodes that first exist in chapter 5, such as `design.md`), and
 the chapter 5 portion of P9 (its docs sprint). Backlog sketch: `models.yaml` and per-role model
 resolution; intake node and first research plan; research branches,
 fan-in, index, `index_gate`; brief node with elicit-then-prune and
