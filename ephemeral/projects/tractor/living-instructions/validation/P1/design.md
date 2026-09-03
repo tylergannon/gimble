@@ -1,6 +1,6 @@
 # P1: elicitation adds a promise; a declined promise becomes an exclusion
 
-Archetype: scenario. Lap 6; answers `review-5.md`.
+Archetype: scenario. Lap 7; answers `review-6.md`.
 
 ## Story
 
@@ -47,12 +47,14 @@ a `QuestionAsked` event E whose `question` path is that file; some
 human answered; concurrent asks are allowed, any bracketing call
 qualifies); the `.answer.md` for that id contains the decline text; in
 the copy taken immediately before the answer, `brief.md` either does
-not exist or has no Exclusions entry; the final `brief.md` has an
-`## Exclusions` section with at least one entry. If no question file
-carried a `Promise:` line, the script fails with "question-file seam
-not used". If every candidate named a chosen feature, so nothing was
-declined, it exits "inconclusive: nothing to decline" and the item
-stays open.
+not exist or has no exclusions section with an entry; the final
+`brief.md` has an exclusions section with at least one entry, where an
+exclusions section is any Markdown heading, at any level, whose text
+contains "exclusions" (case-insensitive), followed by at least one list
+item or paragraph before the next heading. If no question file carried
+a `Promise:` line, the script fails with "question-file seam not used".
+If every candidate named a chosen feature, so nothing was declined, it
+exits "inconclusive: nothing to decline" and the item stays open.
 
 `infer` (files: the generated seed, the declined question file in full,
 the `brief.md` copy before the answer, the final `brief.md`): "Read the
@@ -62,7 +64,7 @@ answers.log), with that line belonging to the question rather than
 standing apart from it? Name the capability the line describes. Fail
 unless the question asks about it, the seed does not mention it, the
 copy's exclusions did not already decline it, and the final brief.md
-declines it under Exclusions, in any wording."
+declines it under its exclusions, in any wording."
 
 ## Not proven
 

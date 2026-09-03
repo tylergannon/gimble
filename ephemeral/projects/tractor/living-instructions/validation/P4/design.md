@@ -1,6 +1,6 @@
 # P4: a rejected validation design is re-designed with the reviewer's notes and later passes
 
-Archetype: scenario. Lap 6; answers `review-5.md`.
+Archetype: scenario. Lap 7; answers `review-6.md`.
 
 ## Story
 
@@ -19,7 +19,7 @@ Archetype: scenario. Lap 6; answers `review-5.md`.
   first item; `validation.json` of the marking loop stage.
 - For the first item's laps: every completed review turn's `prompt.md`
   and `response.md`; every completed design turn after the first:
-  `prompt.md` and segment.
+  `prompt.md` and segment (every `tool_call` and paired `tool_result`).
 - `observer/` copies of `validation/<item>/` at the `StageCompleted` of
   each design and review stage for this item (D1, R1, D2, R2, ... ) and
   at the end.
@@ -37,22 +37,26 @@ retried attempts (a `StageFailed` stage with no `response.md`) are
 skipped; the item is `done: true` in the final ledger; for the first
 review: the notes file is absent in D1 and present in R1, and
 `design.md` is byte-identical between D1 and R1 (the reviewer wrote
-notes, not a redesign); for every design turn after the first: its
-`prompt.md` contains the notes' first line, or its segment has a
-`tool_call` whose arguments contain the notes path with a paired
-`tool_result` whose output contains that line (the notes were
-available); `design.md` differs between the copies before and after
-that design turn, and is byte-identical across the review turn that
-follows it (each redesign is the design turn's, and the reviewer left
-it alone).
+notes, not a redesign); the notes were available to every design turn
+after the first: the notes' substantive lines (every line of forty or
+more characters; the script fails "notes have no substantive line" if
+there are none) all appear in that turn's `prompt.md`, or all appear in
+the paired `tool_result` of a `tool_call` in its segment whose
+arguments contain the notes path (a boilerplate or blank first line
+cannot satisfy this); `design.md` differs between the copies before
+and after that design turn, and is byte-identical across the review
+turn that follows it (each redesign is the design turn's, and the
+reviewer left it alone).
 
-`infer` (files: every review turn's `prompt.md` and `response.md`, the
-notes, the design copies D1, D2, ...): "Did each rejecting reviewer read
-the design in front of it and reject it in its notes, with the route
-agreeing? Did each redesign change the design in a way that answers the
-notes it was given, rather than cosmetically? Did the final reviewer
-read the final design and accept it in its notes, with the route
-agreeing? Fail on any no."
+`infer` (files: every review turn's `prompt.md` and `response.md`; every
+redesigning turn's `prompt.md` and segment; the notes; the design
+copies D1, D2, ...): "Did each rejecting reviewer read the design in
+front of it and reject it in its notes, with the route agreeing? Was
+the full text of the notes in front of each redesigning turn, in its
+prompt or in a file it read, and did its redesign change the design in
+a way that answers those notes rather than cosmetically? Did the final
+reviewer read the final design and accept it in its notes, with the
+route agreeing? Fail on any no."
 
 ## Not proven
 

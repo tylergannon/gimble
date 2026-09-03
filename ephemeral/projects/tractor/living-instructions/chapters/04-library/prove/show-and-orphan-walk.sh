@@ -140,6 +140,24 @@ done
 
 # ---- content: one sentinel per file, in the copy ------------------------
 lib="$tmp/src/workflow/library"
+# closure FILE: prints FILE and every prompt/supervisor/pass file reachable
+# from it through include actions (an action naming another library file
+# by path or by base name), transitively.
+closure() {
+  printf '%s\n' "$1" > "$tmp/cl.txt"
+  while :; do
+    before="$(wc -l < "$tmp/cl.txt")"
+    while read -r f; do
+      for cand in $(cd "$lib" && find prompts supervisors passes -type f 2>/dev/null); do
+        base="$(basename "$cand" .md)"
+        if grep -q "include.*\"$base\"\|include.*\"$cand\"" "$lib/$f" 2>/dev/null; then printf '%s\n' "$cand"; fi
+      done
+    done < "$tmp/cl.txt" >> "$tmp/cl.txt"
+    sort -u "$tmp/cl.txt" -o "$tmp/cl.txt"
+    [ "$(wc -l < "$tmp/cl.txt")" -eq "$before" ] && break
+  done
+  cat "$tmp/cl.txt"
+}
 stamp="SENTINEL-$(date +%s)-$$"
 find "$lib/prompts" "$lib/supervisors" "$lib/passes" -type f 2>/dev/null | while read -r f; do
   rel="${f#$lib/}"
@@ -158,8 +176,16 @@ for wf in $workflows; do
     [ -n "$file" ] || continue
     show_raw "$tmp/bin/mutated" "$wf" "$node" > "$tmp/mut.txt"
     grep -q "^$stamp FILE $file\$" "$tmp/mut.txt" || { echo "content: $wf/$node does not render $file"; exit 1; }
-    others="$(grep "^$stamp FILE " "$tmp/mut.txt" | grep -v " $file\$" || true)"
-    test -z "$others" || { echo "content: $wf/$node renders another prompt file: $others"; exit 1; }
+    # The include closure of the header file: every prompt file it names
+    # through an include action, transitively. Sentinels of files in the
+    # closure are expected; any other prompt file's sentinel is a fail.
+    closure "$file" > "$tmp/closure.txt"
+    grep "^$stamp FILE " "$tmp/mut.txt" | sed "s/^$stamp FILE //" | while read -r seen; do
+      grep -qxF -- "$seen" "$tmp/closure.txt" || { echo "content: $wf/$node renders $seen, outside the include closure of $file"; exit 1; }
+    done
+    while read -r inc; do
+      grep -q "^$stamp FILE $inc\$" "$tmp/mut.txt" || { echo "content: $wf/$node includes $inc but does not render it"; exit 1; }
+    done < "$tmp/closure.txt"
     if [ -n "$page" ] && grep -q "$(basename "$page" .md)" "$lib/$file"; then
       grep -q "^$stamp DOCTRINE " "$tmp/mut.txt" || { echo "content: $wf/$node names $(basename "$page") but does not render it"; exit 1; }
     fi

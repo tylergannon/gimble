@@ -1,6 +1,6 @@
 # P6: `large` completes and every chapter is marked only after `verify` routed pass
 
-Archetype: scenario. Lap 6; answers `review-5.md`.
+Archetype: scenario. Lap 7; answers `review-6.md`.
 
 ## Story
 
@@ -21,34 +21,41 @@ Archetype: scenario. Lap 6; answers `review-5.md`.
 - C0 and the chapter ledger at the end; `validate-plan` output.
 - `timeline.jsonl`: `StageCompleted(name, next)`, `StageFailed`,
   `LoopItemSelected(node, item)`, `LoopValidated(node, item, passed)`,
-  `PipelineCompleted`; `validation.json` of every `chapters` loop turn.
+  `QuestionAsked`, `PipelineCompleted`; `validation.json` of every
+  `chapters` loop turn.
 - Every completed `verify` stage: `prompt.md`, `response.md` (chosen
   `next`, the verifier's notes with its verdict and what it ran), and
   its segment.
+- The interview files, for any chapter that was replaced.
 
 ## Validator
 
 `command`: `prove/p6-verify-before-done.sh <package> <large run dir>`:
 `validate-plan` accepted the package and C0 has at least two items; the
 last `StageCompleted` has `next: success` and `PipelineCompleted`
-follows it; the set of chapter item names at the end equals the set in
-C0 (no chapter vanished); every chapter item is `done: true`; for each,
-exactly one `LoopValidated` with `passed: true` names it on `chapters`
-and one `chapters` loop stage's `validation.json` names it
-(engine-marked; a hand-marked item has neither); for each such item,
-between its `LoopItemSelected` on `chapters` and its `LoopValidated`,
-the last completed codergen stage is a `verify` stage whose
-`StageCompleted` has `next: chapters` (a verify turn belonging to this
-chapter, not a stale one; a `StageFailed` attempt with no `response.md`
-is a retry and is skipped); every completed `verify` stage has
-`prompt.md`, `response.md`, and a segment (a codergen turn, not a tool).
+follows it; every chapter named in C0 is either present at the end or
+was replaced with a reason: a question file asked during the run names
+it and its answer agrees (decision 44 allows a chapter edit with a
+reason through the human; silent disappearance is a fail); every
+chapter item at the end is `done: true`; for each, exactly one
+`LoopValidated` with `passed: true` names it on `chapters` and one
+`chapters` loop stage's `validation.json` names it (engine-marked; a
+hand-marked item has neither); for each such item, between its
+`LoopItemSelected` on `chapters` and its `LoopValidated`, the last
+completed codergen stage is a `verify` stage whose `StageCompleted` has
+`next: chapters` (a verify turn belonging to this chapter, not a stale
+one; a `StageFailed` attempt with no `response.md` is a retry and is
+skipped); every completed `verify` stage has `prompt.md`, `response.md`,
+and a segment (a codergen turn, not a tool).
 
 `infer` (files: every completed verify turn's `prompt.md`,
-`response.md`, and segment; the chapter's validation design): "Was each
-verifier told which chapter to verify and the design to follow? Did it
-operate the software (run it, not only read files), and do its notes
-report what it did and a verdict that agrees with its route? Fail on
-any no."
+`response.md`, and segment; the chapter's validation design; for a
+replaced chapter, the question and answer): "Was each verifier told
+which chapter to verify and the design to follow? Did it operate the
+software (run it, not only read files), and do its notes report what
+it did and a verdict that agrees with its route? If a chapter was
+replaced, did the question give a reason and the answer accept it?
+Fail on any no."
 
 ## Not proven
 
