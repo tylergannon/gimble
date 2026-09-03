@@ -19,7 +19,7 @@ defaults:
 nodes:
   - id: implement
     type: codergen
-    max_visits: 4
+    max_visits: 5
     prompt: $goal
     edges:
       - to: check
