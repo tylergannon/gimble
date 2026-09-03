@@ -112,7 +112,7 @@ this comes first.
    the coder (see question 5). Check: the pages the four
    existing prompts can cite (the subset of `planning-workflow.md` §6a
    listed in `SPRINT-04.md`) exist; `infer` judge that each page is under
-   a screen and cites its source under `sources/` or in `decisions.md`.
+   about sixty lines and cites its source under `sources/` or in `decisions.md`.
 5. Docs and skill. Check: the chapter 1 sprint 3 pattern.
 
 ### Chapter 5: the planner

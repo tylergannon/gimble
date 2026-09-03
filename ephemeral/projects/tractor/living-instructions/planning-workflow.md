@@ -282,7 +282,8 @@ recommended pair.
   A teaching is edited in one place and every prompt that cites it
   changes.
 - Tests render every template with representative parameters, fail on a
-  doctrine page no rendered prompt references, and fail on any prompt
+  doctrine page no rendered agent-facing library file (prompt body,
+  supervisor brief, or pass) references, and fail on any prompt
   that is a Go string.
 - `tractor workflow show <name> [--project …]` prints each node's payload (a
   prompt, a tool command, or a checklist path) and each supervisor's
