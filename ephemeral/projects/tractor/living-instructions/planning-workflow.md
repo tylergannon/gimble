@@ -35,13 +35,13 @@ intake ─▶ research ─▶ brief ─▶ research ─▶ halt? ──no──�
                                             ▼
                               validation design loop
                               (one lap per promise:
-                               design ─▶ adversarial review)
+                               design ─▶ review ─▶ pass | fail)
                                             ▼
                                         assemble
                                             ▼
                               plan review loop
                               (one lap per pass:
-                               fresh reviewer ─▶ verdict)
+                               fresh reviewer ─▶ pass | fail)
                                             ▼
                                         approve (ask)
                                             ▼
@@ -115,10 +115,11 @@ promise's checklist item with `command` (the required checks) and `infer`
 not derivable it asks the human. `review` (codergen, other provider, fresh
 context) is told only the promise and the design and answers three
 questions: can a coder satisfy this while the promise is false; is any
-check trivially true; is the design stricter than the promise. It writes
-`validation/<promise>/verdict.md`. The ledger item's own `command` is a
-check that the verdict says pass, so the engine re-enters the item on a
-failed review with the reviewer's notes in the frame.
+check trivially true; is the design stricter than the promise. It routes
+pass to the loop node and fail to `design`. The ledger item has no
+`command`: only the pass edge returns to the loop, so a returning lap is
+the pass and the engine marks the item. The reviewer's notes are ordinary
+files under `validation/<promise>/`, read by `design` on the next lap.
 
 **assemble** (codergen, cheap). Writes `recommendation.md` (decision 32)
 and `plan-review/ledger.md` from the built-in pass list plus any passes
@@ -127,11 +128,11 @@ the project adds. Materializes nothing else; every artifact already exists.
 **plan review loop** (loop over `plan-review/ledger.md`, one item per
 pass; body `reviewer`). Each lap starts a fresh reviewer on a provider
 other than the planner, whose prompt names the pass question and the
-package and nothing else. It writes `plan-review/<pass>/verdict.md` with
-findings that name the owning node. The item's `command` checks the
-verdict. On failure the frame carries the findings back; the owning node
-is re-run through an ordinary edge from `reviewer`'s failure route, and
-the loop re-selects the pass. The built-in passes, in order:
+package and nothing else. It routes pass to the loop node, which marks the
+pass done, or fail to the owning node (brief, decompose, or design), whose
+edge returns to the loop node, which re-selects the still-open pass. The
+reviewer's findings are ordinary files under `plan-review/<pass>/`. The
+built-in passes, in order:
 
 1. **traceability**: every promise reaches a slice; every slice serves a
    promise. Scriptable.
@@ -178,10 +179,11 @@ sprint that finds the chapter wrong asks the human.
 **verify** (codergen, other provider than the coder, fresh context, tools):
 runs once per chapter after its sprint loop exits. Reads the validation
 design and the holdout path, operates the software itself, captures its
-own evidence under the run directory, and writes
-`validation/<chapter>/verdict.md`. The chapter item's `command` checks that
-verdict; a chapter is *proven* only through this leg. Sprint items are
-*demonstrated* by their own `command` and `infer`.
+own evidence under the run directory, and routes pass to the chapters
+loop or fail to the sprint loop (or to a human question). A chapter is
+*proven* only through this leg; its item carries the required checks as
+`command` and nothing else. Sprint items are *demonstrated* by their own
+`command` and `infer`.
 
 ## 6. Project layout
 
@@ -196,10 +198,10 @@ ephemeral/projects/<build>/
   research/                     plan.md, findings.md, INDEX.md, leaves
   validation/
     ledger.md                   one item per promise
-    <promise>/                  story.md, evidence.md, sketch.*, verdict.md
+    <promise>/                  story.md, evidence.md, sketch.*, review notes
   plan-review/
     ledger.md                   one item per pass
-    <pass>/verdict.md
+    <pass>/                     reviewer findings
   interview/                    NNNN.md, NNNN.answer.md
 ```
 
@@ -232,7 +234,7 @@ workflow/library/
                        prior-art.md research-leaf.md chapter-doc.md sprint-doc.md
                        pyramid-index.md reviewer-independence.md
   templates/           skeletons the planner fills: brief.md promises.md
-                       CHAPTER.md SPRINT.md story.md evidence.md verdict.md
+                       CHAPTER.md SPRINT.md story.md evidence.md
                        recommendation.md ledger.md
 ```
 
@@ -283,16 +285,17 @@ Fan-out drafts of chapter docs. Any engine change. The web client.
 2. The brief and research loop halts by the tool node, not by
    `max_visits`, on a seed whose research produces one promise-changing
    finding; the finding is asked, not applied.
-3. Every promise in `promises.md` has a `validation/<promise>/verdict.md`
-   that says pass, and at least one universal promise has a holdout
-   outside the workdir and outside the run directory.
+3. Every promise in `promises.md` ends `done: true` in the validation
+   ledger after a `review` turn routed pass, and at least one universal
+   promise has a holdout outside the workdir and outside the run
+   directory.
 4. A validation design that a reviewer rejects is re-entered with the
    reviewer's notes in the frame and passes on the next lap.
 5. All six review passes end `done: true` in `plan-review/ledger.md`, each
-   marked by the engine after a verdict from a provider other than the
-   planner's.
+   marked by the engine after a reviewer on a provider other than the
+   planner's routed pass.
 6. The package runs: `tractor workflow run medium` (or `large`) on the
    output reaches `COMPLETED`, and a chapter's `done: true` follows a
-   `verify` verdict, never a sprint count alone.
+   `verify` turn routing pass, never a sprint count alone.
 7. `scope_cop` delivers at least one steer during the run, recorded in the
    timeline, and the steered turn's output changes.

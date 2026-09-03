@@ -50,10 +50,10 @@ Each promise: the statement, what it must not imply, the archetype
 |---|---|---|---|---|
 | P1 | Given a seed that names three features and an empty repository, `plan` asks about at least one promise the seed did not name, and a declined promise appears under exclusions in `brief.md`. | That the planner anticipates every promise a user cares about. | Scenario | Nested run with a scripted answerer that declines the first anticipated promise; inspector checks `brief.md`. |
 | P2 | On a seed whose research yields one promise-changing finding, the brief/research loop halts through the tool node, and the finding was asked, not applied. | That research converges on arbitrary seeds. | Scenario | Seed with a planted finding source in the token cache; timeline shows `halt` routing to `decompose` and one `QuestionAsked` citing the finding. |
-| P3 | Every promise in `promises.md` has a `validation/<promise>/verdict.md` saying pass, written by a provider other than the planner's. | That the designs are good, only that they were reviewed independently. | Universal over promises | Inspector over the ledger and the run's events (provider per stage). No holdout: the set is small and checked exhaustively. |
-| P4 | A validation design the reviewer rejects is re-entered with the reviewer's notes in the frame and passes on a later lap. | Anything about how often designs are rejected. | Scenario | A test seed whose first design lap is instructed to propose a trivial check; the next lap's `prompt.md` carries `last validation: failed` and the reviewer's note; the item ends `done: true`. |
-| P5 | All six review passes end `done: true` in `plan-review/ledger.md`, each marked by the engine after a verdict from a fresh reviewer on another provider. | That the passes catch every defect. | Universal over passes | Inspector over ledger, verdict files, and events. |
-| P6 | `tractor workflow run large` on a v2 package reaches `COMPLETED`, and every chapter's `done: true` is preceded in the timeline by a `verify` verdict for that chapter. | That the software the package describes is good. | Scenario | Nested run on a small package; timeline order check. |
+| P3 | Every promise in `promises.md` is marked done in `validation/ledger.md` by the engine after a `review` turn on a provider other than the planner's routed pass. | That the designs are good, only that they were reviewed independently. | Universal over promises | Inspector over the ledger and the run's events (provider and routing per stage). No holdout: the set is small and checked exhaustively. |
+| P4 | A validation design the reviewer routes to fail is re-designed with the reviewer's notes available and later routes to pass. | Anything about how often designs are rejected. | Scenario | A test seed whose first design lap is instructed to propose a trivial check; the timeline shows `review` routing to `design`, then to the loop; the item ends `done: true`. |
+| P5 | All six review passes end `done: true` in `plan-review/ledger.md`, each marked by the engine after a fresh reviewer on another provider routed pass. | That the passes catch every defect. | Universal over passes | Inspector over ledger and events. |
+| P6 | `tractor workflow run large` on a v2 package reaches `COMPLETED`, and every chapter's `done: true` is preceded in the timeline by a `verify` turn for that chapter routing pass. | That the software the package describes is good. | Scenario | Nested run on a small package; timeline order check. |
 | P7 | `scope_cop` delivers at least one steer during a planning run, and the steered turn's output differs from what it was writing before the steer. | That supervisors improve plans. | Scenario | Timeline `steer` verdict with a delivered disposition; diff of the stage output before and after. |
 | P8 | No built-in prompt lives in a Go string; every doctrine page is referenced by at least one prompt; `tractor workflow show plan` prints, for each node, text byte-equal to the prompt the engine materialized for that node in a real run. | That the content is well written. | Universal over library files | Render test plus a diff between `show` output and `stages/*/prompt.md` minus the frame block. Exhaustive, no holdout. |
 | P9 | An agent reading only the docs site, spec, and skill bundle runs `workflow run plan`, `workflow show`, and `ask` correctly, including where the interview directory and the holdout come from. | That the docs are complete. | Scenario | `infer` judge over the docs, failing on any claim the `--help` text contradicts (the chapter 1 sprint 3 pattern). |
@@ -73,7 +73,6 @@ and the implementer owns it.
 | Package layout | `plan` → `medium`/`large`, the human, future releases | `planning-workflow.md` §6. Persisted format; changes need a reason and a docs edit. |
 | Checklist item | ledgers ↔ engine | `loop-node.md` §2. Exists; unchanged. |
 | Question and answer files | agents ↔ humans and the future web client | `tractor ask`/`answer` as built; batched questions (decision 39) are a convention inside the file, not a format change. |
-| Verdict file | reviewer and verifier nodes → item `command`s | YAML frontmatter `verdict: pass|fail`, `findings:` list naming the owning node; body free. New, small, documented. |
 | Holdout handoff | design lap → `verify` prompt materialization | Path under `$XDG_STATE_HOME/tractor/holdouts/<build>-<token>/`, recorded in the run's private workflow state, rendered only into `verify`. |
 | Library template contract | content editors ↔ the workflow package | `{{doctrine "name"}}`, `{{template "name"}}`, and the `Parameters` fields templates may read. Documented in `workflow/library/README.md`; the render test is its check. |
 | Supervisor digests and verdicts | engine ↔ supervisor turns | Spec §3.10. Exists; unchanged. |
@@ -112,8 +111,8 @@ resolution; intake node and first research plan; research branches,
 fan-in, index, quality tool node; brief node with elicit-then-prune and
 batched questions; the halt tool node and the loop; decompose for MEDIUM
 and LARGE; validation ledger generation and the `design` node with both
-archetypes and the holdout writer; the `review` node and the verdict
-file; the pass files, the generated review ledger, the `reviewer` node
+archetypes and the holdout writer; the `review` node with its pass and
+fail edges; the pass files, the generated review ledger, the `reviewer` node
 and the route back to the owning node; assemble and approve; the four
 supervisors; docs and skill.
 
@@ -150,6 +149,6 @@ Batched, with a recommendation each (decision 39).
    as chapter 4 sprint 3, from the extractions already made; the coder
    wires them. Recommend yes; the pages are the design, and writing them
    through a coder adds a lossy hop.
-6. **Verdict file shape.** YAML frontmatter with `verdict` and `findings`,
-   free body. Recommend yes; it parses with the checklist package we
-   already have.
+6. **Verdict file.** Withdrawn. Review and verification are codergen
+   nodes with pass and fail edges; routing is the verdict, the item has
+   no command, and the reviewer's notes are ordinary files.

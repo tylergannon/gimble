@@ -181,7 +181,8 @@ planner node is withdrawn.
     model that is not the coder's, looking at captures and logs rather
     than the coder's summary. At chapter exit the verifier is an agent with
     tools, fresh context, other provider, that operates the software
-    itself and writes a verdict file the chapter item's `command` checks.
+    itself and routes pass or fail; the chapter is marked only through
+    the pass edge.
     A sprint is *demonstrated*; a chapter is *proven*.
 42. **Two validation archetypes.** Universal ("for every case in a set"):
     withhold a sample as the holdout; the coder sees the rest, the verifier
@@ -219,7 +220,8 @@ planner node is withdrawn.
     adversarial reviewer (other provider, fresh context, told only the
     promise and the design) answers: can a coder satisfy this while the
     promise is false; is any check trivially true; is the design stricter
-    than the promise. Its verdict file is what the item's `command` checks.
+    than the promise. It is a codergen node with pass and fail edges;
+    routing is the verdict and the item has no `command`.
 48. **Plan review loop.** After assembly, a loop node whose ledger is the
     review passes, one question each, one fresh reviewer per lap on another
     provider. Passes, in order: traceability, consistency, slicing, proof
@@ -265,6 +267,10 @@ planner node is withdrawn.
     and research branches; portions are automated as they are built.
 56. **Three chapters** for v2: library, planner, execution and proof. No
     engine change in any of them. No holdout in this project's proof.
+57. **No verdict files.** Review and verification are codergen nodes with
+    pass and fail edges. A reviewed item has no `command`; the pass edge
+    returning to the loop is the pass. Reviewer notes are ordinary files
+    with no format.
 
 ## Build order (revised)
 
