@@ -134,8 +134,11 @@ only to the `verify` prompt the execution run later materializes
 sprint item that will demonstrate the promise, in MEDIUM's sprint
 ledger or in the chapter's sprint ledger for LARGE, with `command` (the
 required checks) and `infer` (the judgment over the captured evidence).
-A chapter item carries only the required checks as `command`, because
-the chapter is proven by `verify`, not demonstrated by a gate; the
+A chapter item carries as `command` the required checks plus the
+engine-count guards `chapters.md` uses (finished sprints and the run's
+own `LoopValidated` events, so a chapter whose planner appended nothing
+cannot pass vacuously), because the chapter is proven by `verify`, not
+demonstrated by a gate; the
 validation ledger's own item stays without a command. Where the mechanism of proof is
 not derivable it asks the human. `review` (codergen, other provider, fresh
 context) is told only the promise and the design and answers three

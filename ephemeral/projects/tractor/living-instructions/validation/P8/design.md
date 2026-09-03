@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 26; answers `review-25.md` and pass 4's fourth lap.
+Lap 27; answers `review-26.md` and pass 4's fifth lap.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -55,8 +55,8 @@ pass leg of the check below is empty until then and runs then.
   parameter set); they are not part of the sentinel closure.
 - The data values for the check's parameters, computed by the check
   itself from the parameters it supplied and the derivations the README
-  states; `show --values` output for the same parameters, which must
-  list exactly them.
+  states; `show --values` output for the same parameters, which must be exactly
+  one `Field: value` line per listed field and nothing else.
 - Mutated copies of the tree the check makes: every library prompt file
   and one doctrine page with a sentinel naming that file appended; one
   uncited doctrine page added under a name the check draws at random
@@ -134,8 +134,9 @@ output and carries every payload, not only headers). Equality: for every node of
   the render test by name. Rendering is the whole of `Build`: `show --raw` for each node equals
   the check's own standalone `workflow.Render` of the node's header
   file, so `Build` adds nothing to what the library file renders; the
-  check computes the data values itself and requires `show --values`
-  to list exactly them; what `Render` itself could add beyond those
+  check computes the data values itself and requires `show --values` to print exactly one `Field: value` line per
+  field the README lists, each once, with the derived value, and nothing
+  else; what `Render` itself could add beyond those
   values is Go the judge reads (below). Orphans: an injected uncited page, named at random per run, makes
   `TestLibraryNoOrphans` fail naming it, and so does removing every citation of one existing page chosen at
   random from the agent-facing files (a test that allows the original
@@ -178,10 +179,11 @@ under `prove/last-run/` (chapter 4's two, chapter 5's pass leg with the
 generated `plan-review/ledger.md` and every reviewer stage's
 `prompt.md` of its run, chapter 6's stage leg with the stage
 directories it diffed), the library files under `workflow/library/`,
-the non-test Go of every package in this module that `workflow/` or
-`cmd/tractor/` imports, transitively (the script writes `go list -deps`
-for both into the log, so a helper package that implements `include`
-is in scope wherever it lives): each ledger command captures its script's stdout,
+the non-test Go of every non-standard-library package that
+`workflow/` or `cmd/tractor/` imports, transitively, in this module or
+any other (the script writes `go list -deps` for both into the log with
+the standard library filtered out, so a helper module that implements
+`include` is in scope wherever it lives): each ledger command captures its script's stdout,
 which names every probe and its outcome (the stage perturbation's byte
 and offset, each node's sentinel result, each skeleton's rendering),
 to `prove/last-run/<script>.log`, and the orphan script copies the `go
@@ -205,8 +207,7 @@ record, the judge decides.
 
 ## Not proven
 
-That a Go package outside this module (a dependency) supplies prompt
-text; the judge reads this module. That the content is good. That `show` reproduces frames (by design;
+That the Go standard library supplies prompt text. That the content is good. That `show` reproduces frames (by design;
 research F1). That a data value carries no instruction; the README's
 field list is the contract, the check recomputes every value, and the
 code review reads the struct. Text a template parks in a branch that never renders and Go re-emits:

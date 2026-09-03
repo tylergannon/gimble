@@ -1,0 +1,7 @@
+1. `validation/P8/design.md:181-184,208-209` limits inspection to “the non-test Go of every package in this module” and expressly concedes: “Not proven: That a Go package outside this module (a dependency) supplies prompt text.” But `declaration.md:61` promises that “Every prompt body … is a library file and Go supplies templates only data values [and the four named functions].” The proof script reinforces the blind spot by filtering dependencies with `grep '^github.com/tylergannon/tractor'` (`chapters/04-library/prove/prompts-are-library-files.sh:71-74`). A coder could inject prompt text through a local external module called by `Render`; Build/Render equality and sentinel checks would still pass. Owning node: design. Promise: P8.
+
+2. `chapters/04-library/SPRINT-02.md:36-37` requires `--values` to print “`Field: value` lines, one per field the README lists, and nothing else.” The validator discards field names and multiplicity using `sed … | sort -u` before comparing only value sets (`chapters/04-library/prove/show-equals-build.sh:86-98`). The ledger’s infer evidence contains only the script and summary log (`chapters/04-library/sprints.md:20-25`), not the deleted raw output or the sprint contract. Output using one bogus field name for every expected value, or duplicate lines, passes while the promised format is false. Owning node: design. Promise: P8 (`workflow show --values`).
+
+ROUTE: fail
+
+

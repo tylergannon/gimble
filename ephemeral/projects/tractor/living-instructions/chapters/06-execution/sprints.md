@@ -14,7 +14,10 @@ Empty ledger; written when the chapter is entered, re-planned each lap.
 2. `verify` in `large` with the holdout handoff: node, prompt, route
    targets; the holdout path recorded at design time and rendered only
    here. Proof: a small scratch package with one universal promise whose
-   holdout sample the coder never sees (see interview 0014, question 3).
+   holdout sample is disclosed to no prompt but `verify`'s (obscure, not
+   secret, decision 43: an unsandboxed coder could find it on disk; the
+   check reads the coder's segments for any read of the holdout path
+   and fails the sprint on one; see interview 0014, question 3).
 3. The greeter seed (fixed at commit 6dec5dc) end to end: `plan`, then
    the printed handoff, then the seed's acceptance examples. Proof: the
    greeter half of P10.

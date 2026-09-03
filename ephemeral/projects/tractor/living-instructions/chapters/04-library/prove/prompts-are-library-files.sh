@@ -71,5 +71,5 @@ go test -v -run 'TestBuildMatchesSnapshot' ./workflow/ -count=1 2>&1 | tee /dev/
 # The Go the judge must read: every package in this module that workflow/
 # or cmd/tractor/ imports, transitively.
 echo "go packages in scope for the judge:"
-go list -deps ./workflow/ ./cmd/tractor/ 2>/dev/null | grep '^github.com/tylergannon/tractor' | sort -u
+go list -deps ./workflow/ ./cmd/tractor/ 2>/dev/null | grep -v '^[a-z]*\(/[a-z0-9]*\)*$' | sort -u
 echo "prompts-are-library-files.sh: ok"

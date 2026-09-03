@@ -46,8 +46,9 @@ When this is done, the repository contains:
 Each promise: the statement, what it must not imply, the archetype
 (decision 42), and the verifier. Its scope and its evidence, the other
 two parts decision 37 names, live in its validation design under
-`validation/<id>/design.md`, which this table points to. Required checks (`go build`, `go vet`,
-`go test`, `golangci-lint`) apply to every chapter and prove nothing here.
+`validation/<id>/design.md`, which this table points to. Required checks (`go build`, `go vet`, `go test`, `golangci-lint`),
+with the count guards `chapters.md` carries, apply to every chapter
+and prove nothing here.
 
 | # | Promise | Must not imply | Archetype | Verifier |
 |---|---|---|---|---|

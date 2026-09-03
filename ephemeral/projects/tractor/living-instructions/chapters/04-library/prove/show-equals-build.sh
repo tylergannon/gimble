@@ -86,14 +86,21 @@ projdir="$tmp/demo/ephemeral/projects/demo"
 printf '%s\n' demo "$tmp/demo" "$tmp/bin/tractor" "$seed" "$projdir" "$projdir/brief.md" "$projdir/checklist.md" "$projdir/interview" "$tmp/bin/tractor ask" | sort -u > "$tmp/values-raw.txt"
 "$tmp/bin/tractor" workflow show plan --project demo --seed "$seed" --workdir "$tmp/demo" --values > "$tmp/values.txt" \
   || { echo "show --values failed"; exit 1; }
-sed -n 's/^[A-Za-z_]*: //p' "$tmp/values.txt" | awk 'length($0) > 0' | sort -u > "$tmp/values-shown.txt"
-comm -13 "$tmp/values-raw.txt" "$tmp/values-shown.txt" > "$tmp/values-extra.txt" || true
-if [ -s "$tmp/values-extra.txt" ]; then
-  echo "show --values reports values the check did not derive:"; cat "$tmp/values-extra.txt"; exit 1
-fi
-comm -23 "$tmp/values-raw.txt" "$tmp/values-shown.txt" > "$tmp/values-missing.txt" || true
-if [ -s "$tmp/values-missing.txt" ]; then
-  echo "show --values omits values the check derived:"; cat "$tmp/values-missing.txt"; exit 1
-fi
-echo "values: $(wc -l < "$tmp/values-raw.txt" | tr -d ' ') derived values, all shown, none extra"
+# Exact format: one "Field: value" line per README-listed field, each
+# once, with the value the check derived; nothing else.
+{
+  printf 'Project: %s\n' demo
+  printf 'Workdir: %s\n' "$tmp/demo"
+  printf 'Executable: %s\n' "$tmp/bin/tractor"
+  printf 'Seed: %s\n' "$seed"
+  printf 'ProjectDir: %s\n' "$projdir"
+  printf 'BriefPath: %s\n' "$projdir/brief.md"
+  printf 'ChecklistPath: %s\n' "$projdir/checklist.md"
+  printf 'InterviewDir: %s\n' "$projdir/interview"
+  printf 'QuestionCommand: %s\n' "$tmp/bin/tractor ask"
+} | sort > "$tmp/values-expected.txt"
+sort "$tmp/values.txt" > "$tmp/values-shown.txt"
+cmp -s "$tmp/values-expected.txt" "$tmp/values-shown.txt" || { echo "show --values differs from the derived Field: value lines"; diff "$tmp/values-expected.txt" "$tmp/values-shown.txt"; exit 1; }
+[ "$(wc -l < "$tmp/values.txt" | tr -d ' ')" -eq 9 ] || { echo "show --values printed $(wc -l < "$tmp/values.txt") lines, want 9"; exit 1; }
+echo "values: nine Field: value lines, exactly the derived ones"
 echo "show-equals-build.sh: ok"
