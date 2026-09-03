@@ -274,10 +274,11 @@ planner node is withdrawn.
     index over it (`research/INDEX.md`). Execution prompts inline resolved
     index hits, not a pointer. At most five research branches in parallel.
 
-53. **The library is content.** Every prompt, supervisor brief, review
-    pass, doctrine excerpt, and artifact skeleton the built-in workflows
-    use is a file under `workflow/library/`, embedded with `embed.FS` and
-    rendered with `text/template`; no prompt lives in a Go string.
+53. **The library is content.** Every prompt body, supervisor brief,
+    review pass, doctrine page, and artifact skeleton the built-in
+    workflows use is a file under `workflow/library/`, embedded with
+    `embed.FS` and rendered with `text/template`; frames and `$goal` are
+    the engine's, added at run time; no prompt body lives in a Go string.
     Prompts include doctrine files by name, so a teaching is edited once
     and every prompt that cites it changes. Tests render every template
     and fail on an unreferenced doctrine file. `tractor workflow show
