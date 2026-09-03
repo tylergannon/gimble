@@ -159,7 +159,10 @@ planner node is withdrawn.
     must not imply, a scope, a verifier, and evidence. A promise that
     cannot be falsified is narrowed before it is accepted. The checklist
     item's `check` is the promise; `command` and `infer` are its gates;
-    `done: true` is the attestation.
+    `done: true` is the attestation. A chapter item's gates are its
+    `command` (required checks and count guards) and the `verify` turn
+    (decision 41), not an `infer`; the commandless chapter item of
+    chapters 1 to 3 is the pre-v2 shape (amended by consistency lap 26).
 38. **Elicit, then prune.** Before asking, the planner drafts the promises a
     user of this thing would expect, from the seed, the repo, and research,
     and asks "do you promise this, and what must it not imply", with a

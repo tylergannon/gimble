@@ -135,7 +135,11 @@ universal promise over a set too large to check whole, the holdout
 sample under the XDG state root in a random-token directory whose path
 is stored beside it under the state root (`<build>.path`) and disclosed
 only to the `verify` prompt the execution run later materializes
-(decision 43). It then fills the
+(decision 43). The design's `## Verifier` section holds the gates
+(`command` and `infer`) authoritatively; for a chapter whose sprint
+ledger is still prose (`items: []`), that section is their only home
+until the execution `plan` node turns the prose into items and copies
+them in. Where the item exists, it then fills the
 sprint item the promise table's Item column names for the promise (one
 per promise; when the promise is split across items, each item carries
 the leg's `check`), in MEDIUM's sprint ledger or in the chapter's
@@ -197,7 +201,7 @@ built-in passes and any the project added). Yes routes to `success`. No routes t
 
 | Size | Path through the graph | Next |
 |---|---|---|
-| SIMPLE | the full graph; `decompose` writes a one-item sprint ledger; the validation loop runs one lap per promise and the review loop runs all seven passes, as for any size | "Execute the plan yourself." |
+| SIMPLE | the full graph; `decompose` writes a one-item sprint ledger whose item's `check` lists every promise and whose Item column names that item for each; the validation loop runs one lap per promise, each lap appending its `command` and `infer` to the same item (the SIMPLE item aggregates; nothing else does), and the review loop runs all seven passes, as for any size | "Execute the plan yourself." |
 | MEDIUM | full graph; decompose into sprints | `tractor workflow run medium --project <build>` |
 | LARGE | full graph; decompose into chapters | `tractor workflow run large --project <build>` |
 

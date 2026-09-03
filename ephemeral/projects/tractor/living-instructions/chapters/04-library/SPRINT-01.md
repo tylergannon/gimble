@@ -65,8 +65,9 @@ tool node, and the `checklist` of every loop node against
 `workflow/testdata/<workflow>/<node>.txt`. Capture the snapshots from
 the code as it is now, commit them, then do the move; the same test
 must pass against the templates. Keep the test; it is the tripwire for
-every later content edit that is meant to be a refactor, and sprint 2's
-`show` is checked against the same files.
+every later content edit that is meant to be a refactor. (Sprint 2's
+`show` is checked against a program that calls `Build` directly, not
+against these files.)
 
 Fixed parameters, recorded in `workflow/testdata/README.md`: project
 `demo`, workdir `/tmp/demo`, executable `/opt/tractor/bin/tractor`,

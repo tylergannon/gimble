@@ -50,7 +50,8 @@ are edited only when the plan node runs (once per chapter in today's
     and P4.
 11. Pass files, the generated review ledger, and `reviewer` with routes
     to the owning node. Proof: a nested run in which one pass fails, its
-    owning node runs, and the pass is re-selected and marked; and
+    owning node runs, the reviewer reruns for the same selected pass,
+    routes pass, and the loop marks it; and
     `chapters/04-library/prove/p8-passes-are-files.sh` (P8's pass leg).
 12. `assemble` and `approve`, the human gate. Proof: P5.
 13. The four supervisors in the YAML with `models.yaml` roles, and

@@ -49,7 +49,8 @@ Each promise: the statement, what it must not imply, the archetype
 two parts decision 37 names, live in its validation design under
 `validation/<id>/design.md`, which this table points to. Required checks (`go build`, `go vet`, `go test`, `golangci-lint`),
 with the count guards `chapters.md` carries, apply to every chapter
-and prove nothing here.
+from chapter 4 on (chapters 1 to 3 are built and keep the commands they
+were marked with) and prove nothing here.
 
 | # | Promise | Must not imply | Archetype | Verifier |
 |---|---|---|---|---|
