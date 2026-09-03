@@ -321,7 +321,8 @@ Fan-out drafts of chapter docs. Any engine change. The web client.
 
 ## 8. Claims to demonstrate before this replaces `plan`
 
-1. Given a one-paragraph seed and an empty repository, the workflow asks
+1. Given a seed that names three features and an empty repository, the
+   workflow asks
    about at least one promise the seed did not mention, and a declined
    promise appears under exclusions in `brief.md`.
 2. The brief and research loop halts by the tool node, not by
@@ -343,6 +344,7 @@ Fan-out drafts of chapter docs. Any engine change. The web client.
    no chapters and proves nothing here).
 7. `scope_cop` delivers at least one steer during the run, recorded in the
    timeline, and the steered turn's output changes.
-8. `show --stage` against a recorded stage of a real run reports no
-   diff, and the orphan walk fails when a doctrine page is added with no
-   prompt citing it.
+8. `show --stage` reports no diff against a stage built to the engine's
+   frame shape (chapter 4) and against recorded stages of real runs
+   (chapter 6), and the orphan walk fails when a doctrine page is added
+   that no rendered agent-facing file cites.
