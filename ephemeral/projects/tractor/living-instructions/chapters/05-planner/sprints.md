@@ -54,8 +54,8 @@ are edited only when the plan node runs (once per chapter in today's
     routes pass, and the loop marks it; and
     `chapters/04-library/prove/p8-passes-are-files.sh` (the passes half of
     P8's chapter 5 leg; the render test and orphan walk from chapter 4
-    cover every prompt, brief, and page this chapter adds, so each item
-    that adds a node runs them).
+    cover every prompt body, supervisor brief, pass, doctrine page, and
+    skeleton this chapter adds, so each item that adds one runs them).
 12. `assemble` and `approve`, the human gate. Proof: P5.
 13. The four supervisors in the YAML with `models.yaml` roles, and
     `workflow show` printing supervisor briefs. Proof: P7, and `show`
