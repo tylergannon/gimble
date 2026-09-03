@@ -316,6 +316,21 @@ planner node is withdrawn.
     item keeps the required checks as its `command` (decision 41). Reviewer notes are ordinary files
     with no format.
 
+60. **Review loops stop at good enough.** A reviewer is asked one
+    question: could a frontier coding agent, given this plan and nothing
+    else, arrive at a correct result; findings are graded blocking or
+    note, and only a blocking finding routes fail. The adversarial
+    questions (satisfiable while false; trivially true; stricter than
+    the promise) are how a finding is graded, not the verdict. The author
+    answers each finding with one of three moves: fix, reject with a
+    reason, or concede under Not proven, and marks the item done when no
+    blocking finding is unanswered. Two laps; a third fail is a question
+    to the human. A fix that grows a document by more than a fifth is a
+    redesign and stops the loop. Why: the manual run of 2026-09-02/03 ran
+    38 laps unattended, added 5,644 lines of prose, and built nothing;
+    see `postmortem-review-loops.md`. Supersedes the "until pass" wording
+    of decisions 47 and 48.
+
 ## Build order (revised)
 
 1. Interview file plus `tractor ask` and `tractor answer`. **Done** (chapter 1).
