@@ -81,7 +81,7 @@ turns the sketch into items, when the names replace them.
 | P5 | seven passes marked | 5 | backlog 11 (passes), backlog 12 (`assemble`, `approve`) | declared |
 | P6 | chapters proven by verify | 6 | backlog 4 (ledger-tool seed) | declared |
 | P7 | supervisors steer | 5 | backlog 13 (supervisors) | declared |
-| P8 | the library | 4; pass leg 5; real-stage leg 6 | `prompts become library files`, `workflow show`, `render test and orphan walk`, `doctrine pages and skeletons`; backlog 11; backlog 4 | declared |
+| P8 | the library | 4; chapter 5 leg 5; real-stage leg 6 | `prompts become library files`, `workflow show`, `render test and orphan walk`, `doctrine pages and skeletons`; backlog 11 and 13 and every chapter 5 item that adds a node; backlog 4 | declared |
 | P9 | docs-only reader | 6; docs sprints in 4 and 5 | backlog 5; `docs and skill`; backlog 14 | declared |
 | P10 | two seeds end to end | 6 | backlog 3 (greeter), backlog 4 (ledger-tool) | declared |
 
@@ -118,8 +118,7 @@ and 6 are library content plus Go in the `workflow` package and
 
 ### Chapter 4: the library
 
-Promise P8, except its pass leg (chapter 5) and its real-stage leg
-(chapter 6), and the chapter 4 portion of P9 (the docs sprint).
+Promise P8 for the nodes that exist in chapter 4, except its chapter 5 leg (the passes, the supervisor briefs, and the prompts and doctrine pages of nodes that first exist in chapter 5), proven in chapter 5, and its real-stage leg (chapter 6), and the chapter 4 portion of P9 (the docs sprint).
 Everything later is content plus workflow-package Go, so this comes
 first.
 
@@ -144,7 +143,7 @@ first.
 
 ### Chapter 5: the planner
 
-Promises P1 to P5, P7, P8's pass leg (passes are library files), and
+Promises P1 to P5, P7, P8's chapter 5 leg (the passes, the supervisor briefs, and the prompts and doctrine pages of nodes that first exist in chapter 5), and
 the chapter 5 portion of P9 (its docs sprint). Backlog sketch: `models.yaml` and per-role model
 resolution; intake node and first research plan; research branches,
 fan-in, index, `index_gate`; brief node with elicit-then-prune and

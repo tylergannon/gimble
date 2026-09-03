@@ -1,0 +1,3 @@
+1. `declaration.md` defines P8 as covering “Every prompt body, doctrine page, supervisor brief, pass, and skeleton,” but later assigns only “its pass leg (chapter 5)” to chapter 5; its routing row likewise names only “backlog 11.” This conflicts with `chapters/04-library/SPRINT-04.md`: “Pages for nodes that do not exist yet … come with their prompts in chapter 5,” and `chapters/05-planner/sprints.md`: “The four supervisors … and `workflow show` printing supervisor briefs” are backlog 13. P8 therefore has additional chapter-5 prompt, doctrine, and supervisor legs. Change `declaration.md` and its routing row (owner: brief), plus the pass-only summaries in `chapters.md` and `chapters/05-planner/CHAPTER.md` (owner: decompose).
+
+ROUTE: fail

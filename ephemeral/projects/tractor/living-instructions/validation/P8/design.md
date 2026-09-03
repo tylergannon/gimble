@@ -31,7 +31,7 @@ reproduce frames.
 Chapter 4 sprints 1 to 3; their proof scripts are the story. Sprint 4's
 `prove/doctrine-pages.sh` demonstrates that sprint; it is not part of
 P8's proof. Passes and the plan-review ledger arrive in chapter 5; the
-pass leg of the check below is empty until then and runs then.
+chapter 5 leg of the check below is empty until then and runs then.
 
 ## Evidence
 
@@ -175,7 +175,7 @@ above) and the segment of every turn this design judges; every proof script
 this design names, `prove/lib.sh`, `prove/base-commit.txt` (whose hash
 the ledger command itself carries, so a moved pin fails the command
 before the judge sees anything), `SPRINT-04.md`, and each script's log
-under `prove/last-run/` (chapter 4's two, chapter 5's pass leg with the
+under `prove/last-run/` (chapter 4's two, chapter 5's leg with the
 generated `plan-review/ledger.md` and every reviewer stage's
 `prompt.md` of its run, chapter 6's stage leg with the stage
 directories it diffed), the library files under `workflow/library/`,

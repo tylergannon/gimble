@@ -52,7 +52,10 @@ are edited only when the plan node runs (once per chapter in today's
     to the owning node. Proof: a nested run in which one pass fails, its
     owning node runs, the reviewer reruns for the same selected pass,
     routes pass, and the loop marks it; and
-    `chapters/04-library/prove/p8-passes-are-files.sh` (P8's pass leg).
+    `chapters/04-library/prove/p8-passes-are-files.sh` (the passes half of
+    P8's chapter 5 leg; the render test and orphan walk from chapter 4
+    cover every prompt, brief, and page this chapter adds, so each item
+    that adds a node runs them).
 12. `assemble` and `approve`, the human gate. Proof: P5.
 13. The four supervisors in the YAML with `models.yaml` roles, and
     `workflow show` printing supervisor briefs. Proof: P7, and `show`
