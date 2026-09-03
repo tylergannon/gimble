@@ -1,6 +1,6 @@
 # P4: a rejected validation design is re-designed with the reviewer's notes and later passes
 
-Archetype: scenario. Lap 7; answers `review-6.md`.
+Archetype: scenario. Lap 8; answers `review-7.md`.
 
 ## Story
 
@@ -38,15 +38,14 @@ skipped; the item is `done: true` in the final ledger; for the first
 review: the notes file is absent in D1 and present in R1, and
 `design.md` is byte-identical between D1 and R1 (the reviewer wrote
 notes, not a redesign); the notes were available to every design turn
-after the first: the notes' substantive lines (every line of forty or
-more characters; the script fails "notes have no substantive line" if
-there are none) all appear in that turn's `prompt.md`, or all appear in
-the paired `tool_result` of a `tool_call` in its segment whose
-arguments contain the notes path (a boilerplate or blank first line
-cannot satisfy this); `design.md` differs between the copies before
-and after that design turn, and is byte-identical across the review
-turn that follows it (each redesign is the design turn's, and the
-reviewer left it alone).
+after the first: every non-empty line of the notes appears in that
+turn's `prompt.md`, or every non-empty line appears in the paired
+`tool_result` of a `tool_call` in its segment whose arguments contain
+the notes path (the whole notes, in whatever format the reviewer
+chose, were in front of the turn); `design.md` differs between the
+copies before and after that design turn, and is byte-identical across
+the review turn that follows it (each redesign is the design turn's,
+and the reviewer left it alone).
 
 `infer` (files: every review turn's `prompt.md` and `response.md`; every
 redesigning turn's `prompt.md` and segment; the notes; the design

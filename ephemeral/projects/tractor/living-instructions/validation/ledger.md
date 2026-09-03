@@ -22,6 +22,7 @@ items:
   - name: P7 supervisor steer
     check: The design under validation/P7 proves P7 and cannot be satisfied while P7 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P7/design.md
+    done: true
   - name: P8 library
     check: The design under validation/P8 proves P8 and cannot be satisfied while P8 is false.
     doc: ephemeral/projects/tractor/living-instructions/validation/P8/design.md

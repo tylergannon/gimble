@@ -1,0 +1,9 @@
+1. No. Pre-scripted bait or a canned supervisor steer would still make P7 true if the fresh run records real delivery and a real post-steer edit. The validator binds the verdict, audit record, harness-received user event, ordered tool calls/results, and final package; evasion would require falsifying engine/harness evidence or surviving the semantic judge with a no-op ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P7/design.md:29), [ledger.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/ledger.md:49)).
+
+2. No substantive check is trivial or uncaptured. `delivered: true`, `steering.jsonl`, and the second `user` event are redundant corroboration; the spec defines that user event as occurring when the adapter hands steering to the harness. The ordered pre/post tool calls, paired results, final package, answer log, and answer files distinguish an actual agent edit from failed writes or a human answer ([docs/spec.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/docs/spec.md:2929), [design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P7/design.md:35)).
+
+3. No. The bait and three target stages instantiate `scope_cop`’s declared scope; the design permits the bait to remain and does not require plan improvement. A run without pre-steer drift is inconclusive rather than passed, which the design expressly concedes, so it is not a false failure under the stated review rules ([declaration.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/declaration.md:57), [design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P7/design.md:55)).
+
+ROUTE: pass
+
+

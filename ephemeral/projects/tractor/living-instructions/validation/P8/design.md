@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 7; answers `review-6.md`.
+Lap 8; answers `review-7.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -25,7 +25,7 @@ pass leg of the check below is empty until then and runs then.
 - The repository at chapter 4's end: `workflow/library/`,
   `workflow/library.go`, `workflow/testdata/`, and the README's list of
   the data fields templates may read (the template contract, section 4
-  of the declaration).
+  of the declaration) with how each derives from `Parameters`.
 - The graph files `workflow/library/workflows/*.yaml`: node ids and
   types, read by the check itself.
 - `Build`'s output, captured by the check itself through a throwaway
@@ -34,13 +34,17 @@ pass leg of the check below is empty until then and runs then.
 - The include closure of each header file: the files named by
   `include` and `doctrine` actions in it, transitively, read by the
   check from the files themselves.
+- The data values for the check's parameters: the check supplied
+  `Parameters` and computes every README-listed derived value from
+  them.
 - Mutated copies of the tree the check makes: every library prompt file
   and one doctrine page with a sentinel naming that file appended; one
   uncited doctrine page added; and, separately, one doctrine page with a
   broken template action.
-- At chapter 5 and after: a `plan` run the check makes itself; the
-  `plan-review/ledger.md` it generated, and a second run from a copy
-  with a sentinel appended to one pass file.
+- At chapter 5 and after: a `plan` run the check makes itself from a
+  copy of the tree in which every file under `passes/` carries its own
+  sentinel; the `plan-review/ledger.md` it generated and every reviewer
+  stage's `prompt.md`.
 - At chapter 6: the same run's `stages/<seq>-<node>/prompt.md`.
 
 ## Validator
@@ -65,23 +69,28 @@ pass leg of the check below is empty until then and runs then.
   prompt file in that file's include closure, and contains no sentinel
   of a prompt file outside the closure; with a sentinel appended to a
   doctrine page, every prompt whose closure names that page prints it.
-  Data only: every line of each rendered prompt either appears verbatim
-  in its library file or in a doctrine or template file, or is shorter
-  than 200 bytes (a data value); a Go-supplied instruction string
-  rendered through a thin template fails this. Orphans: an injected
+  No unused prompt file: every file under `prompts/` and `supervisors/`
+  is in the closure of some node's header file in some workflow (a file
+  no node renders cannot be the citation that keeps a doctrine page
+  alive); every file under `passes/` is covered by the chapter 5 leg.
+  Data only: the check knows every data value, because it supplied the
+  parameters and the README says how each derived value is computed;
+  for each rendered line it removes every occurrence of every data
+  value, and for each library line it removes every template action;
+  every rendered residue must equal some library residue (a rendered
+  line is library text plus data, whatever its length; Go-supplied
+  text that is neither fails). Orphans: an injected
   `doctrine/zz-uncited.md` makes `TestLibraryNoOrphans` fail naming it.
   Rendering: an injected broken action in a doctrine page makes
   `TestLibraryRendersAll` fail naming the page. In the real tree both
   tests run and pass.
-- `prove/p8-passes-are-files.sh` (chapter 5): the pass question the
-  plan-review reviewer receives is the pass file's text. In a copy of
-  the tree with a sentinel appended to one file under `passes/`, a
-  `plan` run's generated `plan-review/ledger.md` carries that sentinel
-  in the corresponding item's `check` or `doc`, and the reviewer
-  stage's `prompt.md` for that pass contains it. A pass carried as a Go
-  string cannot pass this; a pass reaching the reviewer through the
-  loop frame is content the engine copied from the ledger the library
-  generated, which is the library's text.
+- `prove/p8-passes-are-files.sh` (chapter 5): in a copy of the tree
+  with a distinct sentinel appended to every file under `passes/`, a
+  `plan` run's generated `plan-review/ledger.md` has one item per pass
+  file carrying that file's sentinel in its `check` or `doc`, and every
+  reviewer stage's `prompt.md` contains its pass's sentinel; a pass
+  carried as a Go string, or one pass file-backed among six Go strings,
+  cannot pass this.
 - `prove/p8-show-stage.sh` (chapter 6): runs `plan` on
   `seeds/greeter.md` into a fresh run directory, then for the first
   completed stage of each prompt-bearing node runs `show plan --node
@@ -93,8 +102,8 @@ No `infer`.
 ## Not proven
 
 That the content is good. That `show` reproduces frames (by design;
-research F1). That a data value under 200 bytes carries no instruction;
-the README's field list is the contract and the code review reads the
-struct. Skeleton text: templates are cited by prompts (sprint 3's
-script) and rendered by the render test; what a planner writes from
-them is its own output, not the library's.
+research F1). That a data value carries no instruction; the README's
+field list is the contract and the code review reads the struct.
+Skeleton text: templates are cited by prompts (sprint 3's script) and
+rendered by the render test; what a planner writes from them is its
+own output, not the library's.

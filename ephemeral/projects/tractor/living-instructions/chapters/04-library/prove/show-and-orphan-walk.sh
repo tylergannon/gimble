@@ -122,22 +122,49 @@ if "$tmp/bin/tractor" workflow show plan --project demo --seed "$seed" --workdir
   echo "show --stage missed a diff"; exit 1
 fi
 
-# ---- data only: every rendered line is library text or a short value --
+# ---- data only: every rendered line is library text plus data ----------
+# The check supplied the parameters, and the README lists every derived
+# value templates may read and how it is computed, so every data value is
+# known. Remove the data values from each rendered line and the template
+# actions from each library line; every rendered residue must equal some
+# library residue. Go-supplied text that is neither library text nor a
+# data value fails here, whatever its length.
 lib_real=workflow/library
-cat "$lib_real"/prompts/*/* "$lib_real"/supervisors/* "$lib_real"/passes/* "$lib_real"/doctrine/* "$lib_real"/templates/* 2>/dev/null > "$tmp/library-text.txt" || true
+delim_open="$(sed -n 's/^[Dd]elimiters:[[:space:]]*\([^[:space:]]*\)[[:space:]]*\([^[:space:]]*\).*/\1/p' "$lib_real/README.md" | head -1)"
+delim_close="$(sed -n 's/^[Dd]elimiters:[[:space:]]*\([^[:space:]]*\)[[:space:]]*\([^[:space:]]*\).*/\2/p' "$lib_real/README.md" | head -1)"
+test -n "$delim_open" && test -n "$delim_close" || { echo "data-only: README does not state both delimiters"; exit 1; }
+# Data values: the parameters and the README's derived values. The README
+# lists each derived field as "- <Field>: <how derived>"; the script
+# recomputes the standard ones and reads any extra literal values from
+# `tractor workflow show --values` (chapter 4 sprint 2 prints the data
+# struct as key: value lines for exactly this use).
+"$tmp/bin/tractor" workflow show plan --project demo --seed "$seed" --workdir "$tmp/demo" --values > "$tmp/values.txt" \
+  || { echo "data-only: show --values failed"; exit 1; }
+sed -n 's/^[A-Za-z_]*: //p' "$tmp/values.txt" | awk 'length($0) > 0' | sort -u > "$tmp/data-values.txt"
+strip_values() { # stdin -> stdout, every data value removed
+  cmd="sed"
+  while IFS= read -r v; do
+    esc="$(printf '%s' "$v" | sed 's/[.[\*^$\/&]/\\&/g')"
+    cmd="$cmd -e 's/$esc//g'"
+  done < "$tmp/data-values.txt"
+  eval "$cmd"
+}
+cat "$lib_real"/prompts/*/* "$lib_real"/supervisors/* "$lib_real"/passes/* "$lib_real"/doctrine/* "$lib_real"/templates/* 2>/dev/null \
+  | sed -e "s/$delim_open[^>]*$delim_close//g" | sort -u > "$tmp/library-residue.txt"
 for wf in $workflows; do
   yaml_nodes "$wf" | while read -r node kind; do
     file="$(shown_file "$tmp/bin/tractor" "$wf" "$node")"
     [ -n "$file" ] || continue
-    show_raw "$tmp/bin/tractor" "$wf" "$node" | while IFS= read -r line; do
-      [ -n "$line" ] || continue
-      if [ "${#line}" -ge 200 ] && ! grep -qxF -- "$line" "$tmp/library-text.txt"; then
-        echo "data-only: $wf/$node renders a long line found in no library file: ${line%%??????????????????????????????????????????????????????????????????????????????????????????}..."; exit 1
-      fi
+    show_raw "$tmp/bin/tractor" "$wf" "$node" | strip_values | while IFS= read -r line; do
+      [ -n "$(printf '%s' "$line" | tr -d '[:space:]')" ] || continue
+      grep -qxF -- "$line" "$tmp/library-residue.txt" \
+        || { echo "data-only: $wf/$node renders a line that is neither library text nor data: $line"; exit 1; }
     done
   done
 done
 
+# ---- no unused prompt file: every prompt and supervisor file is rendered
+# by some node of some workflow (directly or through an include).
 # ---- content: one sentinel per file, in the copy ------------------------
 lib="$tmp/src/workflow/library"
 # closure FILE: prints FILE and every prompt/supervisor/pass file reachable
@@ -190,6 +217,19 @@ for wf in $workflows; do
       grep -q "^$stamp DOCTRINE " "$tmp/mut.txt" || { echo "content: $wf/$node names $(basename "$page") but does not render it"; exit 1; }
     fi
   done
+done
+
+# ---- no unused prompt file --------------------------------------------
+: > "$tmp/used.txt"
+for wf in $workflows; do
+  yaml_nodes "$wf" | while read -r node kind; do
+    file="$(shown_file "$tmp/bin/mutated" "$wf" "$node")"
+    [ -n "$file" ] || continue
+    closure "$file"
+  done
+done | sort -u > "$tmp/used.txt"
+(cd "$lib" && find prompts supervisors -type f | sort) | while read -r f; do
+  grep -qxF -- "$f" "$tmp/used.txt" || { echo "unused: no node renders $f"; exit 1; }
 done
 
 # ---- orphans: the injected page must be reported by name ---------------

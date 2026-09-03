@@ -1,7 +1,7 @@
 # P3: every promise is marked done in the validation ledger after an independent review routed pass
 
 Archetype: universal over the promises of a run. Checked exhaustively;
-no holdout. Lap 7; answers `review-6.md`.
+no holdout. Lap 8; answers `review-7.md`.
 
 ## Story
 
@@ -17,16 +17,16 @@ Any `plan` run the check makes itself at check time
   sprint 1 makes `show` print them). `show` and `run` call the same
   `Build` with the same parameters in the same binary (P8), so this is
   the graph the engine walked.
-- `timeline.jsonl`: `LoopValidated(node, item, passed)`,
-  `StageCompleted(name, next)`, `StageFailed`.
+- `timeline.jsonl`: `LoopItemSelected(node, item)`, `LoopValidated(node,
+  item, passed)`, `StageCompleted(name, next)`, `StageFailed`.
 - `stages/<seq>-<loop>/validation.json` for every validation loop turn.
 - `observer/` copies of `validation/<item>/design.md` at every stage
   boundary (which stage wrote each design).
 - For the reviewing node R: `prompt.md` and `response.md` of every
   completed stage.
-- `checkpoint.json` `sessions`: the entries under R's and D's binding
-  keys (the NUL-prefixed `none:<id>` for a no-thread node, else its
-  thread id).
+- `checkpoint.json` `sessions`: the entries under R's and each D node's
+  binding keys (the NUL-prefixed `none:<id>` for a no-thread node, else
+  its thread id).
 
 ## Validator
 
@@ -37,12 +37,14 @@ exactly one item name and every item name begins with an id (each
 promise is represented once; naming beyond the id is free); every item
 is `done: true` in the final ledger; for every item there is exactly
 one `LoopValidated` with `passed: true` naming it on the validation
-loop and one loop stage whose `validation.json` names it; for each such
-loop stage, let R be the node of the last completed codergen stage
-before it (tool stages may intervene; a `StageFailed` stage with no
-`response.md` is a retried attempt and is skipped): R is the same node
-for every item and R's `StageCompleted` `next` leads to the loop; let D
-be the set of nodes across whose stages any `validation/<item>/design.md`
+loop and one loop stage whose `validation.json` names it; for every
+item, between its last `LoopItemSelected` and its `LoopValidated`, there
+is a completed codergen stage of one node R (the same node for every
+item) whose `StageCompleted` `next` leads to the loop and which is the
+last completed codergen stage before that `LoopValidated` (a review
+turn belonging to this item, not a stale one; a `StageFailed` stage
+with no `response.md` is a retried attempt and is skipped); let D be
+the set of nodes across whose stages any `validation/<item>/design.md`
 changed (from the observer copies before and after each stage): R is
 not in D (the reviewer authored no design), and D is not empty; every
 completed R stage has `prompt.md`, `response.md`, and a segment; the
@@ -51,13 +53,14 @@ and `checkpoint.json` records, under R's binding key and under each D
 node's key, harnesses that are the routes of those providers, R's
 differing from every D node's.
 
-`infer` (files: every completed R stage's `prompt.md` and
-`response.md`, `promises.md`, the designs): "For each R turn: was it
-given the promise's statement and the design under review, and asked
-whether a coder could satisfy the design while the promise is false?
-Do its notes answer that, and does the verdict in the notes agree with
-the `next` in the front matter? Fail for any turn that was not asked,
-did not answer, or whose words disagree with its route."
+`infer` (files: for every item, the R stage identified above: its
+`prompt.md` and `response.md`; `promises.md`; the designs): "For each
+item's R turn: was it given that item's promise statement and that
+item's design, and asked whether a coder could satisfy the design
+while the promise is false? Do its notes answer that for that design,
+and does the verdict in the notes agree with the `next` in the front
+matter? Fail for any item whose turn was not asked about it, did not
+answer, or whose words disagree with its route."
 
 ## Not proven
 

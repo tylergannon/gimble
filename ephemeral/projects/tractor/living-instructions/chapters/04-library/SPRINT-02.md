@@ -29,6 +29,11 @@ path) with no header. The proof script compares this against a program
 of its own that calls `Build`, so `show` must print what `Build`
 returns and nothing it renders on its own.
 
+`--values` prints the template data struct for the given parameters as
+`Field: value` lines, one per field the README lists, and nothing else.
+The proof script uses it to know every data value a rendered prompt
+may contain.
+
 `--stage <dir>`: read `<dir>/prompt.md`, strip the frame (everything
 from the start through the end of the outermost `</iterate>` block and
 the preamble before it; see `engine/frames.go:108-146` for the shape),
@@ -76,7 +81,11 @@ block, and that program's output makes `--stage` exit 0, and 1 after
 one byte is appended. Content: with a sentinel line appended to every
 file under `prompts/`, `supervisors/`, and `passes/` and to one doctrine
 page, every codergen node's `show --raw` prints its file's sentinel and
-every prompt naming the page prints the page's sentinel. Orphans: an
+every prompt naming the page prints the page's sentinel. Data only: with every data value (from `--values`) removed from each
+rendered line and every template action removed from each library
+line, every rendered line must equal some library line. Unused: every
+file under `prompts/` and `supervisors/` is in the include closure of
+some node's header file. Orphans: an
 injected `doctrine/zz-uncited.md` makes `go test -run
 TestLibraryNoOrphans` fail naming it; rendering: an unclosed action
 appended to a doctrine page (using the delimiters the README states)

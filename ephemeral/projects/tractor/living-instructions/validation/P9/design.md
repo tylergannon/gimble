@@ -1,6 +1,6 @@
 # P9: an agent reading only the docs uses plan, show, and ask correctly
 
-Archetype: scenario, judged by inference. Lap 7; answers `review-6.md`.
+Archetype: scenario, judged by inference. Lap 8; answers `review-7.md`.
 
 ## Story
 
@@ -13,19 +13,21 @@ Archetype: scenario, judged by inference. Lap 7; answers `review-6.md`.
    set inside the scratch directory, so any run it starts without
    `--logs` also lands there.
 2. It runs a one-node pipeline, `reader` (codergen, claude, fresh
-   context, workdir the scratch directory), with `observer.sh` attached
-   to the reader run and answering, on the reader's behalf, any later
-   question the nested plan run asks (accept-all rules), so the plan
-   run can finish. The prompt describes the tasks in plain words and
-   names no command, flag, or path: start the built-in planning
-   workflow on a one-line product and let it run to the end; ask your
-   operator one question about it the way an agent inside a Tractor
-   run is meant to, and wait for the answer; answer the first question
-   the planning run asks; print, with the command the docs give for it,
-   the prompt the planner node will receive; and say where the
-   interview directory and a universal promise's holdout live and which
-   planning step produces each. Run the commands, do not describe them,
-   and finish with a short report.
+   context, workdir the scratch directory), with one `observer.sh`
+   attached to the reader run, and a second `observer.sh` with
+   accept-all rules attached to the nested plan run as soon as the
+   check sees its run directory appear under the scratch directory
+   (the check watches for it), so the plan run can finish after the
+   reader has answered its first question. The prompt describes the
+   tasks in plain words and names no command, flag, or path: start the
+   built-in planning workflow on a one-line product and let it run to
+   the end; ask your operator one question about it the way an agent
+   inside a Tractor run is meant to, and wait for the answer; answer
+   the first question the planning run asks; print, with the command
+   the docs give for it, the prompt the planner node will receive; and
+   say where the interview directory and a universal promise's holdout
+   live and which planning step produces each. Run the commands, do not
+   describe them, and finish with a short report.
 3. Wait for `COMPLETED` of the reader run.
 
 ## Evidence
@@ -36,11 +38,16 @@ Archetype: scenario, judged by inference. Lap 7; answers `review-6.md`.
 - The plan run directory the reader created (found under the scratch
   directory, whether by `--logs` or the state root): `timeline.jsonl`,
   `interview/`, the planner stage's `prompt.md` and segment (its
-  `tractor ask` `tool_call` and paired `tool_result`).
+  `tractor ask` `tool_call` and paired `tool_result`), its own
+  `observer/`.
 - The promised sources at that commit, and the `--help` of `workflow
   run`, `workflow show`, `ask`, `answer`.
+- The planner prompt as the check itself prints it with `show plan
+  --node planner --raw` for the reader's project and seed, and the
+  exit status of the check's own `show plan --node planner --stage
+  <the planner stage dir>`.
 - The holdout root as the software renders it: `show large --node
-  verify --raw` for the reader's project, produced by the script.
+  verify --raw` for the reader's project, produced by the check.
 
 ## Validator
 
@@ -55,11 +62,14 @@ answer` for E's file at time A, and the plan run's planner segment has
 a `tractor ask` `tool_call` before E with its paired `tool_result`
 after A (the reader's answer released the planner's blocked ask); the
 reader's segment has a `tool_call` invoking `tractor workflow show`
-whose paired `tool_result` text is non-empty and contained in the plan
-run's recorded planner `prompt.md` (the reader used the promised
-command and printed what the run sent); `response.md` names the
-interview directory the plan run used (the directory of E's path) and
-the holdout root that `show large --node verify --raw` renders.
+whose paired `tool_result` text, trailing whitespace aside, equals the
+check's own `show plan --node planner --raw` output for the same
+project (the reader printed the whole prompt, not a prefix), and the
+check's `show --stage` against the plan run's planner stage exits 0
+(what `show` prints is what the run sent, frame aside); `response.md`
+names the interview directory the plan run used (the directory of E's
+path) and the holdout root that `show large --node verify --raw`
+renders.
 
 `infer` (files: the reader's `response.md` and segment, the promised
 sources, the help output, `planning-workflow.md` section 3): "For the
