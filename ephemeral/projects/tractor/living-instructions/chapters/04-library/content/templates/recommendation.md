@@ -11,4 +11,4 @@ Package: `ephemeral/projects/<build>/` with `brief.md`, `promises.md`,
 
 Review: <seven passes, all marked | list any project-added pass>.
 
-Next: <Execute the plan yourself. | tractor workflow run medium --project <build> | tractor workflow run large --project <build>>
+Next: <one of: Execute the plan yourself. | tractor workflow run medium --project BUILD | tractor workflow run large --project BUILD, with BUILD filled in>
