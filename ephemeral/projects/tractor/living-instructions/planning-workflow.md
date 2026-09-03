@@ -209,7 +209,8 @@ sprint that finds the chapter wrong asks the human.
 runs once per chapter after its sprint loop exits. Reads the validation
 design and, for a universal promise with a holdout, the holdout path
 the run's private workflow state carries (written there by the design
-lap and rendered only into this prompt; a scenario chapter has none),
+lap and rendered only into this prompt; a chapter whose promises are all
+scenarios has none),
 operates the software itself, captures its
 own evidence under the run directory, and routes pass to the chapters
 loop or fail to the sprint loop (or to a human question). A chapter is

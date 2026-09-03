@@ -30,7 +30,7 @@ not start with a top-level repository directory is relative to
 
 ## Vector
 
-Decisions 53, 54, 59. Research R1 (prior art: crush, goose, codex,
+Decisions 53 and 59 (54, `models.yaml`, is chapter 5's). Research R1 (prior art: crush, goose, codex,
 gemini-cli) and R5 (the exact seams). Go supplies data values, the
 value functions `quote` and `shell`, and the composition actions
 `include` and `doctrine` to templates, and nothing else; provider names are explicit; delimiters are
