@@ -51,7 +51,7 @@ proves: the set of node ids `show` prints equals the set `Build`
 returns, as a program the script writes lists them; for every node `show --raw` is byte-equal to a
 program the script writes into a copy of the tree that calls
 `workflow.Build` directly; `--stage` exits 0 on a stage built from the
-frame preamble (`fixtures/frame-preamble.txt`) plus that program's
+frame preamble (`chapters/04-library/fixtures/frame-preamble.txt`) plus that program's
 output and 1 after one byte is appended; `--values` reports no value
 the script did not derive itself from the parameters and the README's
 derivations. If the graph API names in the script's program differ
