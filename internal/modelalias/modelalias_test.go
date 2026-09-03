@@ -6,8 +6,9 @@ import (
 	"testing"
 )
 
-func TestAvailableFableModels(t *testing.T) {
+func TestAvailableModels(t *testing.T) {
 	want := []Model{
+		{Alias: "flash", Provider: "gemini", Model: "gemini-3.8-flash-medium"},
 		{Alias: "fable", Provider: "anthropic", Model: "claude-fable-5-1"},
 		{Alias: "fable-5.1", Provider: "anthropic", Model: "claude-fable-5-1"},
 		{Alias: "fable-5", Provider: "anthropic", Model: "claude-fable-5"},
@@ -26,11 +27,13 @@ func TestResolveSelection(t *testing.T) {
 		wantModel    string
 		wantErr      string
 	}{
+		{name: "Flash resolves to Gemini 3.8 medium", model: "flash", wantProvider: "gemini", wantModel: "gemini-3.8-flash-medium"},
+		{name: "explicit Gemini provider accepts Flash", provider: "gemini", model: "flash", wantProvider: "gemini", wantModel: "gemini-3.8-flash-medium"},
 		{name: "unversioned Fable defaults to 5.1", model: "fable", wantProvider: "anthropic", wantModel: "claude-fable-5-1"},
 		{name: "explicit Fable 5.1", provider: "anthropic", model: "fable-5.1", wantProvider: "anthropic", wantModel: "claude-fable-5-1"},
 		{name: "explicit Fable 5 remains available", model: "fable-5", wantProvider: "anthropic", wantModel: "claude-fable-5"},
 		{name: "raw model passes through", provider: "anthropic", model: "claude-experimental", wantProvider: "anthropic", wantModel: "claude-experimental"},
-		{name: "conflicting provider", provider: "openai", model: "fable", wantErr: `provider "openai" conflicts with model alias "fable"`},
+		{name: "conflicting provider", provider: "openai", model: "flash", wantErr: `provider "openai" conflicts with model alias "flash"`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -51,8 +54,8 @@ func TestResolveSelection(t *testing.T) {
 func TestAvailableReturnsCopy(t *testing.T) {
 	models := Available()
 	models[0].Model = "changed"
-	resolved, _ := Resolve("fable")
-	if resolved.Model != "claude-fable-5-1" {
+	resolved, _ := Resolve("flash")
+	if resolved.Model != "gemini-3.8-flash-medium" {
 		t.Fatalf("registry mutated through Available(): %#v", resolved)
 	}
 }

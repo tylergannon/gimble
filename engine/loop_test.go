@@ -67,19 +67,23 @@ func TestLoopCompletesThreeItemChecklistInThreeLaps(t *testing.T) {
 	if list.Body != wantBody {
 		t.Fatalf("body = %q, want %q", list.Body, wantBody)
 	}
-	if _, err := os.Stat(filepath.Join(root, "stages", "000001-items", "validation.log")); !os.IsNotExist(err) {
+	if matches, err := filepath.Glob(filepath.Join(root, "stages", "000001-items", "validation-*.log")); err != nil || len(matches) != 0 {
 		t.Fatalf("first arrival wrote a validation log: %v", err)
 	}
-	for _, stage := range []string{"000003-items", "000005-items", "000007-items"} {
-		for _, name := range []string{"validation.log", "validation.json"} {
-			if _, err := os.Stat(filepath.Join(root, "stages", stage, name)); err != nil {
-				t.Fatalf("%s/%s: %v", stage, name, err)
+	for index, stage := range []string{"000003-items", "000005-items", "000007-items"} {
+		records := readValidationRecords(t, filepath.Join(root, "stages", stage, "validation.json"))
+		if len(records) != index+1 {
+			t.Fatalf("%s recorded %d validations, want %d", stage, len(records), index+1)
+		}
+		for _, record := range records {
+			if _, err := os.Stat(record.LogPath); err != nil {
+				t.Fatalf("%s: %v", record.LogPath, err)
 			}
 		}
 	}
 	assertTextFile(t, filepath.Join(root, "frames.json"), "[]\n")
 	events := mustTimeline(t, root)
-	validated, completed := 0, 0
+	validated, evaluated, completed := 0, 0, 0
 	for _, event := range events {
 		switch event["type"] {
 		case "LoopValidated":
@@ -87,12 +91,93 @@ func TestLoopCompletesThreeItemChecklistInThreeLaps(t *testing.T) {
 				t.Fatalf("validation did not pass: %v", event)
 			}
 			validated++
+		case "LoopEvaluated":
+			evaluated++
 		case "LoopCompleted":
 			completed++
 		}
 	}
-	if validated != 3 || completed != 1 {
-		t.Fatalf("timeline has %d LoopValidated and %d LoopCompleted", validated, completed)
+	if validated != 3 || evaluated != 3 || completed != 1 {
+		t.Fatalf("timeline has %d LoopValidated, %d LoopEvaluated, and %d LoopCompleted", validated, evaluated, completed)
+	}
+}
+
+func TestLoopRevalidatesDoneItemsAndUnmarksRegressions(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	path := filepath.Join(workdir, "sprint.md")
+	writeFile(t, path, `---
+items:
+  - name: First
+    check: The first proof exists
+    command: test -f first.ok
+  - name: Second
+    check: The second proof exists
+    command: test -f second.ok
+---
+`)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	laps := 0
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+		laps++
+		switch laps {
+		case 1:
+			writeFile(t, filepath.Join(scope.Workdir, "first.ok"), "ok\n")
+		case 2:
+			if err := os.Remove(filepath.Join(scope.Workdir, "first.ok")); err != nil {
+				t.Fatal(err)
+			}
+		case 3:
+			list := mustChecklist(t, path)
+			if list.Items[0].Done || list.Items[1].Done {
+				t.Fatalf("regressed and framed items were not both open: %#v", list.Items)
+			}
+			writeFile(t, filepath.Join(scope.Workdir, "first.ok"), "ok\n")
+			writeFile(t, filepath.Join(scope.Workdir, "second.ok"), "ok\n")
+		}
+	}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, nil).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || laps != 4 {
+		t.Fatalf("result = %#v after %d laps", result, laps)
+	}
+	records := readValidationRecords(t, filepath.Join(root, "stages", "000005-items", "validation.json"))
+	if len(records) != 2 || records[0].Item != "First" || records[0].Passed || records[1].Item != "Second" || records[1].Passed {
+		t.Fatalf("regression validation = %#v", records)
+	}
+	if records[0].LogPath == records[1].LogPath {
+		t.Fatalf("validation logs collided: %#v", records)
+	}
+	for _, record := range records {
+		if _, err := os.Stat(record.LogPath); err != nil {
+			t.Fatalf("validation log %s: %v", record.LogPath, err)
+		}
+	}
+	prompt := readFile(t, filepath.Join(root, "stages", "000006-implement", "prompt.md"))
+	for _, want := range []string{"item: First", "item: Second", records[0].LogPath, records[1].LogPath} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("regression prompt %q lacks %q", prompt, want)
+		}
+	}
+	foundList := false
+	for _, event := range mustTimeline(t, root) {
+		if event["type"] != "LoopValidated" || event["passed"] != false {
+			continue
+		}
+		validations, ok := event["validations"].([]any)
+		if ok && len(validations) == 2 {
+			foundList = true
+		}
+	}
+	if !foundList {
+		t.Fatal("timeline lacks the two-item failed validation list")
 	}
 }
 
@@ -137,8 +222,8 @@ items:
 		t.Fatalf("first lap prompt = %q", first)
 	}
 	second := readFile(t, filepath.Join(root, "stages", "000004-implement", "prompt.md"))
-	failedLog := filepath.Join(root, "stages", "000003-items", "validation.log")
-	for _, want := range []string{`lap="2"`, "last validation: failed — exit 1", "\n  validation log: " + failedLog + "\n", "name: Flag", "command: test -f flag", "\n\nimplement"} {
+	failedLog := filepath.Join(root, "stages", "000003-items", "validation-001.log")
+	for _, want := range []string{`lap="2"`, "last validation: failed", "item: Flag", "summary: exit 1", "validation log: " + failedLog, "name: Flag", "command: test -f flag", "\n\nimplement"} {
 		if !strings.Contains(second, want) {
 			t.Fatalf("second lap prompt %q lacks %q", second, want)
 		}
@@ -147,13 +232,11 @@ items:
 	if strings.Contains(third, "last validation") || strings.Contains(third, "validation log:") || !strings.Contains(third, `item="2/2" lap="1"`) {
 		t.Fatalf("prompt after the pass = %q", third)
 	}
-	var failed validationRecord
-	readJSON(t, filepath.Join(root, "stages", "000003-items", "validation.json"), &failed)
+	failed := readValidationRecords(t, filepath.Join(root, "stages", "000003-items", "validation.json"))[0]
 	if failed.Passed || failed.ExitCode != 1 || !strings.HasPrefix(failed.Summary, "exit 1") || failed.Item != "Flag" {
 		t.Fatalf("failed validation = %#v", failed)
 	}
-	var passed validationRecord
-	readJSON(t, filepath.Join(root, "stages", "000005-items", "validation.json"), &passed)
+	passed := readValidationRecords(t, filepath.Join(root, "stages", "000005-items", "validation.json"))[0]
 	if !passed.Passed || passed.ExitCode != 0 {
 		t.Fatalf("passed validation = %#v", passed)
 	}
@@ -183,6 +266,7 @@ items:
 	backend := &scriptedBackend{outcomes: []harness.Outcome{
 		{Next: "fail", Notes: "the button is missing"},
 		{Next: "pass", Notes: "all screens usable"},
+		{Next: "done", Notes: "the definition is met"},
 	}}
 	laps := 0
 	registry := NewRegistry()
@@ -196,23 +280,21 @@ items:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != RunCompleted || laps != 2 || len(backend.turns) != 2 {
-		t.Fatalf("result = %#v after %d laps and %d judge turns", result, laps, len(backend.turns))
+	if result.Status != RunCompleted || laps != 2 || len(backend.turns) != 3 {
+		t.Fatalf("result = %#v after %d laps and %d internal turns", result, laps, len(backend.turns))
 	}
-	var first validationRecord
-	readJSON(t, filepath.Join(root, "stages", "000003-items", "validation.json"), &first)
+	first := readValidationRecords(t, filepath.Join(root, "stages", "000003-items", "validation.json"))[0]
 	if first.Passed || first.Infer == nil || first.Infer.Verdict != "fail" || first.Summary != "judge: the button is missing" {
 		t.Fatalf("first validation = %#v infer=%#v", first, first.Infer)
 	}
 	if len(first.Infer.Files) != 1 || first.Infer.Files[0] != filepath.Join("captures", "shot.png") {
 		t.Fatalf("evidence files = %v", first.Infer.Files)
 	}
-	var second validationRecord
-	readJSON(t, filepath.Join(root, "stages", "000005-items", "validation.json"), &second)
+	second := readValidationRecords(t, filepath.Join(root, "stages", "000005-items", "validation.json"))[0]
 	if !second.Passed || second.Infer == nil || second.Infer.Verdict != "pass" || second.Infer.Notes != "all screens usable" {
 		t.Fatalf("second validation = %#v infer=%#v", second, second.Infer)
 	}
-	judgePrompt := readFile(t, filepath.Join(root, "stages", "000003-items", "prompt.md"))
+	judgePrompt := readFile(t, filepath.Join(root, "stages", "000003-items", "validation-001-prompt.md"))
 	for _, want := range []string{"item: Screens", "check: Every screen looks usable", "Judge whether the screens look usable", "\n- captures/shot.png"} {
 		if !strings.Contains(judgePrompt, want) {
 			t.Fatalf("judge prompt %q lacks %q", judgePrompt, want)
@@ -227,6 +309,464 @@ items:
 	}
 	if item, _, _ := mustChecklist(t, filepath.Join(workdir, "sprint.md")).Find("Screens"); !item.Done {
 		t.Fatal("item was not marked done")
+	}
+	for _, name := range []string{"validation-001-prompt.md", "validation-001-response.md", "evaluator-prompt.md", "evaluator-response.md"} {
+		if _, err := os.Stat(filepath.Join(root, "stages", "000005-items", name)); err != nil {
+			t.Fatalf("distinct judge/evaluator artifact %s: %v", name, err)
+		}
+	}
+}
+
+func TestLoopInferJudgeModelIsIndependentOfPipelineDefaults(t *testing.T) {
+	tests := []struct {
+		name          string
+		configureLoop func(*graph.LoopNode)
+		wantModel     string
+		wantProvider  string
+		wantEffort    string
+	}{
+		{
+			name:         "judge default",
+			wantModel:    "gemini-3.8-flash-medium",
+			wantProvider: "gemini",
+			wantEffort:   "medium",
+		},
+		{
+			name: "explicit loop selection wins",
+			configureLoop: func(loop *graph.LoopNode) {
+				loop.LLMModel = optional("claude-haiku-4-5")
+				loop.ReasoningEffort = optional("low")
+			},
+			wantModel:    "claude-haiku-4-5",
+			wantProvider: "anthropic",
+			wantEffort:   "low",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root, workdir := t.TempDir(), t.TempDir()
+			writeFile(t, filepath.Join(workdir, "sprint.md"), `---
+items:
+  - name: Evidence
+    check: The evidence is acceptable
+    infer:
+      files: evidence.txt
+      prompt: Judge the evidence
+---
+`)
+			writeFile(t, filepath.Join(workdir, "evidence.txt"), "acceptable\n")
+			loop := loopNode("items", "sprint.md", "implement", graph.Success, 0)
+			if test.configureLoop != nil {
+				test.configureLoop(loop)
+			}
+			pipeline := testGraph(
+				startNode("start", "items"),
+				loop,
+				customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+			)
+			pipeline.Defaults.LLMModel = optional("pipeline-model")
+			pipeline.Defaults.LLMProvider = optional("openai")
+			pipeline.Defaults.ReasoningEffort = optional("high")
+			backend := &scriptedBackend{outcomes: []harness.Outcome{
+				{Next: "pass", Notes: "acceptable"},
+				{Next: "done", Notes: "the definition is met"},
+			}}
+			registry := NewRegistry()
+			registry.Register("codergen", HandlerFunc(func(_ graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+				return harness.Outcome{Notes: "worked"}, nil
+			}))
+
+			result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Status != RunCompleted || len(backend.turns) != 2 {
+				t.Fatalf("result = %#v after %d internal turns", result, len(backend.turns))
+			}
+			turn := backend.turns[0]
+			if turn.Model != test.wantModel || turn.Provider != test.wantProvider || turn.ReasoningEffort != test.wantEffort {
+				t.Fatalf("judge selection = model %q provider %q effort %q; want %q, %q, %q", turn.Model, turn.Provider, turn.ReasoningEffort, test.wantModel, test.wantProvider, test.wantEffort)
+			}
+			evaluator := backend.turns[1]
+			if evaluator.Model != "pipeline-model" || evaluator.Provider != "openai" || evaluator.ReasoningEffort != "high" {
+				t.Fatalf("evaluator selection = model %q provider %q effort %q; want pipeline defaults", evaluator.Model, evaluator.Provider, evaluator.ReasoningEffort)
+			}
+			t.Logf("judge selection: model=%s provider=%s reasoning_effort=%s", turn.Model, turn.Provider, turn.ReasoningEffort)
+		})
+	}
+}
+
+func TestLoopEvaluatorPopulatesEmptyLedgerAndContinues(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	path := filepath.Join(workdir, "sprint.md")
+	writeFile(t, path, `---
+items: []
+---
+
+# Definition of done
+
+The generated proof exists.
+`)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	backend := &scriptedBackend{
+		outcomes: []harness.Outcome{
+			{Next: "not_done", Notes: "added the missing work"},
+			{Next: "done", Notes: "the proof now exists"},
+		},
+		before: func(index int, _ harness.CodergenTurn) {
+			if index == 0 {
+				writeFile(t, path, `---
+items:
+  - name: Generate proof
+    check: The generated proof exists
+    command: "true"
+---
+
+# Definition of done
+
+The generated proof exists.
+`)
+			}
+		},
+	}
+	dispatches := 0
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) { dispatches++ }))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || dispatches != 1 || len(backend.turns) != 2 {
+		t.Fatalf("result = %#v after %d body dispatches and %d evaluator turns", result, dispatches, len(backend.turns))
+	}
+	if item, _, ok := mustChecklist(t, path).Find("Generate proof"); !ok || !item.Done {
+		t.Fatalf("generated item was not completed: %#v", mustChecklist(t, path).Items)
+	}
+	firstPrompt := readFile(t, filepath.Join(root, "stages", "000001-items", "evaluator-prompt.md"))
+	for _, want := range []string{"The generated proof exists.", "(no items)", "edit sprint.md"} {
+		if !strings.Contains(firstPrompt, want) {
+			t.Fatalf("evaluator prompt %q lacks %q", firstPrompt, want)
+		}
+	}
+	if !strings.Contains(string(backend.turns[0].OutputSchema), `"enum":["done","not_done"]`) {
+		t.Fatalf("evaluator schema = %s", backend.turns[0].OutputSchema)
+	}
+}
+
+func TestLoopPassingLapEvaluatorAgreesAndAdvancesUnchanged(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	path := filepath.Join(workdir, "sprint.md")
+	writeFile(t, path, `---
+items:
+  - name: First
+    check: First works
+    command: "true"
+  - name: Second
+    check: Second works
+    command: "true"
+---
+
+Both claims hold.
+`)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	backend := &scriptedBackend{outcomes: []harness.Outcome{
+		{Next: "not_done", Notes: "Second is still open"},
+		{Next: "done", Notes: "both claims hold"},
+	}}
+	var selected []string
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+		for _, name := range []string{"First", "Second"} {
+			if strings.Contains(scope.Frame, "name: "+name+"\n") {
+				selected = append(selected, name)
+			}
+		}
+	}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || !reflect.DeepEqual(selected, []string{"First", "Second"}) {
+		t.Fatalf("result = %#v, selected = %v", result, selected)
+	}
+	list := mustChecklist(t, path)
+	if got := []string{list.Items[0].Name, list.Items[1].Name}; !reflect.DeepEqual(got, []string{"First", "Second"}) {
+		t.Fatalf("evaluator changed item order: %v", got)
+	}
+	prompt := readFile(t, filepath.Join(root, "stages", "000003-items", "evaluator-prompt.md"))
+	for _, want := range []string{"Both claims hold.", "Item 1 (done):", "last validation: passed=true", "Item 2 (open):"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("evaluator prompt %q lacks %q", prompt, want)
+		}
+	}
+}
+
+func TestLoopEvaluatorReordersOpenItemsForNextLap(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	path := filepath.Join(workdir, "sprint.md")
+	writeFile(t, path, threeItemChecklist)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	backend := &scriptedBackend{
+		outcomes: []harness.Outcome{
+			{Next: "not_done", Notes: "Third should run before Second"},
+			{Next: "not_done", Notes: "Second remains"},
+			{Next: "done", Notes: "all claims hold"},
+		},
+		before: func(index int, _ harness.CodergenTurn) {
+			if index == 0 {
+				writeFile(t, path, `---
+items:
+  - name: First
+    check: The first thing works
+    command: "true"
+    done: true
+  - name: Third
+    check: The third thing works
+    command: "true"
+  - name: Second
+    check: The second thing works
+    command: "true"
+---
+
+# Sprint
+
+Definition of done, in prose the evaluator reads.
+`)
+			}
+		},
+	}
+	var selected []string
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+		for _, name := range []string{"First", "Second", "Third"} {
+			if strings.Contains(scope.Frame, "name: "+name+"\n") {
+				selected = append(selected, name)
+			}
+		}
+	}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || !reflect.DeepEqual(selected, []string{"First", "Third", "Second"}) {
+		t.Fatalf("result = %#v, selected = %v", result, selected)
+	}
+}
+
+func TestLoopAllItemsDoneEvaluatorAddsItemAndContinues(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	path := filepath.Join(workdir, "sprint.md")
+	writeFile(t, path, `---
+items:
+  - name: Initial
+    check: Initial claim
+    command: "true"
+---
+
+Initial and follow-up claims hold.
+`)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	backend := &scriptedBackend{
+		outcomes: []harness.Outcome{
+			{Next: "not_done", Notes: "added a follow-up"},
+			{Next: "done", Notes: "both claims hold"},
+		},
+		before: func(index int, _ harness.CodergenTurn) {
+			if index == 0 {
+				writeFile(t, path, `---
+items:
+  - name: Initial
+    check: Initial claim
+    command: "true"
+    done: true
+  - name: Follow-up
+    check: Follow-up claim
+    command: "true"
+---
+
+Initial and follow-up claims hold.
+`)
+			}
+		},
+	}
+	dispatches := 0
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) { dispatches++ }))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || dispatches != 2 {
+		t.Fatalf("result = %#v after %d dispatches", result, dispatches)
+	}
+	if item, _, ok := mustChecklist(t, path).Find("Follow-up"); !ok || !item.Done {
+		t.Fatalf("follow-up item was not completed: %#v", mustChecklist(t, path).Items)
+	}
+}
+
+func TestLoopEvaluatorNotDoneWithoutOpenItemIsTerminal(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "sprint.md"), "---\nitems: []\n---\n\nNothing is done.\n")
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "not_done", Notes: "work remains"}}}
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) { t.Fatal("body dispatched") }))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunFailed || result.FailureReason != `loop evaluator returned not_done but checklist "sprint.md" has no open item` {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestLoopEvaluatorDoneRoutesToOnDone(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "sprint.md"), "---\nitems: []\n---\n\nThe empty goal is satisfied.\n")
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", "finish", 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+		customNode("finish", "task", []graph.Edge{{To: graph.Success}}, 0),
+	)
+	backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "done", Notes: "goal met"}}}
+	var dispatched []string
+	registry := NewRegistry()
+	registry.Register("codergen", HandlerFunc(func(node graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+		dispatched = append(dispatched, node.Base().ID)
+		return harness.Outcome{Notes: "finished"}, nil
+	}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || !reflect.DeepEqual(dispatched, []string{"finish"}) {
+		t.Fatalf("result = %#v, dispatched = %v", result, dispatched)
+	}
+	found := false
+	for _, event := range mustTimeline(t, root) {
+		if event["type"] == "LoopEvaluated" && event["verdict"] == "done" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("timeline has no done LoopEvaluated verdict")
+	}
+}
+
+func TestLoopEvaluatorUsesPipelineDefaultModelNotInferJudgeDefault(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "sprint.md"), "---\nitems: []\n---\n\nDone.\n")
+	loop := loopNode("items", "sprint.md", "implement", graph.Success, 0)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loop,
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	pipeline.Defaults.LLMModel = optional("pipeline-model")
+	pipeline.Defaults.LLMProvider = optional("openai")
+	pipeline.Defaults.ReasoningEffort = optional("low")
+	backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "done", Notes: "done"}}}
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || len(backend.turns) != 1 {
+		t.Fatalf("result = %#v after %d evaluator turns", result, len(backend.turns))
+	}
+	turn := backend.turns[0]
+	if turn.Model != "pipeline-model" || turn.Provider != "openai" || turn.ReasoningEffort != "low" || turn.Model == "gemini-3.8-flash-medium" {
+		t.Fatalf("evaluator selection = model %q provider %q effort %q", turn.Model, turn.Provider, turn.ReasoningEffort)
+	}
+}
+
+func TestLoopEvaluatorExplicitModelSelectionWins(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "sprint.md"), "---\nitems: []\n---\n\nDone.\n")
+	loop := loopNode("items", "sprint.md", "implement", graph.Success, 0)
+	loop.EvaluatorLLMModel = optional("claude-haiku-4-5")
+	loop.EvaluatorLLMProvider = optional("anthropic")
+	loop.EvaluatorReasoningEffort = optional("medium")
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loop,
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+	)
+	pipeline.Defaults.LLMModel = optional("pipeline-model")
+	pipeline.Defaults.LLMProvider = optional("openai")
+	pipeline.Defaults.ReasoningEffort = optional("low")
+	backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "done", Notes: "done"}}}
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || len(backend.turns) != 1 {
+		t.Fatalf("result = %#v after %d evaluator turns", result, len(backend.turns))
+	}
+	turn := backend.turns[0]
+	if turn.Model != "claude-haiku-4-5" || turn.Provider != "anthropic" || turn.ReasoningEffort != "medium" {
+		t.Fatalf("evaluator selection = model %q provider %q effort %q", turn.Model, turn.Provider, turn.ReasoningEffort)
+	}
+}
+
+func TestLoopEvaluatorDoesNotRunAfterFailedValidation(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "sprint.md"), `---
+items:
+  - name: Failing
+    check: The check passes
+    command: "false"
+---
+
+The check passes.
+`)
+	pipeline := testGraph(
+		startNode("start", "items"),
+		loopNode("items", "sprint.md", "implement", graph.Success, 0),
+		customNode("implement", "task", []graph.Edge{{To: "items"}}, 1),
+	)
+	backend := &scriptedBackend{}
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunFailed || len(backend.turns) != 0 {
+		t.Fatalf("result = %#v after %d evaluator turns", result, len(backend.turns))
 	}
 }
 
@@ -260,8 +800,7 @@ items:
 	if len(backend.turns) != 0 {
 		t.Fatalf("judge ran %d times without evidence", len(backend.turns))
 	}
-	var record validationRecord
-	readJSON(t, filepath.Join(root, "stages", "000003-items", "validation.json"), &record)
+	record := readValidationRecords(t, filepath.Join(root, "stages", "000003-items", "validation.json"))[0]
 	if record.Passed || record.Summary != "no evidence files matched captures/*.png, shots/*.jpg" {
 		t.Fatalf("validation = %#v", record)
 	}
@@ -343,6 +882,75 @@ items:
 	}
 }
 
+func TestNestedLoopVisitBudgetsResetPerOuterItem(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "outer.md"), `---
+items:
+  - name: Chapter A
+    check: Chapter A is delivered
+    command: "true"
+    checklist: inner-a.md
+  - name: Chapter B
+    check: Chapter B is delivered
+    command: "true"
+    checklist: inner-b.md
+---
+`)
+	writeFile(t, filepath.Join(workdir, "inner-a.md"), `---
+items:
+  - name: Sprint A
+    check: Sprint A is delivered
+    command: test -f first-pass
+---
+`)
+	writeFile(t, filepath.Join(workdir, "inner-b.md"), `---
+items:
+  - name: Sprint B
+    check: Sprint B is delivered
+    command: "true"
+---
+`)
+	inner := loopNode("inner", "", "work", "outer", 3)
+	pipeline := testGraph(
+		startNode("start", "outer"),
+		loopNode("outer", "outer.md", "plan", graph.Success, 0),
+		customNode("plan", "task", []graph.Edge{{To: "inner"}}, 0),
+		inner,
+		customNode("work", "task", []graph.Edge{{To: "inner"}}, 2),
+	)
+	works := 0
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+		if strings.HasSuffix(scope.StageDir, "-work") {
+			works++
+			if works == 2 {
+				writeFile(t, filepath.Join(workdir, "first-pass"), "done\n")
+			}
+		}
+	}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, nil).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || works != 3 {
+		t.Fatalf("result = %#v after %d body dispatches", result, works)
+	}
+	checkpoint := mustCheckpoint(t, root)
+	if checkpoint.NodeVisits["inner"] != 2 || checkpoint.NodeVisits["work"] != 1 || checkpoint.NodeVisits["plan"] != 1 {
+		t.Fatalf("last activation counters = %#v", checkpoint.NodeVisits)
+	}
+	var innerStages []float64
+	for _, event := range mustTimeline(t, root) {
+		if event["type"] == "StageStarted" && event["name"] == "inner" {
+			innerStages = append(innerStages, event["index"].(float64))
+		}
+	}
+	if want := []float64{3, 5, 7, 10, 12}; !reflect.DeepEqual(innerStages, want) {
+		t.Fatalf("inner stages = %v, want %v", innerStages, want)
+	}
+}
+
 func TestLoopFrameCarriesDocContents(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -388,7 +996,7 @@ items:
 	}
 }
 
-func TestLoopHonorsHandMarkedItemWithoutValidating(t *testing.T) {
+func TestLoopHandMarkedFailingItemIsUnmarkedAndReselected(t *testing.T) {
 	root, workdir := t.TempDir(), t.TempDir()
 	path := filepath.Join(workdir, "sprint.md")
 	writeFile(t, path, `---
@@ -404,24 +1012,35 @@ items:
 		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
 	)
 	registry := NewRegistry()
+	laps := 0
 	registry.Register("codergen", bodyHandler(t, func(ExecutionScope) {
-		writeFile(t, path, strings.Replace(readFile(t, path), "command: \"false\"\n", "command: \"false\"\n    done: true\n", 1))
+		laps++
+		text := readFile(t, path)
+		if laps == 1 {
+			text = strings.Replace(text, "command: \"false\"\n", "command: \"false\"\n    done: true\n", 1)
+		} else {
+			text = strings.Replace(text, "command: \"false\"\n", "command: \"true\"\n", 1)
+		}
+		writeFile(t, path, text)
 	}))
 
 	result, err := newLoopRunner(t, pipeline, registry, root, workdir, nil).Run()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != RunCompleted {
-		t.Fatalf("result = %#v", result)
+	if result.Status != RunCompleted || laps != 2 {
+		t.Fatalf("result = %#v after %d laps", result, laps)
 	}
-	if _, err := os.Stat(filepath.Join(root, "stages", "000003-items", "validation.log")); !os.IsNotExist(err) {
-		t.Fatalf("hand-marked item was validated: %v", err)
+	failed := readValidationRecords(t, filepath.Join(root, "stages", "000003-items", "validation.json"))
+	if len(failed) != 1 || failed[0].Item != "Manual" || failed[0].Passed {
+		t.Fatalf("hand-marked validation = %#v", failed)
 	}
-	for _, event := range mustTimeline(t, root) {
-		if event["type"] == "LoopValidated" {
-			t.Fatalf("hand-marked item produced %v", event)
-		}
+	prompt := readFile(t, filepath.Join(root, "stages", "000004-implement", "prompt.md"))
+	if !strings.Contains(prompt, `item="1/1" lap="2"`) || !strings.Contains(prompt, "last validation: failed") {
+		t.Fatalf("reselected prompt = %q", prompt)
+	}
+	if item, _, _ := mustChecklist(t, path).Find("Manual"); !item.Done {
+		t.Fatal("item did not pass after being unmarked and reselected")
 	}
 }
 
@@ -431,10 +1050,7 @@ func TestLoopFailsWhenBodyBudgetIsExhaustedWithItemsOpen(t *testing.T) {
 items:
   - name: One
     check: One
-    command: "true"
-  - name: Two
-    check: Two
-    command: "true"
+    command: "false"
 ---
 `)
 	pipeline := testGraph(
@@ -453,7 +1069,7 @@ items:
 		t.Fatalf("result = %#v", result)
 	}
 	list := mustChecklist(t, filepath.Join(workdir, "sprint.md"))
-	if !list.Items[0].Done || list.Items[1].Done {
+	if list.Items[0].Done {
 		t.Fatalf("items = %#v", list.Items)
 	}
 }
@@ -660,12 +1276,12 @@ items:
 	if item, _, _ := mustChecklist(t, filepath.Join(workdir, "sprint.md")).Find("Only"); !item.Done {
 		t.Fatal("item was not marked done")
 	}
-	assertResumeRewound(t, root, "implement", "items")
+	assertResumeRewound(t, root, "implement", "items", nil)
 }
 
-// Finding 1(b): a continuation at a nested loop node rewinds to the outer
-// loop, whose arrival resolves the inner checklist again.
-func TestResumeAtNestedLoopRewindsToOuterLoop(t *testing.T) {
+// A continuation at a nested loop rebuilds the outer frame from its ledger
+// and re-enters at the inner loop, without repeating earlier outer-body work.
+func TestResumeAtNestedLoopRebuildsOuterFrame(t *testing.T) {
 	root, workdir := t.TempDir(), t.TempDir()
 	writeFile(t, filepath.Join(workdir, "outer.md"), `---
 items:
@@ -716,14 +1332,16 @@ items:
 	if err != nil || result.Status != RunCompleted {
 		t.Fatalf("resumed result=%#v err=%v", result, err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "stages", "000003-outer")); err != nil {
-		t.Fatalf("resumed run did not start at the outer loop: %v", err)
+	if _, err := os.Stat(filepath.Join(root, "stages", "000003-inner")); err != nil {
+		t.Fatalf("resumed run did not start at the inner loop: %v", err)
 	}
-	// 3 outer, 4 plan, 5 inner, 6 work, 7 inner, 8 outer -> success
-	if want := []string{"000004-plan", "000006-work"}; !reflect.DeepEqual(dispatched, want) {
+	if want := []string{"000004-work"}; !reflect.DeepEqual(dispatched, want) {
 		t.Fatalf("body dispatches = %v, want %v", dispatched, want)
 	}
-	work := readFile(t, filepath.Join(root, "stages", "000006-work", "prompt.md"))
+	if _, err := os.Stat(filepath.Join(root, "stages", "000003-outer")); !os.IsNotExist(err) {
+		t.Fatalf("outer loop unexpectedly reran: %v", err)
+	}
+	work := readFile(t, filepath.Join(root, "stages", "000004-work", "prompt.md"))
 	if !strings.Contains(work, `<iterate loop="outer" checklist="outer.md" item="1/1" lap="1">`) ||
 		!strings.Contains(work, `<iterate loop="inner" checklist="inner-a.md" item="1/1" lap="1">`) {
 		t.Fatalf("work prompt = %q", work)
@@ -735,7 +1353,7 @@ items:
 			}
 		}
 	}
-	assertResumeRewound(t, root, "inner", "outer")
+	assertResumeRewound(t, root, "inner", "inner", []string{"outer"})
 }
 
 func TestResumeOutsideLoopDoesNotRewind(t *testing.T) {
@@ -784,6 +1402,7 @@ func TestMatchEvidence(t *testing.T) {
 	writeFile(t, filepath.Join(workdir, "captures", "a.png"), "a")
 	writeFile(t, filepath.Join(workdir, "captures", "b.png"), "b")
 	writeFile(t, filepath.Join(workdir, "captures", "sub", "c.png"), "c")
+	writeFile(t, filepath.Join(workdir, "captures", "sub", "deep", "d.png"), "d")
 
 	tests := []struct {
 		name        string
@@ -793,9 +1412,11 @@ func TestMatchEvidence(t *testing.T) {
 	}{
 		{name: "metacharacter workdir", globs: []string{"notes.md"}, wantFiles: []string{"notes.md"}},
 		{name: "directories skipped", globs: []string{"captures/*"}, wantFiles: []string{filepath.Join("captures", "a.png"), filepath.Join("captures", "b.png")}},
+		{name: "doublestar recursive", globs: []string{"captures/**/*.png"}, wantFiles: []string{filepath.Join("captures", "a.png"), filepath.Join("captures", "b.png"), filepath.Join("captures", "sub", "c.png"), filepath.Join("captures", "sub", "deep", "d.png")}},
+		{name: "leading dot slash", globs: []string{"./captures/*.png"}, wantFiles: []string{filepath.Join("captures", "a.png"), filepath.Join("captures", "b.png")}},
 		{name: "overlapping globs deduplicate", globs: []string{"captures/*.png", "captures/a.png"}, wantFiles: []string{filepath.Join("captures", "a.png"), filepath.Join("captures", "b.png")}},
 		{name: "no match", globs: []string{"missing/*.png"}, wantFiles: []string{}},
-		{name: "invalid patterns", globs: []string{"/etc/*", "../notes.md", "captures/../notes.md", "[", "notes.md"}, wantFiles: []string{"notes.md"}, wantInvalid: []string{"/etc/*", "../notes.md", "captures/../notes.md", "["}},
+		{name: "invalid patterns", globs: []string{"/etc/*", "../notes.md", "./../notes.md", "captures/../notes.md", "[", "notes.md"}, wantFiles: []string{"notes.md"}, wantInvalid: []string{"/etc/*", "../notes.md", "./../notes.md", "captures/../notes.md", "["}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -834,14 +1455,13 @@ items:
 	if result.Status != RunFailed || len(backend.turns) != 0 {
 		t.Fatalf("result = %#v after %d judge turns", result, len(backend.turns))
 	}
-	var record validationRecord
-	readJSON(t, filepath.Join(root, "stages", "000003-items", "validation.json"), &record)
+	record := readValidationRecords(t, filepath.Join(root, "stages", "000003-items", "validation.json"))[0]
 	if record.Passed || record.Summary != "invalid evidence pattern (must be relative to the workdir): ../captures/*.png" || record.Infer == nil || record.Infer.Verdict != "fail" {
 		t.Fatalf("validation = %#v infer=%#v", record, record.Infer)
 	}
 }
 
-func assertResumeRewound(t *testing.T, root, from, to string) {
+func assertResumeRewound(t *testing.T, root, from, to string, wantFrames []string) {
 	t.Helper()
 	for _, event := range mustTimeline(t, root) {
 		if event["type"] != "ResumeRewound" {
@@ -849,6 +1469,16 @@ func assertResumeRewound(t *testing.T, root, from, to string) {
 		}
 		if event["from"] != from || event["to"] != to {
 			t.Fatalf("ResumeRewound = %v, want from %q to %q", event, from, to)
+		}
+		frames, ok := event["frames"].([]any)
+		if !ok || len(frames) != len(wantFrames) {
+			t.Fatalf("ResumeRewound frames = %v, want %v", event["frames"], wantFrames)
+		}
+		for index, want := range wantFrames {
+			frame, ok := frames[index].(map[string]any)
+			if !ok || frame["loop"] != want {
+				t.Fatalf("ResumeRewound frame %d = %v, want loop %q", index, frames[index], want)
+			}
 		}
 		return
 	}
@@ -921,10 +1551,15 @@ type scriptedBackend struct {
 	fakeBackend
 	outcomes []harness.Outcome
 	turns    []harness.CodergenTurn
+	before   func(index int, turn harness.CodergenTurn)
 }
 
 func (b *scriptedBackend) Run(turn harness.CodergenTurn) (harness.Outcome, *harness.Error) {
+	index := len(b.turns)
 	b.turns = append(b.turns, turn)
+	if b.before != nil {
+		b.before(index, turn)
+	}
 	if len(b.outcomes) == 0 {
 		return harness.Outcome{}, terminalError("scripted backend has no outcome left")
 	}
@@ -966,6 +1601,13 @@ func readJSON(t *testing.T, path string, value any) {
 	if err := json.Unmarshal([]byte(readFile(t, path)), value); err != nil {
 		t.Fatalf("%s: %v", path, err)
 	}
+}
+
+func readValidationRecords(t *testing.T, path string) []validationRecord {
+	t.Helper()
+	var report validationReport
+	readJSON(t, path, &report)
+	return report.Validations
 }
 
 func mustTimeline(t *testing.T, root string) []timelineEvent {

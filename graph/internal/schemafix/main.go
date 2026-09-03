@@ -49,9 +49,11 @@ func fixSchema(check bool) error {
 		case "parallel":
 			required = append(required, "branches")
 			branches := object(props["branches"])
-			structured := branches["items"]
-			branches["items"] = map[string]any{
-				"anyOf": []any{map[string]any{"type": "string"}, structured},
+			structured := object(branches["items"])
+			if _, normalized := structured["anyOf"]; !normalized {
+				branches["items"] = map[string]any{
+					"anyOf": []any{map[string]any{"type": "string"}, structured},
+				}
 			}
 		case "tool":
 			required = append(required, "tool_command", "on_success")
@@ -97,6 +99,9 @@ func walk(value any) {
 				interval["pattern"] = durationPattern
 			}
 			if effort, ok := props["reasoning_effort"].(map[string]any); ok {
+				effort["enum"] = []any{"low", "medium", "high"}
+			}
+			if effort, ok := props["evaluator_reasoning_effort"].(map[string]any); ok {
 				effort["enum"] = []any{"low", "medium", "high"}
 			}
 			if workspace, ok := props["workspace"].(map[string]any); ok {

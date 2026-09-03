@@ -250,9 +250,8 @@ func (n *SupervisorNode) Base() *NodeBase { return &n.NodeBase }
 func (*SupervisorNode) NodeType() string  { return "supervisor" }
 
 // LoopNode iterates a checklist file: on every arrival it validates the
-// previous lap's item, marks it done when the validation passes, injects the
-// first open item as the lap's frame, and dispatches the body. With no open
-// item left it routes to on_done.
+// previous lap's item, then an evaluator decides whether the definition of
+// done is met or another open item should be dispatched.
 type LoopNode struct {
 	NodeBase
 	// Checklist is the checklist path, relative to the workdir. Optional only
@@ -261,12 +260,13 @@ type LoopNode struct {
 	Checklist jsonschema.Optional[string] `json:"checklist,omitzero"`
 	// Body is the entry node of one lap.
 	Body string `json:"body"`
-	// OnDone is the target when no open item remains: a node ID or
-	// success/failure.
+	// OnDone is the target when the evaluator decides the loop is done: a node
+	// ID or success/failure.
 	OnDone string `json:"on_done"`
 	// MaxVisits bounds arrivals at the loop node, laps plus one.
 	MaxVisits jsonschema.Optional[int] `json:"max_visits,omitzero"`
-	// Timeout bounds one item's validation command and the infer judge turn.
+	// Timeout bounds one item's validation command, the infer judge turn, and
+	// the evaluator turn.
 	Timeout jsonschema.Optional[Duration] `json:"timeout,omitzero"`
 	// LLMModel selects the model used by the infer judge.
 	LLMModel jsonschema.Optional[string] `json:"llm_model,omitzero"`
@@ -274,6 +274,12 @@ type LoopNode struct {
 	LLMProvider jsonschema.Optional[string] `json:"llm_provider,omitzero"`
 	// ReasoningEffort sets the reasoning effort of the infer judge.
 	ReasoningEffort jsonschema.Optional[string] `json:"reasoning_effort,omitzero"`
+	// EvaluatorLLMModel selects the model used by the loop evaluator.
+	EvaluatorLLMModel jsonschema.Optional[string] `json:"evaluator_llm_model,omitzero"`
+	// EvaluatorLLMProvider selects the provider used by the loop evaluator.
+	EvaluatorLLMProvider jsonschema.Optional[string] `json:"evaluator_llm_provider,omitzero"`
+	// EvaluatorReasoningEffort sets the loop evaluator's reasoning effort.
+	EvaluatorReasoningEffort jsonschema.Optional[string] `json:"evaluator_reasoning_effort,omitzero"`
 }
 
 func (*LoopNode) isNode()           {}

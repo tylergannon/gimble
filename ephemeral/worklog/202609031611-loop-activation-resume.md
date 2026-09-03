@@ -1,0 +1,3 @@
+decision: Selecting a new checklist item resets node_visits for the selecting loop's derived body node-set; reselecting the same failed item does not, and the selecting loop remains outside the reset set.
+decision: Resume rebuilds only frames outside the innermost enclosing loop, then enters that loop frameless so earlier outer-body nodes are not replayed.
+friction: Loop successors are offered before the handler selects an item, so a reset inside the handler can make the original offered set stale -> loop execution must be allowed with an initially empty offered set and recompute successors after handler state changes.

@@ -10,17 +10,22 @@ import (
 // loopFrame is one active loop's current item. The stack lives only in
 // memory: the checklist file is the truth, and nothing here is checkpointed.
 type loopFrame struct {
-	loopID         string
-	checklist      string // as authored or resolved from the enclosing item, relative to the workdir
-	item           string
-	itemChecklist  string // the item's own checklist field, for a nested loop without one
-	rendered       string // Item.Render() output captured at push time
-	doc            string // the item's doc path, read at render time
-	index          int    // 1-based
-	count          int
-	lap            int
-	lastFailure    string
-	lastFailureLog string // absolute path of the validation.log behind lastFailure
+	loopID        string
+	checklist     string // as authored or resolved from the enclosing item, relative to the workdir
+	item          string
+	itemChecklist string // the item's own checklist field, for a nested loop without one
+	rendered      string // Item.Render() output captured at push time
+	doc           string // the item's doc path, read at render time
+	index         int    // 1-based
+	count         int
+	lap           int
+	lastFailures  []loopValidationFailure
+}
+
+type loopValidationFailure struct {
+	item    string
+	summary string
+	logPath string
 }
 
 // frameRecord is the observer-facing shape written to frames.json.
@@ -69,15 +74,14 @@ func (r *Runner) pushOrReplaceFrame(frame loopFrame) {
 	r.frames = append(r.frames, frame)
 }
 
-// setFrameFailure records the summary of a failed validation and the path
-// of its log on the loop's frame.
-func (r *Runner) setFrameFailure(loopID, summary, logPath string) {
+// setFrameFailures records every failed validation and its log path on the
+// loop's frame.
+func (r *Runner) setFrameFailures(loopID string, failures []loopValidationFailure) {
 	r.framesMu.Lock()
 	defer r.framesMu.Unlock()
 	for index := range r.frames {
 		if r.frames[index].loopID == loopID {
-			r.frames[index].lastFailure = summary
-			r.frames[index].lastFailureLog = logPath
+			r.frames[index].lastFailures = append([]loopValidationFailure(nil), failures...)
 			return
 		}
 	}
@@ -99,6 +103,21 @@ func (r *Runner) snapshotFrames() []loopFrame {
 	r.framesMu.Lock()
 	defer r.framesMu.Unlock()
 	return append([]loopFrame(nil), r.frames...)
+}
+
+func frameRecords(frames []loopFrame) []frameRecord {
+	records := make([]frameRecord, len(frames))
+	for index, frame := range frames {
+		records[index] = frameRecord{
+			Loop:      frame.loopID,
+			Checklist: frame.checklist,
+			Item:      frame.item,
+			Index:     frame.index,
+			Count:     frame.count,
+			Lap:       frame.lap,
+		}
+	}
+	return records
 }
 
 // renderFrames renders every active frame for prompt injection, nested
@@ -146,14 +165,15 @@ func renderNested(frames []loopFrame, workdir string, depth int) string {
 }
 
 // renderFrameBody renders the lines between a frame's tags: the item, the
-// last failed validation and its log path if any, and the item's doc.
+// last failed validations and their log paths if any, and the item's doc.
 func renderFrameBody(frame loopFrame, workdir string) string {
 	var body strings.Builder
 	body.WriteString(frame.rendered)
-	if frame.lastFailure != "" {
-		fmt.Fprintf(&body, "\nlast validation: failed — %s", frame.lastFailure)
-		if frame.lastFailureLog != "" {
-			fmt.Fprintf(&body, "\nvalidation log: %s", frame.lastFailureLog)
+	if len(frame.lastFailures) > 0 {
+		body.WriteString("\nlast validation: failed")
+		for _, failure := range frame.lastFailures {
+			fmt.Fprintf(&body, "\n  - item: %s\n    summary: %s\n    validation log: %s",
+				failure.item, strings.ReplaceAll(failure.summary, "\n", "\n      "), failure.logPath)
 		}
 	}
 	if frame.doc != "" {
@@ -169,19 +189,7 @@ func renderFrameBody(frame loopFrame, workdir string) string {
 
 // writeFrames rewrites {logs_root}/frames.json from the current stack.
 func (r *Runner) writeFrames() error {
-	frames := r.snapshotFrames()
-	records := make([]frameRecord, len(frames))
-	for index, frame := range frames {
-		records[index] = frameRecord{
-			Loop:      frame.loopID,
-			Checklist: frame.checklist,
-			Item:      frame.item,
-			Index:     frame.index,
-			Count:     frame.count,
-			Lap:       frame.lap,
-		}
-	}
-	return writeJSON(filepath.Join(r.config.LogsRoot, "frames.json"), records)
+	return writeJSON(filepath.Join(r.config.LogsRoot, "frames.json"), frameRecords(r.snapshotFrames()))
 }
 
 // resolveWorkdirPath joins a checklist-relative path onto the workdir,

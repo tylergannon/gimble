@@ -81,12 +81,14 @@ only when they exercise that behavior.
 `checklist-loop.yaml` puts a `loop` node in front of the agent. It iterates
 a markdown file whose YAML frontmatter lists items — `name`, `check`,
 optionally a `command` (exit 0 passes) and an `infer` judge (`files`,
-`prompt`) — and on every arrival validates the previous lap's item, writes
-`done: true` on it itself, and injects the next open item into the prompt
-as a frame (name, check, command, last failure, doc). The agent never marks
-items. Copy `examples/checklist-loop.md` to the path the pipeline names and
-edit its items; `validation.log` in the loop node's stage directory says
-why an item stayed open.
+`prompt`) — and on every lap return validates the framed item plus every done
+item. After a passing set, an evaluator reads the checklist body's definition
+of done and either exits or re-reads the evaluator-editable ledger and injects
+its first open item into the prompt as a frame (name, check, command, last
+failure, doc). The agent never marks items. Copy
+`examples/checklist-loop.md` to the path the pipeline names and edit its
+items; `validation.json` and its per-item log paths say why an item stayed
+open.
 
 ## While it runs
 

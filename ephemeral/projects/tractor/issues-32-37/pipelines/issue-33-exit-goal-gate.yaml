@@ -1,0 +1,38 @@
+name: issue-33-loop-evaluator
+goal: |
+  The condition described in ephemeral/projects/tractor/issues-32-37/ISSUE-33.md
+  holds in this repository: one evaluator turn runs after every lap whose
+  validation passes and on any arrival with no open item, reading the
+  checklist's prose definition of done and deciding done or not done; a done
+  verdict routes to on_done, a not-done verdict continues the loop over the
+  items the evaluator left in the file, and a not-done verdict with no open
+  item is a terminal error. The evaluator takes its model independently of the
+  infer judge and defaults to the pipeline default model. The tests and
+  documentation the brief names cover the new behavior, and
+  `go build ./... && go test -count=1 ./...` exits 0.
+start: implement
+
+defaults:
+  timeout: 2400s
+  fidelity: none
+  max_retries: 1
+  llm_provider: openai
+  llm_model: gpt-5.6-sol
+  reasoning_effort: high
+
+nodes:
+  - id: implement
+    type: codergen
+    max_visits: 5
+    prompt: $goal
+    edges:
+      - to: check
+
+  - id: check
+    type: tool
+    tool_command: >-
+      if [ -z "$(git status --porcelain -- engine checklist graph docs src)" ]; then
+      echo "NO CHANGES in the workdir: the work was not done here"; exit 1; fi;
+      go build ./... && go test -count=1 ./...
+    on_success: success
+    on_error: implement

@@ -55,7 +55,15 @@ func prependFrame(frame, prompt string) string {
 }
 
 func (h *CodergenHandler) executeTurn(node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt string) (harness.Outcome, *harness.Error) {
-	if err := os.WriteFile(filepath.Join(scope.StageDir, "prompt.md"), []byte(prompt), 0o644); err != nil {
+	return h.executeTurnAt(node, fields, offered, scope, pipeline, prompt,
+		filepath.Join(scope.StageDir, "prompt.md"), filepath.Join(scope.StageDir, "response.md"))
+}
+
+// executeTurnAt runs a turn whose prompt and response artifacts have
+// caller-selected paths. Composite handlers use this to keep multiple turns
+// within one stage from overwriting one another.
+func (h *CodergenHandler) executeTurnAt(node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt, promptPath, responsePath string) (harness.Outcome, *harness.Error) {
+	if err := os.WriteFile(promptPath, []byte(prompt), 0o644); err != nil {
 		return harness.Outcome{}, terminalError(fmt.Sprintf("write prompt: %v", err))
 	}
 
@@ -101,7 +109,7 @@ func (h *CodergenHandler) executeTurn(node graph.Node, fields *graph.LLMNodeFiel
 		}
 	}
 
-	if err := writeResponse(filepath.Join(scope.StageDir, "response.md"), outcome); err != nil {
+	if err := writeResponse(responsePath, outcome); err != nil {
 		return harness.Outcome{}, terminalError(fmt.Sprintf("write response: %v", err))
 	}
 	return outcome, nil

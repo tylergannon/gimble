@@ -64,15 +64,59 @@ by exactly one node.
 **Checklist loop** is for work that is already a list of claims. A `loop`
 node iterates a markdown file whose YAML frontmatter lists items, each
 with a `check`, optionally a `command`, and optionally an `infer` judge
-over evidence files. On every arrival the engine re-reads the file,
-validates the item the previous lap worked on — runs its command, then
-asks the judge — marks it `done: true` itself when that passes, and
-injects the first open item into the body's prompt as a frame: the item,
-its command, the last failure, and the item's `doc` if it has one. The
-agent never marks items; the file is the only loop state, so a planner
-(or a person) can append, reorder, or hand-mark items between laps. Copy
+over evidence files. The markdown body is the prose definition of done.
+On every lap return the engine re-reads the file and validates the framed
+item plus every item already marked done, in file order — command, then
+judge, for each. The framed item becomes `done: true` only when the whole
+set passes; any failed item becomes `done: false` and is eligible for
+selection again. Failed validation immediately re-enters through the ledger.
+
+After every passing validation set, a separate evaluator reads the definition
+of done, the items and their results, and the workspace. It also runs when an
+arrival has no open item, including an empty ledger's first arrival. `done`
+routes to `on_done`; `not_done` re-reads the checklist and dispatches its first
+open item. The evaluator can append, reorder, or rewrite open items before that
+selection. Returning `not_done` without leaving an open item is a terminal
+error.
+
+Each validation result and its distinct command-log path are recorded in
+`validation.json`, and the next frame lists every failure. Infer turns write
+per-item prompt and response files; the evaluator writes its own prompt and
+response files, so turns in one loop stage do not overwrite each other. The
+first open item is injected into the body's prompt with its command, the last
+failures, and its `doc` if it has one. The
+evidence globs support `*`, `?`, and `[...]` within a path segment and
+`**` across zero or more directories. They are relative to the workdir;
+a leading `./` is accepted, while absolute paths and `..` path segments
+are rejected. The agent never marks items; the file is the only loop
+state, so a planner (or a person) can append, reorder, or hand-mark items
+between laps; hand-marking requests validation on the next return rather
+than bypassing it. Copy
 [`checklist-loop.md`](https://github.com/tylergannon/tractor/blob/main/examples/loops/checklist-loop.md)
 beside it to start.
+
+Visit budgets inside a checklist loop are per selected item. When the loop
+selects a different item, Tractor resets `max_visits` accounting for every
+node in that loop's body. A nested loop and its body therefore get a fresh
+budget for each enclosing item, while another failed lap of the same item
+keeps consuming the current budget. A top-level loop node itself is outside
+its body and retains one `max_visits` budget for the whole run.
+
+After a restart, Tractor derives the active nesting from the graph and the
+checklist files. It rebuilds the outer frames from their first open items and
+re-enters at the innermost enclosing loop. Planning or setup nodes earlier in
+an outer loop body do not rerun solely to restore the inner loop's frame.
+
+The infer judge selects its model independently of pipeline `defaults`.
+By default it uses `flash` (`gemini-3.8-flash-medium`) on the `gemini`
+provider at medium effort. Set `llm_model`, `llm_provider`, and
+`reasoning_effort` independently on the loop node when a different judge
+is warranted. The evaluator has a separate `evaluator_llm_model`,
+`evaluator_llm_provider`, and `evaluator_reasoning_effort` selection. Those
+fields default to the pipeline defaults, so the evaluator normally uses the
+same model as the working agent, never the judge's Flash default. The loop's
+`timeout` still inherits from pipeline `defaults` and bounds both internal
+turns.
 
 ## Writing node prompts
 
@@ -99,7 +143,7 @@ you.
 
 | Symptom                                             | Fix                                                                                                                                                                                                             |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runs forever                                        | `max_visits` on the looping node. That's the budget; there is no other ceremony.                                                                                                                                |
+| Runs forever                                        | `max_visits` on the looping node. A top-level loop spends one budget per run; a nested loop gets a fresh budget for each enclosing item.                                                                         |
 | Says it's done when it isn't                        | Make "done" a command (`tool` node). If the tests pass but the feature doesn't work, the command is checking the wrong thing — check the behavior you actually want.                                            |
 | Re-derives the same dead end every lap              | Tell the prompt to keep a short notes file: "append what the next attempt should do differently; read it first."                                                                                                |
 | Reviewer rubber-stamps                              | Don't tell it what to find or ask it to confirm your fix. Fresh session (`fidelity: none`), whole target, every round. A different provider makes the independence real.                                        |
@@ -107,7 +151,8 @@ you.
 | Agent guesses at a decision that wasn't its to make | Give it a door: an edge whose condition is "this decision isn't mine," leading to a node that asks a human or writes a report and routes to `failure`. Agents improvise when forward is the only offered route. |
 | Builds everything, nothing runs until the end       | Steer the chooser to vertical slices: "the step is done when you can run something that proves it." Stack-order plans (schema → services → API → UI) are the model's default tic; say no to them in the prompt. |
 | A long run starts believing its own stale plans     | Per-lap plans are working notes, not authority; they live with the run, the code is the record. Don't commit them.                                                                                              |
-| Item never gets marked                              | The engine marks it only after its command exits 0 and its `infer` judge passes; read `validation.log` in the loop node's stage directory.                                                                      |
+| Item never gets marked                              | The engine marks the framed item only when it and every previously done item pass; read `validation.json` and the per-item log paths it names in the loop node's stage directory.                              |
+| Evaluator says not done but the run fails           | A `not_done` verdict must leave at least one open checklist item. Read `evaluator-response.md`; add or reopen a legitimate item rather than returning an empty plan.                                               |
 
 Every run leaves its evidence — prompts, responses, routing decisions,
 collected artifacts — in a browsable run directory, so when a loop

@@ -86,6 +86,17 @@ func (c *Checklist) Find(name string) (item Item, index int, ok bool) {
 // survive as far as the library allows. Returns an error if no item has that
 // name.
 func MarkDone(path, name string) error {
+	return rewriteDone(path, name, true)
+}
+
+// UnmarkDone rewrites the file at path so that the item named name has
+// done: false. It has the same preservation, parse-back, and atomic-write
+// guarantees as MarkDone.
+func UnmarkDone(path, name string) error {
+	return rewriteDone(path, name, false)
+}
+
+func rewriteDone(path, name string, done bool) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("checklist %s: %w", path, err)
@@ -109,7 +120,7 @@ func MarkDone(path, name string) error {
 	if target == nil {
 		return fmt.Errorf("checklist %s: no item named %q", path, name)
 	}
-	setDone(target)
+	setDone(target, done)
 
 	var buf bytes.Buffer
 	buf.WriteString("---\n")
@@ -132,8 +143,8 @@ func MarkDone(path, name string) error {
 	if rewritten.Body != doc.body {
 		return fmt.Errorf("checklist %s: rewrite would alter the markdown body", path)
 	}
-	if marked, _, ok := rewritten.Find(name); !ok || !marked.Done {
-		return fmt.Errorf("checklist %s: rewrite did not mark %q done", path, name)
+	if marked, _, ok := rewritten.Find(name); !ok || marked.Done != done {
+		return fmt.Errorf("checklist %s: rewrite did not set %q done to %t", path, name, done)
 	}
 	return writeAtomic(path, buf.Bytes())
 }
@@ -386,19 +397,23 @@ func mappingValue(mapping *yaml.Node, key string) *yaml.Node {
 	return nil
 }
 
-// setDone sets done: true on an item mapping, appending the key if absent.
-func setDone(item *yaml.Node) {
+// setDone sets an item's done value, appending the key if absent.
+func setDone(item *yaml.Node, done bool) {
+	value := "false"
+	if done {
+		value = "true"
+	}
 	if val := mappingValue(item, "done"); val != nil {
 		val.Kind = yaml.ScalarNode
 		val.Tag = "!!bool"
-		val.Value = "true"
+		val.Value = value
 		val.Style = 0
 		val.Content = nil
 		return
 	}
 	item.Content = append(item.Content,
 		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "done"},
-		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: "true"},
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: value},
 	)
 }
 

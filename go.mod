@@ -10,6 +10,7 @@ tool (
 )
 
 require (
+	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/mark3labs/mcp-go v0.58.0
 	github.com/roasbeef/claude-agent-sdk-go v1.1.1-0.20260713164230-efdbecd88a98
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2

@@ -210,7 +210,7 @@ Supervisors are advisory. They do not route, block, or decide success. Prefer cl
 
 ## Work through a checklist
 
-A `loop` node iterates a checklist file. Its routing targets are `body`, the entry node of one lap, and `on_done`, followed when no open item remains. `max_visits` on the loop node counts arrivals (laps plus one) and is the only ceiling; `timeout`, `llm_model`, `llm_provider`, and `reasoning_effort` configure the item judge and inherit from `defaults`.
+A `loop` node iterates a checklist file. Its routing targets are `body`, the entry node of one lap, and `on_done`, followed when the loop evaluator returns `done`. `max_visits` on the loop node counts arrivals (laps plus one) and is the only ceiling. `timeout` inherits from `defaults`; `llm_model`, `llm_provider`, and `reasoning_effort` configure the item judge independently. When omitted, the judge uses `flash` (`gemini-3.8-flash-medium`) on the `gemini` provider at medium effort. The evaluator's separate `evaluator_llm_model`, `evaluator_llm_provider`, and `evaluator_reasoning_effort` fields default to the pipeline defaults.
 
 ```yaml
 - id: items
@@ -227,7 +227,7 @@ A `loop` node iterates a checklist file. Its routing targets are `body`, the ent
     - to: items
 ```
 
-The checklist is markdown with YAML frontmatter. The frontmatter is the ledger the engine reads; the body is prose for agents and people.
+The checklist is markdown with YAML frontmatter. The frontmatter is the ledger the engine reads mechanically; the body is the prose definition of done read by the evaluator.
 
 ```markdown
 ---
@@ -256,7 +256,7 @@ Definition of done in open prose.
 | `checklist`                   | A sub-checklist; a `loop` node inside this loop's body with no `checklist` of its own iterates it.              |
 | `done`                        | Engine-owned. Absent or `false` means open.                                                                     |
 
-On every arrival the engine re-reads the file, validates the item the previous lap worked on, writes `done: true` on it when the validation passes, and selects the first open item in file order. An item with neither `command` nor `infer` passes when its lap returns. A hand-edited `done: true` is honored without validation. Paths are relative to the workdir. The validation record and the command's output land in `validation.json` and `validation.log` in the loop node's stage directory.
+On every lap return the engine re-reads the file and validates the framed item plus every item already marked done. The framed item is marked only when the whole set passes; failures are unmarked and re-entered without an evaluator turn. After each passing set — and whenever an arrival has no open item — the evaluator reads the definition of done, the items and results, and the workspace. `done` follows `on_done`; `not_done` re-reads the file and selects its first open item. The evaluator may append, reorder, or rewrite open items, but `not_done` with no open item is a terminal error. Paths are relative to the workdir. Validation results and distinct per-item logs land in `validation.json` and `validation-NNN.log`; infer judges and the evaluator also retain distinct prompt and response files in the loop stage.
 
 The selected item reaches the agent as a frame the engine prepends to every codergen and fan-in prompt inside the body. With nested loops the inner loop's block sits inside the outer one, indented, so the prompt's structure mirrors the loops. A fixed preamble says what the blocks are. One level, flush left for width:
 

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tylergannon/tractor/checklist"
 	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/harness"
 	"github.com/tylergannon/tractor/internal/runlog"
@@ -270,13 +271,15 @@ func (r *Runner) Run() (RunResult, error) {
 		currentID = r.resumeCheckpoint.NextNode
 		r.lastCheckpoint = *r.resumeCheckpoint
 	}
-	// The loop frame stack is in-memory only, so a continuation inside a
-	// loop body would run frameless. Rewind to the outermost enclosing loop,
-	// whose arrival validates nothing and selects the first open item.
+	// The loop frame stack is in-memory only. Rebuild the enclosing frames
+	// from their ledgers, then re-enter at the innermost enclosing loop.
 	rewoundFrom := ""
+	var rebuiltFrames []frameRecord
 	if r.resumeCheckpoint != nil {
-		if loopID, ok := lint.OutermostLoop(r.graph, currentID); ok {
-			rewoundFrom, currentID = currentID, loopID
+		if resumeID, frames, ok, rebuildErr := r.rebuildLoopFrames(currentID); rebuildErr != nil {
+			return RunResult{}, rebuildErr
+		} else if ok {
+			rewoundFrom, currentID, rebuiltFrames = currentID, resumeID, frames
 			state.clearRetryVisit()
 		}
 	}
@@ -285,7 +288,10 @@ func (r *Runner) Run() (RunResult, error) {
 		return RunResult{}, err
 	}
 	if rewoundFrom != "" {
-		if err := store.appendTimeline(timelineEvent{"type": "ResumeRewound", "from": rewoundFrom, "to": currentID}); err != nil {
+		if err := r.writeFrames(); err != nil {
+			return RunResult{}, fmt.Errorf("write rebuilt loop frames: %w", err)
+		}
+		if err := store.appendTimeline(timelineEvent{"type": "ResumeRewound", "from": rewoundFrom, "to": currentID, "frames": rebuiltFrames}); err != nil {
 			return RunResult{}, err
 		}
 	}
@@ -401,7 +407,7 @@ func (r *Runner) executeNode(node graph.Node, state *engineState, store *runStor
 	if err != nil {
 		return nodeExecution{runErr: terminalError(err.Error())}, nil
 	}
-	if len(offered) == 0 {
+	if len(offered) == 0 && node.NodeType() != "loop" {
 		return nodeExecution{runErr: terminalError(fmt.Sprintf("every successor of %s has exhausted its visit budget", node.Base().ID))}, nil
 	}
 	handler, resolveErr := r.registry.Resolve(node)
@@ -506,6 +512,12 @@ func (r *Runner) executeWithRetry(
 			if err := stage.complete(outcome); err != nil {
 				return harness.Outcome{}, "", nil, true, stageDirs, segments, err
 			}
+			if node.NodeType() == "loop" {
+				offered, err = r.offeredSuccessors(node, state)
+				if err != nil {
+					return outcome, "", terminalError(err.Error()), true, stageDirs, segments, nil
+				}
+			}
 			nextID, err := r.resolveNext(node, outcome, offered)
 			r.appendAttemptDigests(node.Base().ID, attempt, stage, outcome, nil)
 			if err != nil {
@@ -554,6 +566,67 @@ func (r *Runner) executeWithRetry(
 		}
 	}
 	panic("unreachable")
+}
+
+// rebuildLoopFrames reconstructs every enclosing frame outside the loop at
+// which resume will continue. The ledgers are the durable source of truth;
+// the innermost loop deliberately arrives without a frame so it validates
+// nothing and selects its first open item.
+func (r *Runner) rebuildLoopFrames(checkpointNode string) (string, []frameRecord, bool, error) {
+	loops := lint.EnclosingLoops(r.graph, checkpointNode)
+	if len(loops) == 0 {
+		return checkpointNode, nil, false, nil
+	}
+	if _, ok := r.nodes[checkpointNode].(*graph.LoopNode); ok {
+		loops = append(loops, checkpointNode)
+	}
+	resumeID := loops[len(loops)-1]
+	for _, loopID := range loops[:len(loops)-1] {
+		node, ok := r.nodes[loopID].(*graph.LoopNode)
+		if !ok {
+			return "", nil, false, fmt.Errorf("enclosing loop %q is not a loop node", loopID)
+		}
+		listPath, err := r.resolveRebuiltChecklist(node)
+		if err != nil {
+			return "", nil, false, err
+		}
+		list, err := checklist.Load(resolveWorkdirPath(r.config.Workdir, listPath))
+		if err != nil {
+			return "", nil, false, err
+		}
+		item, index, open := list.Open()
+		if !open {
+			resumeID = loopID
+			break
+		}
+		r.pushOrReplaceFrame(loopFrame{
+			loopID:        loopID,
+			checklist:     listPath,
+			item:          item.Name,
+			itemChecklist: item.Checklist,
+			rendered:      item.Render(),
+			doc:           item.Doc,
+			index:         index + 1,
+			count:         len(list.Items),
+			lap:           1,
+		})
+	}
+	frames := r.snapshotFrames()
+	return resumeID, frameRecords(frames), true, nil
+}
+
+func (r *Runner) resolveRebuiltChecklist(loop *graph.LoopNode) (string, error) {
+	if loop.Checklist.Present && strings.TrimSpace(loop.Checklist.Value) != "" {
+		return loop.Checklist.Value, nil
+	}
+	enclosing, ok := r.topFrame()
+	if !ok {
+		return "", fmt.Errorf("rebuild loop %s: no checklist and no enclosing frame", loop.ID)
+	}
+	if strings.TrimSpace(enclosing.itemChecklist) == "" {
+		return "", fmt.Errorf("rebuild loop %s: enclosing item %q of loop %s names no checklist", loop.ID, enclosing.item, enclosing.loopID)
+	}
+	return enclosing.itemChecklist, nil
 }
 
 func stageEvent(branchID, workdir string, event timelineEvent) timelineEvent {

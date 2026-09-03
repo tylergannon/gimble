@@ -1,0 +1,3 @@
+decision: Issue 33 gives the loop evaluator evaluator_llm_model, evaluator_llm_provider, and evaluator_reasoning_effort fields; the existing unprefixed fields remain the infer judge slot from issue 37.
+decision: Issue 40 requires every internal loop turn to retain distinct artifacts; infer turns use validation-NNN-prompt.md and validation-NNN-response.md, while the per-lap evaluator uses evaluator-prompt.md and evaluator-response.md.
+friction: graph schemafix was not idempotent and nested the parallel branch anyOf on every run, so its -check mode always failed on normalized output -> guard the wrapper when anyOf is already present.
