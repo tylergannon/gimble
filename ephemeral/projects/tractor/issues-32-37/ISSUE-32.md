@@ -12,6 +12,24 @@ the code it names is on `main` at the same paths.
 - `go build ./... && go test -count=1 ./...` exits 0.
 - The change stays in the working tree. Do not commit, branch, or push.
 
+
+## Implementer note — where `loop-node.md` lives (2026-09-03)
+
+The issue's docs list names `loop-node.md`. That file is at
+`ephemeral/projects/tractor/loop-node/loop-node.md`. It is the loop node's v1
+design note and the repo keeps it current, so update its §4 along with
+`docs/spec.md` and `src/content/docs/loops.md`.
+
+
+## Implementer note — one gap the issue leaves open (2026-09-03)
+
+Validating a set means several commands per arrival, and today every one of
+them writes `stages/{seq}-{loop}/validation.log`. The frame is required to
+carry "the path to its validation log" per failure, so one file per arrival
+no longer works: give each validated item its own log path inside the stage
+directory and have the record and the frame name that path. Pick the naming;
+just do not let one item's log overwrite another's.
+
 ---
 
 Branch `worktree-goal-gates`, `engine/loop.go`.

@@ -210,7 +210,7 @@ Supervisors are advisory. They do not route, block, or decide success. Prefer cl
 
 ## Work through a checklist
 
-A `loop` node iterates a checklist file. Its routing targets are `body`, the entry node of one lap, and `on_done`, followed when no open item remains. `max_visits` on the loop node counts arrivals (laps plus one) and is the only ceiling; `timeout`, `llm_model`, `llm_provider`, and `reasoning_effort` configure the item judge and inherit from `defaults`.
+A `loop` node iterates a checklist file. Its routing targets are `body`, the entry node of one lap, and `on_done`, followed when no open item remains. `max_visits` on the loop node counts arrivals (laps plus one) and is the only ceiling. `timeout` inherits from `defaults`; `llm_model`, `llm_provider`, and `reasoning_effort` configure the item judge independently. When omitted, the judge uses `flash` (`gemini-3.8-flash-medium`) on the `gemini` provider at medium effort.
 
 ```yaml
 - id: items

@@ -12,6 +12,7 @@ type Model struct {
 }
 
 var available = []Model{
+	{Alias: "flash", Provider: "gemini", Model: "gemini-3.8-flash-medium"},
 	{Alias: "fable", Provider: "anthropic", Model: "claude-fable-5-1"},
 	{Alias: "fable-5.1", Provider: "anthropic", Model: "claude-fable-5-1"},
 	{Alias: "fable-5", Provider: "anthropic", Model: "claude-fable-5"},

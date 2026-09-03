@@ -230,6 +230,78 @@ items:
 	}
 }
 
+func TestLoopInferJudgeModelIsIndependentOfPipelineDefaults(t *testing.T) {
+	tests := []struct {
+		name          string
+		configureLoop func(*graph.LoopNode)
+		wantModel     string
+		wantProvider  string
+		wantEffort    string
+	}{
+		{
+			name:         "judge default",
+			wantModel:    "gemini-3.8-flash-medium",
+			wantProvider: "gemini",
+			wantEffort:   "medium",
+		},
+		{
+			name: "explicit loop selection wins",
+			configureLoop: func(loop *graph.LoopNode) {
+				loop.LLMModel = optional("claude-haiku-4-5")
+				loop.ReasoningEffort = optional("low")
+			},
+			wantModel:    "claude-haiku-4-5",
+			wantProvider: "anthropic",
+			wantEffort:   "low",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root, workdir := t.TempDir(), t.TempDir()
+			writeFile(t, filepath.Join(workdir, "sprint.md"), `---
+items:
+  - name: Evidence
+    check: The evidence is acceptable
+    infer:
+      files: evidence.txt
+      prompt: Judge the evidence
+---
+`)
+			writeFile(t, filepath.Join(workdir, "evidence.txt"), "acceptable\n")
+			loop := loopNode("items", "sprint.md", "implement", graph.Success, 0)
+			if test.configureLoop != nil {
+				test.configureLoop(loop)
+			}
+			pipeline := testGraph(
+				startNode("start", "items"),
+				loop,
+				customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+			)
+			pipeline.Defaults.LLMModel = optional("pipeline-model")
+			pipeline.Defaults.LLMProvider = optional("openai")
+			pipeline.Defaults.ReasoningEffort = optional("high")
+			backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "pass", Notes: "acceptable"}}}
+			registry := NewRegistry()
+			registry.Register("codergen", HandlerFunc(func(_ graph.Node, _ []graph.Edge, _ ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {
+				return harness.Outcome{Notes: "worked"}, nil
+			}))
+
+			result, err := newLoopRunner(t, pipeline, registry, root, workdir, backend).Run()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Status != RunCompleted || len(backend.turns) != 1 {
+				t.Fatalf("result = %#v after %d judge turns", result, len(backend.turns))
+			}
+			turn := backend.turns[0]
+			if turn.Model != test.wantModel || turn.Provider != test.wantProvider || turn.ReasoningEffort != test.wantEffort {
+				t.Fatalf("judge selection = model %q provider %q effort %q; want %q, %q, %q", turn.Model, turn.Provider, turn.ReasoningEffort, test.wantModel, test.wantProvider, test.wantEffort)
+			}
+			t.Logf("judge selection: model=%s provider=%s reasoning_effort=%s", turn.Model, turn.Provider, turn.ReasoningEffort)
+		})
+	}
+}
+
 func TestLoopInferFailsWhenNoEvidenceMatches(t *testing.T) {
 	root, workdir := t.TempDir(), t.TempDir()
 	writeFile(t, filepath.Join(workdir, "sprint.md"), `---

@@ -16,6 +16,11 @@ import (
 	"github.com/tylergannon/tractor/harness"
 )
 
+const (
+	defaultLoopJudgeModel           = "flash"
+	defaultLoopJudgeReasoningEffort = "medium"
+)
+
 // loopHandler iterates a checklist file: it validates the item the previous
 // lap worked on, marks it done when the validation passes, selects the first
 // open item as the lap's frame, and dispatches the body. With no open item
@@ -259,10 +264,13 @@ func (h *loopHandler) judge(loop *graph.LoopNode, item checklist.Item, files []s
 	config := h.runner.config
 	handler := NewCodergenHandler(CodergenConfig{
 		Backend:                config.Backend,
-		DefaultModel:           config.DefaultModel,
-		DefaultProvider:        config.DefaultProvider,
-		DefaultReasoningEffort: config.DefaultReasoningEffort,
+		DefaultModel:           defaultLoopJudgeModel,
+		DefaultReasoningEffort: defaultLoopJudgeReasoningEffort,
 	})
+	judgePipeline := *pipeline
+	judgePipeline.Defaults.LLMModel = jsonschema.Optional[string]{}
+	judgePipeline.Defaults.LLMProvider = jsonschema.Optional[string]{}
+	judgePipeline.Defaults.ReasoningEffort = jsonschema.Optional[string]{}
 	fields := &graph.LLMNodeFields{
 		Fidelity:        jsonschema.Optional[string]{Present: true, Value: string(harness.FidelityNone)},
 		Timeout:         loop.Timeout,
@@ -283,7 +291,7 @@ func (h *loopHandler) judge(loop *graph.LoopNode, item checklist.Item, files []s
 		}
 		turnScope.RunLog = segment.Path
 	}
-	return handler.executeTurn(loop, fields, offered, turnScope, pipeline, judgePrompt(item, files))
+	return handler.executeTurn(loop, fields, offered, turnScope, &judgePipeline, judgePrompt(item, files))
 }
 
 func judgePrompt(item checklist.Item, files []string) string {

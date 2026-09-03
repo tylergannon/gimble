@@ -296,7 +296,7 @@ nodes:
 	if items.NodeType() != "loop" || items.Checklist.Value != "ephemeral/checklist.md" || items.Body != "implement" || items.OnDone != Success || items.MaxVisits.Value != 40 {
 		t.Fatalf("loop = %#v", items)
 	}
-	if items.Timeout.Value != "15m" || items.LLMModel.Value != "default-model" || items.LLMProvider.Value != "openai" || items.ReasoningEffort.Value != "low" {
+	if items.Timeout.Value != "15m" || items.LLMModel.Present || items.LLMProvider.Present || items.ReasoningEffort.Present {
 		t.Fatalf("loop defaults = %#v", items)
 	}
 	bare := mustNode[*LoopNode](t, pipeline, "bare")

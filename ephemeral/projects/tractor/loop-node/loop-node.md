@@ -100,7 +100,7 @@ The parser lives in a new package `checklist`: `Load(path)`,
 | `on_done` | string | required | Target when no open item remains: a node ID or `success`/`failure`. |
 | `max_visits` | integer | unset | Arrivals at the loop node, laps plus one. The only loop ceiling. |
 | `timeout` | duration | inherited | Ceiling on one item's `command`. Also the infer turn's timeout. |
-| `llm_model`, `llm_provider`, `reasoning_effort` | string | inherited | The infer judge. Meant for a cheap model. |
+| `llm_model`, `llm_provider`, `reasoning_effort` | string | `flash` / `gemini` / `medium` | The infer judge, selected independently of pipeline `defaults` (issue #37). `flash` resolves to `gemini-3.8-flash-medium`. |
 
 Routing targets of a loop node are `body` and `on_done`, so the existing
 `edge_target_exists` and `dead_end` rules cover them and the offered-set

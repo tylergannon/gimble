@@ -237,12 +237,13 @@ fan-in's turn evaluates branch evidence):
 | `on_done`          | String   | required      | Target followed when no open item remains: a node ID or a terminal pseudo-target. |
 | `max_visits`       | Integer  | unset         | Visit budget (Section 3.4): arrivals at the loop node, laps plus one. The only loop ceiling. Unset means unlimited. |
 | `timeout`          | Duration | inherited     | Maximum duration of one item's validation command; also the infer judge turn's timeout (Section 4.8). |
-| `llm_model`        | String   | inherited     | LLM model identifier for the infer judge (Section 8). Meant for a cheap model. |
-| `llm_provider`     | String   | inherited     | LLM provider key for the infer judge. Auto-detected from model if neither the node nor `defaults` sets it. |
-| `reasoning_effort` | String   | inherited     | LLM reasoning effort of the infer judge: `low`, `medium`, `high` (Section 8). |
+| `llm_model`        | String   | `flash`       | LLM model identifier for the infer judge (Section 8). The alias resolves to `gemini-3.8-flash-medium`. |
+| `llm_provider`     | String   | `gemini`      | LLM provider key for the infer judge. Auto-detected from an explicit model when omitted. |
+| `reasoning_effort` | String   | `medium`      | LLM reasoning effort of the infer judge: `low`, `medium`, `high` (Section 8). |
 
-`timeout`, `llm_model`, `llm_provider`, and `reasoning_effort` resolve
-through `defaults` (Section 2.7). A loop node has no `prompt`,
+Only `timeout` resolves through `defaults` (Section 2.7). The infer
+judge's model, provider, and reasoning effort resolve from the loop node
+or the judge defaults above, independently of pipeline `defaults`. A loop node has no `prompt`,
 `fidelity`, or `thread_id`: the judge turn's prompt is engine-built,
 and it runs with fidelity `none` on no thread (Section 4.8).
 
@@ -305,6 +306,10 @@ the first value found:
 1. The field on the node itself.
 2. The same field in `defaults`, if that node's type has the field.
 3. Otherwise the system default from the tables above.
+
+The loop infer judge is the exception for model selection: its
+`llm_model`, `llm_provider`, and `reasoning_effort` do not inherit from
+this object (Section 2.5).
 
 `defaults` admits exactly six fields -- the ones whose node tables say
 "inherited" plus the two global execution knobs:

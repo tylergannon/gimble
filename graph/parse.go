@@ -206,9 +206,6 @@ func (g *Graph) applyDefaults() {
 			inherit(&current.ReasoningEffort, g.Defaults.ReasoningEffort)
 		case *LoopNode:
 			inherit(&current.Timeout, g.Defaults.Timeout)
-			inherit(&current.LLMModel, g.Defaults.LLMModel)
-			inherit(&current.LLMProvider, g.Defaults.LLMProvider)
-			inherit(&current.ReasoningEffort, g.Defaults.ReasoningEffort)
 		}
 	}
 }

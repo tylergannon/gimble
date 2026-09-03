@@ -12,6 +12,14 @@ the code it names is on `main` at the same paths.
 - `go build ./... && go test -count=1 ./...` exits 0.
 - The change stays in the working tree. Do not commit, branch, or push.
 
+
+## Implementer note — where `loop-node.md` lives (2026-09-03)
+
+The issue's docs list names `loop-node.md`. That file is at
+`ephemeral/projects/tractor/loop-node/loop-node.md`. It is the loop node's v1
+design note and the repo keeps it current, so update its §4 along with
+`docs/spec.md` and `src/content/docs/loops.md`.
+
 ---
 
 Branch `worktree-goal-gates`, `engine/runner.go`, `lint.OutermostLoop`.

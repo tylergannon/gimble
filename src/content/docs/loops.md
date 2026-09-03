@@ -78,6 +78,13 @@ between laps. Copy
 [`checklist-loop.md`](https://github.com/tylergannon/tractor/blob/main/examples/loops/checklist-loop.md)
 beside it to start.
 
+The infer judge selects its model independently of pipeline `defaults`.
+By default it uses `flash` (`gemini-3.8-flash-medium`) on the `gemini`
+provider at medium effort. Set `llm_model`, `llm_provider`, and
+`reasoning_effort` independently on the loop node when a different judge
+is warranted. The loop's `timeout` still inherits from pipeline
+`defaults`.
+
 ## Writing node prompts
 
 State the condition the agent is to bring about, never the steps — the
