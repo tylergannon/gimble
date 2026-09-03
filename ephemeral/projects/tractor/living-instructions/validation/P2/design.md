@@ -1,6 +1,6 @@
 # P2: the brief/research loop halts through the tool node, and a finding is asked, not applied
 
-Archetype: scenario. Lap 11; answers `review-10.md`.
+Archetype: scenario. Lap 12; answers `review-11.md`.
 
 ## Story
 
@@ -66,9 +66,11 @@ contains it in the copy at a research branch or fan-in
 preceding that research stage; no copy taken before the answer has
 `promises.md` or `brief.md` saying the export is JSON (neither the
 promise nor the brief was changed before the human said so; a brief
-that writes them only after the answer is fine); `promises.md` and
-`brief.md` are byte-identical between the copies before and after
-every research branch and fan-in stage (research applied nothing).
+that writes them only after the answer is fine); no promise row of
+`promises.md` and no sentence of `brief.md` differs, whitespace aside,
+between the copies before and after every research branch and fan-in
+stage (research applied nothing; a whitespace normalisation is not an
+application).
 
 `infer` (files: the research branches' and fan-in's `prompt.md`,
 `response.md`, and segments; the matched question, its answer, the

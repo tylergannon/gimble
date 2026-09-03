@@ -1,13 +1,14 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 11; answers `review-10.md`.
+Lap 12; answers `review-11.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
 count as prompts for the orphan walk; the walk covers doctrine pages,
 which P8 names, and not skeletons. `show` prints every node of the
-graph, in any order, what `Build` materialized for each (prompt for any
+graph, in any order, with the node's type as the graph declares it
+(`parallel.fan_in` included), what `Build` materialized for each (prompt for any
 node kind that carries one, command for tools, checklist for loops),
 and, in the header, the library file each prompt came from (declaration
 section 3); a prompt may be composed from that file and the files it
@@ -68,7 +69,9 @@ pass leg of the check below is empty until then and runs then.
   (order free). Equality: for every node of any kind that carries a
   prompt, command, or checklist, `show --raw` equals the check's own
   `Build` dumper; `--stage` on a stage built from the frame preamble
-  plus the dumper's output exits 0, and 1 after a byte is appended.
+plus the dumper's output exits 0, and 1 after one random byte at a
+random offset is changed (a comparator that recognises a fixed suffix
+cannot pass).
   Content: each prompt-bearing node's header names its library file;
   with a distinct sentinel appended to every file under `prompts/`,
   `supervisors/`, and `passes/`, each node's `show --raw` contains the
@@ -93,7 +96,10 @@ pass leg of the check below is empty until then and runs then.
   closure. Text parked in another file, in a comment, or supplied by Go
   fails; a `quote`d or `shell`-quoted value passes; a fragment included
   twice passes. Orphans: an injected uncited page, named at random per run, makes
-  `TestLibraryNoOrphans` fail naming it. Rendering: an unclosed action
+  `TestLibraryNoOrphans` fail naming it, and so does removing every
+  citation of one existing page chosen at random (a test that allows
+  the original filenames and rejects only additions fails the second
+  probe). Rendering: an unclosed action
   with random text appended to a doctrine page chosen at random makes
   `TestLibraryRendersAll` fail naming the page. In the real tree both
   tests run and pass.
@@ -110,7 +116,16 @@ pass leg of the check below is empty until then and runs then.
   <n> --stage <that stage dir>` with the parameters the script passed
   to `run`, and expects exit 0.
 
-No `infer`.
+`infer` (files: the two proof scripts and their logs under
+`prove/last-run/`, `workflow/library_test.go`): "For each probe the log
+names (the random orphan page, the page whose citation was removed, the
+random broken action, the random stage perturbation, the per-file
+sentinels), did the test or check fail for the injected reason and name
+the injected file, and does the test's code walk the tree rather than
+recognise probe names? Fail if any probe's failure is generic, names
+the wrong file, or the test special-cases probes." This is the model
+judgment over recorded evidence that decision 41 requires; the scripts
+record, the judge decides.
 
 ## Not proven
 

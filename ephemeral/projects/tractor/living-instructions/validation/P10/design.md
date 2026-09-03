@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 11; answers `review-10.md`.
+Archetype: scenario, twice. Lap 12; answers `review-11.md`.
 
 ## Story
 
@@ -64,7 +64,11 @@ a `workflow` name of `medium` or `large` matching the handoff, its
 `timeline.jsonl` opens with `PipelineStarted` naming that workflow and
 ends with `PipelineCompleted` after a `StageCompleted` with `next:
 success` (an execution run of the execution workflow, not the plan run
-reported twice); the approved package was what ran: every sprint item in A0
+reported twice); the approved package was what ran: the execution graph's loop node
+(`show medium` or `show large` for the run's parameters) names as its
+`checklist` the package's own sprint ledger (or chapter ledger whose
+items name the sprint ledgers), so the items the engine iterated are
+the package's, not a shadow copy; every sprint item in A0
 is either present in the final sprint ledger(s) with its `name`,
 `check`, `command`, and `infer` unchanged and `done: true`, with
 exactly one `LoopValidated` `passed: true` naming it in the execution

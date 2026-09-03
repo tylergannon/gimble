@@ -1,6 +1,6 @@
 # P6: `large` completes and every chapter is marked only after `verify` routed pass
 
-Archetype: scenario. Lap 11; answers `review-10.md`.
+Archetype: scenario. Lap 12; answers `review-11.md`.
 
 ## Story
 
@@ -47,8 +47,10 @@ either the chapter has its own `LoopValidated` `passed: true` and
 restructured away, which P6 allows) or it is not `done: true` in any
 copy and no `tool_call` in any agent segment of the run writes `done:
 true` for it (never marked, not even transiently inside a turn; the
-segments record every write an agent made); the
-final ledger is not empty; every chapter item at the end is `done:
+segments record every tool call an agent made, arguments included);
+if the final ledger is empty the check exits "inconclusive: every
+chapter was removed" and the item stays open (P6 is then vacuous, and
+the scenario is rerun); every chapter item at the end is `done:
 true`; for each, at least one `LoopValidated` with `passed: true` names
 it on `chapters`, each with a `chapters` loop stage's `validation.json`
 naming it (engine-marked; a hand-marked item has neither; a chapter
@@ -75,7 +77,11 @@ turn's segment show no marking of it? Fail on any no."
 
 ## Not proven
 
-That the software the package describes is good; the verifier's catch
+That no workflow tool node forged run-directory records: every tool
+command receives the run directory's path and could write stage files
+or append events; the graph is content the diff review reads, and a
+forging tool node is a defect of that review, not of this check. That
+the software the package describes is good; the verifier's catch
 rate (research R2); whether a removed chapter's promise is still
 covered (P6 is about marking, not coverage; pass 1 of the plan review
 and P10's probes are where coverage lives). Which providers served

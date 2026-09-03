@@ -97,6 +97,7 @@ for wf in $workflows; do
     if [ -n "$page" ] && grep -q "$(basename "$page" .md)" "$mlib/$file"; then
       grep -q "^$stamp DOCTRINE " "$tmp/mut.txt" || { echo "content: $wf/$node names $(basename "$page") but does not render it"; exit 1; }
     fi
+    echo "content: $wf/$node renders $file and nothing outside its closure"
   done
 done
 
@@ -110,14 +111,33 @@ done
 (cd "$tmp/src" && go test -run 'TestLibraryNoOrphans' ./workflow/ -count=1 > "$tmp/orphan.log" 2>&1) \
   && { echo "orphans: injected $orphan.md was not reported"; cat "$tmp/orphan.log"; exit 1; }
 grep -q "$orphan" "$tmp/orphan.log" || { echo "orphans: test failed but did not name $orphan.md"; cat "$tmp/orphan.log"; exit 1; }
+echo "orphans: $orphan.md reported"
+# A second probe a name-recognising test cannot pass: remove every citation
+# of one existing page (chosen at random) from the prompt files and require
+# the test to fail naming that page; then put the files back.
+rm -f "$mlib/doctrine/$orphan.md"
+victim="$(find "$mlib/doctrine" -type f -name '*.md' 2>/dev/null | sort -R | head -1 || true)"
+if [ -n "$victim" ]; then
+  vbase="$(basename "$victim" .md)"
+  mkdir -p "$tmp/keep"
+  for f in $(grep -rl "\"$vbase\"" "$mlib/prompts" "$mlib/supervisors" "$mlib/passes" 2>/dev/null); do
+    cp "$f" "$tmp/keep/$(echo "$f" | tr '/' '_')"
+    sed -i '' -e "/\"$vbase\"/d" "$f"
+  done
+  (cd "$tmp/src" && go test -run 'TestLibraryNoOrphans' ./workflow/ -count=1 > "$tmp/orphan2.log" 2>&1) \
+    && { echo "orphans: uncited existing page $vbase.md was not reported"; cat "$tmp/orphan2.log"; exit 1; }
+  grep -q "$vbase" "$tmp/orphan2.log" || { echo "orphans: test failed but did not name $vbase.md"; cat "$tmp/orphan2.log"; exit 1; }
+  echo "orphans: uncited existing page $vbase.md reported"
+  for k in "$tmp/keep"/*; do [ -f "$k" ] || continue; cp "$k" "$(basename "$k" | tr '_' '/')"; done
+fi
 
 # ---- rendering: a broken action must be reported by name ---------------
-rm -f "$mlib/doctrine/$orphan.md"
 if [ -n "$page" ]; then
   printf '\n%s broken-%s\n' "$delim_open" "$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')" >> "$page"
   (cd "$tmp/src" && go test -run 'TestLibraryRendersAll' ./workflow/ -count=1 > "$tmp/render.log" 2>&1) \
     && { echo "rendering: broken page was not reported"; cat "$tmp/render.log"; exit 1; }
   grep -q "$(basename "$page")" "$tmp/render.log" || { echo "rendering: test failed but did not name $(basename "$page")"; cat "$tmp/render.log"; exit 1; }
+  echo "rendering: broken action in $(basename "$page") reported"
 fi
 
 # ---- the real tree's tests run and pass --------------------------------

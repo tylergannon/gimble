@@ -1,6 +1,6 @@
 # P9: an agent reading only the docs uses plan, show, and ask correctly
 
-Archetype: scenario, judged by inference. Lap 11; answers `review-10.md`.
+Archetype: scenario, judged by inference. Lap 12; answers `review-11.md`.
 
 ## Story
 
@@ -44,9 +44,13 @@ Archetype: scenario, judged by inference. Lap 11; answers `review-10.md`.
 - The promised sources at that commit, and the `--help` of `workflow
   run`, `workflow show`, `ask`, `answer`.
 - The planner prompt as the plan run recorded it: the check strips the
-  frame from the planner stage's `prompt.md` itself (everything through
-  the last `</iterate>` line and the blank lines after it; the shape is
-  the engine's, `engine/frames.go`) and keeps the remainder as T.
+  frame from the planner stage's `prompt.md` itself, anchored at the
+  start of the file: the frame preamble (`fixtures/frame-preamble.txt`,
+  byte for byte) if present, then zero or more `<iterate ...>` ...
+  `</iterate>` blocks that begin where the previous one ended, then
+  blank lines; the remainder is T. Nothing later in the file is
+  stripped, so a `</iterate>` planted in a prompt body stays in T, and
+  T is never empty (an empty T fails).
 - The holdout root as the software renders it: `show large --node
   verify --raw` for the reader's project, produced by the check.
 
@@ -72,9 +76,10 @@ against another `show` call, and a prefix or canned text fails);
 directory of E's path) and the holdout root that `show large --node
 verify --raw` renders.
 
-`infer` (files: the reader's `response.md` and segment, the promised
-sources, the help output, `planning-workflow.md` section 3): "For the
-three promised commands (`workflow run plan`, `workflow show`, `ask`,
+`infer` (files: the reader's `response.md` and segment, the planner
+stage's `prompt.md` and T, the promised sources, the help output,
+`planning-workflow.md` section 3): "Is T the planner prompt the run sent, frame aside, and did the
+reader print it whole? For the three promised commands (`workflow run plan`, `workflow show`, `ask`,
 with `answer` as `ask`'s counterpart): did the agent's use of each come
 from the promised sources, and did each work as run? Helper commands
 the agent used to write a seed or a question file are not judged. Do the promised sources themselves state where the interview

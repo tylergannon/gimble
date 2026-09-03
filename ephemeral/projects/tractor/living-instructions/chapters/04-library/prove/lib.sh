@@ -23,8 +23,8 @@ show_headed() { # bin workflow
 }
 # Header form: "== <id> (<type>) [<library file>]"; the file is present for
 # every node that carries a prompt.
-shown_nodes() { show_headed "$1" "$2" | sed -n 's/^== \([^ ]*\) (\([a-z_]*\)).*/\1 \2/p' | sort; }
-shown_file() { show_headed "$1" "$2" | sed -n "s/^== $3 ([a-z_]*) \(.*\)$/\1/p"; }
+shown_nodes() { show_headed "$1" "$2" | sed -n 's/^== \([^ ]*\) (\([a-z_.]*\)).*/\1 \2/p' | sort; }
+shown_file() { show_headed "$1" "$2" | sed -n "s/^== $3 ([a-z_.]*) \(.*\)$/\1/p"; }
 yaml_nodes() { awk '/^  - id:/{id=$3} /^    type:/{print id, $2}' "workflow/library/workflows/$1.yaml" | sort; }
 workflows="$(ls workflow/library/workflows/*.yaml | xargs -n1 basename | sed 's/\.yaml$//')"
 
@@ -103,5 +103,6 @@ func main() {
 	os.Exit(2)
 }
 EOF
+  mkdir -p "$tmp/src/workflow/library/doctrine" "$tmp/src/workflow/library/templates" "$tmp/src/workflow/library/supervisors" "$tmp/src/workflow/library/passes"
   (cd "$tmp/src" && go build -o "$tmp/bin/tractor" ./cmd/tractor && go build -o "$tmp/bin/builddump" ./cmd/builddump)
 }

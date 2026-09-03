@@ -8,11 +8,22 @@ items:
   - name: workflow show
     check: "`tractor workflow show <name>` prints every node the graph declares and, for each, the prompt, command, or checklist exactly as `Build` materialized it for the given parameters, naming the library file each prompt came from; `--node --raw`, `--values`, and `--stage <dir>` (a diff against a stage's prompt.md with the frame stripped) work as the sprint doc says."
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/SPRINT-02.md
-    command: go build ./... && go vet ./... && go test ./workflow/... ./cmd/tractor/... && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/show-equals-build.sh
+    command: go build ./... && go vet ./... && go test ./workflow/... ./cmd/tractor/... && mkdir -p ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/show-equals-build.sh > ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/show-equals-build.log 2>&1; rc=$?; cat ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/show-equals-build.log; test $rc -eq 0
+    infer:
+      files:
+        - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/show-equals-build.log
+        - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/show-equals-build.sh
+      prompt: Read the script and its log. Did the run compare every node of every workflow against the Build dumper, did the --stage probe fail after the random perturbation for that reason, and did --values report only derived values? Fail if any step is missing from the log or passed for a reason other than the one the script names.
   - name: render test and orphan walk
     check: "A test renders every template with representative parameters and names the file on a syntax error; a test walks the embedded tree and fails, naming the page, on a doctrine page no rendered prompt references; both are proven against injected defects in a copy of the tree, and every rendered line is library text plus data values."
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/SPRINT-03.md
-    command: go build ./... && go vet ./... && go test ./workflow/... && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/orphan-walk-and-render.sh
+    command: go build ./... && go vet ./... && go test ./workflow/... && mkdir -p ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run && sh ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/orphan-walk-and-render.sh > ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/orphan-walk-and-render.log 2>&1; rc=$?; cat ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/orphan-walk-and-render.log; test $rc -eq 0
+    infer:
+      files:
+        - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/orphan-walk-and-render.log
+        - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/orphan-walk-and-render.sh
+        - workflow/library_test.go
+      prompt: Read the script, its log, and the tests. For each probe the log names (the random orphan page, the page whose citation was removed, the random broken action, the per-file sentinels), did the test or check fail for the injected reason and name the injected file, and does the test's code walk the tree rather than recognise probe names? Fail if any probe's failure is generic, names the wrong file, or the test special-cases probes.
   - name: doctrine pages and skeletons
     check: "The doctrine pages and artifact skeletons the four existing prompts can cite exist under the library, copied from chapters/04-library/content/, each a page or less with a provenance pointer into `sources/` or `decisions.md`, and the migrated prompts include them so the orphan walk passes; the pages say what decisions 37 to 59 say, in the library's voice."
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/SPRINT-04.md

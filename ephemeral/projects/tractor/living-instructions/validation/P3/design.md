@@ -1,7 +1,7 @@
 # P3: every promise is marked done in the validation ledger after an independent review routed pass
 
 Archetype: universal over the promises of a run. Checked exhaustively;
-no holdout. Lap 11; answers `review-10.md`.
+no holdout. Lap 12; answers `review-11.md`.
 
 ## Story
 
@@ -49,8 +49,11 @@ and its `LoopValidated` (a `StageFailed` stage with no `response.md` is
 a retried attempt and is skipped): that stage's `StageCompleted` `next`
 leads to the loop (the review turn belonging to this item; different
 items may have different reviewing nodes); let D(item) be the set of
-nodes across whose stages that item's `design.md` changed (from the
-observer copies before and after each stage): R(item) is not in
+nodes across whose stages that item's `design.md` was created or
+changed before the item's reviewing stage began (from the observer
+copies before and after each stage; a change after the review or after
+the mark, by a plan-review lap, does not count, and a design that
+existed before the first stage of the run makes D(item) empty): R(item) is not in
 D(item), D(item) is not empty, the materialized graph gives R(item) a
 provider different from every node in D(item), and `checkpoint.json`
 records, under R(item)'s binding key and under each D(item) node's

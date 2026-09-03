@@ -99,7 +99,11 @@ a slice and every slice serves a promise. MEDIUM writes `checklist.md` as
 a flat sprint ledger with an upfront backlog and one sprint doc per item.
 LARGE writes `checklist.md` as the chapter ledger (decision 35) with a
 chapter doc (pyramid index, vector, review posture, non-goals) and a
-sprint ledger per chapter; sprint ledgers start with a backlog. The
+sprint ledger per chapter; sprint ledgers start with a backlog. A
+chapter planned before its predecessor is built carries its backlog as
+prose in the ledger body and an empty item list; the `plan` node turns
+the prose into items when the chapter is entered (decision 44 as
+applied to this project's chapters 5 and 6). The
 chapter ledger is durable (decision 44); it is edited only with a reason.
 
 **validation design loop** (loop over `validation/ledger.md`, one item per
@@ -107,7 +111,8 @@ promise; body `design` → `review` → back). `design` (codergen) chooses the
 archetype (decision 42) and writes, under `validation/<promise>/`: the
 user story a verifier follows, the evidence specification (what is
 captured, where), the UI sketch when a screen is involved, and, for a
-universal promise, the holdout sample under the XDG state root in a
+universal promise over a set too large to check whole, the holdout
+sample under the XDG state root in a
 random-token directory whose path is recorded only in the verifier prompt
 the workflow will later materialize (decision 43). It then fills the
 sprint item that will demonstrate the promise, in the chapter or sprint
@@ -143,7 +148,7 @@ built-in passes, in order:
 3. **slicing**: every slice is vertical and exercisable when done.
 4. **proof quality**: across promises, no mechanism a coder can satisfy
    while the promise is false; holdouts present for every universal
-   promise; nothing trivially true or stricter than its promise.
+   promise whose set is not checked exhaustively; nothing trivially true or stricter than its promise.
 5. **scope**: nothing exceeds the promises; exclusions respected.
 6. **executability**: every sprint fits one agent turn, every command
    runs from the workdir, every path resolves, every ledger parses. This
@@ -239,7 +244,7 @@ workflow/library/
                        promise-adjacent-seams.md vertical-slices.md
                        proof-not-theater.md validation-archetypes.md
                        prior-art.md research-leaf.md chapter-doc.md sprint-doc.md
-                       pyramid-index.md reviewer-independence.md
+                       pyramid-index.md reviewer-independence.md ledger.md
   templates/           skeletons the planner fills: brief.md promises.md
                        CHAPTER.md SPRINT.md story.md evidence.md
                        recommendation.md ledger.md

@@ -242,8 +242,10 @@ planner node is withdrawn.
 50. **Human gates, three.** The promise interview, proof-mechanism
     questions inside the validation design loop, and final approval. All
     through `tractor ask`.
-51. **Sizes.** SIMPLE: brief and one validation lap, recommend
-    self-execution. MEDIUM: the full graph, decomposed into sprints. LARGE:
+51. **Sizes.** SIMPLE: the same graph, with `decompose` writing a
+    one-item ledger, one validation lap, and the holistic review pass
+    only; recommend self-execution (clarified 2026-09-03 by the
+    consistency pass). MEDIUM: the full graph, decomposed into sprints. LARGE:
     the full graph, decomposed into chapters. Intake guesses; the human
     confirms at the brief gate.
 52. **Research output.** A research directory in the project (the token

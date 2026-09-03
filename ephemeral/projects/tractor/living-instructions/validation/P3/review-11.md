@@ -1,0 +1,7 @@
+1. Yes. The cheapest game is to precreate the designs before the engine walk, conduct genuine review turns, let the engine mark every item, then have one later planner stage on another provider touch every design. `D(item)` includes changes from the entire run without requiring them to precede `R(item)` or `LoopValidated` ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P3/design.md:46)). This avoids all per-promise design turns, passes the infer judge, and leaves the promise false because the recorded planner pass occurred after—not before—the review and mark.
+
+2. No separate defect. The named snapshots and timeline contain enough information to distinguish the chronology; the validator simply fails to assert it. The `validation.json` check is redundant with `LoopValidated`, but redundant records are not defective, and together with final `done: true` they substantiate engine marking ([ledger.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/ledger.md:88)).
+
+3. No concrete false failure found. One item per promise, a distinct design-writing planner turn, a provider-independent reviewing turn, and engine marking are all required by decision 47 ([decisions.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/decisions.md:216)); the validator’s requirements are consistent with that permitted workflow.
+
+ROUTE: fail
