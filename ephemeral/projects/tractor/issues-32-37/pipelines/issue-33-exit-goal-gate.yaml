@@ -1,11 +1,15 @@
-name: issue-33-exit-goal-gate
+name: issue-33-loop-evaluator
 goal: |
   The condition described in ephemeral/projects/tractor/issues-32-37/ISSUE-33.md
-  holds in this repository: when the loop node finds no open item it runs an
-  evaluator turn against the checklist body before routing to on_done, routing
-  on_done only on a done verdict and otherwise continuing the loop over the
-  items the evaluator wrote; the tests and documentation the brief names cover
-  the new behavior; and `go build ./... && go test -count=1 ./...` exits 0.
+  holds in this repository: one evaluator turn runs after every lap whose
+  validation passes and on any arrival with no open item, reading the
+  checklist's prose definition of done and deciding done or not done; a done
+  verdict routes to on_done, a not-done verdict continues the loop over the
+  items the evaluator left in the file, and a not-done verdict with no open
+  item is a terminal error. The evaluator takes its model independently of the
+  infer judge and defaults to the pipeline default model. The tests and
+  documentation the brief names cover the new behavior, and
+  `go build ./... && go test -count=1 ./...` exits 0.
 start: implement
 
 defaults:
@@ -26,6 +30,9 @@ nodes:
 
   - id: check
     type: tool
-    tool_command: go build ./... && go test -count=1 ./...
+    tool_command: >-
+      if [ -z "$(git status --porcelain -- engine checklist graph docs src)" ]; then
+      echo "NO CHANGES in the workdir: the work was not done here"; exit 1; fi;
+      go build ./... && go test -count=1 ./...
     on_success: success
     on_error: implement

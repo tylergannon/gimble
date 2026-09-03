@@ -1,8 +1,7 @@
-# Issue #33 — Loop node: exit goal gate evaluates the definition of done before on_done
+# Issue #33 — Loop node: an evaluator turn decides what happens after every passing lap
 
-Task brief for the implementer. The text below is the issue verbatim.
-It was filed against branch `worktree-goal-gates`, which is now merged;
-the code it names is on `main` at the same paths.
+Task brief for the implementer. The text below is the issue verbatim,
+as rewritten 2026-09-03 after Tyler's rulings.
 
 ## Definition of done
 
@@ -16,41 +15,47 @@ the code it names is on `main` at the same paths.
   anywhere else is not checked. This overrides any worktree or checkpoint step
   in the repository's agent protocol.
 
-
-## Implementer note — where `loop-node.md` lives (2026-09-03)
-
-The issue's docs list names `loop-node.md`. That file is at
-`ephemeral/projects/tractor/loop-node/loop-node.md`. It is the loop node's v1
-design note and the repo keeps it current, so update its §4 along with
-`docs/spec.md` and `src/content/docs/loops.md`.
-
 ---
 
-Branch `worktree-goal-gates`, `engine/loop.go`.
+`engine/loop.go`.
 
 ## Bug
 
-When the loop node arrives and finds no open item, it routes to `on_done` immediately. Nothing reads the checklist's markdown body, which is the prose definition of done. The exit goal gate from the loop-frames memo §9a.2 ("the run cannot terminate at success until an exit gate demonstrates the goal's claims") was dropped from the v1 loop node and is not listed in `loop-node.md` §10 "Not in v1".
+When a lap passes, the engine marks the item done and selects the next open item deterministically: first not-done in file order. No judgment happens there. When no open item remains it routes to `on_done` immediately. Nothing ever reads the checklist's markdown body, which is the prose definition of done.
 
-Consequences: an empty ledger completes on first arrival. A ledger whose items were all demonstrated completes even when the definition of done is not met. A stale backlog is never reconciled against the goal.
+Consequences: an empty ledger completes on first arrival; a ledger whose items were all demonstrated completes even when the definition of done is not met; and a plan that turns out to be wrong at lap two is not noticed until it has been worked to the end.
 
 ## Required behavior
 
-The checklist file is markdown with YAML frontmatter: the body is the definition of done, the frontmatter is the ledger. The checklist is editable on every lap. The loop evaluator, not the ledger, decides when the loop is done.
+The checklist file is markdown with YAML frontmatter: the body is the definition of done, the frontmatter is the ledger. The evaluator, not the ledger, decides what happens next.
 
-When the loop finds no open item:
+One evaluator turn runs **after every lap whose validation passes**, and on any arrival that finds no open item (including an empty ledger on the first arrival). It does not run when validation fails; that lap re-enters its item per #32.
 
-1. Run one evaluator turn on the loop node's model fields (the same slot the infer judge uses). Inputs: the checklist body, the items with their last validation results, and the workspace.
-2. Verdict done: route to `on_done`.
-3. Verdict not done: the evaluator appends or rewrites items in the checklist as ordinary work. The loop re-reads the file and selects the first open item. Next lap.
-4. Verdict not done and the file still has no open item: terminal error.
+Inputs: the checklist body, the items with their last validation results, and the workspace.
 
-An empty ledger on first arrival takes the same path: the gate runs and the evaluator writes the first items.
+The evaluator may edit the checklist as ordinary work: append, reorder, or rewrite open items. In the ordinary case it simply agrees that the next configured item is the right next step and changes nothing.
+
+Verdicts:
+
+- **done**: route to `on_done`.
+- **not done**: the loop re-reads the file and selects the first open item. Next lap.
+- **not done with no open item in the file**: terminal error.
+
+The evaluator does **not** use the infer judge's model slot. It gets its own selection and defaults to the pipeline's default model, the same one the working agent runs on. The judge's slot and its Flash default are unchanged (#37).
+
+The per-lap turn is expected to cost wall time. That is accepted; being able to be agile on the plan is the point. No per-loop knob for now.
+
+## Not this
+
+The evaluator is one harness call, not a programmable sequence of nodes. Ruled 2026-09-03.
+
+An evaluator built from ordinary nodes already works at the loop's *exit*: point `on_done` at a node whose edges route to `success` or back to the loop, and the loop re-reads the checklist and picks up whatever it appended. Demonstrated with tool nodes and no models. It cannot serve the per-lap case, because `loop_body_exit` forbids a body node from routing to `success` or outside the body.
 
 ## Changes
 
-- `engine/loop.go`: the no-open-item branch runs the gate before routing to `on_done`.
-- Gate prompt and choice schema with two targets, `done` and `not_done`, like the infer judge.
-- Timeline event for the gate verdict; `prompt.md` and `response.md` in the loop node's stage directory.
-- Tests: empty ledger gets items written and the loop continues; all-items-done with a not-done verdict adds an item; not-done with no edit is a terminal error; done routes to `on_done`.
-- Docs: `docs/spec.md` loop section, `src/content/docs/loops.md`, `loop-node.md` §4.
+- `engine/loop.go`: run the evaluator after a passing validation set and on the no-open-item branch, before routing to `on_done`.
+- Evaluator prompt and a choice schema with two targets, `done` and `not_done`, like the infer judge.
+- Its own model fields, defaulting to the pipeline default model. See #40: its prompt and response files must not collide with the judge's.
+- Timeline event for the verdict.
+- Tests: empty ledger gets items written and the loop continues; a passing lap where the evaluator agrees proceeds to the next item unchanged; an evaluator that reorders open items changes what runs next; all-items-done with a not-done verdict adds an item; not-done with no open item is a terminal error; done routes to `on_done`; the evaluator runs on the pipeline default model and not the judge's Flash default.
+- Docs: `docs/spec.md` loop section, `src/content/docs/loops.md`, and §4 of `ephemeral/projects/tractor/loop-node/loop-node.md`.
