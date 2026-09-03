@@ -7,7 +7,7 @@ records the outcome. An entry is closed when the brief has ruled.
 
 ## Open
 
-### F1. P8 "show is byte-equal to the engine's prompt.md" is ill-defined (R5)
+### F1. P8 "show is byte-equal to the engine's prompt.md" is ill-defined (R5, R1)
 
 The engine composes `prompt.md` as frame plus `$goal`-expanded prompt
 (`engine/codergen.go:42-58`); frames inline the selected item, the last
@@ -16,8 +16,27 @@ failure, and the doc file (`engine/frames.go:108-168`). Every node in
 node is even comparable. Proposal: restate P8 as "`show` prints, for each
 node, the prompt exactly as `Build` materialized it for the given
 parameters" and add an optional `--stage <dir>` mode that diffs against a
-real stage with the frame stripped. See
-`workflow-package-inventory/migration-inventory.md`.
+real stage with the frame stripped. R1 agrees from the other side: the
+two tools that achieve byte-equality (gemini-cli, codex) do it by having
+the live call write the string, not by recomputing it. See
+`workflow-package-inventory/migration-inventory.md`,
+`prompt-libraries/gemini-cli.md`, `prompt-libraries/codex.md`.
+
+### F4. P8 "no built-in prompt lives in a Go string" needs a scope line (R1)
+
+Every surveyed tool that moved prompt bodies to files still builds some
+prompt text in code: crush formats git status lines with `fmt.Sprintf`,
+sst/opencode assembles the `<env>` block in code, codex keeps header
+sentences as consts. Proposal: restate as "every prompt body, doctrine
+page, supervisor brief, pass, and skeleton is a library file; Go supplies
+only data values (paths, names, commands) to templates". See
+`prompt-libraries/crush.md`, `opencode-sst.md`, `codex.md`.
+
+### F5. Template delimiters (R1)
+
+`{{` in doctrine or skeleton text collides with `text/template`; fabric
+avoided the engine for this reason. Proposal: set `Delims("<<", ">>")` or
+similar before any page is authored, and say so in the library README.
 
 ### F2. Six one-question passes lose cross-cutting judgment (R2)
 
