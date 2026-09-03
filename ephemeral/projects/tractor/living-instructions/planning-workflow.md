@@ -379,7 +379,9 @@ Fan-out drafts of chapter docs. Any engine change. The web client.
    `verify` turn routing pass, never a sprint count alone (`medium` has
    no chapters and proves nothing here).
 7. `scope_cop` delivers at least one steer during the run, recorded in the
-   timeline, and the steered turn's output changes.
+   timeline, the steered turn's output changes, and an `infer` judge over
+   the steer text and the target's segment split at the steer decides
+   that the change is what the steer asked.
 8. Every prompt body, doctrine page, supervisor brief, pass, and skeleton
    is a library file and Go supplies templates only data values, `quote`,
    `shell`, `include`, and `doctrine`; every doctrine page is cited by an
