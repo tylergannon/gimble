@@ -15,7 +15,7 @@ declarative description of the software and, optionally, the repository it
 lives in, and produces a package the execution workflows can run: a brief,
 a promise list, a research directory with a routing index, a chapter or
 sprint ledger of vertical slices, a validation design per promise, and a
-size recommendation. The package is proven before the human approves it:
+size recommendation. The package is reviewed before the human approves it:
 a loop of fresh reviewers, one question each, finds nothing.
 
 The organizing idea is the promise (decision 37). The interview finds out

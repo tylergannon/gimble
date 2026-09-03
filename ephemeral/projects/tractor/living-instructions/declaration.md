@@ -17,7 +17,8 @@ the work into vertical slices as chapters and sprints, designs a proof for
 each promise that a coder cannot satisfy while the promise is false,
 reviews the plan with independent reviewers one question at a time, and
 hands the human an approved package. The built-in execution workflows run
-that package to a proven state: sprints demonstrated by their own checks,
+that package to a proven state: sprints demonstrated by their own checks and an `infer` judgment over
+the captured evidence,
 chapters proven by an adversarial verifier that operates the software.
 Every prompt, supervisor brief, review pass, doctrine page, and artifact
 skeleton the workflows use is editable content embedded in the binary, so
