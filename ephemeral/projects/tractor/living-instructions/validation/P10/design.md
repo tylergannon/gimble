@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 15; answers `review-14.md`.
+Archetype: scenario, twice. Lap 16; answers `review-15.md`.
 
 ## Story
 
@@ -58,10 +58,12 @@ chapter 5, as P10 says); for each seed: the plan run's `timeline.jsonl` ends wit
 human gate was passed: the last `QuestionAsked` of the plan run E has a
 `tractor ask` `tool_call` before it in the `approve` stage's segment
 whose paired `tool_result` contains E's nonce, `answers.log` records
-the "Yes." rule for E, and the package copy taken immediately before
-that answer is byte-identical to the final package outside
-`interview/` (what the human saw is what ran; the answer file itself
-is the one permitted difference); `validate-plan` accepts the package;
+the "Yes." rule for E, and the copy of the whole package, research leaves included, that
+the observer takes immediately before that answer (for the approval
+question the observer copies everything, not the leafless package it
+copies at other events) is byte-identical to the final package outside
+`interview/` (what the human saw is what ran; the answer file itself is
+the one permitted difference); `validate-plan` accepts the package;
 `recommendation.md` names `medium` or `large`; `check.log` shows the
 `Next:` line and the identical command executed; the execution run
 directory named by that command's `Logs:` line is a different directory
@@ -75,9 +77,10 @@ reported twice); the approved package was what ran: the execution graph's loop n
 `checklist` the package's own sprint ledger (or chapter ledger whose
 items name the sprint ledgers), so the items the engine iterated are
 the package's, not a shadow copy; for a LARGE package, the chapter
-ledger at the end equals the approved copy except for `done` flags
-and any chapter removed with a reason under P6's rule (the approved
-chapters ran; a chapter ledger rewritten during execution fails); a
+ledger at the end equals the approved copy except for `done` flags and
+for edits made with a reason under P6's rule (across a stage whose
+`response.md` names the chapter, or after a question that names it;
+decision 44); an unexplained rewrite fails; a
 sprint item is identified by its ledger path and name, and for a LARGE
 package the events for a chapter's items are those between that
 chapter's `LoopItemSelected` on `chapters` and its `LoopValidated`, so

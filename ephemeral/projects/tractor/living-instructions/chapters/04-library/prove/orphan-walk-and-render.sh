@@ -126,10 +126,14 @@ for wf in $workflows; do
     show_raw "$tmp/bin/mutated" "$wf" "$node" | grep "^$stamp FILE templates/" | sed "s/^$stamp FILE //"
   done
 done | sort -u > "$tmp/seen-templates.txt"
-(cd "$mlib" && find templates -type f 2>/dev/null | sort) | while read -r t; do
-  grep -qxF -- "$t" "$tmp/seen-templates.txt" || { echo "templates: no node renders $t"; exit 1; }
+# The README lists the planner's skeletons (sprint 4 writes the list as
+# lines of the form "- templates/<name>"); each listed one must be rendered
+# by some node. Files under templates/ not in the list may exist unused.
+sed -n 's/^- \(templates\/[^ ]*\).*/\1/p' "$mlib/README.md" | sort -u > "$tmp/listed-templates.txt"
+while read -r t; do
+  grep -qxF -- "$t" "$tmp/seen-templates.txt" || { echo "templates: no node renders listed skeleton $t"; exit 1; }
   echo "templates: $t rendered by a node"
-done
+done < "$tmp/listed-templates.txt"
 
 # ---- orphans: the injected page must be reported by name ---------------
 (cd "$tmp/src" && go test -run 'TestLibraryNoOrphans' ./workflow/ -count=1 > "$tmp/orphan.log" 2>&1) \

@@ -37,6 +37,10 @@ actions; `{{` is literal under non-default delimiters and allowed.
 
 ## Skeletons
 
+List them in `workflow/library/README.md` as lines `- templates/<name>`;
+the sprint 3 proof script reads that list and requires each listed
+skeleton to be rendered by some node.
+
 `templates/brief.md`, `templates/promises.md`, `templates/recommendation.md`,
 `templates/CHAPTER.md`, `templates/SPRINT.md`, `templates/ledger.md`. Each
 is the artifact with its fixed parts filled and its variable parts as

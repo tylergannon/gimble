@@ -136,7 +136,9 @@ no agent can find it to edit it. It tails
   `SupervisorVerdict` event, copies the package directory
   (`ephemeral/projects/<build>/`, without `research/` leaves) into
   `<observer-tree>/<n>-<event>-<node>/`;
-- on `QuestionAsked` only: copies the package, reads the question file,
+- on `QuestionAsked` only: copies the package (for the approval question,
+  the last one a plan run asks, the whole package with research leaves),
+  reads the question file,
   matches it against ordered rules (a substring or a `Promise:` line
   predicate, and an answer), composes the answer (when the question
   numbers its candidates the answer mirrors the numbering, one line per

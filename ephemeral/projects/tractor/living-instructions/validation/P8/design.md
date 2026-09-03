@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 15; answers `review-14.md`.
+Lap 16; answers `review-15.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -73,9 +73,10 @@ pass leg of the check below is empty until then and runs then.
   the headed `show` prints equals the set the workflow YAML declares
   (order free). Equality: for every node of any kind that carries a
   prompt, command, or checklist, `show --raw` equals the check's own
-  `Build` dumper; `--stage` on a stage built from the frame preamble
-plus the dumper's output exits 0, and 1 after one random byte at a
-random offset within the prompt body (past the frame the check itself
+  `Build` dumper; `--stage` on a stage built from the frame preamble plus two nested
+  `<iterate>` blocks (an outer chapters frame and an inner sprints
+  frame, the shape `large` records) plus the dumper's output exits 0,
+  and 1 after one random byte at a random offset within the prompt body (past the frame the check itself
 wrote) is changed (a comparator that recognises a fixed suffix cannot
 pass; a byte in the frame is never the probe, since a correct `--stage`
 ignores the frame).
@@ -84,9 +85,11 @@ ignores the frame).
   `supervisors/`, `passes/`, and `templates/`, each node's `show --raw`
   contains the sentinel of the file its header names and contains no
   sentinel of a file outside that file's include closure, and every
-  file under `templates/` has its sentinel in some node's output (every
-  skeleton is a library file some prompt includes; an inert file under
-  `templates/` beside an inline skeleton fails) (a conditional
+  skeleton the library README lists as the planner's (the list sprint 4
+  writes) has its sentinel in some node's output (each listed skeleton
+  is a library file some prompt includes; an inert file listed beside
+  an inline skeleton fails; a file under `templates/` not in the list
+  may exist unused) (a conditional
   include that does not fire for the check's parameters is allowed to
   be absent; a file outside the closure is not allowed to appear); with a sentinel appended to a
   doctrine page, every prompt whose closure names that page prints it.
@@ -127,11 +130,18 @@ ignores the frame).
   `seeds/greeter.md` into a fresh run directory, then for the first
   completed stage of each prompt-bearing node runs `show plan --node
   <n> --stage <that stage dir>` with the parameters the script passed
-  to `run`, and expects exit 0.
+  to `run`, and expects exit 0; and does the same for the first
+  `implement` stage of P10's `large` run, whose `prompt.md` carries the
+  nested chapters-and-sprints frame, so a `--stage` that strips only
+  one frame fails there.
 
 `infer` (files: the two proof scripts and their logs under
-`prove/last-run/`, which include the `go test` output of every probe
-run copied out of the scratch directory before it is removed;
+`prove/last-run/`: each ledger command captures its script's stdout,
+which names every probe and its outcome (the stage perturbation's byte
+and offset, each node's sentinel result, each skeleton's rendering),
+to `prove/last-run/<script>.log`, and the orphan script copies the `go
+test` output of every probe run beside it before the scratch directory
+is removed;
 `workflow/library_test.go`; the non-test Go files under `workflow/`): "For each probe the log
 names (the random orphan page, the page whose citation was removed, the
 random broken action, the random stage perturbation, the per-file

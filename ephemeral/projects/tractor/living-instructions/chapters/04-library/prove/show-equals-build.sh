@@ -26,7 +26,8 @@ show_headed "$tmp/bin/tractor" plan | grep -q '<iterate' && { echo "show printed
 mkdir -p "$tmp/stage"
 {
   cat ephemeral/projects/tractor/living-instructions/chapters/04-library/fixtures/frame-preamble.txt
-  printf '<iterate loop="chapters" checklist="x.md" index="1" count="1" lap="1">\nname: x\ncheck: y\n</iterate>\n\n'
+  printf '<iterate loop="chapters" checklist="x.md" index="1" count="2" lap="1">\nname: x\ncheck: y\n</iterate>\n'
+  printf '<iterate loop="sprints" checklist="y.md" index="1" count="3" lap="1">\nname: z\ncheck: w\n</iterate>\n\n'
 } > "$tmp/stage/frame.txt"
 {
   cat "$tmp/stage/frame.txt"
