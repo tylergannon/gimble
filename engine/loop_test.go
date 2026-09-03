@@ -882,6 +882,75 @@ items:
 	}
 }
 
+func TestNestedLoopVisitBudgetsResetPerOuterItem(t *testing.T) {
+	root, workdir := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(workdir, "outer.md"), `---
+items:
+  - name: Chapter A
+    check: Chapter A is delivered
+    command: "true"
+    checklist: inner-a.md
+  - name: Chapter B
+    check: Chapter B is delivered
+    command: "true"
+    checklist: inner-b.md
+---
+`)
+	writeFile(t, filepath.Join(workdir, "inner-a.md"), `---
+items:
+  - name: Sprint A
+    check: Sprint A is delivered
+    command: test -f first-pass
+---
+`)
+	writeFile(t, filepath.Join(workdir, "inner-b.md"), `---
+items:
+  - name: Sprint B
+    check: Sprint B is delivered
+    command: "true"
+---
+`)
+	inner := loopNode("inner", "", "work", "outer", 3)
+	pipeline := testGraph(
+		startNode("start", "outer"),
+		loopNode("outer", "outer.md", "plan", graph.Success, 0),
+		customNode("plan", "task", []graph.Edge{{To: "inner"}}, 0),
+		inner,
+		customNode("work", "task", []graph.Edge{{To: "inner"}}, 2),
+	)
+	works := 0
+	registry := NewRegistry()
+	registry.Register("codergen", bodyHandler(t, func(scope ExecutionScope) {
+		if strings.HasSuffix(scope.StageDir, "-work") {
+			works++
+			if works == 2 {
+				writeFile(t, filepath.Join(workdir, "first-pass"), "done\n")
+			}
+		}
+	}))
+
+	result, err := newLoopRunner(t, pipeline, registry, root, workdir, nil).Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted || works != 3 {
+		t.Fatalf("result = %#v after %d body dispatches", result, works)
+	}
+	checkpoint := mustCheckpoint(t, root)
+	if checkpoint.NodeVisits["inner"] != 2 || checkpoint.NodeVisits["work"] != 1 || checkpoint.NodeVisits["plan"] != 1 {
+		t.Fatalf("last activation counters = %#v", checkpoint.NodeVisits)
+	}
+	var innerStages []float64
+	for _, event := range mustTimeline(t, root) {
+		if event["type"] == "StageStarted" && event["name"] == "inner" {
+			innerStages = append(innerStages, event["index"].(float64))
+		}
+	}
+	if want := []float64{3, 5, 7, 10, 12}; !reflect.DeepEqual(innerStages, want) {
+		t.Fatalf("inner stages = %v, want %v", innerStages, want)
+	}
+}
+
 func TestLoopFrameCarriesDocContents(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -981,10 +1050,7 @@ func TestLoopFailsWhenBodyBudgetIsExhaustedWithItemsOpen(t *testing.T) {
 items:
   - name: One
     check: One
-    command: "true"
-  - name: Two
-    check: Two
-    command: "true"
+    command: "false"
 ---
 `)
 	pipeline := testGraph(
@@ -1003,7 +1069,7 @@ items:
 		t.Fatalf("result = %#v", result)
 	}
 	list := mustChecklist(t, filepath.Join(workdir, "sprint.md"))
-	if !list.Items[0].Done || list.Items[1].Done {
+	if list.Items[0].Done {
 		t.Fatalf("items = %#v", list.Items)
 	}
 }
@@ -1210,12 +1276,12 @@ items:
 	if item, _, _ := mustChecklist(t, filepath.Join(workdir, "sprint.md")).Find("Only"); !item.Done {
 		t.Fatal("item was not marked done")
 	}
-	assertResumeRewound(t, root, "implement", "items")
+	assertResumeRewound(t, root, "implement", "items", nil)
 }
 
-// Finding 1(b): a continuation at a nested loop node rewinds to the outer
-// loop, whose arrival resolves the inner checklist again.
-func TestResumeAtNestedLoopRewindsToOuterLoop(t *testing.T) {
+// A continuation at a nested loop rebuilds the outer frame from its ledger
+// and re-enters at the inner loop, without repeating earlier outer-body work.
+func TestResumeAtNestedLoopRebuildsOuterFrame(t *testing.T) {
 	root, workdir := t.TempDir(), t.TempDir()
 	writeFile(t, filepath.Join(workdir, "outer.md"), `---
 items:
@@ -1266,14 +1332,16 @@ items:
 	if err != nil || result.Status != RunCompleted {
 		t.Fatalf("resumed result=%#v err=%v", result, err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "stages", "000003-outer")); err != nil {
-		t.Fatalf("resumed run did not start at the outer loop: %v", err)
+	if _, err := os.Stat(filepath.Join(root, "stages", "000003-inner")); err != nil {
+		t.Fatalf("resumed run did not start at the inner loop: %v", err)
 	}
-	// 3 outer, 4 plan, 5 inner, 6 work, 7 inner, 8 outer -> success
-	if want := []string{"000004-plan", "000006-work"}; !reflect.DeepEqual(dispatched, want) {
+	if want := []string{"000004-work"}; !reflect.DeepEqual(dispatched, want) {
 		t.Fatalf("body dispatches = %v, want %v", dispatched, want)
 	}
-	work := readFile(t, filepath.Join(root, "stages", "000006-work", "prompt.md"))
+	if _, err := os.Stat(filepath.Join(root, "stages", "000003-outer")); !os.IsNotExist(err) {
+		t.Fatalf("outer loop unexpectedly reran: %v", err)
+	}
+	work := readFile(t, filepath.Join(root, "stages", "000004-work", "prompt.md"))
 	if !strings.Contains(work, `<iterate loop="outer" checklist="outer.md" item="1/1" lap="1">`) ||
 		!strings.Contains(work, `<iterate loop="inner" checklist="inner-a.md" item="1/1" lap="1">`) {
 		t.Fatalf("work prompt = %q", work)
@@ -1285,7 +1353,7 @@ items:
 			}
 		}
 	}
-	assertResumeRewound(t, root, "inner", "outer")
+	assertResumeRewound(t, root, "inner", "inner", []string{"outer"})
 }
 
 func TestResumeOutsideLoopDoesNotRewind(t *testing.T) {
@@ -1393,7 +1461,7 @@ items:
 	}
 }
 
-func assertResumeRewound(t *testing.T, root, from, to string) {
+func assertResumeRewound(t *testing.T, root, from, to string, wantFrames []string) {
 	t.Helper()
 	for _, event := range mustTimeline(t, root) {
 		if event["type"] != "ResumeRewound" {
@@ -1401,6 +1469,16 @@ func assertResumeRewound(t *testing.T, root, from, to string) {
 		}
 		if event["from"] != from || event["to"] != to {
 			t.Fatalf("ResumeRewound = %v, want from %q to %q", event, from, to)
+		}
+		frames, ok := event["frames"].([]any)
+		if !ok || len(frames) != len(wantFrames) {
+			t.Fatalf("ResumeRewound frames = %v, want %v", event["frames"], wantFrames)
+		}
+		for index, want := range wantFrames {
+			frame, ok := frames[index].(map[string]any)
+			if !ok || frame["loop"] != want {
+				t.Fatalf("ResumeRewound frame %d = %v, want loop %q", index, frames[index], want)
+			}
 		}
 		return
 	}

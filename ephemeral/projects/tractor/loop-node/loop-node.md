@@ -197,13 +197,23 @@ to the outer loop node is illegal, because the body node-set follows every
 edge except through its own loop node; the pop rule is defensive, not a
 supported shape. If escape edges are wanted later, the node-set definition
 must stop at enclosing loop nodes.)
-Restart is coarse and dumb by design: nothing about the loop is
-checkpointed. On resume the engine rewinds the checkpoint's next node to
-the outermost loop whose body contains it (added after review: resuming at
-a body node ran it frameless, and resuming at a nested loop with no
-`checklist` field failed outright). That loop's first arrival validates
-nothing and selects the first open item, which is the item the
-interrupted lap was working on unless a planner changed the file.
+The frame stack itself is not checkpointed. On resume the engine finds the
+loops whose derived body node-sets contain the checkpoint's next node,
+outermost first. It rebuilds the outer frames from each checklist's first
+open item, then resumes at the innermost enclosing loop. That loop arrives
+frameless, validates nothing, and selects its first open item. Nodes before
+it in the outer body do not run again merely to reconstruct the stack. The
+`ResumeRewound` event records `from`, `to`, and the rebuilt `frames`; if a
+checklist to be rebuilt has no open item, resume stops at that loop so its
+evaluator can decide the next route.
+
+Selecting a different checklist item resets the visit counters for every
+node in the selecting loop's derived body node-set. That gives nested loops
+and their bodies a fresh `max_visits` budget per enclosing item. A failed
+lap that reselects the same item does not reset counters, and the selecting
+loop itself is outside its body set, so a top-level loop keeps one arrival
+budget for the run. These resets live only in engine state and its
+checkpoints, never in the checklist.
 
 ## 5. Validation
 

@@ -109,6 +109,14 @@ func (s *engineState) visits(nodeID string) int {
 	return s.nodeVisits[nodeID]
 }
 
+func (s *engineState) resetVisits(nodeIDs []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, nodeID := range nodeIDs {
+		s.nodeVisits[nodeID] = 0
+	}
+}
+
 func (s *engineState) snapshotCounters() counterSnapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()

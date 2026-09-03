@@ -271,6 +271,29 @@ func TestOutermostLoop(t *testing.T) {
 	}
 }
 
+func TestLoopBodyTopologyLookups(t *testing.T) {
+	g := validNestedLoop()
+	if got, ok := lint.LoopBodyNodes(g, "outer"); !ok || !reflect.DeepEqual(got, []string{"plan", "inner", "implement"}) {
+		t.Fatalf("LoopBodyNodes(outer) = %v, %v", got, ok)
+	}
+	if got, ok := lint.LoopBodyNodes(g, "inner"); !ok || !reflect.DeepEqual(got, []string{"implement"}) {
+		t.Fatalf("LoopBodyNodes(inner) = %v, %v", got, ok)
+	}
+	if got, ok := lint.LoopBodyNodes(g, "missing"); ok || got != nil {
+		t.Fatalf("LoopBodyNodes(missing) = %v, %v", got, ok)
+	}
+	for node, want := range map[string][]string{
+		"plan":      {"outer"},
+		"inner":     {"outer"},
+		"implement": {"outer", "inner"},
+		"outer":     {},
+	} {
+		if got := lint.EnclosingLoops(g, node); !reflect.DeepEqual(got, want) {
+			t.Fatalf("EnclosingLoops(%s) = %v, want %v", node, got, want)
+		}
+	}
+}
+
 func TestSupervisorValidationDetails(t *testing.T) {
 	for name, mutate := range map[string]func(*graph.SupervisorNode){
 		"duplicate":     func(node *graph.SupervisorNode) { node.Supervises = []string{"work", "work"} },

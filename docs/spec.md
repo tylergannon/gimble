@@ -200,7 +200,7 @@ fan-in's turn evaluates branch evidence):
 | Field              | Type     | Default       | Description |
 |--------------------|----------|---------------|-------------|
 | `edges`            | Edge array | `[]`        | Outgoing edges (Section 2.6): the routes this node's chooser picks among. |
-| `max_visits`       | Integer  | unset         | Visit budget: how many times the walk may dispatch this node in one run (a visit spans its retry attempts and any failure-resume, Section 3.4). An exhausted node is no longer offered as a successor. Unset means unlimited. |
+| `max_visits`       | Integer  | unset         | Visit budget: how many times the walk may dispatch this node in its current activation (a visit spans its retry attempts and any failure-resume, Section 3.4). Nodes outside checklist-loop bodies have one activation per run. An exhausted node is no longer offered as a successor. Unset means unlimited. |
 | `prompt`           | String   | `""`          | Primary instruction for the stage. Supports `$goal` variable expansion. Falls back to `label` if empty. |
 | `max_retries`      | Integer  | inherited     | Additional attempts when a turn fails with a retryable error (Section 3.5). If omitted, inherits `defaults.max_retries`. `max_retries=3` means up to 4 total attempts. Never applies to routing decisions. |
 | `fidelity`         | String   | inherited     | Context fidelity mode for this node's LLM session. See Section 5.4. |
@@ -235,7 +235,7 @@ fan-in's turn evaluates branch evidence):
 | `checklist`        | String   | unset         | Path of the checklist file, relative to the execution's workdir (Section 4.8). May be omitted only when this node lies inside another loop node's body; it then iterates the `checklist` field of the item the enclosing loop's frame names (lint `loop_checklist_required`, Section 7.2). |
 | `body`             | String   | required      | Entry node of one lap: a node ID. Section 4.8 defines the body node-set it roots. |
 | `on_done`          | String   | required      | Target followed when the evaluator returns `done`: a node ID or a terminal pseudo-target. |
-| `max_visits`       | Integer  | unset         | Visit budget (Section 3.4): arrivals at the loop node, laps plus one. The only loop ceiling. Unset means unlimited. |
+| `max_visits`       | Integer  | unset         | Visit budget (Section 3.4): arrivals at the loop node in one activation, laps plus one. A top-level loop has one activation per run; a nested loop gets a fresh activation when its enclosing loop selects a new item. The only loop ceiling. Unset means unlimited. |
 | `timeout`          | Duration | inherited     | Maximum duration of one item's validation command; also the infer judge and loop evaluator turns' timeout (Section 4.8). |
 | `llm_model`        | String   | `flash`       | LLM model identifier for the infer judge (Section 8). The alias resolves to `gemini-3.8-flash-medium`. |
 | `llm_provider`     | String   | `gemini`      | LLM provider key for the infer judge. Auto-detected from an explicit model when omitted. |
@@ -744,7 +744,8 @@ conditional observable and steerable like everything else.
 ### 3.4 Visit Budgets
 
 `max_visits` is the loop-bounding primitive. It is a budget on the *target*
-node: how many times the walk may dispatch that node in one run.
+node: how many times the walk may dispatch that node in its current
+activation. Nodes outside checklist-loop bodies have one activation per run.
 
 - The engine counts every visit of every node in `node_visits`
   (checkpointed, Section 5.3). A visit is one top-level dispatch by the
@@ -760,6 +761,16 @@ node: how many times the walk may dispatch that node in one run.
   explicit reason. Authors who want a softer landing draw an edge to an
   escalation node (an agent that pages a human, a summarizing agent) so a
   path remains when the loop budget runs out.
+
+A checklist item selection is an activation boundary for the selecting
+loop's body node-set (Section 4.8). When the loop selects a different item,
+the engine resets `node_visits` to zero for every node in that set. A nested
+loop and all of its body nodes therefore get fresh visit budgets for every
+enclosing item. Re-selecting the same item after a failed lap does not reset
+anything. The selecting loop is not in its own body node-set: a top-level
+loop has one activation per run and its `max_visits` remains a run-wide
+budget. The reset counts are engine-owned state and appear in the next
+checkpoint; checklist files contain no counters.
 
 The budget is engine bookkeeping only: handlers are not told the visit
 number. An author who wants the agent to pace itself against the budget says
@@ -2014,20 +2025,21 @@ the turn. Supervisors (Section 3.10) do not receive frames. `$goal`
 expansion is unchanged (Section 4.3).
 
 **The frame stack.** The stack is in-memory engine state, guarded for
-concurrent access, and never checkpointed. Arriving at a loop node
-whose frame is not on top of the stack pops everything above it: an
-inner loop that was bypassed by an escalation edge is abandoned.
-Restart is coarse by design. On resume the stack is empty, so a
-continuation inside a loop body would run frameless; the engine
-therefore rewinds: when the checkpoint's `next_node` lies in some
-loop's body node-set (a nested loop node included), the walk resumes
-at the outermost enclosing loop instead, the checkpoint's `retry_visit`
-is dropped so that arrival counts as an ordinary visit, and a
-`ResumeRewound {from, to}` timeline event records the jump
-(Section 5.3). That arrival validates nothing and selects the first
-open item -- which is the item the interrupted lap was working on
-unless a planner changed the file. A continuation outside every loop
-body resumes where it points.
+concurrent access, and never checkpointed. Arriving at a loop node whose
+frame is not on top of the stack pops everything above it: an inner loop
+that was bypassed by an escalation edge is abandoned. On resume, when the
+checkpoint's `next_node` lies in one or more loop body node-sets, the engine
+walks those enclosing loops outermost first. It loads each checklist and
+rebuilds a frame for its first open item, stopping before the innermost
+enclosing loop. The walk resumes at that innermost loop, which arrives
+frameless, validates nothing, and selects its first open item. Thus nodes
+earlier in an outer body are not repeated merely to reconstruct context.
+If a checklist to be rebuilt has no open item, resume stops at that loop so
+its evaluator can decide what happens next. The checkpoint's `retry_visit`
+is dropped because the resumed loop arrival is an ordinary visit, and
+`ResumeRewound {from, to, frames}` records the jump and the rebuilt outer
+frames (Section 5.3). A continuation outside every loop body resumes where
+it points.
 
 **Body node-set and lint.** The **body node-set** of a loop node is
 every node reachable from `body` without passing through the loop
@@ -2168,10 +2180,10 @@ survive a dead process. It continues at `next_node`: after a success
 checkpoint that is the already-resolved successor, never re-derived
 or re-asked; after a failure checkpoint it is the failed node,
 retried with the visit increment skipped once (`retry_visit`). One
-exception: a `next_node` inside a loop body rewinds to the outermost
-enclosing loop node, `retry_visit` is dropped, and a `ResumeRewound`
-event is recorded, because the loop frame stack is never checkpointed
-(Section 4.8). Work
+exception: for a `next_node` inside a loop body, resume rebuilds the outer
+frames from their checklist files and re-enters at the innermost enclosing
+loop. `retry_visit` is dropped, and `ResumeRewound {from, to, frames}`
+records the destination and rebuilt stack (Section 4.8). Work
 lost mid-execution of `next_node` is simply re-run -- the only re-run
 resume ever pays, and an accepted one (Section 12.2, note 10). A
 resumed run never reuses an existing stage identity: the stage-dir

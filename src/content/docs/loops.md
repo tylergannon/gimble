@@ -95,6 +95,18 @@ than bypassing it. Copy
 [`checklist-loop.md`](https://github.com/tylergannon/tractor/blob/main/examples/loops/checklist-loop.md)
 beside it to start.
 
+Visit budgets inside a checklist loop are per selected item. When the loop
+selects a different item, Tractor resets `max_visits` accounting for every
+node in that loop's body. A nested loop and its body therefore get a fresh
+budget for each enclosing item, while another failed lap of the same item
+keeps consuming the current budget. A top-level loop node itself is outside
+its body and retains one `max_visits` budget for the whole run.
+
+After a restart, Tractor derives the active nesting from the graph and the
+checklist files. It rebuilds the outer frames from their first open items and
+re-enters at the innermost enclosing loop. Planning or setup nodes earlier in
+an outer loop body do not rerun solely to restore the inner loop's frame.
+
 The infer judge selects its model independently of pipeline `defaults`.
 By default it uses `flash` (`gemini-3.8-flash-medium`) on the `gemini`
 provider at medium effort. Set `llm_model`, `llm_provider`, and
@@ -131,7 +143,7 @@ you.
 
 | Symptom                                             | Fix                                                                                                                                                                                                             |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runs forever                                        | `max_visits` on the looping node. That's the budget; there is no other ceremony.                                                                                                                                |
+| Runs forever                                        | `max_visits` on the looping node. A top-level loop spends one budget per run; a nested loop gets a fresh budget for each enclosing item.                                                                         |
 | Says it's done when it isn't                        | Make "done" a command (`tool` node). If the tests pass but the feature doesn't work, the command is checking the wrong thing — check the behavior you actually want.                                            |
 | Re-derives the same dead end every lap              | Tell the prompt to keep a short notes file: "append what the next attempt should do differently; read it first."                                                                                                |
 | Reviewer rubber-stamps                              | Don't tell it what to find or ask it to confirm your fix. Fresh session (`fidelity: none`), whole target, every round. A different provider makes the independence real.                                        |

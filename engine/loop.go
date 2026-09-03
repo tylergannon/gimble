@@ -14,6 +14,7 @@ import (
 	"github.com/tylergannon/tractor/checklist"
 	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/harness"
+	"github.com/tylergannon/tractor/lint"
 )
 
 const (
@@ -208,6 +209,7 @@ func (h *loopHandler) Execute(node graph.Node, offered []graph.Edge, scope Execu
 	}
 
 	current, stillFramed := h.runner.frameFor(loop.ID)
+	selectedNewItem := hasFrame && (evaluateAfterPass || frame.item != next.Name)
 	lap := 1
 	var lastFailures []loopValidationFailure
 	if stillFramed {
@@ -228,6 +230,17 @@ func (h *loopHandler) Execute(node graph.Node, offered []graph.Edge, scope Execu
 		lap:           lap,
 		lastFailures:  lastFailures,
 	})
+	if selectedNewItem {
+		bodyNodes, ok := lint.LoopBodyNodes(h.runner.graph, loop.ID)
+		if !ok {
+			return harness.Outcome{}, terminalError(fmt.Sprintf("loop body node-set not found for %q", loop.ID))
+		}
+		h.state.resetVisits(bodyNodes)
+		offered, err = h.runner.offeredSuccessors(loop, h.state)
+		if err != nil {
+			return harness.Outcome{}, terminalError(err.Error())
+		}
+	}
 	if err := h.runner.writeFrames(); err != nil {
 		return harness.Outcome{}, terminalError(fmt.Sprintf("write frames: %v", err))
 	}

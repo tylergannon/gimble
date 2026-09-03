@@ -105,6 +105,21 @@ func (r *Runner) snapshotFrames() []loopFrame {
 	return append([]loopFrame(nil), r.frames...)
 }
 
+func frameRecords(frames []loopFrame) []frameRecord {
+	records := make([]frameRecord, len(frames))
+	for index, frame := range frames {
+		records[index] = frameRecord{
+			Loop:      frame.loopID,
+			Checklist: frame.checklist,
+			Item:      frame.item,
+			Index:     frame.index,
+			Count:     frame.count,
+			Lap:       frame.lap,
+		}
+	}
+	return records
+}
+
 // renderFrames renders every active frame for prompt injection, nested
 // outermost to innermost so the block structure mirrors the loops. Doc
 // files are read relative to workdir at render time so edits made during a
@@ -174,19 +189,7 @@ func renderFrameBody(frame loopFrame, workdir string) string {
 
 // writeFrames rewrites {logs_root}/frames.json from the current stack.
 func (r *Runner) writeFrames() error {
-	frames := r.snapshotFrames()
-	records := make([]frameRecord, len(frames))
-	for index, frame := range frames {
-		records[index] = frameRecord{
-			Loop:      frame.loopID,
-			Checklist: frame.checklist,
-			Item:      frame.item,
-			Index:     frame.index,
-			Count:     frame.count,
-			Lap:       frame.lap,
-		}
-	}
-	return writeJSON(filepath.Join(r.config.LogsRoot, "frames.json"), records)
+	return writeJSON(filepath.Join(r.config.LogsRoot, "frames.json"), frameRecords(r.snapshotFrames()))
 }
 
 // resolveWorkdirPath joins a checklist-relative path onto the workdir,
