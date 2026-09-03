@@ -208,7 +208,8 @@ planner node is withdrawn.
     selected this lap (its gates are validated on the return to the loop,
     from the ledger as it then stands) and never the chapter ledger. A
     sprint that finds the chapter wrong asks the human. After a failed
-    `verify`, `replan` appends one open item from the findings before the
+    `verify`, `replan` appends one open item from the findings, or asks
+    the human when the findings say the chapter is wrong, before the
     sprint loop re-enters (amended by consistency lap 24).
 45. **No budgets.** Code-volume budgets as tripwires are one signal of
     several and not yet a science. The over-engineering guard is the
@@ -226,8 +227,9 @@ planner node is withdrawn.
 47. **Validation design loop.** A loop node with one item per promise. Each
     lap writes the user story, the evidence specification, the holdout
     where the archetype calls for one, the UI sketch where a screen is
-    involved, and fills the `command` and `infer` of the sprint item that
-    will demonstrate the promise, or, when that item does not exist yet
+    involved, and fills the `command` and `infer` of the sprint item, or items
+    when the promise has legs in more than one chapter, that the promise
+    table's Item column names for it, or, when that item does not exist yet
     because its chapter's sprint ledger is still prose, leaves them in
     the design's Verifier section for the execution `plan` node to copy
     in (the validation ledger's own item has none; amended by
@@ -275,7 +277,7 @@ planner node is withdrawn.
     Prompts include doctrine files by name, so a teaching is edited once
     and every prompt that cites it changes. Tests render every template
     and fail on an unreferenced doctrine file. `tractor workflow show
-    <name>` prints the materialized prompts so an editor sees what agents
+    <name>` prints every node with its payload (prompt, tool command, or checklist path) as `Build` materialized it, and the library file each prompt came from so an editor sees what agents
     see. Each release can improve the design and proof workflows as a
     content edit, without touching Go.
 

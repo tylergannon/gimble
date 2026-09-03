@@ -24,7 +24,7 @@ chapter 4. Promises P1 to P5, P7, P8's pass leg (passes are library files, sprin
   - The validation design loop: `design` chooses an archetype and fills
     the item; `review` routes pass or fail.
   - The plan review loop: seven passes, each a fresh reviewer routing
-    pass or fail to the owning node.
+    pass to the loop or fail to the owning node.
   - Four supervisors named by their question; assemble and approve.
 - L2: sprints in `sprints.md` (backlog; edited when the plan node runs
   until chapter 6 adds `replan`); node

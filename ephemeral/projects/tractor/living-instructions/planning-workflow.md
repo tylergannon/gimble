@@ -180,7 +180,8 @@ built-in passes, in order:
 1. **traceability**: every promise reaches a slice; every slice serves a
    promise. Scriptable.
 2. **consistency**: one name per concept; no rule stated twice with drift
-   across brief, chapter docs, sprint docs.
+   across the declaration, this document, the decisions from 37 on, the
+   chapter ledger, and every chapter and sprint doc.
 3. **slicing**: every slice is vertical and exercisable when done.
 4. **proof quality**: across promises, no mechanism a coder can satisfy
    while the promise is false; holdouts present for every universal

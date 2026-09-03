@@ -3,7 +3,8 @@
 One command that prints what `Build` materialized, so an editor can see
 the effect of a content change without running a pipeline. Exercisable
 at the end: `tractor workflow show plan --project demo --seed s.md`
-prints every node of the plan graph with its prompt.
+prints every node of the plan graph with its payload (prompt, tool
+command, or checklist path).
 
 ## Read first
 
