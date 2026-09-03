@@ -20,8 +20,9 @@ Empty ledger; written when the chapter is entered, re-planned each lap.
    greeter half of P10.
 4. The ledger-tool seed end to end: `plan`, then `large`, then the
    examples; P6's check on that run; the proof record under
-   `proof/planning-v2/` written from both runs. Proof: P6 and the
-   ledger-tool half of P10.
+   `proof/planning-v2/` written from both runs. Proof: P6, the
+   ledger-tool half of P10, and `chapters/04-library/prove/p8-show-stage.sh`
+   (P8's real-stage leg, over the greeter and ledger-tool runs).
 5. Docs and skill (P9), including where the interview directory and the
    holdout come from: the docs-only reader runs plan, ask, answer, and
    show. Proof: P9.

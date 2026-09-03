@@ -106,7 +106,8 @@ accepted change was applied afterwards (P2 promises the ask, not the
 application). That the command `show` prints is the command the run
 executed: the run does not record it, and this design relies on P8's
 proof that `show` prints what `Build` materialized in the same binary.
-Exhaustion of `max_visits` needs no check: it fails the run. The
+Exhaustion of `max_visits` routes to the `ceiling` gate, which this
+scenario does not exercise. The
 snapshot race (ledger rules) applies to the research-stage identity
 checks; the ask-then-block check and the halt predicate check do not
 depend on it.

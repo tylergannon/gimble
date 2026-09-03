@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 23; answers `review-22.md`.
+Archetype: scenario, twice. Lap 24; answers `review-23.md`.
 
 ## Story
 
@@ -67,8 +67,8 @@ the one permitted difference); `validate-plan` accepts the package;
 `recommendation.md` names `medium` or `large`; `check.log` shows the
 `Next:` line and the identical command executed; the `tractor workflow run` process the check started for the handoff
 exited 0 and printed its completion line (a failed run cannot be
-rescued by appended events; the check owns the process), no event
-arrived in the observer's mirror after that process exited, the
+rescued by appended events; the check owns the process), no event in
+the mirror carries an engine-stamped `ts` later than that exit, the
 execution run directory named by that command's `Logs:` line is a
 different directory from the plan run's, its `manifest.json` carries a different run id and
 a `workflow` name of `medium` or `large` matching the handoff, its
@@ -83,11 +83,11 @@ the package's, not a shadow copy; for a LARGE package, the chapter
 ledger at the end equals the approved copy except for `done` flags and
 for edits made with a reason (decision 44): every other difference
 between the two copies (a chapter's `check`, `doc`, or `command`, or a
-chapter added or removed) appears across a stage whose `response.md`
-states the reason, or after a `QuestionAsked` whose question names the
+chapter added or removed) appears across a `plan` stage (the planner)
+whose `response.md` states the reason, or after a `QuestionAsked` whose question names the
 chapter and whose answer accepts it; a chapter's `checklist` changes only
 with a recorded reason (a `QuestionAsked` naming the chapter and the
-new ledger with an accepting answer, or a planner stage whose
+new ledger with an accepting answer, or a `plan` stage whose
 `response.md` states the reason; decision 44), the change happens while
 the chapter is open, and the ledger it then names is the one whose
 items the run marked (A0 for that chapter becomes the replacement
@@ -147,7 +147,11 @@ yourself against the built program and fail if any does not hold."
 
 ## Not proven
 
-A process an agent detaches to outlive its turn and write into the run
+A tool turn that appends a counterfeit `StageCompleted` for itself and
+then forges marks while the mirror believes no stage is live: the
+mirror reads liveness from the same writable stream, so this is out of
+its reach; it is the harness sandbox's concern, out of scope here. A
+process an agent detaches to outlive its turn and write into the run
 directory during the engine's own gaps: the mirror's timing and the
 check's ownership of the run process catch every other forgery, and
 the rest is the harness sandbox's concern (out of scope). That the

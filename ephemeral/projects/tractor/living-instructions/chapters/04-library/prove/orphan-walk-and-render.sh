@@ -22,7 +22,8 @@ for wf in $workflows; do
   done
 done
 delim_open="$(sed -n 's/^[Dd]elimiters:[[:space:]]*\([^[:space:]]*\)[[:space:]]*\([^[:space:]]*\).*/\1/p' "$lib/README.md" | head -1)"
-test -n "$delim_open" || { echo "README does not state the delimiters"; exit 1; }
+delim_close="$(sed -n 's/^[Dd]elimiters:[[:space:]]*\([^[:space:]]*\)[[:space:]]*\([^[:space:]]*\).*/\2/p' "$lib/README.md" | head -1)"
+test -n "$delim_open" && test -n "$delim_close" || { echo "README does not state both delimiters"; exit 1; }
 
 # ---- content: one sentinel per file, in the copy ------------------------
 mlib="$tmp/src/workflow/library"
@@ -49,9 +50,14 @@ closure_lib="$mlib"
 for wf in $workflows; do
   built_ids "$wf" | while read -r node; do
     file="$(shown_file "$tmp/bin/mutated" "$wf" "$node")"
-    case "$kind" in
-      codergen|supervisor) test -n "$file" || { echo "content: $wf/$node header names no library file"; exit 1; } ;;
-    esac
+    # A node whose payload is a prompt (Build prints one that is not a
+    # command or checklist path) must name its library file.
+    if "$tmp/bin/builddump" "$wf" "$node" "$tmp/demo" "$tmp/bin/tractor" "$([ "$wf" = plan ] && printf '%s' "$seed")" 2>/dev/null | grep -q '[[:space:]]'; then
+      case "$(yaml_nodes "$wf" | awk -v n="$node" '$1==n{print $2}')" in
+        tool|loop) ;;
+        *) test -n "$file" || { echo "content: $wf/$node header names no library file"; exit 1; } ;;
+      esac
+    fi
     [ -n "$file" ] || continue
     show_raw "$tmp/bin/mutated" "$wf" "$node" > "$tmp/mut.txt"
     grep -q "^$stamp FILE $file\$" "$tmp/mut.txt" || { echo "content: $wf/$node does not render $file"; exit 1; }

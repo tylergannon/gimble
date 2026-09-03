@@ -128,8 +128,9 @@ user story a verifier follows, the evidence specification (what is
 captured, where), the UI sketch when a screen is involved, and, for a
 universal promise over a set too large to check whole, the holdout
 sample under the XDG state root in a random-token directory whose path
-is stored in the run's private workflow state and disclosed only to the
-`verify` prompt the workflow later materializes (decision 43). It then fills the
+is stored beside it under the state root (`<build>.path`) and disclosed
+only to the `verify` prompt the execution run later materializes
+(decision 43). It then fills the
 sprint item that will demonstrate the promise, in MEDIUM's sprint
 ledger or in the chapter's sprint ledger for LARGE, with `command` (the
 required checks) and `infer` (the judgment over the captured evidence).
@@ -209,8 +210,9 @@ sprint that finds the chapter wrong asks the human.
 **verify** (codergen, other provider than the coder, fresh context, tools):
 runs once per chapter after its sprint loop exits. Reads the validation
 design and, for a universal promise with a holdout, the holdout path
-the run's private workflow state carries (written there by the design
-lap and rendered only into this prompt; a chapter whose promises are all
+the state root carries for the build (`$XDG_STATE_HOME/tractor/holdouts/<build>.path`,
+written by the plan run's design lap and read by the execution run,
+which is a different run; rendered only into this prompt; a chapter whose promises are all
 scenarios has none),
 operates the software itself, captures its
 own evidence under the run directory, and routes pass to the chapters

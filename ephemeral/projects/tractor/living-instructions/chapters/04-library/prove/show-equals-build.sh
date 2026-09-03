@@ -30,9 +30,10 @@ for wf in $workflows; do
   built_ids "$wf" | while read -r node; do
     awk -v id="$node" 'BEGIN{p=0} /^== /{ if (p) exit; p = ($2==id) ; next } p{print}' "$tmp/headed.txt" > "$tmp/headed-body.txt"
     show_raw "$tmp/bin/tractor" "$wf" "$node" > "$tmp/raw-body.txt"
-    sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$tmp/headed-body.txt" > "$tmp/headed-body.n"
-    sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$tmp/raw-body.txt" > "$tmp/raw-body.n"
-    cmp -s "$tmp/headed-body.n" "$tmp/raw-body.n" || { echo "headed: $wf/$node body differs from --raw"; exit 1; }
+    # Exact comparison: the headed body is the raw payload plus the one
+    # blank separator line the format adds after it.
+    printf '\n' >> "$tmp/raw-body.txt"
+    cmp -s "$tmp/headed-body.txt" "$tmp/raw-body.txt" || { echo "headed: $wf/$node body differs from --raw"; exit 1; }
     echo "headed: $wf/$node body equals --raw"
   done
 done

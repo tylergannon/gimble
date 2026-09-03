@@ -130,14 +130,21 @@ and what the design does not prove.
   else, could have written them. The check also started the `tractor workflow run` process itself, so
   it knows when that process exited and with what status: a run whose
   process exited non-zero did not complete, whatever the timeline says,
-  and any event arriving in the mirror after the process exited was
-  written by something else. Together these close the forgery the run
+  and any event whose engine-stamped `ts` is later than the process's
+  exit time was written by something else (arrival order in the mirror
+  may lag by scheduling; the event's own timestamp does not). Together these close the forgery the run
   directory's writability leaves open, short of a process an agent
   detaches to write during the run's own bookkeeping gaps, which is the
   harness sandbox's concern (out of scope: no engine or harness change)
   and is recorded under Not proven where a design leans on the mirror.
-  The mirror lives with the observer, outside the run directory, at its
-  random path.
+  The mirror lives with the
+  observer, outside the run directory, at its random path, and every
+  record the observer writes (mirror lines, snapshot manifests with the
+  hash of each copied file, answers.log lines) is chained: each carries
+  the HMAC of itself and the previous record under a key the observer
+  holds only in memory and hands to the check on its own stdout when the
+  run ends. A file edited after the fact breaks the chain, so a
+  process that finds the observer's path gains nothing.
 - **Out of scope for every check.** The engine and harness are excluded
   from this project (no engine change; `promises.md` exclusions). A game
   that needs the engine or a harness adapter to record false events,

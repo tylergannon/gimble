@@ -16,11 +16,11 @@ prints every node of the plan graph with its prompt.
 
 `tractor workflow show <name>` shares `run`'s parameter flags
 (`--project`, `--seed`, `--workdir`) and has no `--logs`. It calls `Build`
-exactly as `run` does and prints, for every node in the graph, in file
-order:
+exactly as `run` does and prints, for every node `Build` returns
+(synthesized branch nodes included), in any stable order:
 
 ```
-== <node id> (<type>) <library file, for nodes that carry a prompt>
+== <node id> [(<type>)] <library file, for nodes that carry a prompt>
 <prompt text, or tool_command, or checklist path>
 ```
 
@@ -47,8 +47,8 @@ with a hand-built stage directory.
 ## Definition of done
 
 The ledger item's command runs `prove/show-equals-build.sh`, which
-proves: the set of `id`/`type` pairs `show` prints equals the set the
-workflow YAML declares; for every node `show --raw` is byte-equal to a
+proves: the set of node ids `show` prints equals the set `Build`
+returns, as a program the script writes lists them; for every node `show --raw` is byte-equal to a
 program the script writes into a copy of the tree that calls
 `workflow.Build` directly; `--stage` exits 0 on a stage built from the
 frame preamble (`fixtures/frame-preamble.txt`) plus that program's

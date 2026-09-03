@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 23; answers `review-22.md`.
+Lap 24; answers `review-23.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -16,8 +16,7 @@ a set that renders it, or the page is an orphan by the library's own
 rule; skeletons are library files that
 prompts include, and the sentinel test covers them like any included
 file. `show` prints every node of the
-graph, in any order, with the node's type as the graph declares it
-(`parallel.fan_in` included), what `Build` materialized for each (prompt for any
+graph, in any order, optionally with its type, what `Build` materialized for each (prompt for any
 node kind that carries one, command for tools, checklist for loops),
 and, in the header, the library file each prompt came from (declaration
 section 3); a prompt may be composed from that file and the files it
@@ -46,10 +45,11 @@ pass leg of the check below is empty until then and runs then.
   carries a prompt, command, or checklist; and, through the same
   program, the standalone rendering of the node's header file
   (`workflow.Render`, the seam sprint 1 exports for the render test).
-- The include closure of each header file: the files named by
-  `include` and `doctrine` actions in it, transitively, read by the
-  check from the files themselves; and the doctrine and template files
-  those name.
+- The include closure of each header file: the prompt, supervisor,
+  pass, and template files named by `include` actions in it,
+  transitively, read by the check from the files themselves. Doctrine
+  pages are checked separately (each renders under some listed
+  parameter set); they are not part of the sentinel closure.
 - The data values for the check's parameters, computed by the check
   itself from the parameters it supplied and the derivations the README
   states; `show --values` output for the same parameters, which must
@@ -79,10 +79,11 @@ pass leg of the check below is empty until then and runs then.
   when the prompts legitimately change to include doctrine, the script
   prints the unified diff between that baseline and the current output
   for every node into its log instead of failing, and the ledger item's
-  judge reads the diffs: every removed line must reappear in a doctrine
-  page or skeleton the prompt now includes, and every added line must be
-  an include's rendered text (content moved, never lost or invented,
-  `SPRINT-04.md`). The coder's snapshot test is a tripwire, not the
+  judge reads the diffs: every difference is either an include's rendered
+  text (content moved from the prompt into a page or skeleton) or a
+  wording change the sprint doc authorised (`SPRINT-04.md`: nothing an
+  agent is told may be lost, only moved; decision 53 allows content
+  improvement as a reviewed edit), never text from Go. The coder's snapshot test is a tripwire, not the
   baseline. The judge also reads the Go for prompt text in strings.
 - `prove/show-equals-build.sh` (sprint 2) and
   `prove/orphan-walk-and-render.sh` (sprint 3). Nodes: the set of

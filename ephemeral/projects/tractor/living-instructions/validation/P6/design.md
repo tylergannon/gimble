@@ -38,9 +38,9 @@ Archetype: scenario. Lap 12; answers `review-11.md`.
 `validate-plan` accepted the package and C0 has at least two items; the
 last `StageCompleted` has `next: success` and `PipelineCompleted`
 follows it; every chapter named in C0 is either present at the end or
-left the ledger honestly: the stage across which it left is a codergen
-stage whose `response.md` names the chapter or a question asked during
-the run names it (decision 44: the planner or the human may edit the
+left the ledger honestly: the stage across which it left is a `plan` stage
+(the planner; decision 44) whose `response.md` names the chapter, or a
+question asked during the run names it (decision 44: the planner or the human may edit the
 chapter ledger with a reason; silent disappearance is a fail), and
 either the chapter has its own `LoopValidated` `passed: true` and
 `validation.json` from before it left (engine-marked after verify, then

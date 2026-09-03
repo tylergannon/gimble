@@ -38,12 +38,14 @@ are edited only when the plan node runs (once per chapter in today's
    one seed each.
 9. Validation ledger generation and `design` with both archetypes and
    the holdout writer. Proof: a nested run leaves one design per promise
-   and, for a universal promise, a holdout under the state root.
+   and, for a universal promise over a set too large to check whole, a
+   holdout under the state root.
 10. `review` with pass and fail edges and the notes files. Proof: P3
     and P4.
 11. Pass files, the generated review ledger, and `reviewer` with routes
     to the owning node. Proof: a nested run in which one pass fails, its
-    owning node runs, and the pass is re-selected and marked.
+    owning node runs, and the pass is re-selected and marked; and
+    `chapters/04-library/prove/p8-passes-are-files.sh` (P8's pass leg).
 12. `assemble` and `approve`, the human gate. Proof: P5.
 13. The four supervisors in the YAML with `models.yaml` roles, and
     `workflow show` printing supervisor briefs. Proof: P7, and `show`
