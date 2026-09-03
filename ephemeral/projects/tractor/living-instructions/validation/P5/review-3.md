@@ -1,0 +1,9 @@
+1. No substantive game is apparent. Hand-marking items would lack the required `LoopValidated` event or expose a change outside the loop stage; the engine validates only the framed item and marks it only after validation passes ([engine/loop.go](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/engine/loop.go:73), [design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P5/design.md:26)). Defeating this linkage would require falsifying engine-owned records, which is excluded.
+
+2. Yes. The “snapshot at `StageStarted`” check depends on an exact boundary the observer does not capture atomically. The engine appends `StageStarted` and immediately invokes the handler ([engine/runner.go](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/engine/runner.go:473)); that handler can mark the ledger immediately ([engine/loop.go](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/engine/loop.go:95)), while the observer merely tails the timeline and copies afterward ([ledger.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/ledger.md:106)). A start snapshot can therefore contain post-mark state.
+
+3. Yes. P5 requires the seven passes to finish engine-marked after qualifying reviewer passes, but does not prescribe their order or require the reviewer’s notes to contain the literal text `ROUTE: pass` ([declaration.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/declaration.md:55)). The validator adds both requirements ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P5/design.md:28)), so a reordered run—or a structured pass route with differently worded notes—could satisfy P5 and still fail.
+
+ROUTE: fail
+
+

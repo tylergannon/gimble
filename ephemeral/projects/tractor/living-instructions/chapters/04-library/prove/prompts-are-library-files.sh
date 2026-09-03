@@ -1,5 +1,7 @@
 #!/bin/sh
-# Proves: prompts live in the library, Build is unchanged.
+# Proves: prompts live in the library, Build is unchanged. This is the
+# sprint's tripwire; the proof that Build renders the library files is
+# show-and-orphan-walk.sh (sentinel mutation and the Build dumper).
 set -eu
 cd "$(git rev-parse --show-toplevel)"
 
@@ -11,11 +13,7 @@ for f in workflows/plan.yaml workflows/medium.yaml workflows/large.yaml \
 done
 test ! -f workflow/plan.yaml || { echo "workflow/plan.yaml still present"; exit 1; }
 
-# No prompt body remains in Go: the old functions are gone and no Go file
-# under workflow/ carries the planner's opening sentence.
-if grep -n 'func plannerPrompt\|func mediumPrompt\|func largePlanPrompt\|func largeImplementPrompt' workflow/*.go; then
-  echo "prompt functions still present"; exit 1
-fi
+# No prompt body remains in Go: the planner's opening sentence is gone.
 if grep -n "built-in planning workflow" workflow/*.go; then
   echo "prompt text still in Go"; exit 1
 fi

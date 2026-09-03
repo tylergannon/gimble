@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 3; answers `review-2.md`.
+Archetype: scenario, twice. Lap 4; answers `review-3.md`.
 
 ## Story
 
@@ -18,31 +18,38 @@ either seed differs from that commit's version):
 For each seed the check: makes an empty scratch repository
 (`mktemp -d`, `git init`); runs `plan` with `observer.sh` accepting
 everything, answering "Proceed with your recommendation." to open
-prompts, and answering the approval question "Yes."; runs the printed
-`Next:` handoff verbatim with a fresh `--logs`; waits for `COMPLETED`;
-then builds the program as the scratch repository's `README.md` says
-and runs every acceptance example from the seed, comparing stdout,
-stderr, and exit status exactly.
+prompts, and answering the approval question "Yes."; captures `plan`'s
+stdout to `check.log`; runs the `Next:` line from that stdout verbatim
+with a fresh `--logs`, logging the command it ran; waits for
+`COMPLETED`; then builds the program as the scratch repository's
+`README.md` says and runs every acceptance example from the seed,
+comparing stdout, stderr, and exit status exactly.
 
 ## Evidence
 
+- `check.log`: `plan`'s stdout, the handoff command as executed, the
+  build commands.
 - Both plan run directories and both execution run directories, in
-  full, with their `observer/` trees.
+  full, with their `observer/` trees, including the copy taken
+  immediately before the approval answer.
 - Both packages.
-- The scratch repositories at the end, and the probe transcript
-  (`probes.log`: each example's command, expected, actual).
+- The scratch repositories at the end, and `probes.log` (each example's
+  command, expected, actual).
 
 ## Validator
 
 `command`: `prove/p10-end-to-end.sh`: `git show
 6dec5dc8cd23e6f340e838beb9c0c2a442dffef4:<seed>` equals each seed as
 checked out; for each seed: `plan` completed; the package was approved
-through the human gate: the last `QuestionAsked` of the plan run was
-emitted during the `approve` stage, `answers.log` records the "Yes."
-rule for it, and `approve`'s `StageCompleted` has `next: success`;
+through the human gate: the last `QuestionAsked` of the plan run has a
+`tractor ask` `tool_call` in the `approve` stage's segment, `answers.log`
+records the "Yes." rule for it, `approve`'s `StageCompleted` has `next:
+success`, and the package copy taken immediately before that answer is
+byte-identical to the final package (what was approved is what ran);
 `validate-plan` accepts the package; `recommendation.md` names `medium`
-or `large` and the handoff it prints ran to `COMPLETED`; every
-acceptance example in the seed matches exactly.
+or `large`; `check.log` shows the `Next:` line and the identical
+command executed, and that run reached `COMPLETED`; every acceptance
+example in the seed matches exactly.
 
 `infer` (files: each seed, each scratch repository's `README.md`,
 `probes.log`): "Build and run the program yourself from the README.
@@ -57,4 +64,4 @@ expectations noted in the seeds; either size satisfies the promise.
 Verify-before-done ordering in the large run; that is P6, which makes
 its own run. Whether the packages' own checklist commands are strong:
 that is P3's reviewer's job and the `verify` node's; the acceptance
-examples here are the independent probe.
+examples, now part of P10's statement, are the independent probe.

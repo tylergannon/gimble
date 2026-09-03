@@ -1,0 +1,7 @@
+1. Yes. The validator exposes the exact seed and feature tokens ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P1/design.md:7)). The cheapest game is to recognize `count`/`reverse`/`banner`, emit a canned unnamed capability, and add it to exclusions after the scripted decline, while performing no anticipation for any other three-feature seed.
+
+2. Yes. Temporal placement does not prove the question came from or blocked the `brief` turn. `QuestionAsked` records only `type`, `question`, and `ts` ([interview.go](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/cmd/tractor/interview.go:172)); it has no node or stage identity. A concurrent supervisor or background `tractor ask` can therefore produce the accepted event, and the design captures neither foreground blocking nor consumption of the answer.
+
+3. Yes. Requiring a literal `Promise:` line is stricter than P1. The declared seam specifies only question/answer files and batched-question conventions ([declaration.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/declaration.md:71)); it does not require that marker. A correct planner could ask “Should wordkit accept stdin?” and record its decline, yet fail with “question-file seam not used” ([design.md](/Users/tyler/src/tractor/.claude/worktrees/goal-gates/ephemeral/projects/tractor/living-instructions/validation/P1/design.md:50)).
+
+ROUTE: fail

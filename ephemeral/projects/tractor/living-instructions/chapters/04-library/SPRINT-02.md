@@ -5,8 +5,8 @@ Three things that make the library safe to edit.
 ## `tractor workflow show <name>`
 
 Same flags as `run` (`--project`, `--seed`, `--workdir`), no `--logs`.
-Calls `Build` exactly as `run` does and prints, for each node in file
-order:
+Calls `Build` exactly as `run` does and prints, for every node in the
+graph in file order:
 
 ```
 == <node id> (<type>)
@@ -20,8 +20,8 @@ equality with a run. Register it beside `list` and `run`
 exactly by existing tests and must not change.
 
 `--node <id> --raw` prints one node's prompt (or command, or checklist
-path) with no header. The proof script compares this against the sprint
-1 snapshot for the same parameters, so `show` must print what `Build`
+path) with no header. The proof script compares this against a program
+of its own that calls `Build`, so `show` must print what `Build`
 returns and nothing it renders on its own.
 
 `--stage <dir>`: read `<dir>/prompt.md`, strip the frame (everything
@@ -60,21 +60,24 @@ The walk is written from scratch; no surveyed tool has one
 
 ## Proof script
 
-`prove/show-and-orphan-walk.sh`, three parts. Content: in a copy of the
-tracked tree, append a sentinel line to every file under `prompts/`,
-`supervisors/`, and `passes/` and to one doctrine page, build, and
-require `show --raw` for every codergen node to print its file's
-sentinel and every prompt citing the page to print the page's sentinel.
-Equality: in the real tree, for every node header the headed `show`
-prints, `show --raw` with the snapshot's fixed parameters (real paths
-substituted back) is byte-equal to `workflow/testdata/<wf>/<node>.txt`;
-a stage directory built from the committed frame preamble
-(`fixtures/frame-preamble.txt`), a synthetic iterate block, and the
-planner snapshot makes `--stage` exit 0, and 1 after one byte is
-appended. Orphans: the injected `doctrine/zz-uncited.md` in the copy
-makes `go test -run TestLibraryNoOrphans` fail naming it; in the real
-tree the two tests run by name with `-v` and their `--- PASS:` lines
-are required, since `go test -run` with no matching test exits 0.
+`prove/show-and-orphan-walk.sh`, in a copy of the tracked tree it makes
+itself. Nodes: the headed `show` lists exactly the `id`/`type` pairs
+the workflow YAML declares. Equality: the script writes a small Go
+program into the copy that calls `workflow.Build` and prints one node's
+prompt, command, or checklist; `show --raw` must equal it for every
+node of every workflow, and a stage directory built from the committed
+frame preamble (`fixtures/frame-preamble.txt`), a synthetic iterate
+block, and that program's output makes `--stage` exit 0, and 1 after
+one byte is appended. Content: with a sentinel line appended to every
+file under `prompts/`, `supervisors/`, and `passes/` and to one doctrine
+page, every codergen node's `show --raw` prints its file's sentinel and
+every prompt naming the page prints the page's sentinel. Orphans: an
+injected `doctrine/zz-uncited.md` makes `go test -run
+TestLibraryNoOrphans` fail naming it; in the real tree the two tests
+run by name with `-v` and their `--- PASS:` lines are required, since
+`go test -run` with no matching test exits 0. If the graph API names in
+the script's program differ from the sprint's, fix the program, never
+the comparison.
 
 ## Ask the reviewer
 

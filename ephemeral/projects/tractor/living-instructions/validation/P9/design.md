@@ -1,6 +1,6 @@
 # P9: an agent reading only the docs uses plan, show, and ask correctly
 
-Archetype: scenario, judged by inference. Lap 3; answers `review-2.md`.
+Archetype: scenario, judged by inference. Lap 4; answers `review-3.md`.
 
 ## Story
 
@@ -25,12 +25,14 @@ Archetype: scenario, judged by inference. Lap 3; answers `review-2.md`.
   its segment (every command it ran and what came back), `response.md`,
   `observer/answers.log`.
 - The plan run directory the reader created inside the scratch directory
-  (`Logs:` line in its output): `timeline.jsonl`, `interview/`.
+  (`Logs:` line in its output): `timeline.jsonl`, `interview/`, and
+  `stages/<seq>-<planner node>/prompt.md`.
 - The docs at that commit: `docs/spec.md` section 3.1.2 and the library
   subsection, `src/content/docs/planning.md`, `interviews.md`,
   `skills/tractor/SKILL.md`, `llms.txt`, `workflow/library/README.md`.
-- `show plan --node planner --raw` output the script produces itself
-  for the reader's project, to compare against what the reader printed.
+- The holdout root as the software itself renders it: `show large
+  --node verify --raw` output for the reader's project, produced by the
+  script.
 
 ## Validator
 
@@ -39,24 +41,26 @@ own timeline has a `QuestionAsked` answered through the observer (the
 reader used `tractor ask` correctly); exactly one plan run directory
 exists under the scratch directory; its `timeline.jsonl` has a
 `QuestionAsked`, the reader's segment has a `tool_call` invoking
-`tractor answer` for that question with a `ts` earlier than the plan
-run's next `StageCompleted`, and that `StageCompleted` exists (the
-answer unblocked the run); the reader's segment has a `tool_result`
-containing the first line of the planner prompt as the script's own
-`show --raw` prints it (headed or raw form both satisfy this);
-`response.md` names the interview directory under the project directory
-and the holdout root as the docs state them.
+`tractor answer` for that question, and the plan run's timeline has any
+later event after that call's `ts` (the answer unblocked the run); the
+reader's segment has a `tool_result` whose text is contained in the
+plan run's recorded `prompt.md` of the planner node (what the reader
+printed is what the run sent, frame aside); `response.md` names the
+interview directory the plan run actually used (the directory of its
+`QuestionAsked` path) and the holdout root that `show large --node
+verify --raw` renders.
 
 `infer` (files: the reader's `response.md` and segment, the docs, the
 help output): "For the four tasks only: did every command, flag, and
 path the agent used come from the docs, and did it work as run? Fail
 on any command, flag, or path for these tasks that the help text
 contradicts, on any statement in the docs about these four tasks that
-the help text contradicts, and if the agent's statement of where the
-interview directory and the holdout live disagrees with the docs."
+the help text contradicts, and if the docs' statement of where the
+interview directory and the holdout live disagrees with what the run
+and the verify prompt show."
 
 ## Not proven
 
 Completeness of the docs beyond these four tasks. The holdout handoff
-itself (P6's `verify` reads it); here only that the docs say where it
-lives and the agent can repeat it.
+itself (P6's `verify` reads it); here that the docs, the agent, and the
+rendered verify prompt agree on where it lives.

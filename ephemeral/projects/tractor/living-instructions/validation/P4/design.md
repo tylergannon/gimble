@@ -1,6 +1,6 @@
 # P4: a rejected validation design is re-designed with the reviewer's notes and later passes
 
-Archetype: scenario. Lap 3; answers `review-2.md`.
+Archetype: scenario. Lap 4; answers `review-3.md`.
 
 ## Story
 
@@ -15,38 +15,38 @@ Archetype: scenario. Lap 3; answers `review-2.md`.
 ## Evidence
 
 - `timeline.jsonl`: `StageStarted`, `StageCompleted(next)`,
-  `LoopItemSelected(item, lap)`, `LoopValidated` for the first item.
-- `stages/<seq>-review/response.md` for both review turns: chosen
-  `next` and the notes with their verdict line.
-- The first review's segment: the `tool_result` of its read of
-  `design.md` (the first design, as the reviewer saw it).
-- The reviewer's notes file under `validation/<item>/` and the observer
-  snapshots around the first review stage.
-- The second design stage: `prompt.md`, and its segment's `tool_call`
-  and paired `tool_result` for the notes path.
-- The final `design.md`.
+  `LoopItemSelected(item, lap)`, `LoopValidated` for the first item;
+  `validation.json` of the marking loop stage.
+- `stages/<seq>-review/prompt.md` and `response.md` for both review
+  turns; `stages/<seq>-design/prompt.md` for the second design turn.
+- The second design stage's segment: the `tool_call` reading the notes
+  path and its paired `tool_result`.
+- `observer/` copies of `validation/<item>/` at: the `StageCompleted`
+  before the first review (D1, the first design); the first review's
+  `StageCompleted` (notes present); the second design's `StageCompleted`
+  (D2, the redesign as the design turn left it); the end.
 
 ## Validator
 
 `command`: `prove/p4-reentry.sh`: for the first item in
 `validation/ledger.md`, the timeline shows, in order: `design`, `review`
 with `next: design`, `design`, `review` with `next:` the loop node, then
-the loop stage whose `LoopValidated` marks the item; the first review's
-`response.md` front matter says `next: design` and its body contains
-`ROUTE: fail`, the second's says the loop node and `ROUTE: pass` (the
-reviewer's words agree with the routes, so a relabelled graph cannot
-fake the sequence); the notes file appears across the first review
-stage (absent at its `StageStarted` snapshot, present at
-`StageCompleted`); the second design stage's `prompt.md` names the
-notes path, and its segment has a `tool_call` whose arguments contain
-that path with a paired `tool_result` (same `call_id`) whose output
-contains the notes' first line.
+a loop stage whose `LoopValidated` (`passed: true`) and `validation.json`
+name the item; each review's `response.md` front matter agrees with its
+`StageCompleted`; the notes file is absent in the D1 copy and present
+in the copy at the first review's `StageCompleted`; the second design
+stage's `prompt.md` names the notes path and its segment has a
+`tool_call` whose arguments contain that path with a paired
+`tool_result` whose output contains the notes' first line; `design.md`
+in D2 differs from D1, and `design.md` at the end equals D2 (the design
+turn, not the second reviewer, made the redesign).
 
-`infer` (files: the first review segment, the notes, the final
-`design.md`): "The reviewer's segment contains the design it read. Did
-the redesign respond to the notes? Fail only if the final design
-ignores the notes: the objections are neither addressed nor answered,
-or the final design is the first with cosmetic edits."
+`infer` (files: both review turns' `prompt.md` and `response.md`, the
+notes, D1 and D2): "Did the first reviewer read D1 and reject it in its
+notes, with the route agreeing? Did the redesign D2 respond to the
+notes? Did the second reviewer read D2 and accept it in its notes, with
+the route agreeing? Fail if any answer is no, or if D2 is D1 with
+cosmetic edits."
 
 ## Not proven
 
@@ -56,4 +56,6 @@ seed's instruction: if the first review routes pass, the scenario exits
 the scenario is rerun with the instruction moved into the design
 prompt's documented test hook (`TRACTOR_TEST_TRIVIAL_FIRST=1`, honored
 only when the seed asks for it). Whether every objection was resolved;
-the second reviewer's pass is that judgment.
+the second reviewer's pass is that judgment. The D1 and D2 copies race
+by model latency (ledger rules): a reviewer's first write follows a
+model round trip.
