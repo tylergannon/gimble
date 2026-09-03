@@ -96,8 +96,10 @@ and 6 are library content plus Go in the `workflow` package and
 
 ### Chapter 4: the library
 
-Promise P8. Everything later is content plus workflow-package Go, so
-this comes first.
+Promise P8, except its pass leg (chapter 5) and its real-stage leg
+(chapter 6), and the chapter 4 portion of P9 (the docs sprint).
+Everything later is content plus workflow-package Go, so this comes
+first.
 
 1. Move the three graphs and four prompts into `workflow/library/`,
    embedded, rendered with `text/template`; `Build` unchanged from the
@@ -119,7 +121,8 @@ this comes first.
 
 ### Chapter 5: the planner
 
-Promises P1 to P5, P7. Backlog sketch: `models.yaml` and per-role model
+Promises P1 to P5, P7, P8's pass leg (passes are library files), and
+the chapter 5 portion of P9 (its docs sprint). Backlog sketch: `models.yaml` and per-role model
 resolution; intake node and first research plan; research branches,
 fan-in, index, `index_gate`; brief node with elicit-then-prune and
 batched questions; the halt tool node and the loop; decompose for MEDIUM
@@ -131,7 +134,9 @@ supervisors; docs and skill.
 
 ### Chapter 6: execution and the live proof
 
-Promises P6, P9, P10. Backlog sketch: `replan` in `medium` and `large`;
+Promises P6, P10, P8's real-stage leg (`show --stage` against the seed
+runs' recorded stages), and P9 whole (the docs-only reader run).
+Backlog sketch: `replan` in `medium` and `large`;
 `verify` in `large` with the holdout handoff; the two seeds; the live
 end-to-end proof and the proof record; docs and skill; closeout.
 

@@ -365,3 +365,13 @@ Fan-out drafts of chapter docs. Any engine change. The web client.
    engine's frame shape (chapter 4) and against recorded stages of real
    runs (chapter 6); each leg proven by chapter 4's proof scripts against
    injected defects with an `infer` judge over their logs.
+9. An agent reading only the docs site, spec, and skill bundle runs
+   `workflow run plan`, `workflow show`, and `ask` correctly, including
+   where the interview directory and the holdout come from, in a nested
+   run inspected from its run directory with an `infer` judge over its
+   transcript and the docs against `--help`.
+10. For the two seeds under `seeds/`, written before chapter 5, `plan`
+   ends with an approved package `validate-plan` accepts, the handoff
+   command runs it to `COMPLETED`, and the built program satisfies the
+   seed's acceptance examples, judged by `infer` over the tooling's
+   logs, both run directories, and the program's transcripts.

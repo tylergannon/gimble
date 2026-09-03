@@ -8,8 +8,9 @@ items: []
 Empty ledger; written when the chapter is entered. The run that builds
 this chapter was materialized before `replan` existed, so within it the
 plan node edits this backlog when it runs (decision 44); `replan` first
-re-plans in runs started after item 1 lands (the seed runs of items 3
-and 4 are the first).
+re-plans, and `verify` first gates a chapter mark, in runs started after
+items 1 and 2 land (the seed runs of items 3 and 4 are the first); this
+chapter's own mark is the engine's, on its command, like chapters 4 and 5.
 
 ## Backlog sketch, in order
 
@@ -23,12 +24,14 @@ and 4 are the first).
    check reads the coder's segments for any read of the holdout path
    and fails the sprint on one; see interview 0014, question 3).
 3. The greeter seed (fixed at commit 6dec5dc) end to end: `plan`, then
-   the printed handoff, then the seed's acceptance examples. Proof: the
-   greeter half of P10.
+   the printed handoff, then the seed's acceptance examples, with the
+   `infer` judge P10's design names over the tooling's logs, both run
+   directories, and the built program's transcripts. Proof: the greeter
+   half of P10.
 4. The ledger-tool seed end to end: `plan`, then `large`, then the
-   examples; P6's check on that run; the proof record under
-   `proof/planning-v2/` written from both runs. Proof: P6, the
-   ledger-tool half of P10, and `chapters/04-library/prove/p8-show-stage.sh`
+   examples with the same `infer` judge; P6's check and judge on that
+   run; the proof record under `proof/planning-v2/` written from both
+   runs. Proof: P6, the ledger-tool half of P10, and `chapters/04-library/prove/p8-show-stage.sh`
    (P8's real-stage leg, over the greeter and ledger-tool runs).
 5. Docs and skill (P9), including where the interview directory and the
    holdout come from: the docs-only reader runs plan, ask, answer, and

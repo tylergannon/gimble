@@ -20,7 +20,9 @@ not start with a top-level repository directory is relative to
   - The three graphs and four prompts move out of Go strings into
     `workflow/library/` with no change to what `Build` returns.
   - `tractor workflow show <name>` prints what `Build` materialized;
-    `--stage` diffs a real stage minus its frame; tests render every
+    `--stage` diffs a stage minus its frame (in this chapter a stage
+    built to the frame shape from a fixture; recorded stages of real
+    runs are chapter 6's leg); tests render every
     template and fail on an orphaned doctrine page.
   - Doctrine pages and artifact skeletons the current prompts can cite,
     written by Claude, wired by the coder.
