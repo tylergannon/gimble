@@ -227,8 +227,11 @@ planner node is withdrawn.
     lap writes the user story, the evidence specification, the holdout
     where the archetype calls for one, the UI sketch where a screen is
     involved, and fills the `command` and `infer` of the sprint item that
-    will demonstrate the promise (the validation ledger's own item has
-    none). An
+    will demonstrate the promise, or, when that item does not exist yet
+    because its chapter's sprint ledger is still prose, leaves them in
+    the design's Verifier section for the execution `plan` node to copy
+    in (the validation ledger's own item has none; amended by
+    consistency lap 31). An
     adversarial reviewer (other provider, fresh context, told only the
     promise and the design) answers: can a coder satisfy this while the
     promise is false; is any check trivially true; is the design stricter

@@ -36,7 +36,8 @@ When this is done, the repository contains:
   decompose, the validation design loop, assemble, the plan review loop,
   approve; four supervisors.
 - `medium` and `large` with `replan` after every implement lap and, in
-  `large`, `verify` at chapter exit reading a holdout outside the workdir.
+  `large`, `verify` at chapter exit, reading a holdout outside the workdir
+  when a universal promise of the chapter has one.
 - Docs site, spec, skill bundle, and `llms.txt` teaching the above from
   the same library files where they overlap.
 - A proof record under `proof/planning-v2/` in the established format:
@@ -111,7 +112,8 @@ first.
    `--values`, and `--stage`. Check: `show` equals a program that calls
    `Build` directly, for every node.
 3. Render test that every template renders and orphan walk that every
-   doctrine page is referenced by a rendered prompt, both proven against
+   doctrine page is referenced by a rendered agent-facing library file
+   (prompt body, supervisor brief, or pass), both proven against
    injected defects. Check: the proof script's mutations bite.
 4. Doctrine pages, distilled from `sources/` one page each with a
    provenance pointer, and the artifact skeletons. Written by Claude, not

@@ -140,9 +140,11 @@ only to the `verify` prompt the execution run later materializes
 ledger is still prose (`items: []`), that section is their only home
 until the execution `plan` node turns the prose into items and copies
 them in. Where the item exists, it then fills the
-sprint item the promise table's Item column names for the promise (one
-per promise; when the promise is split across items, each item carries
-the leg's `check`), in MEDIUM's sprint ledger or in the chapter's
+sprint item the promise table's Item column names for the promise:
+normally one item per promise; in SIMPLE the one item for all promises
+(the SIMPLE exception below); and when a promise has a leg in a later
+chapter, as P8 and P9 do here, each item carries its leg's `check` and
+the Item column lists them all. In MEDIUM's sprint ledger or in the chapter's
 sprint ledger for LARGE, with `command` (the
 required checks) and `infer` (the judgment over the captured evidence).
 A chapter item carries as `command` the required checks plus the
@@ -261,7 +263,7 @@ ephemeral/projects/<build>/
   research/                     plan.md, findings.md, INDEX.md, leaves
   validation/
     ledger.md                   one item per promise
-    <id>/                       design.md (story, evidence, validator, not proven), sketch.*, review notes
+    <id>/                       design.md (story, evidence, verifier, not proven), sketch.*, review notes
   plan-review/
     ledger.md                   one item per pass
     <pass>/                     reviewer findings

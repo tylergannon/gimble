@@ -7,7 +7,9 @@ naming the file.
 
 ## Read first
 
-- `workflow/library.go` and the `BuildFrom(fs.FS)` seam from sprint 1.
+- `workflow/library.go` and the filesystem seam sprint 1 chose (the
+  package-level parse function or `BuildFrom`; the proof script needs
+  neither, it builds a copy of the tree).
 - `chapters/04-library/prove/lib.sh` (the shared setup the proof
   scripts source) and `prove/show-equals-build.sh` (sprint 2).
 

@@ -3,8 +3,9 @@
 Status: planned
 
 `medium` and `large` gain `replan` after every implement lap; `large`
-gains `verify` at chapter exit, reading the holdout from outside the
-workdir and routing pass or fail. Two seeds go end to end through `plan`
+gains `verify` at chapter exit, reading a holdout from outside the
+workdir when a universal promise of the chapter has one, and routing
+pass or fail. Two seeds go end to end through `plan`
 and then `medium` or `large`, and the proof record is written. Promises
 P6, P9, P10, and P8's real-stage leg (`show --stage` against recorded
 stages of the seed runs, backlog item 4).
