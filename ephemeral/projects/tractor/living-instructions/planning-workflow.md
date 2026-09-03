@@ -205,6 +205,53 @@ ephemeral/projects/<build>/
 
 Holdouts: `$XDG_STATE_HOME/tractor/holdouts/<build>-<token>/`.
 
+## 6a. The library (decision 53)
+
+The workflows are content. Everything an agent is told lives as a file
+under `workflow/library/`, embedded with `embed.FS`, rendered with
+`text/template` from the workflow `Parameters`. `workflow.go` keeps the
+graph surgery (`Build`, path resolution, validation) and nothing an editor
+would want to change.
+
+```
+workflow/library/
+  README.md            what lives here; how prompts compose; how to test an edit
+  workflows/           plan.yaml, medium.yaml, large.yaml (moved from workflow/)
+  prompts/             one file per node, Go text/template
+    plan/              intake.md research.md brief.md halt.sh decompose.md
+                       design.md review.md assemble.md approve.md
+    medium/            implement.md replan.md
+    large/             plan.md implement.md replan.md verify.md
+  supervisors/         research_auditor.md scope_cop.md slice_critic.md proof_skeptic.md
+  passes/              01-traceability.md … 06-executability.md
+                       (the plan-review ledger is generated from this directory)
+  doctrine/            the teachings, included by prompts by name:
+                       promises.md elicit-then-prune.md question-files.md
+                       promise-adjacent-seams.md vertical-slices.md
+                       proof-not-theater.md validation-archetypes.md
+                       prior-art.md research-leaf.md chapter-doc.md sprint-doc.md
+                       pyramid-index.md reviewer-independence.md
+  templates/           skeletons the planner fills: brief.md promises.md
+                       CHAPTER.md SPRINT.md story.md evidence.md verdict.md
+                       recommendation.md ledger.md
+```
+
+Rules:
+
+- A prompt includes doctrine with `{{doctrine "promises"}}`. A teaching is
+  edited in one place and every prompt that cites it changes.
+- Tests render every template with representative parameters, fail on an
+  unreferenced doctrine or template file, and fail on any prompt that is
+  a Go string.
+- `tractor workflow show <name> [--project …]` prints the materialized
+  prompts and supervisor briefs, so an editor sees exactly what agents
+  will see before committing a content change.
+- The skill bundle (`skills/tractor`) and the docs site teach the same
+  things from the same files where they overlap (question-file format,
+  ledger format, recommendation contract), so there is one source.
+- The raw corpus under `sources/` stays as provenance. The library holds
+  the distilled teaching, a page each, with a pointer back.
+
 ## 7. Not in this version
 
 Budgets (decision 45). A secret holdout location. Multi-level supervision.

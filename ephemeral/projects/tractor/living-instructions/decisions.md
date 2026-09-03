@@ -245,6 +245,17 @@ planner node is withdrawn.
     index over it, and a pointer file. Execution prompts inline resolved
     index hits, not a pointer. At most five research branches in parallel.
 
+53. **The library is content.** Every prompt, supervisor brief, review
+    pass, doctrine excerpt, and artifact skeleton the built-in workflows
+    use is a file under `workflow/library/`, embedded with `embed.FS` and
+    rendered with `text/template`; no prompt lives in a Go string.
+    Prompts include doctrine files by name, so a teaching is edited once
+    and every prompt that cites it changes. Tests render every template
+    and fail on an unreferenced doctrine file. `tractor workflow show
+    <name>` prints the materialized prompts so an editor sees what agents
+    see. Each release can improve the design and proof workflows as a
+    content edit, without touching Go.
+
 ## Build order (revised)
 
 1. Interview file plus `tractor ask` and `tractor answer`. **Done** (chapter 1).
