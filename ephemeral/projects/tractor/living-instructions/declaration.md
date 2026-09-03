@@ -46,7 +46,10 @@ When this is done, the repository contains:
 ## 3. Promises
 
 Each promise: the statement, what it must not imply, the archetype
-(decision 42), and the verifier. Its scope and its evidence, the other
+(decision 42), and the verifier, and, in the routing table after it, the
+chapter and the sprint item that demonstrate it (the `Chapter` and
+`Item` columns `planning-workflow.md` §3 names; the promises skeleton
+carries the same). Its scope and its evidence, the other
 two parts decision 37 names, live in its validation design under
 `validation/<id>/design.md`, which this table points to. Required checks (`go build`, `go vet`, `go test`, `golangci-lint`),
 with the count guards `chapters.md` carries, apply to every chapter
@@ -65,6 +68,22 @@ were marked with) and prove nothing here.
 | P8 | Every prompt body, doctrine page, supervisor brief, pass, and skeleton is a library file and Go supplies templates only data values, the two value functions `quote` and `shell`, and the two composition actions `include` and `doctrine`; every doctrine page is referenced by at least one agent-facing library file (a prompt body, supervisor brief, or pass) that some node renders; `tractor workflow show <name>` prints every node of the graph, each node's payload (a prompt, a tool command, or a checklist path) exactly as `Build` materialized it for the given parameters, and the library file each prompt came from, and `--stage <dir>` diffs that against a real stage with the frame stripped. | That the content is well written, or that `show` reproduces run-time frames. | Universal over library files | Render test and orphan walk proven against injected defects; `show` compared with a program that calls `Build`; `show --stage` against a run the check makes; an `infer` judge over the proof scripts' logs deciding that each probe failed for the injected reason (decision 41: checks alone prove nothing). Exhaustive, no holdout. |
 | P9 | An agent reading only the docs site, spec, and skill bundle runs `workflow run plan`, `workflow show`, and `ask` correctly, including where the interview directory and the holdout come from. | That the docs are complete. | Scenario | A docs-only reader run: a nested pipeline whose agent sees only those sources and the binary, inspected from its run directory and the plan run it starts, with an `infer` judge over its transcript and the docs against `--help`. |
 | P10 | For two small product descriptions written before chapter 5 starts, `plan` ends with an approved package that `validate-plan` accepts, `medium` or `large` runs it to `COMPLETED`, and the built program satisfies the acceptance examples written in the seed. | Generality beyond seeds of that size. | Scenario | Both seeds are known; the end-to-end run and the seed's own examples are run by the check, and an `infer` judge over the proof tooling's logs, the run directories, and the built program's transcripts decides that each example passed for the reason the seed states (decision 41). |
+
+Routing. Chapter 5 and 6 items are backlog numbers until the `plan` node
+turns the sketch into items, when the names replace them.
+
+| Id | Short name | Chapter | Item | Status |
+|---|---|---|---|---|
+| P1 | elicit then prune | 5 | backlog 6 (`brief`) | declared |
+| P2 | halt by the tool node | 5 | backlog 7 (the loop) | declared |
+| P3 | every promise designed | 5 | backlog 10 (`review`) | declared |
+| P4 | rejected designs re-enter | 5 | backlog 10 (`review`) | declared |
+| P5 | seven passes marked | 5 | backlog 11 (passes), backlog 12 (`assemble`, `approve`) | declared |
+| P6 | chapters proven by verify | 6 | backlog 4 (ledger-tool seed) | declared |
+| P7 | supervisors steer | 5 | backlog 13 (supervisors) | declared |
+| P8 | the library | 4; pass leg 5; real-stage leg 6 | `prompts become library files`, `workflow show`, `render test and orphan walk`, `doctrine pages and skeletons`; backlog 11; backlog 4 | declared |
+| P9 | docs-only reader | 6; docs sprints in 4 and 5 | backlog 5; `docs and skill`; backlog 14 | declared |
+| P10 | two seeds end to end | 6 | backlog 3 (greeter), backlog 4 (ledger-tool) | declared |
 
 No promise here carries a holdout. Two seeds cannot be overfitted in a way
 a holdout would catch, and every other set is checked exhaustively. The
