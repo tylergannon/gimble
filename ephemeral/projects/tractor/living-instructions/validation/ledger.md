@@ -127,9 +127,17 @@ and what the design does not prove.
   stage, and a stage directory whose `StageStarted` arrived while some
   other stage was live is forged. Checks that rest on engine records
   require those records to have arrived when the engine, and nothing
-  else, could have written them. This closes the forgery the run
-  directory's writability leaves open; the mirror lives with the
-  observer, outside the run directory, at its random path.
+  else, could have written them. The check also started the `tractor workflow run` process itself, so
+  it knows when that process exited and with what status: a run whose
+  process exited non-zero did not complete, whatever the timeline says,
+  and any event arriving in the mirror after the process exited was
+  written by something else. Together these close the forgery the run
+  directory's writability leaves open, short of a process an agent
+  detaches to write during the run's own bookkeeping gaps, which is the
+  harness sandbox's concern (out of scope: no engine or harness change)
+  and is recorded under Not proven where a design leans on the mirror.
+  The mirror lives with the observer, outside the run directory, at its
+  random path.
 - **Out of scope for every check.** The engine and harness are excluded
   from this project (no engine change; `promises.md` exclusions). A game
   that needs the engine or a harness adapter to record false events,

@@ -52,12 +52,24 @@ for wf in plan medium large; do
     else
       "$tmp/bin/tractor" workflow show "$wf" --project demo --workdir "$tmp/demo" --node "$node" --raw > "$tmp/got.txt"
     fi
-    cmp -s "$tmp/want.txt" "$tmp/got.txt" || { echo "baseline: $wf/$node differs from the pre-migration Build at $base"; diff "$tmp/want.txt" "$tmp/got.txt" | head -20; exit 1; }
-    echo "baseline: $wf/$node equals the pre-migration Build"
+    if cmp -s "$tmp/want.txt" "$tmp/got.txt"; then
+      echo "baseline: $wf/$node equals the pre-migration Build"
+    elif [ -d workflow/library/doctrine ] && [ -n "$(ls workflow/library/doctrine 2>/dev/null)" ]; then
+      # After sprint 4 the prompts include doctrine; print the diff for the
+      # judge, who checks that content moved and nothing was lost.
+      echo "baseline: $wf/$node differs from the pre-migration Build (doctrine present; diff follows for the judge)"
+      diff -u "$tmp/want.txt" "$tmp/got.txt" || true
+    else
+      echo "baseline: $wf/$node differs from the pre-migration Build at $base"; diff "$tmp/want.txt" "$tmp/got.txt" | head -20; exit 1
+    fi
   done
 done
 # The coder's snapshot test is the tripwire for later content edits; it
 # must run and pass too.
 go test -v -run 'TestBuildMatchesSnapshot' ./workflow/ -count=1 2>&1 | tee /dev/stderr \
   | grep -q -- '--- PASS: TestBuildMatchesSnapshot' || { echo "TestBuildMatchesSnapshot did not pass"; exit 1; }
+# The Go the judge must read: every package in this module that workflow/
+# or cmd/tractor/ imports, transitively.
+echo "go packages in scope for the judge:"
+go list -deps ./workflow/ ./cmd/tractor/ 2>/dev/null | grep '^github.com/tylergannon/tractor' | sort -u
 echo "prompts-are-library-files.sh: ok"

@@ -1,6 +1,6 @@
 # P10: two known seeds plan and execute end to end
 
-Archetype: scenario, twice. Lap 22; answers `review-21.md`.
+Archetype: scenario, twice. Lap 23; answers `review-22.md`.
 
 ## Story
 
@@ -65,9 +65,12 @@ copies at other events) is byte-identical to the final package outside
 `interview/` (what the human saw is what ran; the answer file itself is
 the one permitted difference); `validate-plan` accepts the package;
 `recommendation.md` names `medium` or `large`; `check.log` shows the
-`Next:` line and the identical command executed; the execution run
-directory named by that command's `Logs:` line is a different directory
-from the plan run's, its `manifest.json` carries a different run id and
+`Next:` line and the identical command executed; the `tractor workflow run` process the check started for the handoff
+exited 0 and printed its completion line (a failed run cannot be
+rescued by appended events; the check owns the process), no event
+arrived in the observer's mirror after that process exited, the
+execution run directory named by that command's `Logs:` line is a
+different directory from the plan run's, its `manifest.json` carries a different run id and
 a `workflow` name of `medium` or `large` matching the handoff, its
 `timeline.jsonl` opens with `PipelineStarted` naming that workflow and
 ends with `PipelineCompleted` after a `StageCompleted` with `next:
@@ -104,10 +107,10 @@ exactly one `LoopValidated` `passed: true` naming it in the execution
 run's own timeline and a loop stage's `validation.json` in that run
 naming it, or was changed, renamed, or removed across
 a `replan` stage while still open (not `done: true` in the copy before
-that stage) with that stage's `response.md` naming it (decision 44:
-replan edits open items with a reason; an item whose fields change
-across an `implement` or any other stage, or after being marked,
-fails); every item in the final ledger(s) is `done: true` with the same
+that stage), the change noted in that stage's `response.md` (decision
+44 lets replan edit open items; the note need only say what changed; an
+item whose fields change across an `implement` or any other stage, or
+after being marked, fails); every item in the final ledger(s) is `done: true` with the same
 event and record, and every such event arrived in the observer's mirror
 while no other stage was live (ledger rules: the engine, not a turn,
 wrote it); the final ledger(s) are not empty; every acceptance
@@ -132,8 +135,8 @@ describing its promises, its slices, and its review outcomes as they
 actually stand in the package files, and ask whether to approve it?
 Fail if the question describes a package other than the one in the
 files or does not ask for approval. Second: for every item replan
-changed, renamed, or removed, does its response give a reason grounded
-in work already done, and for every difference between the approved
+changed, renamed, or removed, does its response note the change it
+made (what, not why; decision 44 asks replan for no reason), and for every difference between the approved
 and final chapter ledgers or docs, does the stage's response give a
 reason grounded in the work, corroborated by that stage's segment (the
 commands it ran and their results, supplied with the response), or does
@@ -144,7 +147,11 @@ yourself against the built program and fail if any does not hold."
 
 ## Not proven
 
-That the graph `show` prints afterwards is the graph the run walked:
+A process an agent detaches to outlive its turn and write into the run
+directory during the engine's own gaps: the mirror's timing and the
+check's ownership of the run process catch every other forgery, and
+the rest is the harness sandbox's concern (out of scope). That the
+graph `show` prints afterwards is the graph the run walked:
 the run records neither its graph nor its loop's checklist path, and
 this design relies, as P2 does, on P8's proof that `show` prints what
 `Build` materialized in the same binary for the same parameters. Generality beyond seeds of this size. Whether the sizes match the

@@ -1,7 +1,7 @@
 # P8: the library is content
 
 Archetype: universal over the library's files. Exhaustive; no holdout.
-Lap 22; answers `review-21.md`.
+Lap 23; answers `review-22.md`.
 
 Reading of the promise: "prompt" means any text the library sends to an
 agent, so files under `prompts/`, `supervisors/`, and `passes/` all
@@ -72,13 +72,18 @@ pass leg of the check below is empty until then and runs then.
 `prove/p8-passes-are-files.sh`, then at chapter 6
 `prove/p8-show-stage.sh`.
 
-- `prove/prompts-are-library-files.sh`: every node's `show --raw`
-  equals the payload the pre-migration `Build` produced, built by the
-  check from the commit recorded in `prove/base-commit.txt` (an
-  immutable baseline the coder cannot update), and the library files
-  exist; the coder's snapshot test is a tripwire for later content
-  edits, not the baseline. Its ledger item's judge reads the Go under
-  `workflow/` for prompt text in strings.
+- `prove/prompts-are-library-files.sh`: at sprint 1, every node's
+  `show --raw` equals the payload the pre-migration `Build` produced,
+  built by the check from the commit recorded in `prove/base-commit.txt`
+  (an immutable baseline the coder cannot update). From sprint 4 on,
+  when the prompts legitimately change to include doctrine, the script
+  prints the unified diff between that baseline and the current output
+  for every node into its log instead of failing, and the ledger item's
+  judge reads the diffs: every removed line must reappear in a doctrine
+  page or skeleton the prompt now includes, and every added line must be
+  an include's rendered text (content moved, never lost or invented,
+  `SPRINT-04.md`). The coder's snapshot test is a tripwire, not the
+  baseline. The judge also reads the Go for prompt text in strings.
 - `prove/show-equals-build.sh` (sprint 2) and
   `prove/orphan-walk-and-render.sh` (sprint 3). Nodes: the set of
 node ids the headed `show` prints equals the set of ids in `g.Nodes`
@@ -157,9 +162,10 @@ output and carries every payload, not only headers). Equality: for every node of
 generated `plan-review/ledger.md` and every reviewer stage's
 `prompt.md` of its run, chapter 6's stage leg with the stage
 directories it diffed), the library files under `workflow/library/`,
-the non-test Go under `workflow/` and under `cmd/tractor/` (every file
-on the path from `Build` to `engine.NewRunner`, `workflow.go` and
-`root.go` included): each ledger command captures its script's stdout,
+the non-test Go of every package in this module that `workflow/` or
+`cmd/tractor/` imports, transitively (the script writes `go list -deps`
+for both into the log, so a helper package that implements `include`
+is in scope wherever it lives): each ledger command captures its script's stdout,
 which names every probe and its outcome (the stage perturbation's byte
 and offset, each node's sentinel result, each skeleton's rendering),
 to `prove/last-run/<script>.log`, and the orphan script copies the `go
@@ -183,7 +189,8 @@ record, the judge decides.
 
 ## Not proven
 
-That the content is good. That `show` reproduces frames (by design;
+That a Go package outside this module (a dependency) supplies prompt
+text; the judge reads this module. That the content is good. That `show` reproduces frames (by design;
 research F1). That a data value carries no instruction; the README's
 field list is the contract, the check recomputes every value, and the
 code review reads the struct. Text a template parks in a branch that never renders and Go re-emits:

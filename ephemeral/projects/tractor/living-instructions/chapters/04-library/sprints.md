@@ -10,7 +10,7 @@ items:
         - workflow/*.go
         - workflow/library/README.md
         - ephemeral/projects/tractor/living-instructions/chapters/04-library/prove/last-run/prompts-are-library-files.log
-      prompt: Read the non-test Go under workflow/ and the log. Does any Go string carry prompt text (instructions to an agent) rather than a data value, and did the log show every node's payload byte-equal to the pre-migration baseline built from the commit in prove/base-commit.txt? Fail on either.
+      prompt: Read the log and the non-test Go of every module package the log lists. Does any Go string carry prompt text (instructions to an agent) rather than a data value? Did the log show every node's payload byte-equal to the pre-migration baseline built from the commit in prove/base-commit.txt, or, where doctrine is present, a diff in which every removed line reappears in a doctrine page or skeleton the prompt includes and every added line is an include's rendered text? Fail on prompt text in Go, on a lost line, or on an invented one.
   - name: workflow show
     check: "`tractor workflow show <name>` prints every node the graph declares and, for each, the prompt, command, or checklist exactly as `Build` materialized it for the given parameters, naming the library file each prompt came from; `--node --raw`, `--values`, and `--stage <dir>` (a diff against a stage's prompt.md with the frame stripped) work as the sprint doc says."
     doc: ephemeral/projects/tractor/living-instructions/chapters/04-library/SPRINT-02.md
