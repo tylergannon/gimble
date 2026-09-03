@@ -10,7 +10,11 @@ the code it names is on `main` at the same paths.
 - The tests named below exist and pass.
 - The docs named below say what the code now does.
 - `go build ./... && go test -count=1 ./...` exits 0.
-- The change stays in the working tree. Do not commit, branch, or push.
+- The change is made in this checkout, at the path the run's workdir names.
+  Do not run `git worktree add`, do not create a branch, do not commit, and do
+  not push: the run's verification gate executes in the workdir, so work done
+  anywhere else is not checked. This overrides any worktree or checkpoint step
+  in the repository's agent protocol.
 
 ---
 
