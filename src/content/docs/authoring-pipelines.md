@@ -78,14 +78,14 @@ Node IDs must match `[A-Za-z_][A-Za-z0-9_]*`. `success` and `failure` are reserv
 
 Tractor deliberately has a small, fixed node vocabulary.
 
-| Type              | Use it for                                          | How it routes                                                     |
-| ----------------- | --------------------------------------------------- | ----------------------------------------------------------------- |
-| `agent`           | Planning, implementation, review, or any LLM task   | The agent chooses from its `edges` list.                           |
-| `command`         | Tests, builds, scripts, and other mechanical checks | Exit code selects `edges.success` or `edges.error`.                |
-| `loop`            | Working through a checklist file, proving each item | An open item selects `edges.loop`; none selects `edges.exit`.      |
-| `fan_out`         | Running independent alternatives concurrently       | Every top-level `branches` entry runs.                             |
-| `fan_in`          | Comparing and consolidating parallel results        | The fan-in agent chooses from its `edges` list.                    |
-| `supervisor`      | Periodically observing and coaching active nodes    | It returns `ok` or steers a node; it never joins the walk.        |
+| Type         | Use it for                                          | How it routes                                                 |
+| ------------ | --------------------------------------------------- | ------------------------------------------------------------- |
+| `agent`      | Planning, implementation, review, or any LLM task   | The agent chooses from its `edges` list.                      |
+| `command`    | Tests, builds, scripts, and other mechanical checks | Exit code selects `edges.success` or `edges.error`.           |
+| `loop`       | Working through a checklist file, proving each item | An open item selects `edges.loop`; none selects `edges.exit`. |
+| `fan_out`    | Running independent alternatives concurrently       | Every top-level `branches` entry runs.                        |
+| `fan_in`     | Comparing and consolidating parallel results        | The fan-in agent chooses from its `edges` list.               |
+| `supervisor` | Periodically observing and coaching active nodes    | It returns `ok` or steers a node; it never joins the walk.    |
 
 Use `command` when a process can decide correctly from an exit code. Use `agent` when the decision requires judgment. Use `loop` when the work is a list of claims, each proven by a command or a judged artifact. That distinction saves tokens and makes deterministic gates genuinely deterministic.
 

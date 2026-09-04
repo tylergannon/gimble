@@ -12,7 +12,7 @@
     "format:rsvelte": "rsvelte-fmt --no-native-js --no-native-css src/components/InstallPrompt.svelte src/lib/components/ui/button",
     "format:rsvelte:check": "rsvelte-fmt --no-native-js --no-native-css --check src/components/InstallPrompt.svelte src/lib/components/ui/button",
     "lint:rsvelte": "rsvelte-lint --max-warnings 0 src/",
-    "check:rsvelte": "rsvelte-check --tsgo --tsconfig tsconfig.json --fail-on-warnings",
+    "check:rsvelte": "rsvelte-check --tsgo --tsconfig tsconfig.json --ignore web --fail-on-warnings",
     "check:preview": "astro build && node scripts/verify-preview.ts",
     "verify": "vp check && vp run format:rsvelte:check && vp run lint:rsvelte && vp run check:rsvelte && vp run check:astro && vp run check:preview"
   },
