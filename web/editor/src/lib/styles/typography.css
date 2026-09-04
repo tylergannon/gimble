@@ -1,0 +1,40 @@
+/* ------------------------------------------------------------------
+   shadcn-svelte — Typography tokens
+   Default font: Geist (sans) + Geist Mono. Heading falls back to sans.
+   Font sizes follow the Tailwind text scale used across the registry.
+------------------------------------------------------------------ */
+
+:root {
+	/* --- Families --- */
+	--font-sans: "Geist", "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+	--font-heading: var(--font-sans);
+	--font-mono: "Geist Mono", "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+	/* --- Size scale (Tailwind text-*) --- */
+	--text-xs: 0.75rem;    /* 12px */
+	--text-sm: 0.875rem;   /* 14px — the workhorse body size across components */
+	--text-base: 1rem;     /* 16px */
+	--text-lg: 1.125rem;   /* 18px */
+	--text-xl: 1.25rem;    /* 20px */
+	--text-2xl: 1.5rem;    /* 24px */
+	--text-3xl: 1.875rem;  /* 30px */
+	--text-4xl: 2.25rem;   /* 36px */
+	--text-5xl: 3rem;      /* 48px */
+
+	/* --- Line heights --- */
+	--leading-none: 1;
+	--leading-snug: 1.375;
+	--leading-normal: 1.5;
+	--leading-relaxed: 1.625;
+
+	/* --- Weights (Geist is variable) --- */
+	--font-weight-normal: 400;
+	--font-weight-medium: 500;   /* buttons, labels, titles, badges */
+	--font-weight-semibold: 600;
+	--font-weight-bold: 700;
+
+	/* --- Tracking --- */
+	--tracking-tight: -0.015em;
+	--tracking-normal: 0em;
+	--tracking-widest: 0.1em;   /* shortcuts / kbd */
+}

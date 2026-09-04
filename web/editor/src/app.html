@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="text-scale" content="scale" />
+		<title>Tractor editor</title>
+		<script>
+			try {
+				if (localStorage.getItem('tractor-editor-dark') === '1') document.documentElement.classList.add('dark');
+			} catch (e) {}
+		</script>
+		%sveltekit.head%
+	</head>
+	<body>
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

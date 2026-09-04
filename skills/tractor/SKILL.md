@@ -136,3 +136,8 @@ steer or restart the run to deliver it.
 `get_pipeline_schema` returns the current graph schema, and `start_run`'s
 lint diagnostics teach as they reject. Keep each prompt to the decision its
 node owns.
+
+`tractor edit <file>` opens the pipeline in a browser graph editor with the
+same lint. It reads and writes the file on disk, so keep editing the YAML
+while the person has it open; the page reloads on every change and saves its
+own edits back beside yours.
