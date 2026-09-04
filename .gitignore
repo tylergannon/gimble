@@ -4,3 +4,5 @@
 /dist
 /.astro
 /.svelte-check
+web/editor/node_modules
+web/editor/.svelte-kit

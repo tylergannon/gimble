@@ -1,13 +1,42 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Tractor editor</title>
-</head>
-<body>
-<h1>Editor bundle not built</h1>
-<p>The graph editor web bundle has not been built into this binary.
-Run <code>pnpm --dir web/editor build</code> and rebuild <code>tractor</code>.</p>
-<p>The API is still available at <code>/api/doc</code> and <code>/api/events</code>.</p>
-</body>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="text-scale" content="scale" />
+		<title>Tractor editor</title>
+		<script>
+			try {
+				if (localStorage.getItem('tractor-editor-dark') === '1') document.documentElement.classList.add('dark');
+			} catch (e) {}
+		</script>
+		<link href="/_app/immutable/entry/start.Di_4kmu2.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/BlpHSxXz.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/ez3tMzMh.js" rel="modulepreload">
+		<link href="/_app/immutable/entry/app.C3yPwqKb.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/xihTtKlq.js" rel="modulepreload">
+		<link href="/_app/immutable/nodes/0.sWaptzJy.js" rel="modulepreload">
+		
+		<link href="/_app/immutable/assets/0.CzkdgKZz.css" rel="stylesheet">
+	</head>
+	<body>
+		<div style="display: contents">
+			<script>
+				{
+					__sveltekit_ya5dw3 = {
+						base: ""
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("/_app/immutable/entry/start.Di_4kmu2.js"),
+						import("/_app/immutable/entry/app.C3yPwqKb.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element);
+					});
+				}
+			</script>
+		</div>
+	</body>
 </html>

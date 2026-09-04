@@ -1,0 +1,36 @@
+/* ------------------------------------------------------------------
+   shadcn-svelte — Radius, shadow & spacing tokens
+   Base radius is 0.625rem (10px); the scale is derived from it exactly
+   as the source @theme block defines.
+------------------------------------------------------------------ */
+
+:root {
+	/* --- Radius (base + derived scale) --- */
+	--radius: 0.625rem;                       /* 10px */
+	--radius-sm: calc(var(--radius) - 4px);   /* 6px */
+	--radius-md: calc(var(--radius) - 2px);   /* 8px */
+	--radius-lg: var(--radius);               /* 10px */
+	--radius-xl: calc(var(--radius) + 4px);   /* 14px */
+	--radius-2xl: calc(var(--radius) + 8px);  /* 18px */
+	--radius-3xl: calc(var(--radius) + 12px); /* 22px */
+	--radius-4xl: calc(var(--radius) + 16px); /* 26px — pill badges */
+
+	/* --- Spacing base (Tailwind --spacing = 0.25rem) --- */
+	--spacing: 0.25rem;
+	--space-1: calc(var(--spacing) * 1);   /* 4px */
+	--space-1_5: calc(var(--spacing) * 1.5); /* 6px */
+	--space-2: calc(var(--spacing) * 2);   /* 8px */
+	--space-2_5: calc(var(--spacing) * 2.5); /* 10px */
+	--space-3: calc(var(--spacing) * 3);   /* 12px */
+	--space-4: calc(var(--spacing) * 4);   /* 16px */
+	--space-6: calc(var(--spacing) * 6);   /* 24px */
+	--space-8: calc(var(--spacing) * 8);   /* 32px */
+
+	/* --- Elevation: the shadcn shadow ramp (Tailwind defaults) --- */
+	--shadow-2xs: 0 1px rgb(0 0 0 / 0.05);
+	--shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+	--shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+	--shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+	--shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+	--shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
