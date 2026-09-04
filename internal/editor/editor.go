@@ -153,13 +153,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// loopbackHost reports whether a Host header names 127.0.0.1 or localhost,
-// with or without a port.
+// loopbackHost reports whether a Host header names 127.0.0.1, [::1], or
+// localhost, with or without a port.
 func loopbackHost(host string) bool {
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
 	}
-	return host == "127.0.0.1" || strings.EqualFold(host, "localhost")
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = host[1 : len(host)-1]
+	}
+	return host == "127.0.0.1" || host == "::1" || strings.EqualFold(host, "localhost")
 }
 
 func (s *Server) handleGet(w http.ResponseWriter) {

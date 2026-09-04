@@ -356,7 +356,7 @@ func TestRejectsForeignHost(t *testing.T) {
 			t.Fatalf("%s with foreign host = %d, want 403", target, recorder.Code)
 		}
 	}
-	for _, host := range []string{"127.0.0.1", "127.0.0.1:7331", "localhost", "localhost:7331", "LOCALHOST:80"} {
+	for _, host := range []string{"127.0.0.1", "127.0.0.1:7331", "[::1]", "[::1]:7331", "localhost", "localhost:7331", "LOCALHOST:80"} {
 		request := httptest.NewRequest(http.MethodGet, "/api/doc", nil)
 		request.Host = host
 		recorder := httptest.NewRecorder()
@@ -365,7 +365,7 @@ func TestRejectsForeignHost(t *testing.T) {
 			t.Fatalf("host %q = %d, want 200", host, recorder.Code)
 		}
 	}
-	for _, host := range []string{"127.0.0.1.evil.example", "127.0.0.2", "[::1]:7331", ""} {
+	for _, host := range []string{"127.0.0.1.evil.example", "127.0.0.2", "[::2]:7331", ""} {
 		request := httptest.NewRequest(http.MethodGet, "/api/doc", nil)
 		request.Host = host
 		recorder := httptest.NewRecorder()
