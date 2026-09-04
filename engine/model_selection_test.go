@@ -69,6 +69,48 @@ func TestResolveGraphModelsPreflightsEveryDeclaration(t *testing.T) {
 	}
 }
 
+func TestSystemFallbackMatchesBetweenPreflightAndRuntime(t *testing.T) {
+	pipeline, err := graph.Parse([]byte(`{"start":"worker","nodes":[{"id":"worker","type":"agent","edges":[{"to":"success"}]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, ok := pipeline.NodeByID("worker")
+	if !ok {
+		t.Fatal("worker node missing")
+	}
+	agent := node.(*graph.AgentNode)
+	tests := []struct {
+		name       string
+		system     SystemModelSelection
+		wantModel  string
+		wantEffort string
+	}{
+		{name: "empty config", system: SystemModelSelection{}, wantModel: "gpt-5.6-sol", wantEffort: "high"},
+		{name: "Flash with default system effort", system: SystemModelSelection{Name: "flash"}, wantModel: "gemini-3.8-flash-high", wantEffort: "high"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			preflight, err := ResolveGraphModels(*pipeline, test.system)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(preflight) != 1 {
+				t.Fatalf("preflight = %+v", preflight)
+			}
+			runtime, err := resolveNodeModel(agent.ID, RoleAgent, agent.Model, pipeline.Defaults.Model, test.system)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if runtime != preflight[0] {
+				t.Fatalf("runtime = %+v, preflight = %+v", runtime, preflight[0])
+			}
+			if runtime.NativeModel != test.wantModel || runtime.EffectiveEffort != test.wantEffort {
+				t.Fatalf("resolution = %+v, want model %q effort %q", runtime, test.wantModel, test.wantEffort)
+			}
+		})
+	}
+}
+
 func assertResolution(t *testing.T, got ModelResolution, model, effort, provider, source string) {
 	t.Helper()
 	if got.NativeModel != model || got.EffectiveEffort != effort || got.Provider != provider || got.Source != source {

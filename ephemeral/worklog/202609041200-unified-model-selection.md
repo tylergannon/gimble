@@ -8,3 +8,5 @@ lesson: Validate model declarations before ordinary lint so an invalid selection
 lesson: Model-role observability needs a dedicated event and role stamped on every event because item judge and goal evaluator share the loop node ID.
 failure: A real checklist run exposed that fidelity-none bindings were keyed only by loop node ID. The Flash item judge left an AGY binding that blocked the later Codex goal evaluator with `logical thread cannot change harness`.
 lesson: Ephemeral session identity must include both node ID and model-consuming role; hidden roles deliberately share a graph node but may resolve to different harnesses.
+failure: Graph-wide preflight normalized an empty system model/effort, while per-turn resolution did not. An empty runtime config failed after passing preflight, and a system `flash` selection resolved to different efforts across the two paths.
+lesson: System fallback normalization belongs inside the shared selection resolver so every caller observes identical defaults; an authored name-only selection still uses model policy, while a system name with omitted effort retains the system high default.

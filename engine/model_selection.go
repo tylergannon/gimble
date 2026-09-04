@@ -41,12 +41,8 @@ type SystemModelSelection struct {
 // ResolveGraphModels resolves every model-capable authored location, including
 // hidden loop roles, supervisors, fan-out templates, and synthesized branches.
 func ResolveGraphModels(pipeline graph.Graph, system SystemModelSelection) ([]ModelResolution, error) {
-	if system.Name == "" {
-		system.Name = "gpt-5.6-sol"
-	}
-	if system.Effort == "" {
-		system.Effort = "high"
-	}
+	system = normalizeSystemModelSelection(system)
+
 	if pipeline.Defaults.Model.Present {
 		if _, err := resolveSelected("", "pipeline_default", "pipeline defaults.model", pipeline.Defaults.Model, jsonschema.Optional[graph.ModelSelection]{}, system, nil); err != nil {
 			return nil, err
@@ -98,11 +94,22 @@ func ResolveGraphModels(pipeline graph.Graph, system SystemModelSelection) ([]Mo
 	return resolutions, nil
 }
 
+func normalizeSystemModelSelection(system SystemModelSelection) SystemModelSelection {
+	if system.Name == "" {
+		system.Name = "gpt-5.6-sol"
+	}
+	if system.Effort == "" {
+		system.Effort = "high"
+	}
+	return system
+}
+
 func resolveNodeModel(nodeID, role string, selected, pipelineDefault jsonschema.Optional[graph.ModelSelection], system SystemModelSelection) (ModelResolution, error) {
 	return resolveSelected(nodeID, role, "", selected, pipelineDefault, system, nil)
 }
 
 func resolveSelected(nodeID, role, selectedSource string, selected, pipelineDefault jsonschema.Optional[graph.ModelSelection], system SystemModelSelection, independent *graph.ModelSelection) (ModelResolution, error) {
+	system = normalizeSystemModelSelection(system)
 	choice := graph.ModelSelection{}
 	source := selectedSource
 	switch {

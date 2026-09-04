@@ -297,7 +297,6 @@ func TestAgentHandlerRejectsInvalidResolvedTurnInSimulation(t *testing.T) {
 		fields     graph.LLMNodeFields
 		wantReason string
 	}{
-		{name: "missing model", wantReason: "model selection at system default: model name must be a nonblank string"},
 		{name: "unsupported fidelity", config: AgentConfig{DefaultModel: "gpt-5.3-codex"}, fields: graph.LLMNodeFields{Fidelity: optional("unknown")}, wantReason: `unsupported fidelity "unknown"`},
 	}
 	for _, test := range tests {
