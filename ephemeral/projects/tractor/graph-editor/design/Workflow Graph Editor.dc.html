@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/shadcn-svelte-design-system-ce4a1c69-d52b-4647-bd29-54dd2f2e5099/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/shadcn-svelte-design-system-ce4a1c69-d52b-4647-bd29-54dd2f2e5099/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/shadcn-svelte-design-system-ce4a1c69-d52b-4647-bd29-54dd2f2e5099/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/shadcn-svelte-design-system-ce4a1c69-d52b-4647-bd29-54dd2f2e5099/tokens/radius.css">
+  <link rel="stylesheet" href="_ds/shadcn-svelte-design-system-ce4a1c69-d52b-4647-bd29-54dd2f2e5099/components.css">
+  <link rel="stylesheet" href="_ds/shadcn-svelte-design-system-ce4a1c69-d52b-4647-bd29-54dd2f2e5099/styles.css">
+  <script src="_ds/shadcn-svelte-design-system-ce4a1c69-d52b-4647-bd29-54dd2f2e5099/_ds_bundle.js"></script>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    a { color: var(--foreground); } a:hover { color: var(--muted-foreground); }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+<div class="{{ rootClass }}" style="position:fixed;inset:0;display:grid;grid-template-rows:48px minmax(0,1fr);grid-template-columns:minmax(0,1fr);background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;overflow:hidden">
+  <header style="display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--border);background:var(--background);min-width:0;overflow:hidden">
+    <span style="font-family:var(--font-mono);font-weight:500;font-size:13px">workflow</span>
+    <span style="width:1px;height:20px;background:var(--border)"></span>
+    <span style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto">{{ graphName }}</span>
+    <span style="color:var(--muted-foreground);font-size:13px;white-space:nowrap">{{ nodeCount }} nodes · {{ errorCount }} issues</span>
+    <div style="flex:1"></div>
+    <div style="width:150px;flex:none"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Select" size="sm" value="{{ jumpValue }}" on-change="{{ jumpTo }}" hint-size="150px,32px">
+      <option value="">Jump to node…</option>
+      <sc-for list="{{ jumpOptions }}" as="o" hint-placeholder-count="0"><option value="{{ o.v }}">{{ o.l }}</option></sc-for>
+    </x-import></div>
+    <div style="width:120px;flex:none"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Select" size="sm" value="" on-change="{{ addNode }}" hint-size="150px,32px">
+      <option value="" disabled="{{ true }}">Add node…</option>
+      <option value="codergen">codergen</option>
+      <option value="parallel">parallel</option>
+      <option value="parallel.fan_in">parallel.fan_in</option>
+      <option value="tool">tool</option>
+      <option value="supervisor">supervisor</option>
+      <option value="loop">loop</option>
+    </x-import></div>
+    <div style="display:flex;align-items:center;gap:2px;border:1px solid var(--border);border-radius:var(--radius-md);padding:2px">
+      <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Button" variant="ghost" size="icon-xs" on-click="{{ zoomOut }}" hint-size="24px,24px"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Icon" name="minus" size="14" hint-size="14px,14px"></x-import></x-import>
+      <span style="font-family:var(--font-mono);font-size:12px;min-width:44px;text-align:center">{{ zoomPct }}</span>
+      <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Button" variant="ghost" size="icon-xs" on-click="{{ zoomIn }}" hint-size="24px,24px"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Icon" name="plus" size="14" hint-size="14px,14px"></x-import></x-import>
+    </div>
+    <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Button" variant="outline" size="sm" on-click="{{ fitView }}" hint-size="auto,32px">Fit</x-import>
+    <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Button" variant="outline" size="sm" on-click="{{ openGraph }}" hint-size="auto,32px">Graph</x-import>
+    <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Button" variant="ghost" size="icon-sm" on-click="{{ toggleDark }}" hint-size="32px,32px"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Icon" name="{{ darkIcon }}" size="16" hint-size="16px,16px"></x-import></x-import>
+  </header>
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 380px;min-height:0;min-width:0">
+    <div ref="{{ vpRef }}" onMouseDown="{{ onBgDown }}" style="position:relative;overflow:hidden;background-color:var(--surface);background-image:radial-gradient(color-mix(in oklch, var(--foreground) 14%, transparent) 1px, transparent 1px);background-size:{{ gridSize }};background-repeat:{{ gridRepeat }};background-position:{{ gridPos }};cursor:{{ bgCursor }};user-select:none">
+      <div style="position:absolute;left:0;top:0;transform-origin:0 0;transform:{{ xform }}">
+        <svg width="1" height="1" style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none">
+          <defs>
+            <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted-foreground)"></path></marker>
+            <marker id="arw-sup" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--chart-2)"></path></marker>
+            <marker id="arw-in" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--chart-3)"></path></marker>
+            <marker id="arw-sel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--foreground)"></path></marker>
+          </defs>
+          <sc-for list="{{ paths }}" as="p" hint-placeholder-count="0">
+            <path d="{{ p.d }}" fill="none" stroke="{{ p.stroke }}" stroke-width="{{ p.width }}" stroke-dasharray="{{ p.dash }}" marker-end="{{ p.marker }}"></path>
+          </sc-for>
+        </svg>
+        <sc-for list="{{ terminals }}" as="t" hint-placeholder-count="0">
+          <div onMouseDown="{{ t.onDown }}" style="position:absolute;left:{{ t.x }}px;top:{{ t.y }}px;width:{{ t.w }}px;height:{{ t.h }}px;border-radius:999px;font-family:var(--font-mono);font-size:12px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:{{ t.shadow }};color:{{ t.color }};background:var(--background);cursor:move;overflow:hidden">
+            <span style="width:7px;height:7px;border-radius:50%;background:{{ t.dot }}"></span>{{ t.label }}
+            <div onMouseDown="{{ t.onResize }}" style="position:absolute;right:10px;bottom:0;width:12px;height:12px;cursor:nwse-resize;border-right:2px solid {{ t.handleColor }};border-bottom:2px solid {{ t.handleColor }};border-radius:0 0 6px 0;margin:4px"></div>
+          </div>
+        </sc-for>
+        <sc-for list="{{ nodes }}" as="n" hint-placeholder-count="0">
+          <div onMouseDown="{{ n.onDown }}" style="position:absolute;left:{{ n.x }}px;top:{{ n.y }}px;width:{{ n.w }}px;height:{{ n.h }}px;background:{{ n.bg }};color:var(--card-foreground);border-radius:{{ n.radius }};border:{{ n.border }};box-shadow:{{ n.shadow }};cursor:move;display:flex;flex-direction:column;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 12px 0 12px">
+              <span style="font-family:var(--font-mono);font-size:11px;font-weight:500;padding:1px 7px;border-radius:999px;border:1px solid {{ n.badgeBorder }};color:{{ n.badgeColor }};white-space:nowrap">{{ n.type }}</span>
+              <div style="flex:1"></div>
+              <sc-if value="{{ n.hasErrors }}" hint-placeholder-val="{{ false }}">
+                <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Tooltip" content="{{ n.errorText }}" side="top" hint-size="16px,16px"><span style="display:inline-flex;color:var(--destructive)"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Icon" name="triangle-alert" size="15" hint-size="15px,15px"></x-import></span></x-import>
+              </sc-if>
+            </div>
+            <div style="padding:8px 12px 0 12px;min-height:0">
+              <div style="font-weight:500;font-size:14px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ n.label }}</div>
+              <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted-foreground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ n.id }}</div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px 10px;padding:8px 12px 10px 12px;margin-top:auto;font-size:11px;overflow:hidden">
+              <sc-for list="{{ n.meta }}" as="m" hint-placeholder-count="0">
+                <span style="display:inline-flex;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%"><span style="color:var(--muted-foreground)">{{ m.k }}</span><span style="font-family:var(--font-mono);color:{{ m.color }};overflow:hidden;text-overflow:ellipsis">{{ m.v }}</span></span>
+              </sc-for>
+            </div>
+            <div onMouseDown="{{ n.onResize }}" style="position:absolute;right:0;bottom:0;width:14px;height:14px;cursor:nwse-resize;border-right:2px solid {{ n.handleColor }};border-bottom:2px solid {{ n.handleColor }};border-radius:0 0 10px 0;margin:3px"></div>
+          </div>
+        </sc-for>
+        <sc-for list="{{ handles }}" as="h" hint-placeholder-count="0">
+          <div onMouseDown="{{ h.onDown }}" title="Drag to reshape edge" style="position:absolute;left:{{ h.x }}px;top:{{ h.y }}px;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--background);border:2px solid {{ h.color }};cursor:grab;z-index:2"></div>
+        </sc-for>
+        <sc-for list="{{ labels }}" as="l" hint-placeholder-count="0">
+          <div title="{{ l.full }}" style="position:absolute;left:{{ l.x }}px;top:{{ l.y }}px;transform:translate(-50%,-50%);max-width:{{ l.maxW }}px;padding:1px 7px;border-radius:999px;background:var(--background);border:1px solid {{ l.border }};font-size:11px;color:{{ l.color }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:auto;cursor:default">{{ l.text }}</div>
+        </sc-for>
+      </div>
+      <div onMouseDown="{{ onMiniDown }}" style="position:absolute;right:16px;bottom:16px;width:180px;height:112px;background:var(--background);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:0 1px 2px rgba(0,0,0,.05);overflow:hidden;cursor:crosshair">
+        <svg width="180" height="112" viewBox="{{ miniBox }}" preserveAspectRatio="xMidYMid meet" style="display:block">
+          <sc-for list="{{ miniNodes }}" as="r" hint-placeholder-count="0"><rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}" rx="{{ r.rx }}" style="fill:{{ r.fill }}"></rect></sc-for>
+          <rect x="{{ miniView.x }}" y="{{ miniView.y }}" width="{{ miniView.w }}" height="{{ miniView.h }}" style="fill:color-mix(in oklch, var(--foreground) 6%, transparent);stroke:var(--foreground);stroke-width:{{ miniView.sw }}"></rect>
+        </svg>
+      </div>
+      <div style="position:absolute;left:16px;bottom:16px;font-size:12px;color:var(--muted-foreground);pointer-events:none">Drag canvas to pan · scroll to pan · ⌘/Ctrl+scroll to zoom</div>
+    </div>
+    <aside style="border-left:1px solid var(--border);overflow:auto;background:var(--background);min-height:0">
+      <sc-if value="{{ showGraph }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:20px;display:flex;flex-direction:column;gap:20px">
+          <div>
+            <div style="font-weight:600;font-size:16px;letter-spacing:-0.015em">Graph settings</div>
+            <div style="color:var(--muted-foreground);font-size:13px;margin-top:2px">Pipeline metadata and file-level defaults.</div>
+          </div>
+          <sc-for list="{{ graphSections }}" as="s" hint-placeholder-count="0">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="font-size:12px;font-weight:500;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:0.05em;padding-bottom:6px;border-bottom:1px solid var(--border)">{{ s.title }}</div>
+              <sc-for list="{{ s.fields }}" as="f" hint-placeholder-count="0">
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Label" hint-size="auto,16px">{{ f.label }}</x-import>
+                  <sc-if value="{{ f.isText }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Input" value="{{ f.value }}" placeholder="{{ f.placeholder }}" on-change="{{ f.onChange }}" style="{{ f.style }}" hint-size="100%,36px"></x-import></sc-if>
+                  <sc-if value="{{ f.isTextarea }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Textarea" rows="{{ f.rows }}" value="{{ f.value }}" placeholder="{{ f.placeholder }}" on-change="{{ f.onChange }}" hint-size="100%,80px"></x-import></sc-if>
+                  <sc-if value="{{ f.isEnum }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Select" value="{{ f.value }}" on-change="{{ f.onChange }}" hint-size="100%,36px"><sc-for list="{{ f.options }}" as="o" hint-placeholder-count="0"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></x-import></sc-if>
+                  <sc-if value="{{ f.error }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--destructive)">{{ f.error }}</div></sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{ showNode }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:20px;display:flex;flex-direction:column;gap:20px">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-family:var(--font-mono);font-size:11px;font-weight:500;padding:1px 7px;border-radius:999px;border:1px solid var(--border);color:var(--muted-foreground)">{{ selType }}</span>
+                <span style="font-size:12px;color:var(--muted-foreground)">{{ selTypeDesc }}</span>
+              </div>
+              <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
+                <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Label" hint-size="auto,16px">id</x-import>
+                <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Input" value="{{ selId }}" on-change="{{ onIdChange }}" style="font-family:var(--font-mono)" hint-size="100%,36px"></x-import>
+                <sc-if value="{{ selIdError }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--destructive)">{{ selIdError }}</div></sc-if>
+              </div>
+            </div>
+            <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Button" variant="ghost" size="icon-sm" on-click="{{ deleteSel }}" title="Delete node" hint-size="32px,32px"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Icon" name="trash-2" size="16" hint-size="16px,16px"></x-import></x-import>
+          </div>
+          <sc-if value="{{ selErrorCount }}" hint-placeholder-val="{{ false }}">
+            <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Alert" variant="destructive" hint-size="100%,60px">
+              <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.AlertTitle" hint-size="auto,20px">Schema issues</x-import>
+              <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.AlertDescription" hint-size="auto,20px"><sc-for list="{{ selErrors }}" as="e" hint-placeholder-count="0"><div>{{ e }}</div></sc-for></x-import>
+            </x-import>
+          </sc-if>
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+            <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Switch" checked="{{ selIsStart }}" on-checked-change="{{ setStart }}" hint-size="32px,18px"></x-import>
+            <span style="white-space:nowrap">Start node</span>
+          </div>
+          <sc-for list="{{ sections }}" as="s" hint-placeholder-count="0">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="font-size:12px;font-weight:500;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:0.05em;padding-bottom:6px;border-bottom:1px solid var(--border)">{{ s.title }}</div>
+              <sc-for list="{{ s.fields }}" as="f" hint-placeholder-count="0">
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Label" hint-size="auto,16px">{{ f.label }}</x-import>
+                    <sc-if value="{{ f.required }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--muted-foreground)">required</span></sc-if>
+                    <sc-if value="{{ f.inherited }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--muted-foreground);margin-left:auto">default: {{ f.inherited }}</span></sc-if>
+                  </div>
+                  <sc-if value="{{ f.isText }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Input" value="{{ f.value }}" placeholder="{{ f.placeholder }}" on-change="{{ f.onChange }}" style="{{ f.style }}" hint-size="100%,36px"></x-import></sc-if>
+                  <sc-if value="{{ f.isTextarea }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Textarea" rows="{{ f.rows }}" value="{{ f.value }}" placeholder="{{ f.placeholder }}" on-change="{{ f.onChange }}" style="{{ f.style }}" hint-size="100%,120px"></x-import></sc-if>
+                  <sc-if value="{{ f.isEnum }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Select" value="{{ f.value }}" on-change="{{ f.onChange }}" hint-size="100%,36px"><sc-for list="{{ f.options }}" as="o" hint-placeholder-count="0"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></x-import></sc-if>
+                  <sc-if value="{{ f.error }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--destructive)">{{ f.error }}</div></sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+          <sc-if value="{{ hasLinks }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:6px;border-bottom:1px solid var(--border)">
+                <span style="font-size:12px;font-weight:500;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:0.05em">{{ linksTitle }}</span>
+                <sc-if value="{{ canAddEdge }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Button" variant="outline" size="xs" on-click="{{ addEdge }}" hint-size="auto,24px"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Icon" name="plus" size="12" hint-size="12px,12px"></x-import>Add edge</x-import></sc-if>
+              </div>
+              <sc-if value="{{ linksHint }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--muted-foreground);margin-top:-6px">{{ linksHint }}</div></sc-if>
+              <sc-for list="{{ links }}" as="k" hint-placeholder-count="0">
+                <div style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--card)">
+                  <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span style="font-size:12px;color:var(--muted-foreground);min-width:52px">{{ k.label }}</span>
+                      <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Select" size="sm" value="{{ k.to }}" on-change="{{ k.onTo }}" hint-size="100%,32px"><sc-for list="{{ targetOptions }}" as="o" hint-placeholder-count="0"><option value="{{ o.v }}" disabled="{{ o.disabled }}">{{ o.l }}</option></sc-for></x-import>
+                    </div>
+                    <sc-if value="{{ k.hasCondition }}" hint-placeholder-val="{{ false }}">
+                      <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Input" value="{{ k.condition }}" placeholder="Condition — why the agent should take this edge" on-change="{{ k.onCond }}" style="height:32px;font-size:13px" hint-size="100%,32px"></x-import>
+                    </sc-if>
+                    <sc-if value="{{ k.error }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--destructive)">{{ k.error }}</div></sc-if>
+                  </div>
+                  <sc-if value="{{ k.removable }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Button" variant="ghost" size="icon-sm" on-click="{{ k.onRemove }}" hint-size="32px,32px"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Icon" name="x" size="14" hint-size="14px,14px"></x-import></x-import></sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ isSupervisor }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="font-size:12px;font-weight:500;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:0.05em;padding-bottom:6px;border-bottom:1px solid var(--border)">Supervises</div>
+              <sc-for list="{{ superviseOptions }}" as="o" hint-placeholder-count="0">
+                <label style="display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer">
+                  <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Checkbox" checked="{{ o.checked }}" on-checked-change="{{ o.onToggle }}" hint-size="16px,16px"></x-import>
+                  <span style="font-family:var(--font-mono);font-size:12px">{{ o.id }}</span><span style="color:var(--muted-foreground)">{{ o.label }}</span>
+                </label>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ isParallel }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:6px;border-bottom:1px solid var(--border)">
+                <span style="font-size:12px;font-weight:500;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:0.05em">Branches</span>
+                <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Button" variant="outline" size="xs" on-click="{{ addBranch }}" hint-size="auto,24px"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Icon" name="plus" size="12" hint-size="12px,12px"></x-import>Add branch</x-import>
+              </div>
+              <sc-for list="{{ branches }}" as="b" hint-placeholder-count="0">
+                <div style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--card)">
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Input" value="{{ b.id }}" placeholder="branch id" on-change="{{ b.onId }}" style="height:32px;font-family:var(--font-mono);font-size:12px" hint-size="100%,32px"></x-import>
+                    <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Input" value="{{ b.artifacts }}" placeholder="artifacts, comma separated" on-change="{{ b.onArtifacts }}" style="height:32px;font-family:var(--font-mono);font-size:12px" hint-size="100%,32px"></x-import>
+                    <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Textarea" rows="3" value="{{ b.prompt }}" placeholder="Prompt override (optional)" on-change="{{ b.onPrompt }}" style="font-size:13px" hint-size="100%,60px"></x-import>
+                  </div>
+                  <x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Button" variant="ghost" size="icon-sm" on-click="{{ b.onRemove }}" hint-size="32px,32px"><x-import component-from-global-scope="ShadcnSvelteDesignSystem_ce4a1c.Icon" name="x" size="14" hint-size="14px,14px"></x-import></x-import>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showInheritedSettings&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Node cards&quot;},&quot;snapToGrid&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Canvas&quot;}}">
+const ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const DUR_RE = /^[0-9]+(ms|s|m|h|d)$/;
+const EFFORT = ['low', 'medium', 'high'];
+const TYPE_DESC = {
+  codergen: 'Runs an LLM task.',
+  parallel: 'Concurrently walks each branch.',
+  'parallel.fan_in': 'Evaluates branch evidence with an LLM turn.',
+  tool: 'Executes one shell command.',
+  supervisor: 'Observes nodes and coaches them outside the walk.',
+  loop: 'Iterates a checklist file until done.',
+};
+const LLM = ['llm_provider', 'llm_model', 'reasoning_effort', 'fidelity'];
+const LIMITS = ['timeout', 'max_retries', 'max_visits', 'thread_id'];
+const FIELD_SECTIONS = {
+  codergen: [['Task', ['label', 'prompt']], ['Model', LLM], ['Limits', LIMITS]],
+  parallel: [['Task', ['label', 'prompt', 'workspace', 'max_parallel']], ['Model', LLM], ['Limits', LIMITS]],
+  'parallel.fan_in': [['Task', ['label', 'prompt']], ['Model', LLM], ['Limits', LIMITS]],
+  tool: [['Command', ['label', 'tool_command']], ['Limits', ['timeout', 'max_visits']]],
+  supervisor: [['Coaching', ['label', 'prompt', 'interval']], ['Model', ['llm_provider', 'llm_model', 'reasoning_effort']], ['Limits', ['timeout']]],
+  loop: [['Loop', ['label', 'checklist']], ['Infer judge', ['llm_provider', 'llm_model', 'reasoning_effort']], ['Evaluator', ['evaluator_llm_provider', 'evaluator_llm_model', 'evaluator_reasoning_effort']], ['Limits', ['timeout', 'max_visits']]],
+};
+const FIELD_META = {
+  label: { label: 'Label' },
+  prompt: { label: 'Prompt', kind: 'textarea', rows: 8 },
+  tool_command: { label: 'Command', mono: true, required: true, placeholder: 'go test ./...' },
+  checklist: { label: 'Checklist path', mono: true, placeholder: 'docs/CHECKLIST.md' },
+  workspace: { label: 'Workspace', kind: 'enum', options: ['isolated', 'shared'] },
+  max_parallel: { label: 'Max parallel', kind: 'int' },
+  llm_provider: { label: 'Provider', inherit: true },
+  llm_model: { label: 'Model', inherit: true, mono: true },
+  reasoning_effort: { label: 'Reasoning effort', kind: 'enum', options: EFFORT, inherit: true },
+  fidelity: { label: 'Fidelity', inherit: true },
+  evaluator_llm_provider: { label: 'Provider' },
+  evaluator_llm_model: { label: 'Model', mono: true },
+  evaluator_reasoning_effort: { label: 'Reasoning effort', kind: 'enum', options: EFFORT },
+  timeout: { label: 'Timeout', kind: 'duration', inherit: true, placeholder: '30m' },
+  interval: { label: 'Interval', kind: 'duration', placeholder: '5m' },
+  max_retries: { label: 'Max retries', kind: 'int', inherit: true },
+  max_visits: { label: 'Max visits', kind: 'int' },
+  thread_id: { label: 'Thread id', mono: true },
+};
+const REQUIRED = { tool: ['tool_command', 'on_success'], supervisor: ['prompt', 'supervises'], loop: ['body', 'on_done'], parallel: ['branches'] };
+const TERMINAL = ['success', 'failure'];
+
+const SAMPLE = {
+  name: 'Ship feature',
+  goal: 'Implement the requested change end to end, with passing tests and a completed release checklist.',
+  start: 'plan',
+  defaults: { llm_provider: 'anthropic', llm_model: 'claude-sonnet-4', reasoning_effort: 'medium', max_retries: 2, timeout: '30m' },
+  nodes: [
+    { type: 'codergen', id: 'plan', label: 'Plan the change', prompt: 'Read the goal and the repository. Produce a short implementation plan that lists the files to touch and the tests that prove the change works.', reasoning_effort: 'high', edges: [{ to: 'implement', condition: 'plan is complete and scoped' }, { to: 'failure', condition: 'requirements are contradictory or impossible' }] },
+    { type: 'parallel', id: 'implement', label: 'Implement in parallel', prompt: 'Implement your branch of the plan. Stay inside the declared artifacts.', workspace: 'isolated', max_parallel: 2, branches: [{ id: 'backend', artifacts: ['pkg/**'] }, { id: 'frontend', artifacts: ['web/**'], codergen: { prompt: 'Implement the UI portion only.' } }], edges: [{ to: 'merge_review' }] },
+    { type: 'parallel.fan_in', id: 'merge_review', label: 'Review and merge branches', prompt: 'Inspect each branch result. Merge them if compatible; otherwise explain what conflicts.', edges: [{ to: 'run_tests', condition: 'branches merge cleanly' }, { to: 'plan', condition: 'branches conflict and need replanning' }] },
+    { type: 'tool', id: 'run_tests', label: 'Run test suite', tool_command: 'go test ./... && pnpm -C web test', timeout: '15m', on_success: 'checklist', on_error: 'fix_tests' },
+    { type: 'codergen', id: 'fix_tests', label: 'Fix failing tests', prompt: 'Read the test output and fix the failures without weakening the tests.', max_visits: 3, edges: [{ to: 'run_tests' }] },
+    { type: 'loop', id: 'checklist', label: 'Release checklist', checklist: 'docs/RELEASE_CHECKLIST.md', body: 'do_item', on_done: 'success', max_visits: 12 },
+    { type: 'codergen', id: 'do_item', label: 'Complete checklist item', prompt: 'Complete the current checklist item and record evidence.', edges: [{ to: 'checklist' }] },
+    { type: 'supervisor', id: 'watchdog', label: 'Watchdog', prompt: 'Watch for loops, scope creep, and stalled progress. Nudge with one concrete instruction.', interval: '5m', supervises: ['implement', 'fix_tests'] },
+  ],
+};
+const SAMPLE_LAYOUT = {
+  plan: { x: 60, y: 200, w: 240, h: 128 },
+  implement: { x: 520, y: 200, w: 250, h: 128 },
+  merge_review: { x: 990, y: 200, w: 250, h: 128 },
+  run_tests: { x: 1460, y: 200, w: 250, h: 128 },
+  fix_tests: { x: 1460, y: 440, w: 250, h: 128 },
+  checklist: { x: 1930, y: 200, w: 250, h: 128 },
+  do_item: { x: 1930, y: 420, w: 250, h: 128 },
+  watchdog: { x: 900, y: 480, w: 250, h: 116 },
+  success: { x: 2330, y: 236, w: 150, h: 56 },
+  failure: { x: 420, y: 60, w: 150, h: 56 },
+};
+
+class Component extends DCLogic {
+  state = { graph: SAMPLE, layout: SAMPLE_LAYOUT, sel: null, dark: false, pan: { x: 40, y: 60 }, zoom: 0.85, drag: null, vw: 1000, vh: 700 };
+  vpRef = React.createRef();
+
+  componentDidMount() {
+    this._move = (e) => this.onMove(e);
+    this._up = () => this.setState({ drag: null });
+    window.addEventListener('mousemove', this._move);
+    window.addEventListener('mouseup', this._up);
+    this._key = (e) => {
+      const t = e.target; if (t && /INPUT|TEXTAREA|SELECT/.test(t.tagName)) return;
+      if ((e.key === 'Delete' || e.key === 'Backspace') && this.state.sel) this.deleteSel();
+    };
+    window.addEventListener('keydown', this._key);
+    const vp = this.vpRef.current;
+    if (vp) {
+      this._wheel = (e) => {
+        e.preventDefault();
+        const { pan, zoom } = this.state;
+        if (e.ctrlKey || e.metaKey) {
+          const r = vp.getBoundingClientRect();
+          const mx = e.clientX - r.left, my = e.clientY - r.top;
+          const nz = Math.min(2.5, Math.max(0.2, zoom * Math.exp(-e.deltaY * 0.0015)));
+          this.setState({ zoom: nz, pan: { x: mx - (mx - pan.x) * nz / zoom, y: my - (my - pan.y) * nz / zoom } });
+        } else this.setState({ pan: { x: pan.x - e.deltaX, y: pan.y - e.deltaY } });
+      };
+      vp.addEventListener('wheel', this._wheel, { passive: false });
+      this._ro = new ResizeObserver(() => this.setState({ vw: vp.clientWidth, vh: vp.clientHeight }));
+      this._ro.observe(vp);
+      this.setState({ vw: vp.clientWidth, vh: vp.clientHeight });
+    }
+  }
+  componentWillUnmount() {
+    window.removeEventListener('mousemove', this._move); window.removeEventListener('mouseup', this._up); window.removeEventListener('keydown', this._key);
+    if (this.vpRef.current && this._wheel) this.vpRef.current.removeEventListener('wheel', this._wheel);
+    if (this._ro) this._ro.disconnect();
+  }
+  onMove(e) {
+    const d = this.state.drag; if (!d) return;
+    const { zoom } = this.state;
+    if (d.id && !this.state.layout[d.id] && d.type !== 'edge') this.state.layout[d.id] = { x: d.ox || 0, y: d.oy || 0, w: d.ow || 150, h: d.oh || 56 };
+    if (d.type === 'edge') return this.setState({ layout: { ...this.state.layout, [d.key]: { x: d.ox + (e.clientX - d.sx) / zoom, y: d.oy + (e.clientY - d.sy) / zoom } } });
+    if (d.type === 'pan') this.setState({ pan: { x: d.ox + e.clientX - d.sx, y: d.oy + e.clientY - d.sy } });
+    else if (d.type === 'move') {
+      const snap = this.props.snapToGrid ? (v) => Math.round(v / 24) * 24 : (v) => v;
+      const l = { ...this.state.layout[d.id], x: snap(d.ox + (e.clientX - d.sx) / zoom), y: snap(d.oy + (e.clientY - d.sy) / zoom) };
+      this.setState({ layout: { ...this.state.layout, [d.id]: l } });
+    } else if (d.type === 'resize') {
+      const l = { ...this.state.layout[d.id], w: Math.max(TERMINAL.includes(d.id) ? 96 : 160, d.ow + (e.clientX - d.sx) / zoom), h: Math.max(TERMINAL.includes(d.id) ? 36 : 84, d.oh + (e.clientY - d.sy) / zoom) };
+      this.setState({ layout: { ...this.state.layout, [d.id]: l } });
+    }
+  }
+  // graph mutation helpers
+  setGraph(fn) { this.setState(s => ({ graph: fn(s.graph) })); }
+  updNode(id, patch) { this.setGraph(g => ({ ...g, nodes: g.nodes.map(n => n.id === id ? { ...n, ...patch } : n) })); }
+  setField(id, key, kind, raw) {
+    let v = raw;
+    if (kind === 'int') v = raw === '' ? undefined : parseInt(raw, 10);
+    if (v === '' ) v = undefined;
+    this.updNode(id, { [key]: v });
+  }
+  renameNode(oldId, newId) {
+    if (newId === oldId) return;
+    const ren = (x) => x === oldId ? newId : x;
+    this.setState(s => {
+      const nodes = s.graph.nodes.map(n => {
+        const m = { ...n };
+        if (m.id === oldId) m.id = newId;
+        if (m.edges) m.edges = m.edges.map(e => ({ ...e, to: ren(e.to) }));
+        for (const k of ['on_success', 'on_error', 'body', 'on_done']) if (m[k] !== undefined) m[k] = ren(m[k]);
+        if (m.supervises) m.supervises = m.supervises.map(ren);
+        return m;
+      });
+      const layout = {}; for (const k in s.layout) layout[ren(k)] = s.layout[k];
+      return { graph: { ...s.graph, nodes, start: ren(s.graph.start) }, layout, sel: s.sel === oldId ? newId : s.sel };
+    });
+  }
+  deleteSel() {
+    const id = this.state.sel; if (!id || TERMINAL.includes(id)) return;
+    this.setState(s => {
+      const layout = { ...s.layout }; delete layout[id];
+      const nodes = s.graph.nodes.filter(n => n.id !== id).map(n => {
+        const m = { ...n };
+        if (m.edges) m.edges = m.edges.filter(e => e.to !== id);
+        for (const k of ['on_success', 'on_error', 'body', 'on_done']) if (m[k] === id) m[k] = k === 'on_error' ? undefined : '';
+        if (m.supervises) m.supervises = m.supervises.filter(x => x !== id);
+        return m;
+      });
+      return { graph: { ...s.graph, nodes, start: s.graph.start === id ? '' : s.graph.start }, layout, sel: null };
+    });
+  }
+  linksOf(n) {
+    const t = n.type;
+    if (t === 'tool') return [{ to: n.on_success, label: 'success' }, { to: n.on_error, label: 'error' }];
+    if (t === 'loop') return [{ to: n.body, label: 'body' }, { to: n.on_done, label: 'done' }];
+    if (t === 'supervisor') return (n.supervises || []).map(to => ({ to, label: '', dashed: true }));
+    return (n.edges || []).map(e => ({ to: e.to, label: e.condition || '' }));
+  }
+  validate(g) {
+    const ids = g.nodes.map(n => n.id), errs = {};
+    const push = (id, m) => (errs[id] = errs[id] || []).push(m);
+    const known = (x) => ids.includes(x) || TERMINAL.includes(x);
+    g.nodes.forEach(n => {
+      if (!ID_RE.test(n.id || '')) push(n.id, 'id must match ^[A-Za-z_][A-Za-z0-9_]*$');
+      if (TERMINAL.includes(n.id)) push(n.id, 'id may not be success or failure');
+      if (ids.filter(x => x === n.id).length > 1) push(n.id, 'duplicate id');
+      for (const k of ['timeout', 'interval']) if (n[k] && !DUR_RE.test(n[k])) push(n.id, `${k} must be an integer followed by ms, s, m, h, or d`);
+      for (const k of (REQUIRED[n.type] || [])) {
+        const v = n[k]; if (v === undefined || v === '' || (Array.isArray(v) && !v.length)) push(n.id, `${k} is required`);
+      }
+      this.linksOf(n).forEach(l => { if (l.to && !known(l.to)) push(n.id, `target "${l.to}" does not exist`); });
+      if (n.type === 'supervisor') (n.supervises || []).forEach(x => { if (ids.includes(x) && !['codergen', 'parallel', 'parallel.fan_in'].includes(g.nodes.find(m => m.id === x).type)) push(n.id, `cannot supervise ${x}`); });
+      if (n.type === 'parallel') (n.branches || []).forEach(b => { if (typeof b === 'object' && (!b.id || !(b.artifacts || []).length)) push(n.id, `branch ${b.id || '(unnamed)'} needs an id and at least one artifact`); });
+    });
+    return errs;
+  }
+  addNode(e) {
+    const type = e.target.value; if (!type) return;
+    const base = type.replace('.', '_').replace('parallel_fan_in', 'fan_in');
+    const ids = this.state.graph.nodes.map(n => n.id);
+    let i = 1, id = base; while (ids.includes(id)) id = `${base}_${++i}`;
+    const n = { type, id, label: '' };
+    if (type === 'tool') Object.assign(n, { tool_command: '', on_success: '' });
+    if (type === 'supervisor') Object.assign(n, { prompt: '', supervises: [] });
+    if (type === 'loop') Object.assign(n, { body: '', on_done: '' });
+    if (type === 'parallel') Object.assign(n, { branches: [], edges: [] });
+    if (type === 'codergen' || type === 'parallel.fan_in') n.edges = [];
+    const { pan, zoom, vw, vh } = this.state;
+    const cx = (vw / 2 - pan.x) / zoom - 120, cy = (vh / 2 - pan.y) / zoom - 60;
+    this.setState(s => ({ graph: { ...s.graph, nodes: [...s.graph.nodes, n] }, layout: { ...s.layout, [id]: { x: cx, y: cy, w: 240, h: 120 } }, sel: id }));
+    e.target.value = '';
+  }
+  fitView() {
+    const ls = Object.values(this.state.layout).filter(l => l.w); if (!ls.length) return;
+    const x0 = Math.min(...ls.map(l => l.x)) - 40, y0 = Math.min(...ls.map(l => l.y)) - 40;
+    const x1 = Math.max(...ls.map(l => l.x + l.w)) + 140, y1 = Math.max(...ls.map(l => l.y + l.h)) + 40;
+    const { vw, vh } = this.state;
+    const zoom = Math.min(1.5, vw / (x1 - x0), vh / (y1 - y0));
+    this.setState({ zoom, pan: { x: (vw - (x1 - x0) * zoom) / 2 - x0 * zoom, y: (vh - (y1 - y0) * zoom) / 2 - y0 * zoom } });
+  }
+  zoomBy(f) {
+    const { pan, zoom, vw, vh } = this.state, nz = Math.min(2.5, Math.max(0.2, zoom * f));
+    this.setState({ zoom: nz, pan: { x: vw / 2 - (vw / 2 - pan.x) * nz / zoom, y: vh / 2 - (vh / 2 - pan.y) * nz / zoom } });
+  }
+  bounds() {
+    const ls = Object.values(this.state.layout).filter(l => l.w);
+    if (!ls.length) return { x: 0, y: 0, w: 1000, h: 600 };
+    const x0 = Math.min(...ls.map(l => l.x)) - 200, y0 = Math.min(...ls.map(l => l.y)) - 200;
+    return { x: x0, y: y0, w: Math.max(...ls.map(l => l.x + l.w)) + 200 - x0, h: Math.max(...ls.map(l => l.y + l.h)) + 200 - y0 };
+  }
+
+  renderVals() {
+    const { graph: g, layout: layout0, sel, dark, pan, zoom, drag, vw, vh } = this.state;
+    const layout = { ...layout0 };
+    if (!layout.success || !layout.failure) {
+      const ls = Object.values(layout0).filter(l => l.w), mx = ls.length ? Math.max(...ls.map(l => l.x + l.w)) : 0, my = ls.length ? Math.min(...ls.map(l => l.y)) : 0;
+      if (!layout.success) layout.success = { x: mx + 160, y: my + 36, w: 150, h: 56 };
+      if (!layout.failure) layout.failure = { x: mx + 160, y: my + 136, w: 150, h: 56 };
+    }
+    const errs = this.validate(g);
+    const ids = g.nodes.map(n => n.id);
+    const nodeById = Object.fromEntries(g.nodes.map(n => [n.id, n]));
+    const d = g.defaults || {};
+    const isDark = dark;
+    const mutedFg = 'var(--muted-foreground)', fg = 'var(--foreground)';
+
+    // ---- canvas geometry ----
+    const paths = [], labels = [], handles = [];
+    g.nodes.forEach(n => {
+      const L = layout[n.id]; if (!L) return;
+      const links = this.linksOf(n).filter(l => l.to);
+      // anchor on the side of box B that faces point P
+      const anchor = (Bx, P) => {
+        const cx = Bx.x + Bx.w / 2, cy = Bx.y + Bx.h / 2;
+        if (P.x < Bx.x) return [Bx.x, Math.max(Bx.y + 12, Math.min(Bx.y + Bx.h - 12, P.y))];
+        if (P.x > Bx.x + Bx.w) return [Bx.x + Bx.w, Math.max(Bx.y + 12, Math.min(Bx.y + Bx.h - 12, P.y))];
+        return P.y < cy ? [cx, Bx.y] : [cx, Bx.y + Bx.h];
+      };
+      links.forEach((l, i) => {
+        const isOut = sel === n.id, isIn = !isOut && sel === l.to, selected = isOut || isIn;
+        const T = layout[l.to]; if (!T) return;
+        const key = `e:${n.id}>${i}`;
+        const W = layout[key];
+        let dpath, mid, handle;
+        if (l.dashed) {
+          const P0 = W || { x: (L.x + L.w / 2 + T.x + T.w / 2) / 2, y: Math.min(L.y, T.y + T.h) - 40 };
+          const [ax, ay] = anchor(L, P0), [bx, by] = anchor(T, P0);
+          const cx = 2 * P0.x - (ax + bx) / 2, cy = 2 * P0.y - (ay + by) / 2;
+          dpath = `M${ax} ${ay} Q${cx} ${cy} ${bx} ${by}`; mid = null; handle = P0;
+        } else if (W) {
+          const [ax, ay] = anchor(L, W), [bx, by] = anchor(T, W);
+          const cx = 2 * W.x - (ax + bx) / 2, cy = 2 * W.y - (ay + by) / 2;
+          dpath = `M${ax} ${ay} Q${cx} ${cy} ${bx} ${by}`; mid = [W.x, W.y]; handle = W;
+        } else if (T.x < L.x + L.w - 20) {
+          // back edge: loop underneath by default
+          const P0 = { x: (L.x + L.w / 2 + T.x + T.w / 2) / 2, y: Math.max(L.y + L.h, T.y + T.h) + 70 };
+          const ax = L.x + L.w / 2, ay = L.y + L.h, bx = T.x + T.w / 2, by = T.y + T.h;
+          const cx = 2 * P0.x - (ax + bx) / 2, cy = 2 * P0.y - (ay + by) / 2;
+          dpath = `M${ax} ${ay} Q${cx} ${cy} ${bx} ${by}`; mid = [P0.x, P0.y]; handle = P0;
+        } else {
+          const sy = L.y + L.h / 2 + (i - (links.length - 1) / 2) * 16, sx = L.x + L.w;
+          let tx = T.x, ty = T.y + T.h / 2;
+          if (T.x < L.x + L.w && T.x + T.w > L.x) { tx = T.x + T.w / 2; ty = T.y > L.y ? T.y : T.y + T.h; }
+          const dx = Math.max(50, Math.abs(tx - sx) / 2);
+          dpath = `M${sx} ${sy} C${sx + dx} ${sy} ${tx - dx} ${ty} ${tx} ${ty}`;
+          mid = [(sx + 3 * (sx + dx) + 3 * (tx - dx) + tx) / 8, (sy + 3 * sy + 3 * ty + ty) / 8 + (i - (links.length - 1) / 2) * 18];
+          handle = { x: mid[0], y: mid[1] };
+        }
+        if (l.dashed) paths.push({ d: dpath, stroke: 'var(--chart-2)', width: selected ? 2 : 1.5, dash: '6 4', marker: 'url(#arw-sup)' });
+        else paths.push({ d: dpath, stroke: isOut ? fg : isIn ? 'var(--chart-3)' : mutedFg, width: selected ? 1.75 : 1.25, dash: 'none', marker: isOut ? 'url(#arw-sel)' : isIn ? 'url(#arw-in)' : 'url(#arw)' });
+        if (mid && l.label) labels.push({ maxW: 150, x: mid[0], y: mid[1] - 13, text: l.label, full: l.label, color: isOut ? fg : isIn ? 'var(--chart-3)' : mutedFg, border: isIn ? 'var(--chart-3)' : 'var(--border)' });
+        if (sel === n.id) handles.push({ x: handle.x, y: handle.y, color: l.dashed ? 'var(--chart-2)' : fg, onDown: (e) => { e.stopPropagation(); this.setState({ drag: { type: 'edge', key, sx: e.clientX, sy: e.clientY, ox: handle.x, oy: handle.y } }); } });
+      });
+    });
+
+    // start arrow
+    const S = g.start && layout[g.start];
+    if (S) {
+      const y = S.y + S.h / 2, x0 = S.x - 96;
+      paths.push({ d: `M${x0} ${y} L${S.x} ${y}`, stroke: fg, width: 1.75, dash: 'none', marker: 'url(#arw-sel)' });
+      labels.push({ maxW: 60, x: x0 + 8, y, text: 'start', full: 'Start node', color: fg, border: 'var(--border)' });
+    }
+    const mkDown = (id, L) => (e) => { e.stopPropagation(); this.setState({ sel: id, drag: { type: 'move', id, sx: e.clientX, sy: e.clientY, ox: L.x, oy: L.y } }); };
+    const mkResize = (id, L) => (e) => { e.stopPropagation(); this.setState({ sel: id, drag: { type: 'resize', id, sx: e.clientX, sy: e.clientY, ow: L.w, oh: L.h } }); };
+    const terminals = TERMINAL.map(t => {
+      const L = layout[t], ok = t === 'success', selected = sel === t;
+      const ring = selected ? '0 0 0 2px var(--foreground)' : ok ? '0 0 0 1px var(--border)' : '0 0 0 1px color-mix(in oklch, var(--destructive) 45%, transparent)';
+      return { id: t, label: t, x: L.x, y: L.y, w: L.w, h: L.h, shadow: ring + ', 0 1px 2px rgba(0,0,0,.05)', color: ok ? fg : 'var(--destructive)', dot: ok ? fg : 'var(--destructive)', handleColor: selected ? mutedFg : 'transparent', onDown: mkDown(t, L), onResize: mkResize(t, L) };
+    });
+
+    const nodes = g.nodes.map(n => {
+      const L = layout[n.id] || { x: 0, y: 0, w: 240, h: 120 };
+      const selected = sel === n.id, hasErrors = !!errs[n.id];
+      const ring = hasErrors ? '0 0 0 2px var(--destructive)' : selected ? '0 0 0 2px var(--foreground)' : '0 0 0 1px color-mix(in oklch, var(--foreground) 10%, transparent)';
+      const shadow = ring + ', 0 1px 2px rgba(0,0,0,.06)';
+      const meta = [];
+      const showInh = this.props.showInheritedSettings ?? true;
+      const push = (k, v, inherited) => { if (v !== undefined && v !== '' && v !== null && (showInh || !inherited)) meta.push({ k, v: String(v), color: inherited ? mutedFg : fg }); };
+      if (n.type === 'tool') { push('cmd', n.tool_command); push('timeout', n.timeout ?? d.timeout, n.timeout === undefined); }
+      else if (n.type === 'loop') { push('checklist', n.checklist); push('model', n.llm_model ?? d.llm_model, n.llm_model === undefined); push('visits', n.max_visits); }
+      else if (n.type === 'supervisor') { push('every', n.interval); push('watching', (n.supervises || []).length); push('model', n.llm_model ?? d.llm_model, n.llm_model === undefined); }
+      else {
+        push('model', n.llm_model ?? d.llm_model, n.llm_model === undefined);
+        push('effort', n.reasoning_effort ?? d.reasoning_effort, n.reasoning_effort === undefined);
+        push('timeout', n.timeout ?? d.timeout, n.timeout === undefined);
+        push('retries', n.max_retries ?? d.max_retries, n.max_retries === undefined);
+        if (n.type === 'parallel') { push('branches', (n.branches || []).length); push('ws', n.workspace); }
+      }
+      const isSup = n.type === 'supervisor';
+      return {
+        radius: isSup ? '4px' : 'var(--radius-xl)', bg: isSup ? 'color-mix(in oklch, var(--chart-2) 7%, var(--card))' : 'var(--card)',
+        border: isSup ? '1.5px dashed var(--chart-2)' : '1px solid transparent',
+        badgeColor: isSup ? 'var(--chart-3)' : 'var(--muted-foreground)', badgeBorder: isSup ? 'color-mix(in oklch, var(--chart-2) 50%, transparent)' : 'var(--border)',
+        id: n.id, type: n.type, label: n.label || n.id, isStart: g.start === n.id, hasErrors, errorText: (errs[n.id] || []).join(' · '),
+        x: L.x, y: L.y, w: L.w, h: L.h, shadow, meta,
+        handleColor: selected ? 'var(--muted-foreground)' : 'var(--border)',
+        onDown: mkDown(n.id, L), onResize: mkResize(n.id, L),
+      };
+    });
+
+    // ---- minimap ----
+    const B = this.bounds();
+    const miniNodes = [...g.nodes.map(n => n.id), ...TERMINAL].map(id => { const L = layout[id]; return L ? { x: L.x, y: L.y, w: L.w, h: L.h, rx: TERMINAL.includes(id) ? 28 : 12, fill: sel === id ? fg : errs[id] ? 'var(--destructive)' : TERMINAL.includes(id) ? 'var(--border)' : 'var(--ring)' } : null; }).filter(Boolean);
+    const miniView = { x: -pan.x / zoom, y: -pan.y / zoom, w: vw / zoom, h: vh / zoom, sw: Math.max(B.w, B.h) / 400 };
+    const miniScale = Math.max(B.w / 180, B.h / 112);
+    const onMiniDown = (e) => {
+      e.stopPropagation();
+      const r = e.currentTarget.getBoundingClientRect();
+      const offX = (180 - B.w / miniScale) / 2, offY = (112 - B.h / miniScale) / 2;
+      const gx = B.x + (e.clientX - r.left - offX) * miniScale, gy = B.y + (e.clientY - r.top - offY) * miniScale;
+      this.setState({ pan: { x: vw / 2 - gx * zoom, y: vh / 2 - gy * zoom } });
+    };
+
+    // ---- inspector ----
+    const selNode = sel ? nodeById[sel] : null;
+    const targetOptions = [{ v: '', l: '— choose target —', disabled: false }, ...ids.filter(i => nodeById[i].type !== 'supervisor').map(i => ({ v: i, l: `${i}${nodeById[i].label ? ' · ' + nodeById[i].label : ''}`, disabled: false })), { v: 'success', l: 'success', disabled: false }, { v: 'failure', l: 'failure', disabled: false }];
+    const mkField = (owner, key, get, set, extra) => {
+      const m = FIELD_META[key] || { label: key };
+      const kind = m.kind || 'text';
+      const raw = get(key);
+      const value = raw === undefined || raw === null ? '' : String(raw);
+      const inherited = m.inherit && d[key] !== undefined && raw === undefined ? String(d[key]) : '';
+      let error = '';
+      if (kind === 'duration' && value && !DUR_RE.test(value)) error = 'Integer followed by ms, s, m, h, or d';
+      const options = kind === 'enum' ? [{ v: '', l: inherited ? `inherit (${inherited})` : '—' }, ...m.options.map(o => ({ v: o, l: o }))] : [];
+      return {
+        key, label: m.label, value, rows: m.rows || 3, placeholder: inherited || m.placeholder || '', required: !!(extra && extra.required), inherited, error,
+        isText: kind === 'text' || kind === 'int' || kind === 'duration', isTextarea: kind === 'textarea', isEnum: kind === 'enum', options,
+        style: (m.mono || kind === 'duration' || kind === 'int') ? { fontFamily: 'var(--font-mono)', fontSize: 13 } : undefined,
+        onChange: (e) => set(key, kind, e.target.value),
+      };
+    };
+    let sections = [], links = [], hasLinks = false, linksTitle = '', linksHint = '', canAddEdge = false, branches = [], superviseOptions = [], selErrors = [];
+    if (selNode) {
+      const req = REQUIRED[selNode.type] || [];
+      sections = (FIELD_SECTIONS[selNode.type] || []).map(([title, keys]) => ({ title, fields: keys.map(k => mkField(selNode, k, (kk) => selNode[kk], (kk, kind, v) => this.setField(selNode.id, kk, kind, v), { required: req.includes(k) })) }));
+      selErrors = errs[selNode.id] || [];
+      const t = selNode.type;
+      const known = (x) => !x || ids.includes(x) || TERMINAL.includes(x);
+      if (t === 'tool' || t === 'loop') {
+        hasLinks = true; linksTitle = 'Transitions';
+        const keys = t === 'tool' ? [['on_success', 'success', true], ['on_error', 'error', false]] : [['body', 'body', true], ['on_done', 'done', true]];
+        linksHint = t === 'tool' ? 'Exit code decides the edge; no conditions needed.' : 'Body is the entry node of one lap; done is where the evaluator sends the walk.';
+        links = keys.map(([k, label, required]) => ({ label, to: selNode[k] || '', hasCondition: false, removable: false, error: !known(selNode[k]) ? 'Unknown target' : (required && !selNode[k] ? 'Required' : ''), onTo: (e) => this.updNode(selNode.id, { [k]: e.target.value || (required ? '' : undefined) }) }));
+      } else if (t !== 'supervisor') {
+        hasLinks = true; canAddEdge = true; linksTitle = 'Outgoing edges';
+        linksHint = 'The agent picks one edge by its condition. Leave the condition blank for an unconditional edge.';
+        const edges = selNode.edges || [];
+        links = edges.map((e, i) => ({
+          label: `edge ${i + 1}`, to: e.to || '', condition: e.condition || '', hasCondition: true, removable: true,
+          error: !known(e.to) ? 'Unknown target' : '',
+          onTo: (ev) => this.updNode(selNode.id, { edges: edges.map((x, j) => j === i ? { ...x, to: ev.target.value } : x) }),
+          onCond: (ev) => this.updNode(selNode.id, { edges: edges.map((x, j) => j === i ? { ...x, condition: ev.target.value || undefined } : x) }),
+          onRemove: () => this.updNode(selNode.id, { edges: edges.filter((_, j) => j !== i) }),
+        }));
+      }
+      if (t === 'supervisor') {
+        const sup = selNode.supervises || [];
+        superviseOptions = g.nodes.filter(n => ['codergen', 'parallel', 'parallel.fan_in'].includes(n.type)).map(n => ({ id: n.id, label: n.label || '', checked: sup.includes(n.id), onToggle: (c) => this.updNode(selNode.id, { supervises: c ? [...sup, n.id] : sup.filter(x => x !== n.id) }) }));
+      }
+      if (t === 'parallel') {
+        const bs = (selNode.branches || []).map(b => typeof b === 'string' ? { id: b, artifacts: [] } : b);
+        const setBs = (nb) => this.updNode(selNode.id, { branches: nb });
+        branches = bs.map((b, i) => ({
+          id: b.id || '', artifacts: (b.artifacts || []).join(', '), prompt: (b.codergen && b.codergen.prompt) || '',
+          onId: (e) => setBs(bs.map((x, j) => j === i ? { ...x, id: e.target.value } : x)),
+          onArtifacts: (e) => setBs(bs.map((x, j) => j === i ? { ...x, artifacts: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } : x)),
+          onPrompt: (e) => setBs(bs.map((x, j) => j === i ? { ...x, codergen: e.target.value ? { ...(x.codergen || {}), prompt: e.target.value } : undefined } : x)),
+          onRemove: () => setBs(bs.filter((_, j) => j !== i)),
+        }));
+      }
+    }
+    const graphSections = [
+      { title: 'Pipeline', fields: [
+        { key: 'name', label: 'Name', value: g.name || '', isText: true, onChange: (e) => this.setGraph(x => ({ ...x, name: e.target.value })) },
+        { key: 'goal', label: 'Goal', value: g.goal || '', isTextarea: true, rows: 4, placeholder: 'Objective exposed to prompt expansion', onChange: (e) => this.setGraph(x => ({ ...x, goal: e.target.value })) },
+        { key: 'start', label: 'Start node', value: g.start || '', isEnum: true, options: [{ v: '', l: '—' }, ...ids.filter(i => nodeById[i].type !== 'supervisor').map(i => ({ v: i, l: i }))], error: g.start && !ids.includes(g.start) ? 'Start node does not exist' : (!g.start ? 'Start is required' : ''), onChange: (e) => this.setGraph(x => ({ ...x, start: e.target.value })) },
+      ] },
+      { title: 'Defaults', fields: ['llm_provider', 'llm_model', 'reasoning_effort', 'fidelity', 'timeout', 'max_retries'].map(k => { const f = mkField(null, k, (kk) => d[kk], (kk, kind, v) => { let val = v; if (kind === 'int') val = v === '' ? undefined : parseInt(v, 10); if (val === '') val = undefined; this.setGraph(x => ({ ...x, defaults: { ...(x.defaults || {}), [kk]: val } })); }); f.inherited = ''; if (f.isEnum) f.options[0] = { v: '', l: '—' }; return f; }) },
+    ];
+    const errorCount = Object.values(errs).reduce((a, b) => a + b.length, 0) + (g.start && ids.includes(g.start) ? 0 : 1);
+
+    return {
+      rootClass: isDark ? 'dark' : '',
+      graphName: g.name || 'Untitled pipeline', nodeCount: g.nodes.length, errorCount,
+      darkIcon: isDark ? 'sun' : 'moon', toggleDark: () => this.setState({ dark: !isDark }),
+      zoomPct: Math.round(zoom * 100) + '%', zoomIn: () => this.zoomBy(1.2), zoomOut: () => this.zoomBy(1 / 1.2), fitView: () => this.fitView(),
+      openGraph: () => this.setState({ sel: null }), addNode: (e) => this.addNode(e),
+      vpRef: this.vpRef,
+      xform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+      gridSize: `${24 * zoom}px ${24 * zoom}px`, gridRepeat: zoom < 0.4 ? 'no-repeat' : 'repeat', gridPos: `${pan.x}px ${pan.y}px`,
+      bgCursor: drag && drag.type === 'pan' ? 'grabbing' : 'grab',
+      onBgDown: (e) => this.setState({ sel: null, drag: { type: 'pan', sx: e.clientX, sy: e.clientY, ox: pan.x, oy: pan.y } }),
+      paths, labels, handles, terminals, nodes,
+      jumpValue: sel && nodeById[sel] ? sel : '', jumpOptions: ids.map(i => ({ v: i, l: nodeById[i].label ? `${i} · ${nodeById[i].label}` : i })),
+      jumpTo: (e) => { const id = e.target.value; const L = layout[id]; if (!L) return; this.setState({ sel: id, pan: { x: vw / 2 - (L.x + L.w / 2) * zoom, y: vh / 2 - (L.y + L.h / 2) * zoom } }); },
+      miniBox: `${B.x} ${B.y} ${B.w} ${B.h}`, miniNodes, miniView, onMiniDown,
+      showGraph: !selNode, showNode: !!selNode,
+      selType: selNode ? selNode.type : '', selTypeDesc: selNode ? TYPE_DESC[selNode.type] : '', selId: selNode ? selNode.id : '',
+      selIdError: selNode ? (selErrors.find(e => /^id|duplicate/.test(e)) || '') : '',
+      onIdChange: (e) => selNode && this.renameNode(selNode.id, e.target.value),
+      deleteSel: () => this.deleteSel(),
+      selErrorCount: selErrors.length, selErrors,
+      selIsStart: !!selNode && g.start === selNode.id,
+      setStart: (c) => selNode && this.setGraph(x => ({ ...x, start: c ? selNode.id : (x.start === selNode.id ? '' : x.start) })),
+      sections, hasLinks, linksTitle, linksHint, canAddEdge, links, targetOptions,
+      addEdge: () => selNode && this.updNode(selNode.id, { edges: [...(selNode.edges || []), { to: '' }] }),
+      isSupervisor: !!selNode && selNode.type === 'supervisor', superviseOptions,
+      isParallel: !!selNode && selNode.type === 'parallel', branches,
+      addBranch: () => selNode && this.updNode(selNode.id, { branches: [...(selNode.branches || []), { id: '', artifacts: [] }] }),
+      graphSections,
+    };
+  }
+}
+</script>
+</body>
+</html>
