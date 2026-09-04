@@ -2,10 +2,19 @@ import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   fmt: {
-    ignorePatterns: ["ephemeral/**", "README.md", "docs/**", "graph/**", "harness/**"],
+    ignorePatterns: [
+      "ephemeral/**",
+      "README.md",
+      "docs/**",
+      "graph/**",
+      "harness/**",
+      "internal/editor/dist/**",
+      "web/editor/**",
+    ],
     singleQuote: false,
   },
   lint: {
+    ignorePatterns: ["ephemeral/**", "internal/editor/dist/**", "web/editor/**"],
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
     rules: { "vite-plus/prefer-vite-plus-imports": "error" },
     // rsvelte-check owns type-checking because it generates the Svelte overlays

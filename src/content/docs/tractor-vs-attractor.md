@@ -15,18 +15,18 @@ This comparison uses [`strongdm/attractor`](https://github.com/strongdm/attracto
 
 Upstream Attractor is a broad, presentation-neutral NLSpec with a DOT DSL and multiple extension seams. Tractor narrows that surface around typed data, existing coding-agent harnesses, inspectable run evidence, safe parallel Git work, and live steering.
 
-| Concern           | Upstream strongdm/attractor                                                              | Tractor                                                                                                         |
-| ----------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Pipeline syntax   | A constrained Graphviz DOT language                                                      | Closed typed JSON; YAML decodes through the same schema                                                         |
-| Graph model       | Separate nodes and edges; shape can infer handler type                                   | Flat discriminated node union; each node owns its outgoing routes                                               |
-| Routing           | Weighted and conditional edges interpreted by an algorithm                               | Agent chooser selects a prose-labelled target; tools route by exit code                                         |
-| Built-in nodes    | Start, exit, codergen, wait-for-human, conditional, parallel, fan-in, tool, manager loop | Agent, command, fan-out, fan-in, loop, and supervisor; terminal states are pseudo-targets                       |
-| Extensibility     | Custom handlers, lint rules, AST transforms, stylesheets, hooks                          | Closed graph language; extensions live in authored nodes or build-time code                                     |
-| LLM layer         | Abstract `CodergenBackend`; implementations may call APIs or agents                      | Harness-backed sessions for Codex, Claude, and Antigravity/Gemini                                               |
-| Human interaction | Dedicated interviewer interface and wait-for-human handler                               | An authoring pattern using agent contact, blocking tools, or external steering                                  |
-| Parallel work     | Concurrent branches with merged context                                                  | Isolated-by-default or shared workspaces, per-branch agent settings, declared artifacts, and an agent fan-in    |
-| Supervision       | A manager-loop handler inside the walk                                                   | Supervisor nodes patrol declared scopes outside the walk and steer active turns                                 |
-| Runtime control   | Events, cancellation, optional HTTP server, tool hooks                                   | Events/run logs, Unix control socket, detached MCP runs, steering, and native compaction                        |
+| Concern           | Upstream strongdm/attractor                                                              | Tractor                                                                                                      |
+| ----------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Pipeline syntax   | A constrained Graphviz DOT language                                                      | Closed typed JSON; YAML decodes through the same schema                                                      |
+| Graph model       | Separate nodes and edges; shape can infer handler type                                   | Flat discriminated node union; each node owns its outgoing routes                                            |
+| Routing           | Weighted and conditional edges interpreted by an algorithm                               | Agent chooser selects a prose-labelled target; tools route by exit code                                      |
+| Built-in nodes    | Start, exit, codergen, wait-for-human, conditional, parallel, fan-in, tool, manager loop | Agent, command, fan-out, fan-in, loop, and supervisor; terminal states are pseudo-targets                    |
+| Extensibility     | Custom handlers, lint rules, AST transforms, stylesheets, hooks                          | Closed graph language; extensions live in authored nodes or build-time code                                  |
+| LLM layer         | Abstract `CodergenBackend`; implementations may call APIs or agents                      | Harness-backed sessions for Codex, Claude, and Antigravity/Gemini                                            |
+| Human interaction | Dedicated interviewer interface and wait-for-human handler                               | An authoring pattern using agent contact, blocking tools, or external steering                               |
+| Parallel work     | Concurrent branches with merged context                                                  | Isolated-by-default or shared workspaces, per-branch agent settings, declared artifacts, and an agent fan-in |
+| Supervision       | A manager-loop handler inside the walk                                                   | Supervisor nodes patrol declared scopes outside the walk and steer active turns                              |
+| Runtime control   | Events, cancellation, optional HTTP server, tool hooks                                   | Events/run logs, Unix control socket, detached MCP runs, steering, and native compaction                     |
 
 ## What Tractor preserves
 

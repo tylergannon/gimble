@@ -3,6 +3,8 @@ name: Deploy documentation
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -30,12 +32,30 @@ jobs:
         with:
           path: dist
 
+  editor:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/editor
+    steps:
+      - uses: actions/checkout@v4
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: "24"
+          cache: true
+      - run: vp install --frozen-lockfile
+      - run: vp run check
+      - run: vp run build
+      - run: git diff --exit-code -- internal/editor/dist
+        working-directory: .
+
   deploy:
+    if: github.event_name == 'push'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, editor]
     steps:
       - name: Deploy to GitHub Pages
         id: deployment

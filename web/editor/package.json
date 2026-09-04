@@ -23,5 +23,12 @@
 	"dependencies": {
 		"@lucide/svelte": "^1.39.0",
 		"yaml": "^2.9.0"
+	},
+	"devEngines": {
+		"packageManager": {
+			"name": "pnpm",
+			"version": "11.22.0",
+			"onFail": "download"
+		}
 	}
 }
