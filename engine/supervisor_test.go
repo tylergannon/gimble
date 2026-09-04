@@ -33,7 +33,7 @@ func TestSupervisorPatrolSteersLiveTargetAndPersistsRecord(t *testing.T) {
 	}))
 	runner, err := NewRunner(pipeline, registry, RunnerConfig{
 		LogsRoot: root, Workdir: t.TempDir(), Validate: func(graph.Graph) error { return nil }, Backend: backend,
-		DefaultModel: "gpt-test", DefaultProvider: "openai", DefaultReasoningEffort: "high",
+		DefaultModel: "gpt-test", DefaultReasoningEffort: "high",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -100,9 +100,9 @@ func TestSupervisorQuietScopeCostsNoTurn(t *testing.T) {
 	}
 }
 
-func TestSupervisorTurnResolvesFableAliasAndRejectsConflict(t *testing.T) {
+func TestSupervisorTurnResolvesFableAliasAndRejectsUnknownSelection(t *testing.T) {
 	service := &supervisionService{runner: &Runner{
-		graph:  graph.Graph{Defaults: graph.Defaults{LLMModel: optional("fable")}},
+		graph:  graph.Graph{Defaults: graph.Defaults{Model: modelSelection("fable", "", "")}},
 		config: RunnerConfig{Workdir: "/workspace", DefaultReasoningEffort: "high"},
 	}}
 	node := &graph.SupervisorNode{NodeBase: graph.NodeBase{ID: "coach"}, Supervises: []string{"work"}}
@@ -114,9 +114,9 @@ func TestSupervisorTurnResolvesFableAliasAndRejectsConflict(t *testing.T) {
 		t.Fatalf("resolved supervisor turn = %#v", turn)
 	}
 
-	node.LLMProvider = optional("openai")
+	node.Model = modelSelection("mystery-model", "", "")
 	_, turnErr = service.supervisorTurn(node, "watch", "/logs/coach.jsonl")
-	if turnErr == nil || !strings.Contains(turnErr.Message, `provider "openai" conflicts with model alias "fable"`) {
+	if turnErr == nil || !strings.Contains(turnErr.Message, `cannot determine provider`) {
 		t.Fatalf("conflict error = %#v", turnErr)
 	}
 }

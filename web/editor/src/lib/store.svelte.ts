@@ -1,7 +1,7 @@
 // Editor state: the YAML document, the layout, selection, viewport, the
 // debounced save, and the merge of server and client diagnostics.
 
-import { ConflictError, getDoc, putDoc, subscribe, type Diagnostic, type ServerDoc } from './api';
+import { ConflictError, getDoc, putDoc, subscribe, type Diagnostic, type ModelResolution, type ServerDoc } from './api';
 import { PipelineDoc, type SyntaxError } from './doc';
 import { autoLayout, isBox, NODE_H, NODE_W, type Box, type Layout, type LayoutEntry } from './layout';
 import {
@@ -54,6 +54,7 @@ export class Editor {
 	path = $state('');
 	version = $state('');
 	serverDiagnostics = $state<Diagnostic[]>([]);
+	models = $state<ModelResolution[]>([]);
 	parseError = $state('');
 	banner = $state('');
 	loading = $state(true);
@@ -228,6 +229,7 @@ export class Editor {
 		this.version = d.version;
 		this.serverDiagnostics = d.diagnostics ?? [];
 		this.parseError = d.parse_error ?? '';
+		this.models = d.models ?? [];
 		if (this.sel && !isTerminal(this.sel) && !this.graph.nodes.some((n) => n.id === this.sel)) {
 			this.sel = null;
 		}
@@ -263,6 +265,7 @@ export class Editor {
 			this.version = d.version;
 			this.serverDiagnostics = d.diagnostics ?? [];
 			this.parseError = d.parse_error ?? '';
+			this.models = d.models ?? [];
 			if (d.layout !== null) this.layoutFromDisk = true;
 			if (this.saveFailed) {
 				this.saveFailed = false;
@@ -311,8 +314,10 @@ export class Editor {
 
 	setDefault(key: string, value: string | number | undefined): void {
 		if (this.readOnly) return;
-		if (value === undefined) this.doc.deleteAndPrune(['defaults', key]);
-		else this.doc.set(['defaults', key], value);
+		const path = ['defaults', ...key.split('.')];
+		if (value === undefined && key === 'model.name') this.doc.deleteAndPrune(['defaults', 'model']);
+		else if (value === undefined) this.doc.deleteAndPrune(path);
+		else this.doc.set(path, value);
 		this.touch();
 	}
 
@@ -321,7 +326,12 @@ export class Editor {
 		if (this.readOnly) return;
 		const i = this.index(id);
 		if (i < 0) return;
-		this.doc.set(['nodes', i, ...key.split('.')], value);
+		const parts = key.split('.');
+		if (value === undefined && parts.at(-1) === 'name' && parts.at(-2) === 'model') {
+			this.doc.deleteAndPrune(['nodes', i, ...parts.slice(0, -1)]);
+		} else {
+			this.doc.set(['nodes', i, ...parts], value);
+		}
 		this.touch();
 	}
 
@@ -382,6 +392,19 @@ export class Editor {
 			if (patch.prompt === '') this.doc.deleteAndPrune([...base, 'agent', 'prompt']);
 			else this.doc.set([...base, 'agent', 'prompt'], patch.prompt);
 		}
+		this.touch();
+	}
+
+	setBranchModel(id: string, index: number, key: 'name' | 'version' | 'effort', value: string | undefined): void {
+		if (this.readOnly) return;
+		const i = this.index(id);
+		if (i < 0) return;
+		const base: (string | number)[] = ['nodes', i, 'branches', index];
+		const branch = this.graph.nodes[i]?.branches?.[index];
+		if (typeof branch === 'string') this.doc.set(base, { id: branch, artifacts: [] });
+		if (value === undefined && key === 'name') this.doc.deleteAndPrune([...base, 'agent', 'model']);
+		else if (value === undefined) this.doc.deleteAndPrune([...base, 'agent', 'model', key]);
+		else this.doc.set([...base, 'agent', 'model', key], value);
 		this.touch();
 	}
 

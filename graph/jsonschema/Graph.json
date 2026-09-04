@@ -9,22 +9,37 @@
         "fidelity": {
           "type": "string"
         },
-        "llm_model": {
-          "type": "string"
-        },
-        "llm_provider": {
-          "type": "string"
-        },
         "max_retries": {
           "type": "integer"
         },
-        "reasoning_effort": {
-          "enum": [
-            "low",
-            "medium",
-            "high"
+        "model": {
+          "additionalProperties": false,
+          "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+          "properties": {
+            "effort": {
+              "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
+            },
+            "name": {
+              "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "version": {
+              "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
           ],
-          "type": "string"
+          "type": "object"
         },
         "timeout": {
           "description": "Duration is an integer followed by ms, s, m, h, or d.",
@@ -85,27 +100,42 @@
               "label": {
                 "type": "string"
               },
-              "llm_model": {
-                "type": "string"
-              },
-              "llm_provider": {
-                "type": "string"
-              },
               "max_retries": {
                 "type": "integer"
               },
               "max_visits": {
                 "type": "integer"
               },
-              "prompt": {
-                "type": "string"
-              },
-              "reasoning_effort": {
-                "enum": [
-                  "low",
-                  "medium",
-                  "high"
+              "model": {
+                "additionalProperties": false,
+                "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+                "properties": {
+                  "effort": {
+                    "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
                 ],
+                "type": "object"
+              },
+              "prompt": {
                 "type": "string"
               },
               "thread_id": {
@@ -170,27 +200,42 @@
                             "label": {
                               "type": "string"
                             },
-                            "llm_model": {
-                              "type": "string"
-                            },
-                            "llm_provider": {
-                              "type": "string"
-                            },
                             "max_retries": {
                               "type": "integer"
                             },
                             "max_visits": {
                               "type": "integer"
                             },
-                            "prompt": {
-                              "type": "string"
-                            },
-                            "reasoning_effort": {
-                              "enum": [
-                                "low",
-                                "medium",
-                                "high"
+                            "model": {
+                              "additionalProperties": false,
+                              "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+                              "properties": {
+                                "effort": {
+                                  "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+                                  "enum": [
+                                    "low",
+                                    "medium",
+                                    "high"
+                                  ],
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "version": {
+                                  "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "name"
                               ],
+                              "type": "object"
+                            },
+                            "prompt": {
                               "type": "string"
                             },
                             "thread_id": {
@@ -248,12 +293,6 @@
               "label": {
                 "type": "string"
               },
-              "llm_model": {
-                "type": "string"
-              },
-              "llm_provider": {
-                "type": "string"
-              },
               "max_parallel": {
                 "type": "integer"
               },
@@ -263,15 +302,36 @@
               "max_visits": {
                 "type": "integer"
               },
-              "prompt": {
-                "type": "string"
-              },
-              "reasoning_effort": {
-                "enum": [
-                  "low",
-                  "medium",
-                  "high"
+              "model": {
+                "additionalProperties": false,
+                "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+                "properties": {
+                  "effort": {
+                    "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
                 ],
+                "type": "object"
+              },
+              "prompt": {
                 "type": "string"
               },
               "thread_id": {
@@ -341,27 +401,42 @@
               "label": {
                 "type": "string"
               },
-              "llm_model": {
-                "type": "string"
-              },
-              "llm_provider": {
-                "type": "string"
-              },
               "max_retries": {
                 "type": "integer"
               },
               "max_visits": {
                 "type": "integer"
               },
-              "prompt": {
-                "type": "string"
-              },
-              "reasoning_effort": {
-                "enum": [
-                  "low",
-                  "medium",
-                  "high"
+              "model": {
+                "additionalProperties": false,
+                "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+                "properties": {
+                  "effort": {
+                    "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
                 ],
+                "type": "object"
+              },
+              "prompt": {
                 "type": "string"
               },
               "thread_id": {
@@ -462,21 +537,36 @@
               "label": {
                 "type": "string"
               },
-              "llm_model": {
-                "type": "string"
-              },
-              "llm_provider": {
-                "type": "string"
+              "model": {
+                "additionalProperties": false,
+                "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+                "properties": {
+                  "effort": {
+                    "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
               },
               "prompt": {
-                "type": "string"
-              },
-              "reasoning_effort": {
-                "enum": [
-                  "low",
-                  "medium",
-                  "high"
-                ],
                 "type": "string"
               },
               "supervises": {
@@ -528,22 +618,41 @@
                 ],
                 "type": "object"
               },
-              "evaluator_llm_model": {
-                "description": "EvaluatorLLMModel selects the model used by the loop evaluator.",
-                "type": "string"
-              },
-              "evaluator_llm_provider": {
-                "description": "EvaluatorLLMProvider selects the provider used by the loop evaluator.",
-                "type": "string"
-              },
-              "evaluator_reasoning_effort": {
-                "description": "EvaluatorReasoningEffort sets the loop evaluator's reasoning effort.",
-                "enum": [
-                  "low",
-                  "medium",
-                  "high"
-                ],
-                "type": "string"
+              "goal_evaluator": {
+                "additionalProperties": false,
+                "description": "GoalEvaluator configures the role that evaluates the overall definition of done and replans open work when necessary.",
+                "properties": {
+                  "model": {
+                    "additionalProperties": false,
+                    "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+                    "properties": {
+                      "effort": {
+                        "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high"
+                        ],
+                        "type": "string"
+                      },
+                      "name": {
+                        "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "version": {
+                        "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "object"
               },
               "id": {
                 "not": {
@@ -555,29 +664,48 @@
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
+              "item_judge": {
+                "additionalProperties": false,
+                "description": "ItemJudge configures the role that assesses one checklist item's evidence.",
+                "properties": {
+                  "model": {
+                    "additionalProperties": false,
+                    "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+                    "properties": {
+                      "effort": {
+                        "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high"
+                        ],
+                        "type": "string"
+                      },
+                      "name": {
+                        "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "version": {
+                        "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              },
               "label": {
-                "type": "string"
-              },
-              "llm_model": {
-                "description": "LLMModel selects the model used by the infer judge.",
-                "type": "string"
-              },
-              "llm_provider": {
-                "description": "LLMProvider selects the provider used by the infer judge.",
                 "type": "string"
               },
               "max_visits": {
                 "description": "MaxVisits bounds arrivals at the loop node, laps plus one.",
                 "type": "integer"
-              },
-              "reasoning_effort": {
-                "description": "ReasoningEffort sets the reasoning effort of the infer judge.",
-                "enum": [
-                  "low",
-                  "medium",
-                  "high"
-                ],
-                "type": "string"
               },
               "timeout": {
                 "description": "Timeout bounds one item's validation command, the infer judge turn, and the evaluator turn.",

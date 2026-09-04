@@ -71,7 +71,7 @@ func (h *FanInHandler) Execute(node graph.Node, offered []graph.Edge, scope Exec
 	prompt = expandPrompt(prompt, scope.Goal)
 	prompt += "\n\n" + renderBranchResults(results)
 	prompt = prependFrame(scope.Frame, prompt)
-	return h.agent.executeTurn(join, &join.LLMNodeFields, offered, scope, pipeline, prompt)
+	return h.agent.executeTurn(RoleFanIn, join, &join.LLMNodeFields, offered, scope, pipeline, prompt)
 }
 
 func readBranchResults(path string) ([]BranchResult, error) {

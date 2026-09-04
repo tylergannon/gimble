@@ -11,7 +11,6 @@ import (
 	jsonschema "github.com/tylergannon/go-gen-jsonschema"
 	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/harness"
-	"github.com/tylergannon/tractor/internal/modelalias"
 )
 
 // AgentConfig supplies the backend and implementation-level model defaults.
@@ -42,7 +41,11 @@ func (h *AgentHandler) Execute(node graph.Node, offered []graph.Edge, scope Exec
 	prompt := agent.PromptValue(agent.DisplayLabel())
 	prompt = expandPrompt(prompt, scope.Goal)
 	prompt = prependFrame(scope.Frame, prompt)
-	return h.executeTurn(agent, &agent.LLMNodeFields, offered, scope, pipeline, prompt)
+	role := RoleAgent
+	if agent.IsSynthesized() {
+		role = "branch_agent"
+	}
+	return h.executeTurn(role, agent, &agent.LLMNodeFields, offered, scope, pipeline, prompt)
 }
 
 // prependFrame places the rendered loop frame stack ahead of a node's own
@@ -54,20 +57,20 @@ func prependFrame(frame, prompt string) string {
 	return frame + "\n\n" + prompt
 }
 
-func (h *AgentHandler) executeTurn(node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt string) (harness.Outcome, *harness.Error) {
-	return h.executeTurnAt(node, fields, offered, scope, pipeline, prompt,
+func (h *AgentHandler) executeTurn(role string, node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt string) (harness.Outcome, *harness.Error) {
+	return h.executeTurnAt(role, node, fields, offered, scope, pipeline, prompt,
 		filepath.Join(scope.StageDir, "prompt.md"), filepath.Join(scope.StageDir, "response.md"))
 }
 
 // executeTurnAt runs a turn whose prompt and response artifacts have
 // caller-selected paths. Composite handlers use this to keep multiple turns
 // within one stage from overwriting one another.
-func (h *AgentHandler) executeTurnAt(node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt, promptPath, responsePath string) (harness.Outcome, *harness.Error) {
+func (h *AgentHandler) executeTurnAt(role string, node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt, promptPath, responsePath string) (harness.Outcome, *harness.Error) {
 	if err := os.WriteFile(promptPath, []byte(prompt), 0o644); err != nil {
 		return harness.Outcome{}, terminalError(fmt.Sprintf("write prompt: %v", err))
 	}
 
-	turn, err := h.turn(node, fields, offered, scope, pipeline, prompt)
+	turn, err := h.turn(role, node, fields, offered, scope, pipeline, prompt)
 	if err != nil {
 		return harness.Outcome{}, err
 	}
@@ -129,18 +132,11 @@ type resolvedAgentRecord struct {
 	RunLog          string               `json:"run_log"`
 }
 
-func (h *AgentHandler) turn(node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt string) (harness.AgentTurn, *harness.Error) {
-	model := resolveString(fields.LLMModel, pipeline.Defaults.LLMModel, h.config.DefaultModel)
-	provider := resolveProvider(fields.LLMProvider, pipeline.Defaults.LLMProvider, h.config.DefaultProvider, model)
-	provider, model, selectionErr := modelalias.ResolveSelection(provider, model)
+func (h *AgentHandler) turn(role string, node graph.Node, fields *graph.LLMNodeFields, offered []graph.Edge, scope ExecutionScope, pipeline *graph.Graph, prompt string) (harness.AgentTurn, *harness.Error) {
+	resolution, selectionErr := resolveNodeModel(node.Base().ID, role, fields.Model, pipeline.Defaults.Model, SystemModelSelection{Name: h.config.DefaultModel, Effort: h.config.DefaultReasoningEffort})
 	if selectionErr != nil {
 		return harness.AgentTurn{}, terminalError(selectionErr.Error())
 	}
-	reasoningDefault := h.config.DefaultReasoningEffort
-	if reasoningDefault == "" {
-		reasoningDefault = "high"
-	}
-	reasoning := resolveString(fields.ReasoningEffort, pipeline.Defaults.ReasoningEffort, reasoningDefault)
 	fidelity := resolveString(fields.Fidelity, pipeline.Defaults.Fidelity, string(harness.FidelityCompacted))
 	threadKey := ""
 	if fidelity != string(harness.FidelityNone) {
@@ -156,11 +152,12 @@ func (h *AgentHandler) turn(node graph.Node, fields *graph.LLMNodeFields, offere
 	}
 	return harness.AgentTurn{
 		NodeID:          node.Base().ID,
+		Role:            role,
 		Parts:           []harness.ContentPart{{Type: harness.ContentPartText, Text: prompt}},
 		OutputSchema:    schema,
-		Model:           model,
-		Provider:        provider,
-		ReasoningEffort: reasoning,
+		Model:           resolution.NativeModel,
+		Provider:        resolution.Provider,
+		ReasoningEffort: resolution.EffectiveEffort,
 		Fidelity:        harness.FidelityMode(fidelity),
 		ThreadKey:       threadKey,
 		Workdir:         scope.Workdir,
@@ -177,19 +174,6 @@ func resolveString(nodeValue, fileValue jsonschema.Optional[string], systemValue
 		return fileValue.Value
 	}
 	return systemValue
-}
-
-func resolveProvider(nodeValue, fileValue jsonschema.Optional[string], systemValue, model string) string {
-	if nodeValue.Present {
-		return nodeValue.Value
-	}
-	if fileValue.Present {
-		return fileValue.Value
-	}
-	if systemValue != "" {
-		return systemValue
-	}
-	return DetectProvider(model)
 }
 
 func resolveTimeout(nodeValue, fileValue jsonschema.Optional[graph.Duration]) (time.Duration, error) {

@@ -69,6 +69,7 @@ const (
 // AgentTurn is the fully resolved input to an AgentBackend.
 type AgentTurn struct {
 	NodeID          string
+	Role            string
 	Parts           []ContentPart
 	OutputSchema    json.RawMessage
 	Model           string
@@ -84,6 +85,7 @@ type AgentTurn struct {
 // SupervisorTurn is one advisory flush on a supervisor-owned thread.
 type SupervisorTurn struct {
 	NodeID          string
+	Role            string
 	Parts           []ContentPart
 	OutputSchema    json.RawMessage
 	Model           string
@@ -160,12 +162,13 @@ type Event map[string]any
 type OnEvent func(Event)
 
 const (
-	EventUser       = "user"
-	EventAssistant  = "assistant"
-	EventThinking   = "thinking"
-	EventToolCall   = "tool_call"
-	EventToolResult = "tool_result"
-	EventUsage      = "usage"
+	EventUser           = "user"
+	EventAssistant      = "assistant"
+	EventThinking       = "thinking"
+	EventToolCall       = "tool_call"
+	EventToolResult     = "tool_result"
+	EventUsage          = "usage"
+	EventModelSelection = "model_selection"
 )
 
 // HarnessAdapter translates the neutral contract into one native coding-agent

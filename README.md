@@ -46,8 +46,10 @@ the budget.
 
 ## Why
 
-- **"Done" is an exit code, not an agent's opinion.** Deterministic command
-  nodes end loops; models never grade their own homework.
+- **Completion follows the evidence.** In a command-gated loop, the exit code
+  selects the route. In a checklist loop, commands supply evidence, the item
+  judge assesses inferred checks, and the goal evaluator decides whether the
+  promised work is satisfied.
 - **Routing belongs to the agent, not the engine.** Each turn answers a
   schema-enforced choice of offered successors — the engine never parses
   prose, and an agent can't pick a route it wasn't offered.

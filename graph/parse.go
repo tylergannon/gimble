@@ -19,6 +19,12 @@ func Parse(data []byte) (*Graph, error) {
 	if err := preflight(data); err != nil {
 		return nil, fmt.Errorf("parse pipeline: %w", err)
 	}
+	var authored map[string]any
+	if err := json.Unmarshal(data, &authored); err == nil {
+		if err := rejectObsoleteModelKeys(authored); err != nil {
+			return nil, fmt.Errorf("parse pipeline: %w", err)
+		}
+	}
 	if err := (Graph{}).ValidateJSON(data); err != nil {
 		return nil, fmt.Errorf("parse pipeline: %w", err)
 	}
@@ -125,6 +131,9 @@ func resolveFanOutAgent(parent *FanOutNode, branch FanOutBranch) *AgentNode {
 		LLMNodeFields: parent.LLMNodeFields,
 		synthesized:   true,
 	}
+	if parent.Model.Present {
+		resolved.synthesizedModelSource = fmt.Sprintf("node %s fan_out template", parent.ID)
+	}
 	if !branch.Agent.Present {
 		return resolved
 	}
@@ -136,9 +145,10 @@ func resolveFanOutAgent(parent *FanOutNode, branch FanOutBranch) *AgentNode {
 	overrideOptional(&resolved.Fidelity, override.Fidelity)
 	overrideOptional(&resolved.ThreadID, override.ThreadID)
 	overrideOptional(&resolved.Timeout, override.Timeout)
-	overrideOptional(&resolved.LLMModel, override.LLMModel)
-	overrideOptional(&resolved.LLMProvider, override.LLMProvider)
-	overrideOptional(&resolved.ReasoningEffort, override.ReasoningEffort)
+	overrideOptional(&resolved.Model, override.Model)
+	if override.Model.Present {
+		resolved.synthesizedModelSource = fmt.Sprintf("node %s branch %s", parent.ID, branch.ID)
+	}
 	return resolved
 }
 
@@ -166,6 +176,12 @@ func validateArtifactPaths(fanOutID string, branch FanOutBranch) error {
 // ParseYAML validates and decodes one YAML pipeline using the generated
 // JSON Schema contract.
 func ParseYAML(data []byte) (*Graph, error) {
+	var authored map[string]any
+	if err := yaml.Load(data, &authored, yaml.WithV4Defaults()); err == nil {
+		if err := rejectObsoleteModelKeys(authored); err != nil {
+			return nil, fmt.Errorf("parse pipeline YAML: %w", err)
+		}
+	}
 	if err := (Graph{}).ValidateYAML(data); err != nil {
 		return nil, fmt.Errorf("parse pipeline YAML: %w", err)
 	}
@@ -178,6 +194,79 @@ func ParseYAML(data []byte) (*Graph, error) {
 		return nil, fmt.Errorf("parse pipeline YAML: %w", err)
 	}
 	return &graph, nil
+}
+
+func rejectObsoleteModelKeys(document map[string]any) error {
+	if defaults, ok := document["defaults"].(map[string]any); ok {
+		if err := obsoleteAt(defaults, "defaults", false); err != nil {
+			return err
+		}
+	}
+	nodes, _ := document["nodes"].([]any)
+	for index, raw := range nodes {
+		node, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		typeName, _ := node["type"].(string)
+		location := fmt.Sprintf("nodes[%d]", index)
+		if id, ok := node["id"].(string); ok && id != "" {
+			location = fmt.Sprintf("node %q", id)
+		}
+		if err := obsoleteAt(node, location, typeName == "loop"); err != nil {
+			return err
+		}
+		if typeName != "fan_out" {
+			continue
+		}
+		branches, _ := node["branches"].([]any)
+		for branchIndex, branchRaw := range branches {
+			branch, _ := branchRaw.(map[string]any)
+			agent, _ := branch["agent"].(map[string]any)
+			if agent == nil {
+				continue
+			}
+			branchLocation := fmt.Sprintf("%s branch[%d].agent", location, branchIndex)
+			if id, ok := branch["id"].(string); ok && id != "" {
+				branchLocation = fmt.Sprintf("%s branch %q agent", location, id)
+			}
+			if err := obsoleteAt(agent, branchLocation, false); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func obsoleteAt(object map[string]any, location string, loop bool) error {
+	type replacement struct {
+		old string
+		new string
+	}
+	replacements := []replacement{{"llm_model", "model.name"}, {"reasoning_effort", "model.effort"}}
+	if loop {
+		replacements = []replacement{
+			{"llm_model", "item_judge.model.name"},
+			{"reasoning_effort", "item_judge.model.effort"},
+			{"evaluator_llm_model", "goal_evaluator.model.name"},
+			{"evaluator_reasoning_effort", "goal_evaluator.model.effort"},
+		}
+	}
+	for _, replacement := range replacements {
+		if _, exists := object[replacement.old]; exists {
+			return fmt.Errorf("%s uses obsolete %q; replace it with %q", location, replacement.old, replacement.new)
+		}
+	}
+	providerKeys := []string{"llm_provider"}
+	if loop {
+		providerKeys = append(providerKeys, "evaluator_llm_provider")
+	}
+	for _, key := range providerKeys {
+		if _, exists := object[key]; exists {
+			return fmt.Errorf("%s uses obsolete %q; authored provider was removed because model.name determines provider", location, key)
+		}
+	}
+	return nil
 }
 
 // NodeByID returns the node with id, if present.
@@ -201,14 +290,8 @@ func (g *Graph) applyDefaults() {
 			inherit(&current.Timeout, g.Defaults.Timeout)
 		case *SupervisorNode:
 			inherit(&current.Timeout, g.Defaults.Timeout)
-			inherit(&current.LLMModel, g.Defaults.LLMModel)
-			inherit(&current.LLMProvider, g.Defaults.LLMProvider)
-			inherit(&current.ReasoningEffort, g.Defaults.ReasoningEffort)
 		case *LoopNode:
 			inherit(&current.Timeout, g.Defaults.Timeout)
-			inherit(&current.EvaluatorLLMModel, g.Defaults.LLMModel)
-			inherit(&current.EvaluatorLLMProvider, g.Defaults.LLMProvider)
-			inherit(&current.EvaluatorReasoningEffort, g.Defaults.ReasoningEffort)
 		}
 	}
 }
@@ -217,9 +300,6 @@ func inheritLLM(fields *LLMNodeFields, defaults Defaults) {
 	inherit(&fields.MaxRetries, defaults.MaxRetries)
 	inherit(&fields.Fidelity, defaults.Fidelity)
 	inherit(&fields.Timeout, defaults.Timeout)
-	inherit(&fields.LLMModel, defaults.LLMModel)
-	inherit(&fields.LLMProvider, defaults.LLMProvider)
-	inherit(&fields.ReasoningEffort, defaults.ReasoningEffort)
 }
 
 func inherit[T any](destination *jsonschema.Optional[T], source jsonschema.Optional[T]) {

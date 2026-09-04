@@ -28,15 +28,15 @@ func TestFanInHandlerLoadsEvidenceAndDelegatesExactTurn(t *testing.T) {
 	join := &graph.FanInNode{
 		NodeBase: graph.NodeBase{ID: "join"},
 		LLMNodeFields: graph.LLMNodeFields{
-			Prompt: optional("Compare candidates for $goal"), LLMModel: optional("claude-opus-4-6"),
-			ReasoningEffort: optional("medium"), Fidelity: optional("full"), ThreadID: optional("judge"),
+			Prompt: optional("Compare candidates for $goal"), Model: modelSelection("claude-opus-4-6", "", "medium"),
+			Fidelity: optional("full"), ThreadID: optional("judge"),
 			Timeout: optional(graph.Duration("5s")),
 		},
 	}
 	pipeline := fanInGraph(join)
 	offered := []graph.Edge{{To: "accept", Condition: "A candidate is ready"}, {To: "retry", Condition: "More work is needed"}}
 
-	outcome, runErr := NewFanInHandler(AgentConfig{Backend: backend, DefaultModel: "system-model"}).Execute(
+	outcome, runErr := NewFanInHandler(AgentConfig{Backend: backend, DefaultModel: "gpt-5.6-sol"}).Execute(
 		join, offered, ExecutionScope{Workdir: "/main", StageDir: stageDir, RunLog: filepath.Join(stageDir, "events.jsonl"), Goal: "release", Stop: NewStopSignal()}, pipeline,
 	)
 	if runErr != nil {
@@ -157,7 +157,7 @@ func TestFanInHandlerRejectsAmbiguousOwnerBeforeBackend(t *testing.T) {
 }
 
 func fanInGraph(join *graph.FanInNode) *graph.Graph {
-	return &graph.Graph{Defaults: graph.Defaults{LLMModel: optional("gpt-5.2")}, Nodes: []graph.Node{
+	return &graph.Graph{Defaults: graph.Defaults{Model: modelSelection("gpt-5.2", "", "")}, Nodes: []graph.Node{
 		&graph.FanOutNode{NodeBase: graph.NodeBase{ID: "fanout"}, Branches: graph.LegacyFanOutBranches("branch-a", "branch-b")},
 		customNode("branch-a", "task", []graph.Edge{{To: "join"}}, 0),
 		customNode("branch-b", "task", []graph.Edge{{To: "join"}}, 0),

@@ -15,13 +15,11 @@ const representative = `{
     "max_retries":2,
     "fidelity":"full",
     "timeout":"15m",
-    "llm_model":"default-model",
-    "llm_provider":"openai",
-    "reasoning_effort":"high"
+    "model":{"name":"fable","effort":"high"}
   },
   "start":"code",
   "nodes":[
-    {"id":"code","type":"agent","label":"Code","prompt":"work","llm_model":"override","thread_id":"shared","max_visits":3,"edges":[{"to":"command"}]},
+    {"id":"code","type":"agent","label":"Code","prompt":"work","model":{"name":"gpt-5.6-sol","effort":"low"},"thread_id":"shared","max_visits":3,"edges":[{"to":"command"}]},
     {"id":"command","type":"command","command":"go test ./...","edges":{"success":"fanout","error":"code"}},
     {"id":"fanout","type":"fan_out","max_parallel":3,"branches":["left","right"]},
     {"id":"left","type":"command","command":"true","edges":{"success":"join"}},
@@ -40,7 +38,7 @@ func TestParseRepresentativeGraphAndResolveDefaults(t *testing.T) {
 		t.Fatalf("graph = %#v", pipeline)
 	}
 	code := mustNode[*AgentNode](t, pipeline, "code")
-	if code.DisplayLabel() != "Code" || code.LLMModel.Value != "override" || code.ThreadKey(code.ID) != "shared" {
+	if code.DisplayLabel() != "Code" || code.Model.Value.Name != "gpt-5.6-sol" || code.ThreadKey(code.ID) != "shared" {
 		t.Fatalf("agent = %#v", code)
 	}
 	if code.MaxRetries.Value != 2 || code.FidelityValue() != "full" || code.Timeout.Value != "15m" {
@@ -55,29 +53,74 @@ func TestParseRepresentativeGraphAndResolveDefaults(t *testing.T) {
 		t.Fatalf("fan_out = %#v", fanOut)
 	}
 	join := mustNode[*FanInNode](t, pipeline, "join")
-	if join.LLMModel.Value != "default-model" || join.LLMProvider.Value != "openai" || join.ReasoningEffort.Value != "high" {
-		t.Fatalf("fan-in defaults = %#v", join.LLMNodeFields)
+	if join.Model.Present {
+		t.Fatalf("parser flattened model defaults into fan-in: %#v", join.LLMNodeFields)
 	}
 	coach := mustNode[*SupervisorNode](t, pipeline, "coach")
-	if coach.IntervalValue() != "120s" || coach.Timeout.Value != "15m" || coach.LLMProvider.Value != "openai" {
+	if coach.IntervalValue() != "120s" || coach.Timeout.Value != "15m" || coach.Model.Present {
 		t.Fatalf("supervisor defaults = %#v", coach)
 	}
 }
 
 func TestParseAcceptsEveryNodeShape(t *testing.T) {
 	tests := []string{
-		`{"id":"c","type":"agent","prompt":"p","max_retries":0,"fidelity":"none","thread_id":"t","timeout":"250ms","llm_model":"m","llm_provider":"p","reasoning_effort":"low","edges":[{"to":"success"}]}`,
+		`{"id":"c","type":"agent","prompt":"p","max_retries":0,"fidelity":"none","thread_id":"t","timeout":"250ms","model":{"name":"fable","version":"5.1","effort":"low"},"edges":[{"to":"success"}]}`,
 		`{"id":"p","type":"fan_out","branches":["c"],"max_parallel":4}`,
 		`{"id":"f","type":"fan_in","prompt":"p","edges":[{"to":"success"}]}`,
 		`{"id":"t","type":"command","command":"true","edges":{"success":"success","error":"failure"},"timeout":"2h"}`,
 		`{"id":"s","type":"supervisor","prompt":"watch","supervises":["c"]}`,
-		`{"id":"l","type":"loop","checklist":"list.md","edges":{"loop":"c","exit":"success"},"max_visits":3,"timeout":"1m","llm_model":"m","llm_provider":"p","reasoning_effort":"low","evaluator_llm_model":"em","evaluator_llm_provider":"ep","evaluator_reasoning_effort":"high"}`,
+		`{"id":"l","type":"loop","checklist":"list.md","edges":{"loop":"c","exit":"success"},"max_visits":3,"timeout":"1m","item_judge":{"model":{"name":"flash","effort":"medium"}},"goal_evaluator":{"model":{"name":"fable","version":"5","effort":"high"}}}`,
 	}
 	for _, node := range tests {
 		document := `{"start":"c","nodes":[` + node + `]}`
 		if _, err := Parse([]byte(document)); err != nil {
 			t.Errorf("Parse(%s): %v", node, err)
 		}
+	}
+}
+
+func TestParseRejectsObsoleteAndMalformedModelSelections(t *testing.T) {
+	tests := map[string]string{
+		"string shorthand":         `{"start":"x","nodes":[{"id":"x","type":"agent","model":"fable","edges":[{"to":"success"}]}]}`,
+		"missing name":             `{"start":"x","nodes":[{"id":"x","type":"agent","model":{"effort":"high"},"edges":[{"to":"success"}]}]}`,
+		"numeric version":          `{"start":"x","nodes":[{"id":"x","type":"agent","model":{"name":"fable","version":5},"edges":[{"to":"success"}]}]}`,
+		"authored provider":        `{"start":"x","nodes":[{"id":"x","type":"agent","model":{"name":"fable","provider":"anthropic"},"edges":[{"to":"success"}]}]}`,
+		"command model":            `{"start":"x","nodes":[{"id":"x","type":"command","command":"true","model":{"name":"fable"},"edges":{"success":"success"}}]}`,
+		"loop top-level model":     `{"start":"x","nodes":[{"id":"x","type":"loop","model":{"name":"fable"},"edges":{"loop":"x","exit":"success"}}]}`,
+		"obsolete defaults":        `{"defaults":{"llm_model":"fable"},"start":"x","nodes":[{"id":"x","type":"agent","edges":[{"to":"success"}]}]}`,
+		"obsolete provider":        `{"start":"x","nodes":[{"id":"x","type":"agent","llm_provider":"anthropic","edges":[{"to":"success"}]}]}`,
+		"obsolete effort":          `{"start":"x","nodes":[{"id":"x","type":"agent","reasoning_effort":"high","edges":[{"to":"success"}]}]}`,
+		"obsolete evaluator":       `{"start":"x","nodes":[{"id":"x","type":"loop","evaluator_llm_model":"fable","edges":{"loop":"x","exit":"success"}}]}`,
+		"unknown role field":       `{"start":"x","nodes":[{"id":"x","type":"loop","item_judge":{"prompt":"no"},"edges":{"loop":"x","exit":"success"}}]}`,
+		"branch authored provider": `{"start":"p","nodes":[{"id":"p","type":"fan_out","branches":[{"id":"b","artifacts":["x"],"agent":{"model":{"name":"fable","provider":"anthropic"}}}],"branch_edges":[{"to":"j"}]},{"id":"j","type":"fan_in","edges":[{"to":"success"}]}]}`,
+	}
+	for name, document := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, err := Parse([]byte(document)); err == nil {
+				t.Fatal("Parse accepted invalid model selection")
+			}
+		})
+	}
+}
+
+func TestParseObsoleteModelDiagnosticsNameTheReplacement(t *testing.T) {
+	tests := []struct {
+		name     string
+		document string
+		want     string
+	}{
+		{"agent model", `{"start":"x","nodes":[{"id":"x","type":"agent","llm_model":"fable","edges":[{"to":"success"}]}]}`, `replace it with "model.name"`},
+		{"loop judge effort", `{"start":"x","nodes":[{"id":"x","type":"loop","reasoning_effort":"medium","edges":{"loop":"x","exit":"success"}}]}`, `replace it with "item_judge.model.effort"`},
+		{"loop evaluator", `{"start":"x","nodes":[{"id":"x","type":"loop","evaluator_llm_model":"fable","edges":{"loop":"x","exit":"success"}}]}`, `replace it with "goal_evaluator.model.name"`},
+		{"provider", `{"start":"x","nodes":[{"id":"x","type":"agent","llm_provider":"anthropic","edges":[{"to":"success"}]}]}`, `authored provider was removed because model.name determines provider`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := Parse([]byte(test.document))
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Parse() error = %v, want %q", err, test.want)
+			}
+		})
 	}
 }
 
@@ -109,14 +152,12 @@ func TestParseResolvesStructuredFanOutAgentBranches(t *testing.T) {
       "type":"fan_out",
       "workspace":"shared",
       "prompt":"Build the parent artifact",
-      "llm_provider":"openai",
-      "llm_model":"gpt-parent",
-      "reasoning_effort":"high",
+      "model":{"name":"gpt-5.6-sol","effort":"high"},
       "timeout":"3m",
       "branch_edges":[{"to":"join"}],
       "branches":[
         {"id":"openai_branch","artifacts":["openai.txt"],"agent":{"prompt":"Build OpenAI output"}},
-        {"id":"anthropic_branch","artifacts":["anthropic.txt"],"agent":{"llm_provider":"anthropic","llm_model":"claude-child","reasoning_effort":"medium"}}
+        {"id":"anthropic_branch","artifacts":["anthropic.txt"],"agent":{"model":{"name":"claude-sonnet-5","effort":"medium"}}}
       ]
     },
     {"id":"join","type":"fan_in","edges":[{"to":"success"}]}
@@ -131,11 +172,11 @@ func TestParseResolvesStructuredFanOutAgentBranches(t *testing.T) {
 		t.Fatalf("fan_out = %#v", fanOut)
 	}
 	openai := mustNode[*AgentNode](t, pipeline, "openai_branch")
-	if openai.Prompt.Value != "Build OpenAI output" || openai.LLMProvider.Value != "openai" || openai.LLMModel.Value != "gpt-parent" || openai.ReasoningEffort.Value != "high" || openai.Timeout.Value != "3m" {
+	if openai.Prompt.Value != "Build OpenAI output" || openai.Model.Value.Name != "gpt-5.6-sol" || openai.Model.Value.Effort.Value != "high" || openai.Timeout.Value != "3m" {
 		t.Fatalf("inherited branch = %#v", openai)
 	}
 	anthropic := mustNode[*AgentNode](t, pipeline, "anthropic_branch")
-	if anthropic.Prompt.Value != "Build the parent artifact" || anthropic.LLMProvider.Value != "anthropic" || anthropic.LLMModel.Value != "claude-child" || anthropic.ReasoningEffort.Value != "medium" || !reflect.DeepEqual(anthropic.Edges, []Edge{{To: "join"}}) {
+	if anthropic.Prompt.Value != "Build the parent artifact" || anthropic.Model.Value.Name != "claude-sonnet-5" || anthropic.Model.Value.Effort.Value != "medium" || !reflect.DeepEqual(anthropic.Edges, []Edge{{To: "join"}}) {
 		t.Fatalf("overridden branch = %#v", anthropic)
 	}
 }
@@ -172,7 +213,7 @@ func TestParseRejectsStructuralViolations(t *testing.T) {
 		"missing loop edges":        `{"start":"x","nodes":[{"id":"x","type":"loop"}]}`,
 		"missing loop route":        `{"start":"x","nodes":[{"id":"x","type":"loop","edges":{"loop":"x"}}]}`,
 		"loop unknown field":        `{"start":"x","nodes":[{"id":"x","type":"loop","edges":{"loop":"x","exit":"success"},"prompt":"no"}]}`,
-		"loop evaluator effort":     `{"start":"x","nodes":[{"id":"x","type":"loop","edges":{"loop":"x","exit":"success"},"evaluator_reasoning_effort":"extreme"}]}`,
+		"loop role effort":          `{"start":"x","nodes":[{"id":"x","type":"loop","edges":{"loop":"x","exit":"success"},"goal_evaluator":{"model":{"name":"fable","effort":"extreme"}}}]}`,
 		"old agent type":            `{"start":"x","nodes":[{"id":"x","type":"codergen"}]}`,
 		"old command type":          `{"start":"x","nodes":[{"id":"x","type":"tool","command":"true","edges":{"success":"success"}}]}`,
 		"old fan_out type":          `{"start":"x","nodes":[{"id":"x","type":"parallel","branches":[]}]}`,
@@ -273,9 +314,9 @@ func TestParseLoopNode(t *testing.T) {
 	document := `
 defaults:
   timeout: 15m
-  llm_model: default-model
-  llm_provider: openai
-  reasoning_effort: low
+  model:
+    name: gpt-5.6-sol
+    effort: low
 start: items
 nodes:
   - id: items
@@ -291,12 +332,15 @@ nodes:
       loop: implement
       exit: items
     timeout: 1m
-    llm_model: cheap
-    llm_provider: anthropic
-    reasoning_effort: high
-    evaluator_llm_model: evaluator-model
-    evaluator_llm_provider: gemini
-    evaluator_reasoning_effort: medium
+    item_judge:
+      model:
+        name: flash
+        effort: high
+    goal_evaluator:
+      model:
+        name: fable
+        version: "5"
+        effort: medium
   - id: implement
     type: agent
     prompt: Implement the current item.
@@ -311,11 +355,11 @@ nodes:
 	if items.NodeType() != "loop" || items.Checklist.Value != "ephemeral/checklist.md" || items.Edges.Loop != "implement" || items.Edges.Exit != Success || items.MaxVisits.Value != 40 {
 		t.Fatalf("loop = %#v", items)
 	}
-	if items.Timeout.Value != "15m" || items.LLMModel.Present || items.LLMProvider.Present || items.ReasoningEffort.Present || items.EvaluatorLLMModel.Value != "default-model" || items.EvaluatorLLMProvider.Value != "openai" || items.EvaluatorReasoningEffort.Value != "low" {
+	if items.Timeout.Value != "15m" || items.ItemJudge.Present || items.GoalEvaluator.Present {
 		t.Fatalf("loop defaults = %#v", items)
 	}
 	bare := mustNode[*LoopNode](t, pipeline, "bare")
-	if bare.Checklist.Present || bare.MaxVisits.Present || bare.Timeout.Value != "1m" || bare.LLMModel.Value != "cheap" || bare.LLMProvider.Value != "anthropic" || bare.ReasoningEffort.Value != "high" || bare.EvaluatorLLMModel.Value != "evaluator-model" || bare.EvaluatorLLMProvider.Value != "gemini" || bare.EvaluatorReasoningEffort.Value != "medium" {
+	if bare.Checklist.Present || bare.MaxVisits.Present || bare.Timeout.Value != "1m" || bare.ItemJudge.Value.Model.Value.Name != "flash" || bare.ItemJudge.Value.Model.Value.Effort.Value != "high" || bare.GoalEvaluator.Value.Model.Value.Name != "fable" || bare.GoalEvaluator.Value.Model.Value.Version.Value != "5" || bare.GoalEvaluator.Value.Model.Value.Effort.Value != "medium" {
 		t.Fatalf("explicit loop fields = %#v", bare)
 	}
 	if !reflect.DeepEqual(RoutingTargets(items), []string{"implement", Success}) || !reflect.DeepEqual(RoutingTargets(bare), []string{"implement", "items"}) {

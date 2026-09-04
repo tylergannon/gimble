@@ -3,6 +3,7 @@
 
 import { boundsOf, edgeKey, isBox, type Box, type Layout, type LayoutEntry } from './layout';
 import { isTerminal, linksOf, listEdges, normalizeBranch, TERMINAL, type Defaults, type Graph } from './model';
+import type { ModelResolution } from './api';
 
 export interface PathVM {
 	key: string;
@@ -122,7 +123,8 @@ export function buildScene(
 	sel: string | null,
 	errs: Record<string, string[]>,
 	view: Viewport,
-	showInherited: boolean
+	showInherited: boolean,
+	models: ModelResolution[]
 ): Scene {
 	const d: Defaults = g.defaults ?? {};
 	const paths: PathVM[] = [];
@@ -251,20 +253,25 @@ export function buildScene(
 				meta.push({ k, v: String(v).split('\n')[0], color: inherited ? MUTED : FG });
 			}
 		};
+		const resolved = models.filter((model) => model.node_id === n.id);
+		const pushModel = (label: string, role?: string) => {
+			const model = resolved.find((candidate) => !role || candidate.role === role);
+			if (model) push(label, `${model.native_model} · ${model.effective_effort}`, !model.source.startsWith('node '));
+		};
 		if (n.type === 'command') {
 			push('cmd', n.command);
 			push('timeout', n.timeout ?? d.timeout, n.timeout === undefined);
 		} else if (n.type === 'loop') {
 			push('checklist', n.checklist);
-			push('model', n.llm_model ?? d.llm_model, n.llm_model === undefined);
+			pushModel('judge', 'item_judge');
+			pushModel('evaluator', 'goal_evaluator');
 			push('visits', n.max_visits);
 		} else if (n.type === 'supervisor') {
 			push('every', n.interval);
 			push('watching', (n.supervises ?? []).length);
-			push('model', n.llm_model ?? d.llm_model, n.llm_model === undefined);
+			pushModel('model', 'supervisor');
 		} else {
-			push('model', n.llm_model ?? d.llm_model, n.llm_model === undefined);
-			push('effort', n.reasoning_effort ?? d.reasoning_effort, n.reasoning_effort === undefined);
+			pushModel('model');
 			push('timeout', n.timeout ?? d.timeout, n.timeout === undefined);
 			push('retries', n.max_retries ?? d.max_retries, n.max_retries === undefined);
 			if (n.type === 'fan_out') {

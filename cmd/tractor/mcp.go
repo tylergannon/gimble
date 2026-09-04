@@ -502,6 +502,9 @@ func loadAndValidatePipeline(path, workdir string) (string, []string, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	if _, err := engine.ResolveGraphModels(*pipeline, systemModelSelection()); err != nil {
+		return "", nil, err
+	}
 	warnings := make([]string, 0)
 	for _, diagnostic := range diagnostics {
 		if diagnostic.Severity != lint.SeverityError {

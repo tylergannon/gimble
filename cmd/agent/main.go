@@ -150,6 +150,7 @@ func run(args []string) error {
 
 	outcome, runErr := backend.Run(harness.AgentTurn{
 		NodeID:          "agent",
+		Role:            "agent",
 		Parts:           []harness.ContentPart{{Type: harness.ContentPartText, Text: strings.Join(positionals[1:], " ")}},
 		OutputSchema:    outcomeSchema,
 		Model:           selection.model,

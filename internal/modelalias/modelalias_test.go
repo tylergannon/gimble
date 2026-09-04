@@ -1,51 +1,60 @@
 package modelalias
 
 import (
-	"reflect"
 	"strings"
 	"testing"
 )
 
-func TestAvailableModels(t *testing.T) {
-	want := []Model{
-		{Alias: "flash", Provider: "gemini", Model: "gemini-3.8-flash-medium"},
-		{Alias: "fable", Provider: "anthropic", Model: "claude-fable-5-1"},
-		{Alias: "fable-5.1", Provider: "anthropic", Model: "claude-fable-5-1"},
-		{Alias: "fable-5", Provider: "anthropic", Model: "claude-fable-5"},
-	}
-	if got := Available(); !reflect.DeepEqual(got, want) {
-		t.Fatalf("Available() = %#v, want %#v", got, want)
-	}
-}
-
-func TestResolveSelection(t *testing.T) {
+func TestResolveModelAliasesVersionsAndEffort(t *testing.T) {
 	tests := []struct {
-		name         string
-		provider     string
-		model        string
-		wantProvider string
-		wantModel    string
-		wantErr      string
+		name      string
+		selection Selection
+		want      ResolvedSelection
 	}{
-		{name: "Flash resolves to Gemini 3.8 medium", model: "flash", wantProvider: "gemini", wantModel: "gemini-3.8-flash-medium"},
-		{name: "explicit Gemini provider accepts Flash", provider: "gemini", model: "flash", wantProvider: "gemini", wantModel: "gemini-3.8-flash-medium"},
-		{name: "unversioned Fable defaults to 5.1", model: "fable", wantProvider: "anthropic", wantModel: "claude-fable-5-1"},
-		{name: "explicit Fable 5.1", provider: "anthropic", model: "fable-5.1", wantProvider: "anthropic", wantModel: "claude-fable-5-1"},
-		{name: "explicit Fable 5 remains available", model: "fable-5", wantProvider: "anthropic", wantModel: "claude-fable-5"},
-		{name: "raw model passes through", provider: "anthropic", model: "claude-experimental", wantProvider: "anthropic", wantModel: "claude-experimental"},
-		{name: "conflicting provider", provider: "openai", model: "flash", wantErr: `provider "openai" conflicts with model alias "flash"`},
+		{name: "Flash default", selection: Selection{Name: "flash"}, want: ResolvedSelection{Name: "flash", Version: "3.8", Model: "gemini-3.8-flash-medium", Effort: "medium", Provider: "gemini", Harness: "agy"}},
+		{name: "Flash explicit effort translates native ID", selection: Selection{Name: "flash", Effort: "high", EffortPresent: true}, want: ResolvedSelection{Name: "flash", Version: "3.8", Model: "gemini-3.8-flash-high", Effort: "high", Provider: "gemini", Harness: "agy"}},
+		{name: "Flash older release pin", selection: Selection{Name: "flash", Version: "3.7", VersionPresent: true, Effort: "low", EffortPresent: true}, want: ResolvedSelection{Name: "flash", Version: "3.7", Model: "gemini-3.7-flash-low", Effort: "low", Provider: "gemini", Harness: "agy"}},
+		{name: "Fable default release", selection: Selection{Name: "fable"}, want: ResolvedSelection{Name: "fable", Version: "5.1", Model: "claude-fable-5-1", Effort: "high", Provider: "anthropic", Harness: "claude"}},
+		{name: "Fable 5.1 pin", selection: Selection{Name: "fable", Version: "5.1", VersionPresent: true, Effort: "low", EffortPresent: true}, want: ResolvedSelection{Name: "fable", Version: "5.1", Model: "claude-fable-5-1", Effort: "low", Provider: "anthropic", Harness: "claude"}},
+		{name: "Fable 5 pin", selection: Selection{Name: "fable", Version: "5", VersionPresent: true}, want: ResolvedSelection{Name: "fable", Version: "5", Model: "claude-fable-5", Effort: "high", Provider: "anthropic", Harness: "claude"}},
+		{name: "Version-bearing compatibility alias", selection: Selection{Name: "fable-5"}, want: ResolvedSelection{Name: "fable-5", Version: "5", Model: "claude-fable-5", Effort: "high", Provider: "anthropic", Harness: "claude"}},
+		{name: "OpenAI native", selection: Selection{Name: "gpt-5.6-sol", Effort: "medium", EffortPresent: true}, want: ResolvedSelection{Name: "gpt-5.6-sol", Model: "gpt-5.6-sol", Effort: "medium", Provider: "openai", Harness: "codex"}},
+		{name: "Gemini fixed native effort", selection: Selection{Name: "gemini-3.1-pro-low"}, want: ResolvedSelection{Name: "gemini-3.1-pro-low", Model: "gemini-3.1-pro-low", Effort: "low", Provider: "gemini", Harness: "agy"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			provider, model, err := ResolveSelection(test.provider, test.model)
-			if test.wantErr != "" {
-				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
-					t.Fatalf("ResolveSelection() error = %v, want %q", err, test.wantErr)
-				}
-				return
+			got, err := ResolveModel(test.selection)
+			if err != nil {
+				t.Fatal(err)
 			}
-			if err != nil || provider != test.wantProvider || model != test.wantModel {
-				t.Fatalf("ResolveSelection() = %q, %q, %v; want %q, %q", provider, model, err, test.wantProvider, test.wantModel)
+			if got != test.want {
+				t.Fatalf("ResolveModel() = %#v, want %#v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestResolveModelRejectsInvalidSelectionsWithoutFallback(t *testing.T) {
+	tests := []struct {
+		name      string
+		selection Selection
+		want      string
+	}{
+		{name: "blank name", selection: Selection{Name: " "}, want: "nonblank"},
+		{name: "explicit blank version", selection: Selection{Name: "fable", VersionPresent: true}, want: "version must be a nonblank"},
+		{name: "unsupported version", selection: Selection{Name: "fable", Version: "4", VersionPresent: true}, want: `does not support version "4"`},
+		{name: "version with versioned alias", selection: Selection{Name: "fable-5", Version: "5", VersionPresent: true}, want: "already selects a version"},
+		{name: "version with native", selection: Selection{Name: "gpt-5.6-sol", Version: "5.6", VersionPresent: true}, want: "already selects a version"},
+		{name: "explicit blank effort", selection: Selection{Name: "fable", EffortPresent: true}, want: "unsupported model effort"},
+		{name: "unknown effort", selection: Selection{Name: "fable", Effort: "max", EffortPresent: true}, want: "unsupported model effort"},
+		{name: "fixed native effort conflict", selection: Selection{Name: "gemini-3.1-pro-low", Effort: "high", EffortPresent: true}, want: "fixes effort"},
+		{name: "unknown provider", selection: Selection{Name: "mystery-model"}, want: "cannot determine provider"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ResolveModel(test.selection)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("ResolveModel() error = %v, want %q", err, test.want)
 			}
 		})
 	}

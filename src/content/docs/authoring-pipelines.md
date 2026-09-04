@@ -20,9 +20,9 @@ name: ship-a-fix
 goal: Fix the reported bug and leave the repository passing its tests.
 
 defaults:
-  llm_provider: openai
-  llm_model: gpt-5.6-sol
-  reasoning_effort: high
+  model:
+    name: gpt-5.6-sol
+    effort: high
   timeout: 20m
 
 start: implement
@@ -124,17 +124,18 @@ If `edges.error` is absent, a nonzero exit fails the run. That is a good default
 
 ## Control sessions and retries
 
-LLM nodes can set `llm_provider`, `llm_model`, `reasoning_effort`, `timeout`, `max_retries`, `fidelity`, and `thread_id`. Put shared values under `defaults`, then override only where the stage has a real reason to differ.
+LLM nodes select a model with one object containing a required `name` and optional string `version` and `effort`. The supported effort values are `low`, `medium`, and `high`. Provider and harness are derived from the name.
 
-Tractor maintains these Fable aliases:
+```yaml
+model:
+  name: fable
+  version: "5.1"
+  effort: high
+```
 
-| Alias       | Provider model                       |
-| ----------- | ------------------------------------ |
-| `fable`     | `claude-fable-5-1` (current default) |
-| `fable-5.1` | `claude-fable-5-1`                   |
-| `fable-5`   | `claude-fable-5`                     |
+A node's `model` replaces `defaults.model` as a whole. Missing `version` or `effort` values are resolved from the selected model's policy; they never carry over from the lower-precedence object. Tractor maintains `fable` releases `5.1` and `5`, and `flash` releases `3.8`, `3.7`, and `3.6`. Provider-native IDs such as `claude-sonnet-4-5` and `gpt-5.6-sol` remain usable directly. An already-versioned native name cannot also take `version`.
 
-Aliases supply their provider and are maintained upgrade policy. Use a provider-native model ID when a pipeline must remain pinned independently of that policy; raw IDs continue to pass through unchanged. If `llm_provider` is present with an alias, it must match the alias's provider.
+Use `tractor inspect-models pipeline.yaml` to see every effective node and role selection, including its native model, effort, provider, harness, and source.
 
 - `fidelity: full` reuses the native harness session and preserves its conversation.
 - `fidelity: compacted` reuses the session after native compaction.
@@ -146,7 +147,7 @@ Keep prompts responsible for the work, not for re-explaining the entire pipeline
 
 ## Fan out, then converge
 
-Fan-out nodes support two branch forms. A string names an authored branch root, preserving the original multi-node branch model. A structured branch declares one synthesized agent stage, its required artifacts, and an optional `codergen` override. The synthesized stage inherits the fan-out node's prompt, model, provider, reasoning effort, retry, fidelity, thread, timeout, label, visit, and `branch_edges`; only fields present in `codergen` replace those values.
+Fan-out nodes support two branch forms. A string names an authored branch root, preserving the original multi-node branch model. A structured branch declares one synthesized agent stage, its required artifacts, and an optional `agent` override. The synthesized stage inherits the fan-out node's prompt, model, retry, fidelity, thread, timeout, label, visit, and `branch_edges`. `branches[].agent.model`, when present, replaces the fan-out template selection as a whole.
 
 The default `workspace` is `isolated`. Tractor freezes the parent Git repository, creates a separate worktree for each branch, and collects every declared regular file or directory into durable fan-out stage evidence before deleting the branch worktrees. `branches.json` records each declared path, collected path, source path, outcome, stage directory, and run-log segment. The fan-in receives those collected paths directly.
 
@@ -156,9 +157,9 @@ The default `workspace` is `isolated`. Tractor freezes the parent Git repository
   workspace: isolated
   max_parallel: 2
   prompt: Review the change and write the branch's declared report.
-  llm_provider: openai
-  llm_model: gpt-5.6-sol
-  reasoning_effort: low
+  model:
+    name: gpt-5.6-sol
+    effort: low
   branch_edges:
     - to: choose
   branches:
@@ -170,9 +171,9 @@ The default `workspace` is `isolated`. Tractor freezes the parent Git repository
       artifacts: [reports/claude.md]
       agent:
         prompt: Write the Claude review to reports/claude.md.
-        llm_provider: anthropic
-        llm_model: claude-sonnet-4-5
-        reasoning_effort: medium
+        model:
+          name: claude-sonnet-4-5
+          effort: medium
 
 - id: choose
   type: fan_in
@@ -203,16 +204,16 @@ A supervisor observes declared nodes outside the main walk. At its interval, it 
   prompt: Keep implementation aligned with the requested scope. Steer only on a material divergence.
   supervises: [implement, review]
   interval: 45s
-  llm_provider: anthropic
-  llm_model: fable
-  reasoning_effort: low
+  model:
+    name: fable
+    effort: low
 ```
 
 Supervisors are advisory. They do not route, block, or decide success. Prefer clear worker prompts and deterministic checks first; add supervision when useful mid-turn correction is worth the extra model calls.
 
 ## Work through a checklist
 
-A `loop` node iterates a checklist file. Its routing targets are `edges.loop`, the entry node of one lap, and `edges.exit`, followed when the loop evaluator returns `done`. `max_visits` on the loop node counts arrivals (laps plus one) and is the only ceiling. `timeout` inherits from `defaults`; `llm_model`, `llm_provider`, and `reasoning_effort` configure the item judge independently. When omitted, the judge uses `flash` (`gemini-3.8-flash-medium`) on the `gemini` provider at medium effort. The evaluator's separate `evaluator_llm_model`, `evaluator_llm_provider`, and `evaluator_reasoning_effort` fields default to the pipeline defaults.
+A `loop` node iterates a checklist file. Its routing targets are `edges.loop`, the entry node of one lap, and `edges.exit`, followed when the goal evaluator returns `done`. `max_visits` on the loop node counts arrivals (laps plus one) and is the only ceiling. `timeout` inherits from `defaults`. `item_judge.model` is independent and defaults to `{name: flash, effort: medium}`. `goal_evaluator.model` is a separate atomic selection that defaults to `defaults.model`, then the system selection.
 
 ```yaml
 - id: items
@@ -222,6 +223,15 @@ A `loop` node iterates a checklist file. Its routing targets are `edges.loop`, t
     loop: implement
     exit: success
   max_visits: 20
+  item_judge:
+    model:
+      name: flash
+      effort: medium
+  goal_evaluator:
+    model:
+      name: fable
+      version: "5.1"
+      effort: high
 
 - id: implement
   type: agent

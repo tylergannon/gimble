@@ -11,6 +11,18 @@ export interface Diagnostic {
 	fix?: string;
 }
 
+export interface ModelResolution {
+	node_id: string;
+	role: string;
+	source: string;
+	authored_name: string;
+	authored_version?: string;
+	native_model: string;
+	effective_effort: string;
+	provider: string;
+	harness: string;
+}
+
 export interface ServerDoc {
 	path: string;
 	yaml: string;
@@ -18,6 +30,7 @@ export interface ServerDoc {
 	version: string;
 	diagnostics: Diagnostic[];
 	parse_error: string;
+	models: ModelResolution[];
 }
 
 export interface PutBody {

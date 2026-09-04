@@ -19,30 +19,25 @@ func TestAgentHandlerBuildsExactTurnSchemaAndArtifacts(t *testing.T) {
 	backend := &captureBackend{outcome: harness.Outcome{Next: "review", Notes: "approved\nwith details"}}
 	handler := NewAgentHandler(AgentConfig{
 		Backend:                backend,
-		DefaultModel:           "system-model",
-		DefaultProvider:        "system-provider",
+		DefaultModel:           "gpt-5.6-sol",
 		DefaultReasoningEffort: "low",
 	})
 	node := &graph.AgentNode{
 		NodeBase: graph.NodeBase{ID: "plan", Label: optional("Plan")},
 		LLMNodeFields: graph.LLMNodeFields{
-			Prompt:          optional("Do $goal, then $goal"),
-			LLMModel:        optional("claude-opus-4-6"),
-			LLMProvider:     optional("anthropic"),
-			ReasoningEffort: optional("high"),
-			Fidelity:        optional("none"),
-			ThreadID:        optional("ignored-thread"),
-			Timeout:         optional(graph.Duration("3s")),
+			Prompt:   optional("Do $goal, then $goal"),
+			Model:    modelSelection("claude-opus-4-6", "", "high"),
+			Fidelity: optional("none"),
+			ThreadID: optional("ignored-thread"),
+			Timeout:  optional(graph.Duration("3s")),
 		},
 	}
 	pipeline := &graph.Graph{
 		Goal: "unused graph goal",
 		Defaults: graph.Defaults{
-			LLMModel:        optional("file-model"),
-			LLMProvider:     optional("file-provider"),
-			ReasoningEffort: optional("medium"),
-			Fidelity:        optional("full"),
-			Timeout:         optional(graph.Duration("2s")),
+			Model:    modelSelection("fable", "5", "medium"),
+			Fidelity: optional("full"),
+			Timeout:  optional(graph.Duration("2s")),
 		},
 		Nodes: []graph.Node{
 			node,
@@ -71,6 +66,7 @@ func TestAgentHandlerBuildsExactTurnSchemaAndArtifacts(t *testing.T) {
 	wantSchema := `{"type":"object","properties":{"next":{"type":"string","enum":["implement","review"],"description":"Choose the next stage. Needs work: implement; Looks good: review"},"notes":{"type":"string","description":"Your account of this stage."}},"required":["next","notes"],"additionalProperties":false}`
 	wantTurn := harness.AgentTurn{
 		NodeID:          "plan",
+		Role:            RoleAgent,
 		Parts:           []harness.ContentPart{{Type: harness.ContentPartText, Text: "Do ship it, then ship it"}},
 		OutputSchema:    json.RawMessage(wantSchema),
 		Model:           "claude-opus-4-6",
@@ -105,16 +101,14 @@ func TestAgentHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.T) 
 		{
 			name: "node beats file and system",
 			nodeFields: graph.LLMNodeFields{
-				LLMModel: optional("gpt-5.3-codex"), LLMProvider: optional("openai"),
-				ReasoningEffort: optional("low"), Fidelity: optional("full"),
+				Model: modelSelection("gpt-5.3-codex", "", "low"), Fidelity: optional("full"),
 				ThreadID: optional("shared"), Timeout: optional(graph.Duration("9s")),
 			},
 			defaults: graph.Defaults{
-				LLMModel: optional("file-model"), LLMProvider: optional("file-provider"),
-				ReasoningEffort: optional("medium"), Fidelity: optional("none"),
+				Model: modelSelection("fable", "5", "medium"), Fidelity: optional("none"),
 				Timeout: optional(graph.Duration("8s")),
 			},
-			config:        AgentConfig{DefaultModel: "system-model", DefaultProvider: "system-provider", DefaultReasoningEffort: "high"},
+			config:        AgentConfig{DefaultModel: "claude-sonnet-5", DefaultReasoningEffort: "high"},
 			wantModel:     "gpt-5.3-codex",
 			wantProvider:  "openai",
 			wantReasoning: "low",
@@ -126,13 +120,12 @@ func TestAgentHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.T) 
 			name:       "file beats system",
 			nodeFields: graph.LLMNodeFields{ThreadID: optional("file-thread")},
 			defaults: graph.Defaults{
-				LLMModel: optional("file-model"), LLMProvider: optional("file-provider"),
-				ReasoningEffort: optional("medium"), Fidelity: optional("compacted"),
+				Model: modelSelection("fable", "5", "medium"), Fidelity: optional("compacted"),
 				Timeout: optional(graph.Duration("7s")),
 			},
-			config:        AgentConfig{DefaultModel: "system-model", DefaultProvider: "system-provider", DefaultReasoningEffort: "high"},
-			wantModel:     "file-model",
-			wantProvider:  "file-provider",
+			config:        AgentConfig{DefaultModel: "gpt-5.6-sol", DefaultReasoningEffort: "high"},
+			wantModel:     "claude-fable-5",
+			wantProvider:  "anthropic",
 			wantReasoning: "medium",
 			wantFidelity:  harness.FidelityCompacted,
 			wantThread:    "file-thread",
@@ -140,9 +133,9 @@ func TestAgentHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.T) 
 		},
 		{
 			name:          "system defaults",
-			config:        AgentConfig{DefaultModel: "system-model", DefaultProvider: "system-provider", DefaultReasoningEffort: "medium"},
-			wantModel:     "system-model",
-			wantProvider:  "system-provider",
+			config:        AgentConfig{DefaultModel: "gpt-5.6-sol", DefaultReasoningEffort: "medium"},
+			wantModel:     "gpt-5.6-sol",
+			wantProvider:  "openai",
 			wantReasoning: "medium",
 			wantFidelity:  harness.FidelityCompacted,
 			wantThread:    "work",
@@ -198,20 +191,17 @@ func TestAgentHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.T) 
 	}
 }
 
-func TestAgentHandlerRejectsProviderConflictWithModelAlias(t *testing.T) {
+func TestAgentHandlerRejectsUnknownModelProvider(t *testing.T) {
 	node := &graph.AgentNode{
-		NodeBase: graph.NodeBase{ID: "work"},
-		LLMNodeFields: graph.LLMNodeFields{
-			LLMProvider: optional("openai"),
-			LLMModel:    optional("fable"),
-		},
+		NodeBase:      graph.NodeBase{ID: "work"},
+		LLMNodeFields: graph.LLMNodeFields{Model: modelSelection("mystery-model", "", "")},
 	}
 	pipeline := &graph.Graph{Nodes: []graph.Node{node, exitNode("done")}}
 	stageDir := t.TempDir()
 	_, runErr := NewAgentHandler(AgentConfig{}).Execute(node, []graph.Edge{{To: "done"}}, ExecutionScope{
 		Workdir: "/workspace", StageDir: stageDir, RunLog: filepath.Join(stageDir, "events.jsonl"), Stop: NewStopSignal(),
 	}, pipeline)
-	if runErr == nil || !strings.Contains(runErr.Message, `provider "openai" conflicts with model alias "fable"`) {
+	if runErr == nil || !strings.Contains(runErr.Message, `cannot determine provider`) {
 		t.Fatalf("conflict error = %#v", runErr)
 	}
 }
@@ -307,8 +297,7 @@ func TestAgentHandlerRejectsInvalidResolvedTurnInSimulation(t *testing.T) {
 		fields     graph.LLMNodeFields
 		wantReason string
 	}{
-		{name: "missing provider", wantReason: "provider must not be empty"},
-		{name: "missing model", config: AgentConfig{DefaultProvider: "openai"}, wantReason: "model must not be empty"},
+		{name: "missing model", wantReason: "model selection at system default: model name must be a nonblank string"},
 		{name: "unsupported fidelity", config: AgentConfig{DefaultModel: "gpt-5.3-codex"}, fields: graph.LLMNodeFields{Fidelity: optional("unknown")}, wantReason: `unsupported fidelity "unknown"`},
 	}
 	for _, test := range tests {
@@ -347,6 +336,17 @@ func TestDetectProvider(t *testing.T) {
 
 func optional[T any](value T) jsonschema.Optional[T] {
 	return jsonschema.Optional[T]{Present: true, Value: value}
+}
+
+func modelSelection(name, version, effort string) jsonschema.Optional[graph.ModelSelection] {
+	selection := graph.ModelSelection{Name: name}
+	if version != "" {
+		selection.Version = optional(version)
+	}
+	if effort != "" {
+		selection.Effort = optional(effort)
+	}
+	return optional(selection)
 }
 
 func assertTextFile(t *testing.T, path, want string) {

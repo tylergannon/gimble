@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tylergannon/tractor/engine"
 	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/lint"
 )
@@ -45,12 +46,13 @@ func Dist() fs.FS {
 
 // Document is the wire shape shared by GET and PUT /api/doc.
 type Document struct {
-	Path        string            `json:"path"`
-	YAML        string            `json:"yaml"`
-	Layout      json.RawMessage   `json:"layout"`
-	Version     string            `json:"version"`
-	Diagnostics []lint.Diagnostic `json:"diagnostics"`
-	ParseError  string            `json:"parse_error"`
+	Path        string                   `json:"path"`
+	YAML        string                   `json:"yaml"`
+	Layout      json.RawMessage          `json:"layout"`
+	Version     string                   `json:"version"`
+	Diagnostics []lint.Diagnostic        `json:"diagnostics"`
+	ParseError  string                   `json:"parse_error"`
+	Models      []engine.ModelResolution `json:"models"`
 }
 
 type putRequest struct {
@@ -344,15 +346,16 @@ func (s *Server) loadLocked() (*Document, error) {
 		YAML:        string(raw),
 		Version:     hashVersion(raw, sidecar),
 		Diagnostics: []lint.Diagnostic{},
+		Models:      []engine.ModelResolution{},
 	}
 	if json.Valid(sidecar) && isJSONObject(sidecar) {
 		document.Layout = json.RawMessage(sidecar)
 	}
-	document.Diagnostics, document.ParseError = s.lint(raw)
+	document.Diagnostics, document.ParseError, document.Models = s.inspect(raw)
 	return document, nil
 }
 
-func (s *Server) lint(raw []byte) ([]lint.Diagnostic, string) {
+func (s *Server) inspect(raw []byte) ([]lint.Diagnostic, string, []engine.ModelResolution) {
 	var (
 		pipeline *graph.Graph
 		err      error
@@ -363,16 +366,20 @@ func (s *Server) lint(raw []byte) ([]lint.Diagnostic, string) {
 		pipeline, err = graph.ParseYAML(raw)
 	}
 	if err != nil {
-		return []lint.Diagnostic{}, err.Error()
+		return []lint.Diagnostic{}, err.Error(), []engine.ModelResolution{}
+	}
+	models, modelErr := engine.ResolveGraphModels(*pipeline, engine.SystemModelSelection{})
+	if modelErr != nil {
+		return []lint.Diagnostic{}, modelErr.Error(), []engine.ModelResolution{}
 	}
 	if s.validator == nil {
-		return []lint.Diagnostic{}, ""
+		return []lint.Diagnostic{}, "", models
 	}
 	diagnostics := s.validator.Validate(*pipeline)
 	if diagnostics == nil {
 		diagnostics = []lint.Diagnostic{}
 	}
-	return diagnostics, ""
+	return diagnostics, "", models
 }
 
 // version hashes the on-disk content without lint; missing files hash as empty.

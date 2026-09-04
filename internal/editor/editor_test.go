@@ -107,7 +107,7 @@ func TestGetReturnsFileAndDiagnostics(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &raw); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"path", "yaml", "layout", "version", "diagnostics", "parse_error"} {
+	for _, key := range []string{"path", "yaml", "layout", "version", "diagnostics", "parse_error", "models"} {
 		if _, ok := raw[key]; !ok {
 			t.Fatalf("response lacks %q:\n%s", key, recorder.Body)
 		}
@@ -117,6 +117,9 @@ func TestGetReturnsFileAndDiagnostics(t *testing.T) {
 	}
 	if string(raw["diagnostics"]) == "null" {
 		t.Fatalf("diagnostics must be an array, got null")
+	}
+	if string(raw["models"]) == "null" {
+		t.Fatalf("models must be an array, got null")
 	}
 
 	document := getDocument(t, server)
@@ -135,6 +138,56 @@ func TestGetReturnsFileAndDiagnostics(t *testing.T) {
 	}
 	if lint.HasErrors(document.Diagnostics) {
 		t.Fatalf("bake-off has lint errors: %+v", document.Diagnostics)
+	}
+	foundBranch := false
+	for _, model := range document.Models {
+		if model.NodeID == "attempt_claude" && model.Role == "branch_agent" && model.NativeModel == "claude-sonnet-5" && model.EffectiveEffort == "low" && model.Provider == "anthropic" && model.Harness == "claude" {
+			foundBranch = true
+		}
+	}
+	if !foundBranch {
+		t.Fatalf("models do not expose the Claude branch resolution: %+v", document.Models)
+	}
+}
+
+func TestPutPreservesModelVersionAndReportsEffectiveSelection(t *testing.T) {
+	server, pipeline := newTestServer(t, "../../examples/loops/bake-off.yaml")
+	current := getDocument(t, server)
+	updated := `name: versioned
+defaults:
+  model:
+    name: fable
+    version: "5.1"
+    effort: high
+start: implement
+nodes:
+  - id: implement
+    type: agent
+    prompt: Implement the request.
+    edges:
+      - to: success
+`
+	status, document := putDocument(t, server, map[string]any{
+		"yaml":    updated,
+		"layout":  nil,
+		"version": current.Version,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d", status)
+	}
+	onDisk, err := os.ReadFile(pipeline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(onDisk) != updated {
+		t.Fatalf("saved workflow changed:\n%s", onDisk)
+	}
+	if len(document.Models) != 1 {
+		t.Fatalf("models = %+v", document.Models)
+	}
+	model := document.Models[0]
+	if model.NodeID != "implement" || model.Role != "agent" || model.AuthoredName != "fable" || model.AuthoredVersion != "5.1" || model.NativeModel != "claude-fable-5-1" || model.EffectiveEffort != "high" || model.Source != "pipeline defaults.model" {
+		t.Fatalf("model = %+v", model)
 	}
 }
 

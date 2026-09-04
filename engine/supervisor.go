@@ -17,7 +17,6 @@ import (
 
 	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/harness"
-	"github.com/tylergannon/tractor/internal/modelalias"
 )
 
 type liveExecution struct {
@@ -371,17 +370,10 @@ func (s *supervisionService) flush(runtime *supervisorRuntime, snapshot []liveEx
 }
 
 func (s *supervisionService) supervisorTurn(node *graph.SupervisorNode, message, runLog string) (harness.SupervisorTurn, *harness.Error) {
-	model := resolveString(node.LLMModel, s.runner.graph.Defaults.LLMModel, s.runner.config.DefaultModel)
-	provider := resolveProvider(node.LLMProvider, s.runner.graph.Defaults.LLMProvider, s.runner.config.DefaultProvider, model)
-	provider, model, selectionErr := modelalias.ResolveSelection(provider, model)
+	resolution, selectionErr := resolveNodeModel(node.ID, RoleSupervisor, node.Model, s.runner.graph.Defaults.Model, SystemModelSelection{Name: s.runner.config.DefaultModel, Effort: s.runner.config.DefaultReasoningEffort})
 	if selectionErr != nil {
 		return harness.SupervisorTurn{}, terminalError(selectionErr.Error())
 	}
-	effortDefault := s.runner.config.DefaultReasoningEffort
-	if effortDefault == "" {
-		effortDefault = "high"
-	}
-	effort := resolveString(node.ReasoningEffort, s.runner.graph.Defaults.ReasoningEffort, effortDefault)
 	timeout, err := resolveTimeout(node.Timeout, s.runner.graph.Defaults.Timeout)
 	if err != nil {
 		return harness.SupervisorTurn{}, terminalError(err.Error())
@@ -391,8 +383,8 @@ func (s *supervisionService) supervisorTurn(node *graph.SupervisorNode, message,
 		return harness.SupervisorTurn{}, terminalError(err.Error())
 	}
 	return harness.SupervisorTurn{
-		NodeID: node.ID, Parts: []harness.ContentPart{{Type: harness.ContentPartText, Text: message}},
-		OutputSchema: schema, Model: model, Provider: provider, ReasoningEffort: effort,
+		NodeID: node.ID, Role: RoleSupervisor, Parts: []harness.ContentPart{{Type: harness.ContentPartText, Text: message}},
+		OutputSchema: schema, Model: resolution.NativeModel, Provider: resolution.Provider, ReasoningEffort: resolution.EffectiveEffort,
 		Workdir: s.runner.config.Workdir, RunLog: runLog, Timeout: timeout,
 	}, nil
 }

@@ -492,11 +492,14 @@ func assertRunLog(t *testing.T, logsRoot string, wantSegments int) {
 			t.Fatalf("index path = %#v", entry["path"])
 		}
 		events := readJSONLines(t, filepath.Join(logsRoot, path))
-		if len(events) != 2 {
-			t.Fatalf("events in %s = %d, want 2", path, len(events))
+		if len(events) != 3 {
+			t.Fatalf("events in %s = %d, want 3", path, len(events))
 		}
-		if events[0]["type"] != EventUser || events[1]["type"] != EventAssistant {
+		if events[0]["type"] != EventModelSelection || events[1]["type"] != EventUser || events[2]["type"] != EventAssistant {
 			t.Fatalf("events in %s = %#v", path, events)
+		}
+		if events[0]["role"] == "" || events[0]["provider"] == "" || events[0]["harness"] == "" || events[0]["native_model"] == "" || events[0]["effective_effort"] == "" {
+			t.Fatalf("model selection event in %s = %#v", path, events[0])
 		}
 		for _, event := range events {
 			if event["node_id"] != entry["node_id"] || event["ts"] == "" {
@@ -653,6 +656,7 @@ func testTurnWithPromptAndFidelity(
 ) AgentTurn {
 	return AgentTurn{
 		NodeID:          nodeID,
+		Role:            "agent",
 		Parts:           textParts(prompt),
 		OutputSchema:    outcomeSchema,
 		Model:           "model",
@@ -667,6 +671,7 @@ func testTurnWithPromptAndFidelity(
 func testSupervisorTurn(nodeID, provider, workdir string) SupervisorTurn {
 	return SupervisorTurn{
 		NodeID:          nodeID,
+		Role:            "supervisor",
 		Parts:           textParts("supervise"),
 		OutputSchema:    verdictSchema,
 		Model:           "model",

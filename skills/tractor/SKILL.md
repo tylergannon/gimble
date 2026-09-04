@@ -72,10 +72,11 @@ if neither is at hand, the pipeline above is a complete start.
 
 ## Make "done" honest
 
-The command node is the only thing that decides. Point it at the closest
-observable proof of the user's claim — run the app, curl the endpoint, assert
-on the artifact. Tests and linters are worth requiring, but prove the claim
-only when they exercise that behavior.
+In a command-gated loop, the command's exit code decides the route. Point it
+at the closest observable proof of the user's claim — run the app, curl the
+endpoint, assert on the artifact. In a checklist loop, commands supply
+mechanical evidence, item judges assess inferred evidence, and the goal
+evaluator decides whether the checklist's definition of done is satisfied.
 
 ## Checklists
 
@@ -134,8 +135,11 @@ steer or restart the run to deliver it.
 ## Authoring beyond the examples
 
 `get_pipeline_schema` returns the current graph schema, and `start_run`'s
-lint diagnostics teach as they reject. Keep each prompt to the decision its
-node owns.
+lint diagnostics teach as they reject. Model consumers use an atomic `model`
+object with required `name` and optional string `version` and `effort`;
+provider and harness are derived. `tractor inspect-models <file>` displays the
+effective selection and provenance for every node and hidden loop role. Keep
+each prompt to the decision its node owns.
 
 `tractor edit <file>` opens the pipeline in a browser graph editor with the
 same lint. It reads and writes the file on disk, so keep editing the YAML
