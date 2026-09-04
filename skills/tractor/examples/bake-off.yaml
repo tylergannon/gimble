@@ -21,9 +21,9 @@ nodes:
       - id: attempt_claude
         artifacts: [REPORT.md]
         agent:
-          llm_provider: anthropic
-          llm_model: claude-sonnet-5
-          reasoning_effort: low
+          model:
+            name: claude-sonnet-5
+            effort: low
           prompt: >
             $goal
 
@@ -32,9 +32,9 @@ nodes:
       - id: attempt_codex
         artifacts: [REPORT.md]
         agent:
-          llm_provider: openai
-          llm_model: gpt-5.6-sol
-          reasoning_effort: low
+          model:
+            name: gpt-5.6-sol
+            effort: low
           prompt: >
             $goal
 
@@ -43,9 +43,9 @@ nodes:
       - id: attempt_gemini
         artifacts: [REPORT.md]
         agent:
-          llm_provider: gemini
-          llm_model: gemini-3.1-pro-low
-          reasoning_effort: low
+          model:
+            name: gemini-3.1-pro-low
+            effort: low
           prompt: >
             $goal
 
@@ -56,9 +56,9 @@ nodes:
 
   - id: judge
     type: fan_in
-    llm_provider: anthropic
-    llm_model: claude-sonnet-5
-    reasoning_effort: low
+    model:
+      name: claude-sonnet-5
+      effort: low
     prompt: >
       Judge the branches on demonstrated behavior, running each one
       yourself. Merge the winning fizzbuzz.sh into this main workspace and

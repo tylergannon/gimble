@@ -2,9 +2,7 @@
   "name": "supervisor-live-steering",
   "goal": "Prove that an in-graph Claude supervisor can steer a live Codex worker",
   "defaults": {
-    "llm_provider": "openai",
-    "llm_model": "gpt-5.6-sol",
-    "reasoning_effort": "low",
+    "model": { "name": "gpt-5.6-sol", "effort": "low" },
     "timeout": "90s"
   },
   "start": "prepare",
@@ -35,9 +33,7 @@
       "supervises": ["prepare", "work"],
       "interval": "2s",
       "timeout": "60s",
-      "llm_provider": "anthropic",
-      "llm_model": "fable",
-      "reasoning_effort": "low"
+      "model": { "name": "fable", "effort": "low" }
     }
   ]
 }

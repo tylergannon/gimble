@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,10 +32,58 @@ func TestRootExposesOnlyRequestedCommands(t *testing.T) {
 	if strings.Contains(stdout, "completion") {
 		t.Fatalf("help exposes unrequested completion command:\n%s", stdout)
 	}
-	for _, command := range []string{"answer", "ask", "mcp", "print-schema", "run", "validate"} {
+	for _, command := range []string{"answer", "ask", "inspect-models", "mcp", "print-schema", "run", "validate"} {
 		if !strings.Contains(stdout, command) {
 			t.Fatalf("help omits %q:\n%s", command, stdout)
 		}
+	}
+}
+
+func TestInspectModelsReportsEffectiveSelectionsForEveryRole(t *testing.T) {
+	pipeline := `defaults:
+  model:
+    name: fable
+    version: "5"
+    effort: low
+start: items
+nodes:
+  - id: items
+    type: loop
+    checklist: work.md
+    item_judge:
+      model:
+        name: flash
+        version: "3.7"
+        effort: high
+    edges:
+      loop: implement
+      exit: success
+  - id: implement
+    type: agent
+    prompt: Implement the current item.
+    edges:
+      - to: items
+`
+	stdout, _, err := executeCommand("inspect-models", "--yaml", pipeline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resolutions []engine.ModelResolution
+	if err := json.Unmarshal([]byte(stdout), &resolutions); err != nil {
+		t.Fatalf("decode inspection: %v\n%s", err, stdout)
+	}
+	byRole := make(map[string]engine.ModelResolution, len(resolutions))
+	for _, resolution := range resolutions {
+		byRole[resolution.NodeID+"/"+resolution.Role] = resolution
+	}
+	if got := byRole["implement/agent"]; got.NativeModel != "claude-fable-5" || got.AuthoredVersion != "5" || got.EffectiveEffort != "low" || got.Source != "pipeline defaults.model" {
+		t.Fatalf("agent resolution = %+v", got)
+	}
+	if got := byRole["items/item_judge"]; got.NativeModel != "gemini-3.7-flash-high" || got.AuthoredVersion != "3.7" || got.Provider != "gemini" || got.Harness != "agy" {
+		t.Fatalf("judge resolution = %+v", got)
+	}
+	if got := byRole["items/goal_evaluator"]; got.NativeModel != "claude-fable-5" || got.Source != "pipeline defaults.model" {
+		t.Fatalf("evaluator resolution = %+v", got)
 	}
 }
 
@@ -214,7 +263,7 @@ func TestResolveHarnessUsesExecutionProviderDetectionAndSystemModel(t *testing.T
 		{model: "gpt-5.6-sol", want: "codex"},
 		{want: "codex"},
 		{model: "gemini-2.5-pro", want: "agy"},
-		{provider: "openai", model: "fable", wantErr: "conflicts with model alias"},
+		{provider: "openai", model: "fable", wantErr: "conflicts with model"},
 	}
 	for _, test := range tests {
 		got, err := resolveHarness(test.provider, test.model)

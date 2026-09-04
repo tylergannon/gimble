@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/tylergannon/tractor/graph"
+	"github.com/tylergannon/tractor/internal/modelalias"
 )
 
 type edgeRecord struct {
@@ -356,17 +357,27 @@ func (a *analysis) reusableThread(node graph.Node) (string, bool) {
 }
 
 func (a *analysis) resolvedModel(fields *graph.LLMNodeFields) (provider, model string) {
-	if fields.LLMProvider.Present {
-		provider = fields.LLMProvider.Value
-	} else if a.graph.Defaults.LLMProvider.Present {
-		provider = a.graph.Defaults.LLMProvider.Value
+	selection := graph.ModelSelection{Name: "gpt-5.6-sol"}
+	if a.graph.Defaults.Model.Present {
+		selection = a.graph.Defaults.Model.Value
 	}
-	if fields.LLMModel.Present {
-		model = fields.LLMModel.Value
-	} else if a.graph.Defaults.LLMModel.Present {
-		model = a.graph.Defaults.LLMModel.Value
+	if fields.Model.Present {
+		selection = fields.Model.Value
 	}
-	return provider, model
+	input := modelalias.Selection{Name: selection.Name}
+	if selection.Version.Present {
+		input.Version = selection.Version.Value
+		input.VersionPresent = true
+	}
+	if selection.Effort.Present {
+		input.Effort = selection.Effort.Value
+		input.EffortPresent = true
+	}
+	resolved, err := modelalias.ResolveModel(input)
+	if err != nil {
+		return "", ""
+	}
+	return resolved.Provider, resolved.Model
 }
 
 func llmFields(node graph.Node) (*graph.LLMNodeFields, bool) {

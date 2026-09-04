@@ -6,9 +6,9 @@ defaults:
   timeout: 300s
   fidelity: none
   max_retries: 1
-  llm_provider: anthropic
-  llm_model: claude-sonnet-5
-  reasoning_effort: low
+  model:
+    name: claude-sonnet-5
+    effort: low
 
 # The smallest loop: an agent works, a command decides, failure routes back.
 # The goal is the whole prompt — the engine substitutes $goal, supplies the

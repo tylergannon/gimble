@@ -505,10 +505,10 @@ func sharedThreadLinear() graph.Graph {
 	first := coder(g, "work")
 	first.Edges = []graph.Edge{edge("second")}
 	first.ThreadID = set("shared")
-	first.LLMProvider = set("openai")
+	first.Model = set(graph.ModelSelection{Name: "gpt-5.6-sol"})
 	second := codergen("second", edge(graph.Success))
 	second.ThreadID = set("shared")
-	second.LLMProvider = set("anthropic")
+	second.Model = set(graph.ModelSelection{Name: "claude-sonnet-5"})
 	g.Nodes = slices.Insert(g.Nodes, 1, graph.Node(second))
 	return g
 }

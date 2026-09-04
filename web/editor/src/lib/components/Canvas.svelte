@@ -16,7 +16,8 @@
 			editor.sel,
 			editor.errors,
 			{ pan: editor.pan, zoom: editor.zoom, vw: editor.vw, vh: editor.vh },
-			editor.showInherited
+			editor.showInherited,
+			editor.models
 		)
 	);
 

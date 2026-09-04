@@ -235,11 +235,11 @@ func TestParallelRunnerResolvesHeterogeneousCodergenBranchesAndGathersArtifacts(
   "nodes":[
     {
 	  "id":"fanout","type":"fan_out","max_parallel":1,
-      "prompt":"parent prompt","llm_provider":"openai","llm_model":"gpt-parent","reasoning_effort":"high",
+	  "prompt":"parent prompt","model":{"name":"gpt-parent","effort":"high"},
 	  "branch_edges":[{"to":"join"}],
       "branches":[
         {"id":"openai_branch","artifacts":["openai.txt"],"agent":{"prompt":"openai prompt"}},
-        {"id":"anthropic_branch","artifacts":["anthropic.txt"],"agent":{"llm_provider":"anthropic","llm_model":"claude-child","reasoning_effort":"medium"}}
+		{"id":"anthropic_branch","artifacts":["anthropic.txt"],"agent":{"model":{"name":"claude-child","effort":"medium"}}}
       ]
     },
     {"id":"join","type":"fan_in","prompt":"inspect artifacts","edges":[{"to":"success"}]}
@@ -293,7 +293,7 @@ func TestParallelRunnerResolvesHeterogeneousCodergenBranchesAndGathersArtifacts(
 		}
 	}
 	resolvedRaw, err := os.ReadFile(filepath.Join(root, "stages", "latest", "fanout", "resolved-branches.json"))
-	if err != nil || !bytes.Contains(resolvedRaw, []byte(`"type": "agent"`)) || !bytes.Contains(resolvedRaw, []byte(`"llm_model": "claude-child"`)) {
+	if err != nil || !bytes.Contains(resolvedRaw, []byte(`"type": "agent"`)) || !bytes.Contains(resolvedRaw, []byte(`"name": "claude-child"`)) {
 		t.Fatalf("resolved branches = %s, %v", resolvedRaw, err)
 	}
 }
@@ -304,7 +304,7 @@ func TestParallelRunnerSharedWorkspaceExposesDeclaredArtifactsToFanIn(t *testing
   "nodes":[
     {
 	  "id":"fanout","type":"fan_out","workspace":"shared","max_parallel":2,
-      "prompt":"write your artifact","llm_provider":"openai","llm_model":"gpt-shared",
+	  "prompt":"write your artifact","model":{"name":"gpt-shared"},
 	  "branch_edges":[{"to":"join"}],
       "branches":[
         {"id":"left","artifacts":["left.txt"]},

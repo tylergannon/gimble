@@ -108,16 +108,14 @@ checklist files. It rebuilds the outer frames from their first open items and
 re-enters at the innermost enclosing loop. Planning or setup nodes earlier in
 an outer loop body do not rerun solely to restore the inner loop's frame.
 
-The infer judge selects its model independently of pipeline `defaults`.
-By default it uses `flash` (`gemini-3.8-flash-medium`) on the `gemini`
-provider at medium effort. Set `llm_model`, `llm_provider`, and
-`reasoning_effort` independently on the loop node when a different judge
-is warranted. The evaluator has a separate `evaluator_llm_model`,
-`evaluator_llm_provider`, and `evaluator_reasoning_effort` selection. Those
-fields default to the pipeline defaults, so the evaluator normally uses the
-same model as the working agent, never the judge's Flash default. The loop's
-`timeout` still inherits from pipeline `defaults` and bounds both internal
-turns.
+The item judge selects its model independently of pipeline `defaults`.
+By default `item_judge.model` uses `flash` (`gemini-3.8-flash-medium`) at
+medium effort. `goal_evaluator.model` is a separate atomic selection. It
+falls back to `defaults.model`, so the evaluator normally uses the same model
+as the working agent, never the judge's Flash default. Each model object has
+a required `name` and optional string `version` and `effort`; provider and
+harness are derived. The loop's `timeout` still inherits from pipeline
+`defaults` and bounds both internal turns.
 
 ## Writing node prompts
 
@@ -132,10 +130,12 @@ and `prompt: $goal` is a complete, correct prompt.
 
 ## Make "done" honest
 
-The command node's command is what "done" means. Point it at the closest
-observable proof of the outcome you asked for — run the app, curl the
-endpoint, assert on the artifact. Tests and linters are worth requiring,
-but they prove the claim only when they exercise that behavior.
+In a command-gated loop, the command's exit code decides the route. Point it
+at the closest observable proof of the outcome you asked for — run the app,
+curl the endpoint, assert on the artifact. In a checklist loop, item commands
+supply evidence, inferred checks are assessed by the item judge, and the goal
+evaluator compares the passing ledger and workspace with the prose definition
+of done.
 
 ## When a loop misbehaves
 

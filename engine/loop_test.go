@@ -334,8 +334,7 @@ func TestLoopInferJudgeModelIsIndependentOfPipelineDefaults(t *testing.T) {
 		{
 			name: "explicit loop selection wins",
 			configureLoop: func(loop *graph.LoopNode) {
-				loop.LLMModel = optional("claude-haiku-4-5")
-				loop.ReasoningEffort = optional("low")
+				loop.ItemJudge = optional(graph.LoopRole{Model: modelSelection("claude-haiku-4-5", "", "low")})
 			},
 			wantModel:    "claude-haiku-4-5",
 			wantProvider: "anthropic",
@@ -364,9 +363,7 @@ items:
 				loop,
 				customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
 			)
-			pipeline.Defaults.LLMModel = optional("pipeline-model")
-			pipeline.Defaults.LLMProvider = optional("openai")
-			pipeline.Defaults.ReasoningEffort = optional("high")
+			pipeline.Defaults.Model = modelSelection("gpt-5.6-sol", "", "high")
 			backend := &scriptedBackend{outcomes: []harness.Outcome{
 				{Next: "pass", Notes: "acceptable"},
 				{Next: "done", Notes: "the definition is met"},
@@ -388,7 +385,7 @@ items:
 				t.Fatalf("judge selection = model %q provider %q effort %q; want %q, %q, %q", turn.Model, turn.Provider, turn.ReasoningEffort, test.wantModel, test.wantProvider, test.wantEffort)
 			}
 			evaluator := backend.turns[1]
-			if evaluator.Model != "pipeline-model" || evaluator.Provider != "openai" || evaluator.ReasoningEffort != "high" {
+			if evaluator.Model != "gpt-5.6-sol" || evaluator.Provider != "openai" || evaluator.ReasoningEffort != "high" {
 				t.Fatalf("evaluator selection = model %q provider %q effort %q; want pipeline defaults", evaluator.Model, evaluator.Provider, evaluator.ReasoningEffort)
 			}
 			t.Logf("judge selection: model=%s provider=%s reasoning_effort=%s", turn.Model, turn.Provider, turn.ReasoningEffort)
@@ -689,9 +686,7 @@ func TestLoopEvaluatorUsesPipelineDefaultModelNotInferJudgeDefault(t *testing.T)
 		loop,
 		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
 	)
-	pipeline.Defaults.LLMModel = optional("pipeline-model")
-	pipeline.Defaults.LLMProvider = optional("openai")
-	pipeline.Defaults.ReasoningEffort = optional("low")
+	pipeline.Defaults.Model = modelSelection("gpt-5.6-sol", "", "low")
 	backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "done", Notes: "done"}}}
 	registry := NewRegistry()
 	registry.Register("agent", bodyHandler(t, func(ExecutionScope) {}))
@@ -704,7 +699,7 @@ func TestLoopEvaluatorUsesPipelineDefaultModelNotInferJudgeDefault(t *testing.T)
 		t.Fatalf("result = %#v after %d evaluator turns", result, len(backend.turns))
 	}
 	turn := backend.turns[0]
-	if turn.Model != "pipeline-model" || turn.Provider != "openai" || turn.ReasoningEffort != "low" || turn.Model == "gemini-3.8-flash-medium" {
+	if turn.Model != "gpt-5.6-sol" || turn.Provider != "openai" || turn.ReasoningEffort != "low" || turn.Model == "gemini-3.8-flash-medium" {
 		t.Fatalf("evaluator selection = model %q provider %q effort %q", turn.Model, turn.Provider, turn.ReasoningEffort)
 	}
 }
@@ -713,17 +708,13 @@ func TestLoopEvaluatorExplicitModelSelectionWins(t *testing.T) {
 	root, workdir := t.TempDir(), t.TempDir()
 	writeFile(t, filepath.Join(workdir, "sprint.md"), "---\nitems: []\n---\n\nDone.\n")
 	loop := loopNode("items", "sprint.md", "implement", graph.Success, 0)
-	loop.EvaluatorLLMModel = optional("claude-haiku-4-5")
-	loop.EvaluatorLLMProvider = optional("anthropic")
-	loop.EvaluatorReasoningEffort = optional("medium")
+	loop.GoalEvaluator = optional(graph.LoopRole{Model: modelSelection("claude-haiku-4-5", "", "medium")})
 	pipeline := testGraph(
 		startNode("start", "items"),
 		loop,
 		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
 	)
-	pipeline.Defaults.LLMModel = optional("pipeline-model")
-	pipeline.Defaults.LLMProvider = optional("openai")
-	pipeline.Defaults.ReasoningEffort = optional("low")
+	pipeline.Defaults.Model = modelSelection("gpt-5.6-sol", "", "low")
 	backend := &scriptedBackend{outcomes: []harness.Outcome{{Next: "done", Notes: "done"}}}
 	registry := NewRegistry()
 	registry.Register("agent", bodyHandler(t, func(ExecutionScope) {}))

@@ -104,11 +104,10 @@ func walk(value any) {
 			if interval, ok := props["interval"].(map[string]any); ok {
 				interval["pattern"] = durationPattern
 			}
-			if effort, ok := props["reasoning_effort"].(map[string]any); ok {
+			if effort, ok := props["effort"].(map[string]any); ok {
 				effort["enum"] = []any{"low", "medium", "high"}
-			}
-			if effort, ok := props["evaluator_reasoning_effort"].(map[string]any); ok {
-				effort["enum"] = []any{"low", "medium", "high"}
+				object(props["name"])["minLength"] = 1
+				object(props["version"])["minLength"] = 1
 			}
 			if workspace, ok := props["workspace"].(map[string]any); ok {
 				workspace["enum"] = []any{"isolated", "shared"}

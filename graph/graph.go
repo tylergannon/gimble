@@ -31,14 +31,26 @@ type Graph struct {
 	Nodes []Node `json:"nodes"`
 }
 
-// Defaults contains the six fields that may be inherited by nodes.
+// Defaults contains file-level selections inherited by nodes.
 type Defaults struct {
-	MaxRetries      jsonschema.Optional[int]      `json:"max_retries,omitzero"`
-	Fidelity        jsonschema.Optional[string]   `json:"fidelity,omitzero"`
-	Timeout         jsonschema.Optional[Duration] `json:"timeout,omitzero"`
-	LLMModel        jsonschema.Optional[string]   `json:"llm_model,omitzero"`
-	LLMProvider     jsonschema.Optional[string]   `json:"llm_provider,omitzero"`
-	ReasoningEffort jsonschema.Optional[string]   `json:"reasoning_effort,omitzero"`
+	MaxRetries jsonschema.Optional[int]            `json:"max_retries,omitzero"`
+	Fidelity   jsonschema.Optional[string]         `json:"fidelity,omitzero"`
+	Timeout    jsonschema.Optional[Duration]       `json:"timeout,omitzero"`
+	Model      jsonschema.Optional[ModelSelection] `json:"model,omitzero"`
+}
+
+// ModelSelection is the one authored model-selection contract. Provider and
+// harness are derived from Name; omitted Version and Effort use model policy.
+type ModelSelection struct {
+	// Name is a maintained alias/family or a recognizable provider-native ID.
+	Name string `json:"name"`
+	// Version pins an exact supported release for Name. Omit to use the
+	// maintained default release. A provider-native, versioned Name cannot also
+	// declare Version.
+	Version jsonschema.Optional[string] `json:"version,omitzero"`
+	// Effort explicitly selects low, medium, or high reasoning effort. Omit to
+	// use the selected model's documented policy.
+	Effort jsonschema.Optional[string] `json:"effort,omitzero"`
 }
 
 // Duration is an integer followed by ms, s, m, h, or d.
@@ -111,7 +123,8 @@ type AgentNode struct {
 	Edges     []Edge                   `json:"edges,omitzero"`
 	MaxVisits jsonschema.Optional[int] `json:"max_visits,omitzero"`
 	LLMNodeFields
-	synthesized bool
+	synthesized            bool
+	synthesizedModelSource string
 }
 
 func (*AgentNode) isNode()           {}
@@ -121,6 +134,11 @@ func (*AgentNode) NodeType() string  { return "agent" }
 // IsSynthesized reports whether the node was resolved from a structured
 // parallel branch.
 func (n *AgentNode) IsSynthesized() bool { return n.synthesized }
+
+// SynthesizedModelSource identifies the authored branch/template location
+// that supplied Model. It is empty when the synthesized branch falls through
+// to pipeline or system defaults.
+func (n *AgentNode) SynthesizedModelSource() string { return n.synthesizedModelSource }
 
 // FanInNode evaluates parallel branch evidence with an LLM turn.
 type FanInNode struct {
@@ -136,29 +154,25 @@ func (*FanInNode) NodeType() string  { return "fan_in" }
 
 // LLMNodeFields are shared by agent and fan-in nodes.
 type LLMNodeFields struct {
-	Prompt          jsonschema.Optional[string]   `json:"prompt,omitzero"`
-	MaxRetries      jsonschema.Optional[int]      `json:"max_retries,omitzero"`
-	Fidelity        jsonschema.Optional[string]   `json:"fidelity,omitzero"`
-	ThreadID        jsonschema.Optional[string]   `json:"thread_id,omitzero"`
-	Timeout         jsonschema.Optional[Duration] `json:"timeout,omitzero"`
-	LLMModel        jsonschema.Optional[string]   `json:"llm_model,omitzero"`
-	LLMProvider     jsonschema.Optional[string]   `json:"llm_provider,omitzero"`
-	ReasoningEffort jsonschema.Optional[string]   `json:"reasoning_effort,omitzero"`
+	Prompt     jsonschema.Optional[string]         `json:"prompt,omitzero"`
+	MaxRetries jsonschema.Optional[int]            `json:"max_retries,omitzero"`
+	Fidelity   jsonschema.Optional[string]         `json:"fidelity,omitzero"`
+	ThreadID   jsonschema.Optional[string]         `json:"thread_id,omitzero"`
+	Timeout    jsonschema.Optional[Duration]       `json:"timeout,omitzero"`
+	Model      jsonschema.Optional[ModelSelection] `json:"model,omitzero"`
 }
 
 // AgentOverride selectively replaces fields inherited from a fan-out node's
 // agent configuration. Every field is optional by design.
 type AgentOverride struct {
-	Label           jsonschema.Optional[string]   `json:"label,omitzero"`
-	Prompt          jsonschema.Optional[string]   `json:"prompt,omitzero"`
-	MaxRetries      jsonschema.Optional[int]      `json:"max_retries,omitzero"`
-	MaxVisits       jsonschema.Optional[int]      `json:"max_visits,omitzero"`
-	Fidelity        jsonschema.Optional[string]   `json:"fidelity,omitzero"`
-	ThreadID        jsonschema.Optional[string]   `json:"thread_id,omitzero"`
-	Timeout         jsonschema.Optional[Duration] `json:"timeout,omitzero"`
-	LLMModel        jsonschema.Optional[string]   `json:"llm_model,omitzero"`
-	LLMProvider     jsonschema.Optional[string]   `json:"llm_provider,omitzero"`
-	ReasoningEffort jsonschema.Optional[string]   `json:"reasoning_effort,omitzero"`
+	Label      jsonschema.Optional[string]         `json:"label,omitzero"`
+	Prompt     jsonschema.Optional[string]         `json:"prompt,omitzero"`
+	MaxRetries jsonschema.Optional[int]            `json:"max_retries,omitzero"`
+	MaxVisits  jsonschema.Optional[int]            `json:"max_visits,omitzero"`
+	Fidelity   jsonschema.Optional[string]         `json:"fidelity,omitzero"`
+	ThreadID   jsonschema.Optional[string]         `json:"thread_id,omitzero"`
+	Timeout    jsonschema.Optional[Duration]       `json:"timeout,omitzero"`
+	Model      jsonschema.Optional[ModelSelection] `json:"model,omitzero"`
 }
 
 // PromptValue returns a non-empty prompt or falls back to label.
@@ -241,13 +255,11 @@ func (*FanOutNode) NodeType() string  { return "fan_out" }
 // SupervisorNode observes declared nodes and coaches them outside the walk.
 type SupervisorNode struct {
 	NodeBase
-	Prompt          string                        `json:"prompt"`
-	Supervises      []string                      `json:"supervises"`
-	Interval        jsonschema.Optional[Duration] `json:"interval,omitzero"`
-	Timeout         jsonschema.Optional[Duration] `json:"timeout,omitzero"`
-	LLMModel        jsonschema.Optional[string]   `json:"llm_model,omitzero"`
-	LLMProvider     jsonschema.Optional[string]   `json:"llm_provider,omitzero"`
-	ReasoningEffort jsonschema.Optional[string]   `json:"reasoning_effort,omitzero"`
+	Prompt     string                              `json:"prompt"`
+	Supervises []string                            `json:"supervises"`
+	Interval   jsonschema.Optional[Duration]       `json:"interval,omitzero"`
+	Timeout    jsonschema.Optional[Duration]       `json:"timeout,omitzero"`
+	Model      jsonschema.Optional[ModelSelection] `json:"model,omitzero"`
 }
 
 func (*SupervisorNode) isNode()           {}
@@ -270,18 +282,16 @@ type LoopNode struct {
 	// Timeout bounds one item's validation command, the infer judge turn, and
 	// the evaluator turn.
 	Timeout jsonschema.Optional[Duration] `json:"timeout,omitzero"`
-	// LLMModel selects the model used by the infer judge.
-	LLMModel jsonschema.Optional[string] `json:"llm_model,omitzero"`
-	// LLMProvider selects the provider used by the infer judge.
-	LLMProvider jsonschema.Optional[string] `json:"llm_provider,omitzero"`
-	// ReasoningEffort sets the reasoning effort of the infer judge.
-	ReasoningEffort jsonschema.Optional[string] `json:"reasoning_effort,omitzero"`
-	// EvaluatorLLMModel selects the model used by the loop evaluator.
-	EvaluatorLLMModel jsonschema.Optional[string] `json:"evaluator_llm_model,omitzero"`
-	// EvaluatorLLMProvider selects the provider used by the loop evaluator.
-	EvaluatorLLMProvider jsonschema.Optional[string] `json:"evaluator_llm_provider,omitzero"`
-	// EvaluatorReasoningEffort sets the loop evaluator's reasoning effort.
-	EvaluatorReasoningEffort jsonschema.Optional[string] `json:"evaluator_reasoning_effort,omitzero"`
+	// ItemJudge configures the role that assesses one checklist item's evidence.
+	ItemJudge jsonschema.Optional[LoopRole] `json:"item_judge,omitzero"`
+	// GoalEvaluator configures the role that evaluates the overall definition
+	// of done and replans open work when necessary.
+	GoalEvaluator jsonschema.Optional[LoopRole] `json:"goal_evaluator,omitzero"`
+}
+
+// LoopRole configures one named model-driven loop role.
+type LoopRole struct {
+	Model jsonschema.Optional[ModelSelection] `json:"model,omitzero"`
 }
 
 // LoopEdges are the engine-known routes out of a loop node.

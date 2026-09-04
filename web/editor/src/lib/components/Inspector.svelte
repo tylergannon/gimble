@@ -3,6 +3,7 @@
 	import {
 		DEFAULT_KEYS,
 		DUR_RE,
+		EFFORT,
 		FIELD_META,
 		FIELD_SECTIONS,
 		REQUIRED,
@@ -24,6 +25,12 @@
 	const ids = $derived(graph.nodes.map((n) => n.id));
 	const sel: GraphNode | null = $derived(editor.selNode);
 	const selErrors = $derived(sel ? (editor.errors[sel.id] ?? []) : []);
+	const selModels = $derived.by(() => {
+		if (!sel) return [];
+		const ids = new Set([sel.id]);
+		if (sel.type === 'fan_out') for (const branch of sel.branches ?? []) ids.add(normalizeBranch(branch).id);
+		return editor.models.filter((model) => ids.has(model.node_id));
+	});
 	const selIdError = $derived(selErrors.find((e) => /^id |^duplicate/.test(e)) ?? '');
 
 	const known = (x: string) => !x || ids.includes(x) || x === 'success' || x === 'failure';
@@ -41,8 +48,11 @@
 		const m = FIELD_META[key] ?? { label: key };
 		const kind = m.kind ?? 'text';
 		const value = raw === undefined || raw === null ? '' : String(raw);
+		const inheritedKey = key.startsWith('goal_evaluator.') ? key.slice('goal_evaluator.'.length) : key;
 		const inherited =
-			m.inherit && inheritFrom && inheritFrom[key] !== undefined && raw === undefined ? String(inheritFrom[key]) : '';
+			m.inherit && inheritFrom && getPath(inheritFrom, inheritedKey) !== undefined && raw === undefined
+				? String(getPath(inheritFrom, inheritedKey))
+				: '';
 		let error = '';
 		if (kind === 'duration' && value && !DUR_RE.test(value)) error = 'Integer followed by ms, s, m, h, or d';
 		const options =
@@ -71,7 +81,12 @@
 		const req = REQUIRED[sel.type] ?? [];
 		return (FIELD_SECTIONS[sel.type] ?? []).map(([title, keys]) => ({
 			title,
-			fields: keys.map((k) => ({ vm: field(k, sel[k], req.includes(k), defaults), kind: FIELD_META[k]?.kind ?? 'text' }))
+			fields: keys.map((k) => {
+				let inheritFrom: Defaults | null = defaults;
+				if (k.startsWith('model.') && sel.model !== undefined) inheritFrom = null;
+				if (k.startsWith('goal_evaluator.model.') && sel.goal_evaluator?.model !== undefined) inheritFrom = null;
+				return { vm: field(k, getPath(sel, k), req.includes(k), inheritFrom), kind: FIELD_META[k]?.kind ?? 'text' };
+			})
 		}));
 	});
 
@@ -153,7 +168,7 @@
 	);
 	const defaultFields = $derived(
 		DEFAULT_KEYS.map((k) => {
-			const f = field(k, defaults[k], false, null);
+			const f = field(k, getPath(defaults, k), false, null);
 			if (f.kind === 'enum') f.options[0] = { v: '', l: '—' };
 			return { vm: f, kind: FIELD_META[k]?.kind ?? 'text' };
 		})
@@ -251,6 +266,19 @@
 					<div class="cn-alert-description">
 						{#each selErrors as e, i (i)}<div>{e}</div>{/each}
 					</div>
+				</div>
+			{/if}
+
+			{#if selModels.length}
+				<div class="section effective-models">
+					<div class="section-title">Effective selections</div>
+					{#each selModels as model (`${model.node_id}/${model.role}`)}
+						<div class="model-summary">
+							<div><strong>{model.node_id}/{model.role}</strong> · {model.harness}/{model.provider}</div>
+							<div class="mono-sm">{model.native_model} · {model.effective_effort}</div>
+							<div>{model.source}{model.authored_version ? ` · version ${model.authored_version}` : ''}</div>
+						</div>
+					{/each}
 				</div>
 			{/if}
 
@@ -391,6 +419,26 @@
 									placeholder="Prompt override (optional)"
 									oninput={(e) => editor.setBranch(node.id, i, { prompt: e.currentTarget.value })}
 								></textarea>
+								<div class="branch-model-grid">
+									<input
+										class="cn-input cn-input-size-sm mono-sm"
+										value={b.agent?.model?.name ?? ''}
+										placeholder="model name (inherit)"
+										onchange={(e) => editor.setBranchModel(node.id, i, 'name', e.currentTarget.value || undefined)}
+									/>
+									<input
+										class="cn-input cn-input-size-sm mono-sm"
+										value={b.agent?.model?.version ?? ''}
+										placeholder="version (optional)"
+										onchange={(e) => editor.setBranchModel(node.id, i, 'version', e.currentTarget.value || undefined)}
+									/>
+									<NativeSelect
+										size="sm"
+										value={b.agent?.model?.effort ?? ''}
+										options={[{ v: '', l: 'effort (model default)' }, ...EFFORT.map((v) => ({ v, l: v }))]}
+										onchange={(v) => editor.setBranchModel(node.id, i, 'effort', v || undefined)}
+									/>
+								</div>
 							</div>
 							<button class="cn-button cn-button-variant-ghost cn-button-size-icon-sm" title="Remove branch" onclick={() => editor.removeBranch(node.id, i)}>
 								<X size={14} />
@@ -439,6 +487,24 @@
 	}
 	.section.supervises {
 		gap: 10px;
+	}
+	.model-summary {
+		padding: 10px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		font-size: 12px;
+		color: var(--muted-foreground);
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+	}
+	.model-summary strong,
+	.model-summary .mono-sm {
+		color: var(--foreground);
+	}
+	.branch-model-grid {
+		display: grid;
+		gap: 8px;
 	}
 	.field {
 		display: flex;

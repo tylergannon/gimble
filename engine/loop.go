@@ -362,15 +362,15 @@ func (h *loopHandler) judge(loop *graph.LoopNode, item checklist.Item, files []s
 		DefaultReasoningEffort: defaultLoopJudgeReasoningEffort,
 	})
 	judgePipeline := *pipeline
-	judgePipeline.Defaults.LLMModel = jsonschema.Optional[string]{}
-	judgePipeline.Defaults.LLMProvider = jsonschema.Optional[string]{}
-	judgePipeline.Defaults.ReasoningEffort = jsonschema.Optional[string]{}
+	judgePipeline.Defaults.Model = jsonschema.Optional[graph.ModelSelection]{}
+	judgeModel := jsonschema.Optional[graph.ModelSelection]{}
+	if loop.ItemJudge.Present {
+		judgeModel = loop.ItemJudge.Value.Model
+	}
 	fields := &graph.LLMNodeFields{
-		Fidelity:        jsonschema.Optional[string]{Present: true, Value: string(harness.FidelityNone)},
-		Timeout:         loop.Timeout,
-		LLMModel:        loop.LLMModel,
-		LLMProvider:     loop.LLMProvider,
-		ReasoningEffort: loop.ReasoningEffort,
+		Fidelity: jsonschema.Optional[string]{Present: true, Value: string(harness.FidelityNone)},
+		Timeout:  loop.Timeout,
+		Model:    judgeModel,
 	}
 	offered := []graph.Edge{
 		{To: "pass", Condition: "The evidence demonstrates the check."},
@@ -385,7 +385,7 @@ func (h *loopHandler) judge(loop *graph.LoopNode, item checklist.Item, files []s
 		}
 		turnScope.RunLog = segment.Path
 	}
-	return handler.executeTurnAt(loop, fields, offered, turnScope, &judgePipeline, judgePrompt(item, files),
+	return handler.executeTurnAt(RoleItemJudge, loop, fields, offered, turnScope, &judgePipeline, judgePrompt(item, files),
 		artifactPrefix+"-prompt.md", artifactPrefix+"-response.md")
 }
 
@@ -413,12 +413,14 @@ func (h *loopHandler) evaluate(loop *graph.LoopNode, listPath string, list *chec
 		DefaultProvider:        config.DefaultProvider,
 		DefaultReasoningEffort: config.DefaultReasoningEffort,
 	})
+	evaluatorModel := jsonschema.Optional[graph.ModelSelection]{}
+	if loop.GoalEvaluator.Present {
+		evaluatorModel = loop.GoalEvaluator.Value.Model
+	}
 	fields := &graph.LLMNodeFields{
-		Fidelity:        jsonschema.Optional[string]{Present: true, Value: string(harness.FidelityNone)},
-		Timeout:         loop.Timeout,
-		LLMModel:        loop.EvaluatorLLMModel,
-		LLMProvider:     loop.EvaluatorLLMProvider,
-		ReasoningEffort: loop.EvaluatorReasoningEffort,
+		Fidelity: jsonschema.Optional[string]{Present: true, Value: string(harness.FidelityNone)},
+		Timeout:  loop.Timeout,
+		Model:    evaluatorModel,
 	}
 	offered := []graph.Edge{
 		{To: "done", Condition: "The checklist definition of done is satisfied in the workspace."},
@@ -440,7 +442,7 @@ func (h *loopHandler) evaluate(loop *graph.LoopNode, listPath string, list *chec
 		}
 		turnScope.RunLog = segment.Path
 	}
-	return handler.executeTurnAt(loop, fields, offered, turnScope, pipeline,
+	return handler.executeTurnAt(RoleGoalEvaluator, loop, fields, offered, turnScope, pipeline,
 		evaluatorPrompt(listPath, list, records),
 		filepath.Join(scope.StageDir, "evaluator-prompt.md"),
 		filepath.Join(scope.StageDir, "evaluator-response.md"))

@@ -99,7 +99,7 @@ func (b *HarnessBackend) Run(turn AgentTurn) (Outcome, *Error) {
 
 	key := turn.ThreadKey
 	if turn.Fidelity == FidelityNone {
-		key = noneThreadPrefix + turn.NodeID
+		key = noneThreadPrefix + turn.NodeID + ":" + turn.Role
 	}
 	lock := b.bindingLock(key)
 	lock.Lock()
@@ -109,10 +109,11 @@ func (b *HarnessBackend) Run(turn AgentTurn) (Outcome, *Error) {
 		return Outcome{}, err
 	}
 
-	turnLog, liveID, err := b.startTurnLog(turn.NodeID, turn.RunLog, binding, true)
+	turnLog, liveID, err := b.startTurnLog(turn.NodeID, turn.Role, turn.RunLog, binding, true)
 	if err != nil {
 		return Outcome{}, err
 	}
+	turnLog.writeEvent(Event{"type": EventModelSelection, "role": turn.Role, "provider": turn.Provider, "harness": binding.Harness, "native_model": turn.Model, "effective_effort": turn.ReasoningEffort})
 	result, adapterErr := adapter.RunTurn(RunTurnInput{
 		SessionID:       binding.SessionID,
 		Model:           turn.Model,
@@ -162,10 +163,11 @@ func (b *HarnessBackend) RunSupervisor(turn SupervisorTurn) (Verdict, *Error) {
 		return Verdict{}, err
 	}
 
-	turnLog, liveID, err := b.startTurnLog(turn.NodeID, turn.RunLog, binding, false)
+	turnLog, liveID, err := b.startTurnLog(turn.NodeID, turn.Role, turn.RunLog, binding, false)
 	if err != nil {
 		return Verdict{}, err
 	}
+	turnLog.writeEvent(Event{"type": EventModelSelection, "role": turn.Role, "provider": turn.Provider, "harness": binding.Harness, "native_model": turn.Model, "effective_effort": turn.ReasoningEffort})
 	result, adapterErr := adapter.RunTurn(RunTurnInput{
 		SessionID:       binding.SessionID,
 		Model:           turn.Model,
@@ -364,6 +366,7 @@ func (b *HarnessBackend) Bindings() map[string]ThreadBinding {
 type turnLog struct {
 	file   *os.File
 	nodeID string
+	role   string
 	mu     sync.Mutex
 	err    error
 }
@@ -377,6 +380,7 @@ func (l *turnLog) writeEvent(event Event) {
 	stamped := make(Event, len(event)+2)
 	maps.Copy(stamped, event)
 	stamped["node_id"] = l.nodeID
+	stamped["role"] = l.role
 	stamped["ts"] = time.Now().UTC().Format(time.RFC3339Nano)
 	l.err = json.NewEncoder(l.file).Encode(stamped)
 }
@@ -392,6 +396,7 @@ func (l *turnLog) close() error {
 
 func (b *HarnessBackend) startTurnLog(
 	nodeID string,
+	role string,
 	runLog string,
 	binding ThreadBinding,
 	steerable bool,
@@ -425,7 +430,7 @@ func (b *HarnessBackend) startTurnLog(
 		b.steerable[liveID] = live
 	}
 	b.currentPinnedToIndex = pinnedToIndex
-	return &turnLog{file: file, nodeID: nodeID}, liveID, nil
+	return &turnLog{file: file, nodeID: nodeID, role: role}, liveID, nil
 }
 
 func (b *HarnessBackend) finishTurnLog(liveID uint64, log *turnLog) *Error {

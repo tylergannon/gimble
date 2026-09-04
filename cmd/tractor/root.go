@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -33,8 +34,36 @@ func newRootCommand() *cobra.Command {
 		SilenceUsage:      true,
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	}
-	root.AddCommand(newAskCommand(), newAnswerCommand(), newValidateCommand(), newRunCommand(), newEditCommand(), newPrintSchemaCommand(), newMCPCommand(), newMCPRunnerCommand(), newPluginCommand())
+	root.AddCommand(newAskCommand(), newAnswerCommand(), newValidateCommand(), newInspectModelsCommand(), newRunCommand(), newEditCommand(), newPrintSchemaCommand(), newMCPCommand(), newMCPRunnerCommand(), newPluginCommand())
 	return root
+}
+
+func newInspectModelsCommand() *cobra.Command {
+	var inlineJSON string
+	var inlineYAML string
+	command := &cobra.Command{
+		Use:   "inspect-models [pipeline]",
+		Short: "Print every effective model selection without executing",
+		RunE: func(command *cobra.Command, args []string) error {
+			pipeline, _, err := loadPipeline(args, inlineJSON, command.Flags().Changed("json"), inlineYAML, command.Flags().Changed("yaml"))
+			if err != nil {
+				return err
+			}
+			if err := validateAndReport(command, cliValidator(), *pipeline); err != nil {
+				return err
+			}
+			resolved, err := engine.ResolveGraphModels(*pipeline, systemModelSelection())
+			if err != nil {
+				return err
+			}
+			encoder := json.NewEncoder(command.OutOrStdout())
+			encoder.SetIndent("", "  ")
+			return encoder.Encode(resolved)
+		},
+	}
+	command.Flags().StringVar(&inlineJSON, "json", "", "pipeline JSON")
+	command.Flags().StringVar(&inlineYAML, "yaml", "", "pipeline YAML")
+	return command
 }
 
 func newValidateCommand() *cobra.Command {
@@ -270,6 +299,9 @@ func resolveHarness(provider, model string) (string, error) {
 }
 
 func validateAndReport(command *cobra.Command, validator *lint.Validator, pipeline graph.Graph) error {
+	if _, err := engine.ResolveGraphModels(pipeline, systemModelSelection()); err != nil {
+		return err
+	}
 	diagnostics := validator.Validate(pipeline)
 	for _, diagnostic := range diagnostics {
 		if diagnostic.Severity == lint.SeverityError {
@@ -283,4 +315,8 @@ func validateAndReport(command *cobra.Command, validator *lint.Validator, pipeli
 		return &lint.ValidationError{Diagnostics: diagnostics}
 	}
 	return nil
+}
+
+func systemModelSelection() engine.SystemModelSelection {
+	return engine.SystemModelSelection{Name: defaultModel, Effort: defaultReasoningEffort}
 }

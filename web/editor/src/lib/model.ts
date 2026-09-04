@@ -24,12 +24,20 @@ export interface RouteEdges {
 	exit?: string;
 }
 
+export interface ModelSelection {
+	name?: string;
+	version?: string;
+	effort?: string;
+}
+
+export interface LoopRole {
+	model?: ModelSelection;
+}
+
 export interface AgentOverride {
 	label?: string;
 	prompt?: string;
-	llm_provider?: string;
-	llm_model?: string;
-	reasoning_effort?: string;
+	model?: ModelSelection;
 	fidelity?: string;
 	timeout?: string;
 	max_retries?: number;
@@ -61,20 +69,15 @@ export interface GraphNode {
 	max_retries?: number;
 	max_visits?: number;
 	thread_id?: string;
-	llm_provider?: string;
-	llm_model?: string;
-	reasoning_effort?: string;
+	model?: ModelSelection;
 	fidelity?: string;
-	evaluator_llm_provider?: string;
-	evaluator_llm_model?: string;
-	evaluator_reasoning_effort?: string;
+	item_judge?: LoopRole;
+	goal_evaluator?: LoopRole;
 	[key: string]: unknown;
 }
 
 export interface Defaults {
-	llm_provider?: string;
-	llm_model?: string;
-	reasoning_effort?: string;
+	model?: ModelSelection;
 	fidelity?: string;
 	timeout?: string;
 	max_retries?: number;
@@ -98,7 +101,8 @@ export const TYPE_DESC: Record<NodeType, string> = {
 	loop: 'Iterates a checklist file until done.'
 };
 
-const LLM = ['llm_provider', 'llm_model', 'reasoning_effort', 'fidelity'];
+const MODEL = ['model.name', 'model.version', 'model.effort'];
+const LLM = [...MODEL, 'fidelity'];
 const LIMITS = ['timeout', 'max_retries', 'max_visits', 'thread_id'];
 
 export type Section = [title: string, keys: string[]];
@@ -125,13 +129,13 @@ export const FIELD_SECTIONS: Record<NodeType, Section[]> = {
 	],
 	supervisor: [
 		['Coaching', ['label', 'prompt', 'interval']],
-		['Model', ['llm_provider', 'llm_model', 'reasoning_effort']],
+		['Model', MODEL],
 		['Limits', ['timeout']]
 	],
 	loop: [
 		['Loop', ['label', 'checklist']],
-		['Infer judge', ['llm_provider', 'llm_model', 'reasoning_effort']],
-		['Evaluator', ['evaluator_llm_provider', 'evaluator_llm_model', 'evaluator_reasoning_effort']],
+		['Item judge', ['item_judge.model.name', 'item_judge.model.version', 'item_judge.model.effort']],
+		['Goal evaluator', ['goal_evaluator.model.name', 'goal_evaluator.model.version', 'goal_evaluator.model.effort']],
 		['Limits', ['timeout', 'max_visits']]
 	]
 };
@@ -155,13 +159,16 @@ export const FIELD_META: Record<string, FieldMeta> = {
 	checklist: { label: 'Checklist path', mono: true, placeholder: 'docs/CHECKLIST.md' },
 	workspace: { label: 'Workspace', kind: 'enum', options: WORKSPACE },
 	max_parallel: { label: 'Max parallel', kind: 'int' },
-	llm_provider: { label: 'Provider', inherit: true },
-	llm_model: { label: 'Model', inherit: true, mono: true },
-	reasoning_effort: { label: 'Reasoning effort', kind: 'enum', options: EFFORT, inherit: true },
+	'model.name': { label: 'Model name', inherit: true, mono: true },
+	'model.version': { label: 'Version (optional)', inherit: true, mono: true },
+	'model.effort': { label: 'Reasoning effort', kind: 'enum', options: EFFORT, inherit: true },
 	fidelity: { label: 'Fidelity', kind: 'enum', options: FIDELITY, inherit: true },
-	evaluator_llm_provider: { label: 'Provider' },
-	evaluator_llm_model: { label: 'Model', mono: true },
-	evaluator_reasoning_effort: { label: 'Reasoning effort', kind: 'enum', options: EFFORT },
+	'item_judge.model.name': { label: 'Model name', mono: true, placeholder: 'flash' },
+	'item_judge.model.version': { label: 'Version (optional)', mono: true },
+	'item_judge.model.effort': { label: 'Reasoning effort', kind: 'enum', options: EFFORT },
+	'goal_evaluator.model.name': { label: 'Model name', inherit: true, mono: true },
+	'goal_evaluator.model.version': { label: 'Version (optional)', inherit: true, mono: true },
+	'goal_evaluator.model.effort': { label: 'Reasoning effort', kind: 'enum', options: EFFORT, inherit: true },
 	timeout: { label: 'Timeout', kind: 'duration', inherit: true, placeholder: '30m' },
 	interval: { label: 'Interval', kind: 'duration', placeholder: '5m' },
 	max_retries: { label: 'Max retries', kind: 'int', inherit: true },
@@ -178,9 +185,9 @@ export const REQUIRED: Partial<Record<NodeType, string[]>> = {
 };
 
 export const DEFAULT_KEYS = [
-	'llm_provider',
-	'llm_model',
-	'reasoning_effort',
+	'model.name',
+	'model.version',
+	'model.effort',
 	'fidelity',
 	'timeout',
 	'max_retries'
@@ -281,6 +288,14 @@ export function validate(g: Graph): Record<string, string[]> {
 				if (typeof b === 'object' && (!b.id || !(b.artifacts ?? []).length))
 					push(id, `branch ${b.id || '(unnamed)'} needs an id and at least one artifact`);
 			});
+		}
+		const selections = [n.model, n.item_judge?.model, n.goal_evaluator?.model];
+		for (const selection of selections) {
+			if (!selection) continue;
+			if (!selection.name?.trim()) push(id, 'model.name is required when a model selection is present');
+			if (selection.version !== undefined && !selection.version.trim()) push(id, 'model.version must be nonblank when present');
+			if (selection.effort !== undefined && !EFFORT.includes(selection.effort as (typeof EFFORT)[number]))
+				push(id, 'model.effort must be low, medium, or high');
 		}
 	});
 	return errs;

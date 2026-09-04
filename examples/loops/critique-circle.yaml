@@ -27,9 +27,9 @@ nodes:
       - id: claude_proposal
         artifacts: [claude_proposal.md]
         agent:
-          llm_provider: anthropic
-          llm_model: claude-sonnet-5
-          reasoning_effort: low
+          model:
+            name: claude-sonnet-5
+            effort: low
           prompt: >
             $goal
 
@@ -37,9 +37,9 @@ nodes:
       - id: codex_proposal
         artifacts: [codex_proposal.md]
         agent:
-          llm_provider: openai
-          llm_model: gpt-5.6-sol
-          reasoning_effort: low
+          model:
+            name: gpt-5.6-sol
+            effort: low
           prompt: >
             $goal
 
@@ -47,9 +47,9 @@ nodes:
       - id: gemini_proposal
         artifacts: [gemini_proposal.md]
         agent:
-          llm_provider: gemini
-          llm_model: gemini-3.1-pro-low
-          reasoning_effort: low
+          model:
+            name: gemini-3.1-pro-low
+            effort: low
           prompt: >
             $goal
 
@@ -59,9 +59,9 @@ nodes:
 
   - id: collect_proposals
     type: fan_in
-    llm_provider: anthropic
-    llm_model: claude-sonnet-5
-    reasoning_effort: low
+    model:
+      name: claude-sonnet-5
+      effort: low
     prompt: >
       Copy each branch's collected proposal unchanged into this main
       workspace as proposals/<name>.md, where <name> is claude, codex, or
@@ -76,9 +76,9 @@ nodes:
       - id: claude_critique
         artifacts: [claude_critique.md]
         agent:
-          llm_provider: anthropic
-          llm_model: claude-sonnet-5
-          reasoning_effort: low
+          model:
+            name: claude-sonnet-5
+            effort: low
           prompt: >
             Critique the other two proposals in proposals/ — not your own,
             proposals/claude.md — in claude_critique.md: where each is
@@ -87,9 +87,9 @@ nodes:
       - id: codex_critique
         artifacts: [codex_critique.md]
         agent:
-          llm_provider: openai
-          llm_model: gpt-5.6-sol
-          reasoning_effort: low
+          model:
+            name: gpt-5.6-sol
+            effort: low
           prompt: >
             Critique the other two proposals in proposals/ — not your own,
             proposals/codex.md — in codex_critique.md: where each is
@@ -98,9 +98,9 @@ nodes:
       - id: gemini_critique
         artifacts: [gemini_critique.md]
         agent:
-          llm_provider: gemini
-          llm_model: gemini-3.1-pro-low
-          reasoning_effort: low
+          model:
+            name: gemini-3.1-pro-low
+            effort: low
           prompt: >
             Critique the other two proposals in proposals/ — not your own,
             proposals/gemini.md — in gemini_critique.md: where each is
@@ -111,9 +111,9 @@ nodes:
 
   - id: collect_critiques
     type: fan_in
-    llm_provider: anthropic
-    llm_model: claude-sonnet-5
-    reasoning_effort: low
+    model:
+      name: claude-sonnet-5
+      effort: low
     prompt: >
       Copy each branch's collected critique unchanged into this main
       workspace as critiques/<name>.md, where <name> is claude, codex, or

@@ -195,6 +195,9 @@ func newRunner(pipeline graph.Graph, registry *Registry, config RunnerConfig) (*
 	if err := config.Validate(pipeline); err != nil {
 		return nil, fmt.Errorf("validate graph: %w", err)
 	}
+	if _, err := ResolveGraphModels(pipeline, SystemModelSelection{Name: config.DefaultModel, Effort: config.DefaultReasoningEffort}); err != nil {
+		return nil, fmt.Errorf("resolve graph models: %w", err)
+	}
 	registry = cloneRegistry(registry)
 	stop := config.Stop
 	if stop == nil {

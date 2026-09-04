@@ -206,9 +206,7 @@ fan-in's turn evaluates branch evidence):
 | `fidelity`         | String   | inherited     | Context fidelity mode for this node's LLM session. See Section 5.4. |
 | `thread_id`        | String   | node ID       | Thread key for LLM session reuse under session-reusing fidelity modes. Unset means the node owns its own thread (Section 5.4). |
 | `timeout`          | Duration | unset         | Maximum duration of one turn (Section 12.2, note 8). Expiry interrupts the attempt (Section 3.7). Leave it unset or generous on nodes that wait for a person (Section 4.4). |
-| `llm_model`        | String   | inherited     | LLM model identifier (Section 8). |
-| `llm_provider`     | String   | auto-detected | LLM provider key. Auto-detected from model if unset. |
-| `reasoning_effort` | String   | inherited     | LLM reasoning effort: `low`, `medium`, `high` (Section 8; recommended system default `high`). |
+| `model`            | Model selection object | inherited | Atomic model selection with `name`, optional `version`, and optional `effort` (Section 8). Provider and harness are derived. |
 
 **`command` fields:**
 
@@ -230,7 +228,7 @@ fan-in's turn evaluates branch evidence):
 | `max_parallel` | Integer      | `4`      | Maximum branches walked concurrently (Section 4.6). |
 | `max_visits`   | Integer      | unset    | Visit budget (Section 3.4). Unset means unlimited. |
 | `workspace`    | String       | `isolated` | Branch workspace policy: `isolated` or `shared` (Section 4.6). |
-| `prompt`, `max_retries`, `fidelity`, `thread_id`, `timeout`, `llm_model`, `llm_provider`, `reasoning_effort` | As on `agent` | inherited as applicable | Agent-template fields copied to every synthesized structured branch. They do not execute on the fan-out node itself. |
+| `prompt`, `max_retries`, `fidelity`, `thread_id`, `timeout`, `model` | As on `agent` | inherited as applicable | Agent-template fields copied to every synthesized structured branch. A structured branch's `agent.model` replaces the complete template selection. These fields do not execute on the fan-out node itself. |
 
 **`loop` fields** (Section 4.8):
 
@@ -242,20 +240,16 @@ fan-in's turn evaluates branch evidence):
 | `edges.exit`          | String   | required      | Target followed when the evaluator returns `done`: a node ID or a terminal pseudo-target. |
 | `max_visits`       | Integer  | unset         | Visit budget (Section 3.4): arrivals at the loop node in one activation, laps plus one. A top-level loop has one activation per run; a nested loop gets a fresh activation when its enclosing loop selects a new item. The only loop ceiling. Unset means unlimited. |
 | `timeout`          | Duration | inherited     | Maximum duration of one item's validation command; also the infer judge and loop evaluator turns' timeout (Section 4.8). |
-| `llm_model`        | String   | `flash`       | LLM model identifier for the infer judge (Section 8). The alias resolves to `gemini-3.8-flash-medium`. |
-| `llm_provider`     | String   | `gemini`      | LLM provider key for the infer judge. Auto-detected from an explicit model when omitted. |
-| `reasoning_effort` | String   | `medium`      | LLM reasoning effort of the infer judge: `low`, `medium`, `high` (Section 8). |
-| `evaluator_llm_model` | String | inherited   | Model for the loop evaluator. Defaults to the pipeline's normal model, independently of the infer judge. |
-| `evaluator_llm_provider` | String | inherited | Provider for the loop evaluator. |
-| `evaluator_reasoning_effort` | String | inherited | Reasoning effort for the loop evaluator: `low`, `medium`, `high`. |
+| `item_judge`       | Role object | independent default | Optional role object containing only `model`. Omission or an empty object uses `{name: flash, effort: medium}`. |
+| `item_judge.model` | Model selection object | `{name: flash, effort: medium}` | Atomic selection for the infer judge (Section 8). Pipeline `defaults.model` does not apply. |
+| `goal_evaluator`   | Role object | inherited | Optional role object containing only `model`. Omission or an empty object uses the pipeline or system selection. |
+| `goal_evaluator.model` | Model selection object | inherited | Atomic selection for the loop evaluator, independently of the item judge (Section 8). |
 
-`timeout` and the evaluator fields resolve through `defaults` (Section 2.7).
-The infer judge's model, provider, and reasoning effort resolve from the
-loop node or the judge defaults above, independently of pipeline `defaults`.
-The evaluator fields are a separate slot: when omitted, they use the same
-pipeline or system defaults as a working agent node. A loop node has no
-configurable `prompt`, `fidelity`, or `thread_id`: both internal prompts are
-engine-built, and both turns run with fidelity `none` on no thread (Section 4.8).
+`timeout` and `goal_evaluator.model` resolve through `defaults` (Section 2.7).
+The item judge instead uses its explicit role selection or the independent
+Flash default above. A loop node has no top-level `model` and no configurable
+`prompt`, `fidelity`, or `thread_id`: both internal prompts are engine-built,
+and both turns run with fidelity `none` on no thread (Section 4.8).
 
 **`supervisor` fields** (Section 3.10):
 
@@ -265,9 +259,7 @@ engine-built, and both turns run with fidelity `none` on no thread (Section 4.8)
 | `supervises`       | String array | required      | IDs of the nodes this supervisor observes: non-empty, no duplicates, no self-reference (lint `supervises_valid`, Section 7.2). A supervisor's purview is always explicit. Naming another supervisor is allowed (multi-level supervision) but supervision cycles are a lint ERROR (`supervisor_cycle`). |
 | `interval`         | Duration     | `"60s"`       | Patrol cadence: how often the engine checks the scope for live activity and, finding some, runs a flush turn (Section 3.10). Must be positive. |
 | `timeout`          | Duration     | inherited     | Maximum duration of one flush turn (Section 12.2, note 8). |
-| `llm_model`        | String       | inherited     | LLM model identifier (Section 8). |
-| `llm_provider`     | String       | auto-detected | LLM provider key. Auto-detected from model if unset. |
-| `reasoning_effort` | String       | inherited     | LLM reasoning effort: `low`, `medium`, `high` (Section 8). |
+| `model`            | Model selection object | inherited | Atomic model selection with `name`, optional `version`, and optional `effort` (Section 8). Provider and harness are derived. |
 
 A supervisor has no `fidelity` or `thread_id` fields. Its turns are
 `SupervisorTurn`s (Section 12.2). The backend continues the
@@ -310,22 +302,22 @@ whose `id` is `success` or `failure` is a parse error (Section 2.8).
 ### 2.7 Defaults and Resolution
 
 The top-level `defaults` object holds file-level defaults for node
-fields. Resolution for every defaultable field is per field and stops at
-the first value found:
+fields. Resolution for non-model fields is per field and stops at the first
+value found:
 
 1. The field on the node itself.
 2. The same field in `defaults`, if that node's type has the field.
 3. Otherwise the system default from the tables above.
 
-The loop infer judge is the exception for model selection: its
-`llm_model`, `llm_provider`, and `reasoning_effort` do not inherit from
-this object. The loop evaluator's separately named fields do (Section 2.5).
+Model selection is atomic. Tractor chooses the first complete `model` object
+at the applicable precedence level and resolves it without filling absent
+keys from a lower-precedence object. The item judge is independent of this
+object; the goal evaluator inherits it (Sections 2.5 and 8).
 
-`defaults` admits exactly six fields -- the ones whose node tables say
-"inherited" plus the two global execution knobs:
+`defaults` admits exactly four fields -- the ones whose node tables say
+"inherited" plus the global execution knobs:
 
-`max_retries`, `fidelity`, `timeout`, `llm_model`, `llm_provider`,
-`reasoning_effort`
+`max_retries`, `fidelity`, `timeout`, `model`
 
 Anything else in `defaults` is a parse error. Identity, typing, routing,
 and each node's own work are always explicit at the node: `id`, `type`,
@@ -1384,6 +1376,9 @@ FUNCTION describe_routes(node, offered, graph) -> String:
 AgentTurn:
     node_id          : String
         -- correlation and run-log identity only; does not expose the graph
+    role             : String
+        -- the model-consuming role: agent, fan_in, branch_agent,
+        -- item_judge, or goal_evaluator
     parts            : List<ContentPart>
         -- non-empty ordered user-message content (Section 3.9)
     output_schema    : JSON Schema
@@ -1410,6 +1405,7 @@ SupervisorTurn:                        -- a flush turn (Section 3.10)
     node_id          : String
         -- the supervisor node; doubles as the thread key -- a
         -- supervisor always owns its thread (Section 2.5)
+    role             : String          -- "supervisor"
     parts            : List<ContentPart>
         -- the rendered nudge (Section 3.10)
     output_schema    : JSON Schema
@@ -1569,7 +1565,7 @@ non-obvious constraints:
 
 `branches` accepts either node-ID strings or structured branch objects; one
 fan-out may not mix the two forms. A structured branch declares `id`, one or
-more `artifacts`, and an optional `codergen` object that overrides the
+more `artifacts`, and an optional `agent` object that overrides the
 fan-out's agent-template fields for that branch. The engine synthesizes an
 `agent` node per structured branch. It copies the fan-out's `branch_edges`,
 prompt, fidelity, thread, retry, timeout, and model fields to that node, then
@@ -1981,11 +1977,11 @@ remains. `done` routes to `edges.exit`. `not_done` reloads the checklist and
 dispatches the first open item; if none exists, the handler returns a terminal
 Error. A `LoopEvaluated` timeline event records the verdict and notes.
 
-The evaluator's `evaluator_llm_model`, `evaluator_llm_provider`, and
-`evaluator_reasoning_effort` are independent of the infer judge fields. They
-fall back to the pipeline and system defaults, so the evaluator normally runs
-on the same model as the working agent. Like the judge, it uses fidelity
-`none`, no thread, and the loop `timeout`. Its artifacts are
+The evaluator's `goal_evaluator.model` is independent of
+`item_judge.model`. It falls back atomically to the pipeline and system
+selections, so the evaluator normally runs on the same model as the working
+agent. Like the judge, it uses fidelity `none`, no thread, and the loop
+`timeout`. Its artifacts are
 `evaluator-prompt.md` and `evaluator-response.md`, distinct from every infer
 judge artifact, and it allocates its own run-log segment. In simulation mode,
 it returns `not_done` while an item is open and `done` when none is open.
@@ -2405,42 +2401,65 @@ the implementation defines (Section 9) -- and returns all diagnostics;
 
 ## 8. Model Selection
 
-Three node fields configure the LLM for an agent or supervisor node:
+Every model consumer uses the same closed `model` object. String shorthand is
+not allowed.
 
-| Field              | Values                      | Description |
-|--------------------|-----------------------------|-------------|
-| `llm_model`        | Any model identifier string | Provider-native model ID (e.g., `gpt-5.2`, `claude-opus-4-6`) |
-| `llm_provider`     | Provider key string         | `openai`, `anthropic`, `gemini`, etc. Auto-detected from the model when unset. |
-| `reasoning_effort` | `low`, `medium`, `high`     | Controls reasoning/thinking depth for the LLM |
+| Key | Values | Description |
+|-----|--------|-------------|
+| `name` | Required nonblank string | Maintained alias or recognizable provider-native model ID. |
+| `version` | Optional nonblank string | Exact supported release for the named family. It is never a number, range, or fallback request. |
+| `effort` | Optional `low`, `medium`, or `high` | Requested reasoning depth. |
 
-Each field resolves per node: the explicit node value, else the
-file-level `defaults` object (Section 2.7), else an
-implementation-configured system default. Every agent and
-supervisor turn carries concrete resolved values -- the same
-resolution builds a `SupervisorTurn` (Section 12.2) -- and session
-bindings never supply defaults for later turns (Section 12.1). The
-recommended system default for `reasoning_effort` is `high`.
+`provider` is not an authored key. Tractor derives the provider and harness
+from the resolved native model and rejects names it cannot route. Recognized
+provider-native IDs remain escape hatches without a catalog lookup; static
+resolution does not promise remote availability or account access.
+
+Selections resolve as complete objects at these precedence levels:
+
+| Consumer | Precedence |
+|----------|------------|
+| Agent, supervisor, fan-in | Node, pipeline, system. |
+| Synthesized branch agent | Branch `agent.model`, fan-out template, pipeline, system. |
+| Item judge | `item_judge.model`, then `{name: flash, effort: medium}`. |
+| Goal evaluator | `goal_evaluator.model`, pipeline, system. |
+
+After selecting the object, Tractor resolves an omitted version from the
+name's maintained release and an omitted effort from that model's policy.
+Lower-precedence `version` or `effort` values never leak into a replacement.
+The system selection is `gpt-5.6-sol` at high effort.
+
+Maintained family mappings include `fable` releases `5.1` and `5`, and
+`flash` releases `3.8`, `3.7`, and `3.6`. `fable` defaults to `5.1` at high
+effort. `flash` defaults to `3.8` at medium effort; an explicit effort chooses
+the supported effort-bearing Gemini ID for that release. An already-versioned
+name cannot also carry `version`. An explicit effort cannot contradict a
+native ID whose effort is fixed.
 
 ```json
 {
   "goal": "Implement feature X",
-  "defaults": { "llm_model": "claude-opus-4-6" },
+  "defaults": { "model": { "name": "fable", "version": "5.1" } },
   "start": "plan",
   "nodes": [
     { "id": "plan", "type": "agent",
-      "llm_model": "claude-sonnet-4-5",
+      "model": { "name": "claude-sonnet-4-5", "effort": "medium" },
       "edges": [{ "to": "implement" }] },
     { "id": "implement", "type": "agent",
       "edges": [{ "to": "critical_review" }] },
     { "id": "critical_review", "type": "agent",
-      "llm_model": "gpt-5.2", "reasoning_effort": "high",
+      "model": { "name": "gpt-5.6-sol", "effort": "high" },
       "edges": [{ "to": "success" }] }
   ]
 }
 ```
 
-`implement` inherits the file default; `plan` and `critical_review` name
-their own models.
+`implement` inherits the complete file selection; `plan` and
+`critical_review` replace it completely. `tractor validate` resolves every
+declared selection before any harness or run log is created, including unused
+defaults and hidden loop roles. `tractor inspect-models PIPELINE` prints each
+effective node/role selection with its authored name and version, native
+model, effort, provider, harness, and provenance.
 
 ---
 

@@ -8,9 +8,9 @@ defaults:
   timeout: 300s
   fidelity: none
   max_retries: 1
-  llm_provider: anthropic
-  llm_model: claude-sonnet-5
-  reasoning_effort: low
+  model:
+    name: claude-sonnet-5
+    effort: low
 
 # The shape for "keep working until it's actually done": one node picks the
 # next bite-sized step, one does it, a command checks, repeat. The chooser

@@ -602,6 +602,36 @@ func TestModelIncludesEffort(t *testing.T) {
 	}
 }
 
+func TestRunTurnUsesEffortBearingModelOrEffortFlagExactlyOnce(t *testing.T) {
+	tests := []struct {
+		name       string
+		model      string
+		effort     string
+		wantEffort string
+	}{
+		{name: "native model fixes effort", model: "gemini-3.8-flash-high", effort: "high"},
+		{name: "base model takes effort flag", model: "gemini-test", effort: "low", wantEffort: "low"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			record := filepath.Join(t.TempDir(), "args.jsonl")
+			adapter := testAdapter(t, "success", record)
+			defer adapter.Close()
+			input := validInput("conversation-test", t.TempDir(), 5*time.Second)
+			input.Model = test.model
+			input.ReasoningEffort = test.effort
+			if _, runErr := adapter.RunTurn(input, func(harness.Event) {}); runErr != nil {
+				t.Fatal(runErr)
+			}
+			args := readInvocations(t, record)[0]
+			assertFlagValue(t, args, "--model", test.model)
+			if got := flagValue(args, "--effort"); got != test.wantEffort {
+				t.Fatalf("--effort = %q, want %q in %#v", got, test.wantEffort, args)
+			}
+		})
+	}
+}
+
 func validInput(sessionID, workdir string, timeout time.Duration) harness.RunTurnInput {
 	return harness.RunTurnInput{
 		SessionID:       sessionID,

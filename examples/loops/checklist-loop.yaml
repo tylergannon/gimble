@@ -6,9 +6,9 @@ defaults:
   timeout: 600s
   fidelity: none
   max_retries: 1
-  llm_provider: anthropic
-  llm_model: claude-sonnet-5
-  reasoning_effort: low
+  model:
+    name: claude-sonnet-5
+    effort: low
 
 # The shape for "work through this list and prove each item": a loop node
 # iterates a checklist file. On every arrival it re-reads the file, validates

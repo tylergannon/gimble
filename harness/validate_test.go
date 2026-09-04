@@ -63,6 +63,7 @@ func TestValidateRunTurnInput(t *testing.T) {
 func TestValidateAgentTurnFidelity(t *testing.T) {
 	turn := AgentTurn{
 		NodeID:          "implement",
+		Role:            "agent",
 		Parts:           []ContentPart{{Type: ContentPartText, Text: "do work"}},
 		OutputSchema:    json.RawMessage(`{"type":"object"}`),
 		Model:           "model",
@@ -92,6 +93,7 @@ func TestValidateAgentTurnFidelity(t *testing.T) {
 func TestValidateSupervisorTurn(t *testing.T) {
 	turn := SupervisorTurn{
 		NodeID:          "coach",
+		Role:            "supervisor",
 		Parts:           []ContentPart{{Type: ContentPartText, Text: "review"}},
 		OutputSchema:    json.RawMessage(`{"type":"object"}`),
 		Model:           "model",

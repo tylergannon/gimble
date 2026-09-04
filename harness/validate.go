@@ -67,7 +67,7 @@ func ValidateContentParts(parts []ContentPart) *Error {
 
 // ValidateAgentTurn validates a fully resolved backend turn.
 func ValidateAgentTurn(turn AgentTurn) *Error {
-	if err := validateBackendTurn(turn.NodeID, turn.Provider, turn.Model, turn.ReasoningEffort, turn.Workdir, turn.RunLog, turn.Parts, turn.Timeout); err != nil {
+	if err := validateBackendTurn(turn.NodeID, turn.Role, turn.Provider, turn.Model, turn.ReasoningEffort, turn.Workdir, turn.RunLog, turn.Parts, turn.Timeout); err != nil {
 		return err
 	}
 	switch turn.Fidelity {
@@ -87,16 +87,19 @@ func ValidateAgentTurn(turn AgentTurn) *Error {
 
 // ValidateSupervisorTurn validates a fully resolved advisory turn.
 func ValidateSupervisorTurn(turn SupervisorTurn) *Error {
-	return validateBackendTurn(turn.NodeID, turn.Provider, turn.Model, turn.ReasoningEffort, turn.Workdir, turn.RunLog, turn.Parts, turn.Timeout)
+	return validateBackendTurn(turn.NodeID, turn.Role, turn.Provider, turn.Model, turn.ReasoningEffort, turn.Workdir, turn.RunLog, turn.Parts, turn.Timeout)
 }
 
 func validateBackendTurn(
-	nodeID, provider, model, reasoningEffort, workdir, runLog string,
+	nodeID, role, provider, model, reasoningEffort, workdir, runLog string,
 	parts []ContentPart,
 	timeout time.Duration,
 ) *Error {
 	if strings.TrimSpace(nodeID) == "" {
 		return terminalError("node ID must not be empty")
+	}
+	if strings.TrimSpace(role) == "" {
+		return terminalError("role must not be empty")
 	}
 	if strings.TrimSpace(provider) == "" {
 		return terminalError("provider must not be empty")

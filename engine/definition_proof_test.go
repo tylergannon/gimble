@@ -79,7 +79,7 @@ func TestDefinitionProofRunnerCodergenChoiceSchemaRoutesThroughHarnessBackend(t 
 	backend, backendErr := harness.NewHarnessBackend(
 		root,
 		map[string]harness.HarnessAdapter{"scripted": adapter},
-		map[string]string{"proof": "scripted"},
+		map[string]string{"openai": "scripted"},
 		nil,
 	)
 	if backendErr != nil {
@@ -101,8 +101,7 @@ func TestDefinitionProofRunnerCodergenChoiceSchemaRoutesThroughHarnessBackend(t 
 	registry := NewRegistry()
 	registry.Register("agent", NewAgentHandler(AgentConfig{
 		Backend:                backend,
-		DefaultModel:           "proof-model",
-		DefaultProvider:        "proof",
+		DefaultModel:           "gpt-proof",
 		DefaultReasoningEffort: "high",
 	}))
 	runner := newTestRunnerWithWorkdir(t, pipeline, registry, root, workdir, backend)
@@ -289,8 +288,7 @@ func replayProofRegistry(backend harness.AgentBackend) *Registry {
 	registry := NewRegistry()
 	config := AgentConfig{
 		Backend:                backend,
-		DefaultModel:           "proof-model",
-		DefaultProvider:        "proof",
+		DefaultModel:           "gpt-proof",
 		DefaultReasoningEffort: "high",
 	}
 	registry.Register("agent", NewAgentHandler(config))
@@ -305,7 +303,7 @@ func newProofHarnessBackend(t *testing.T, root string, adapter harness.HarnessAd
 	backend, err := harness.NewHarnessBackend(
 		root,
 		map[string]harness.HarnessAdapter{"scripted": adapter},
-		map[string]string{"proof": "scripted"},
+		map[string]string{"openai": "scripted"},
 		bindings,
 	)
 	if err != nil {
