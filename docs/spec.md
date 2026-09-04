@@ -1377,8 +1377,8 @@ AgentTurn:
     node_id          : String
         -- correlation and run-log identity only; does not expose the graph
     role             : String
-        -- the model-consuming role: agent, fan-in, branch template,
-        -- item judge, or goal evaluator
+        -- the model-consuming role: agent, fan_in, branch_agent,
+        -- item_judge, or goal_evaluator
     parts            : List<ContentPart>
         -- non-empty ordered user-message content (Section 3.9)
     output_schema    : JSON Schema
