@@ -45,3 +45,26 @@ role subgraphs, profile registries, or model benchmarks. Retain strict migration
 and discriminating live proof of item rejection, repair, goal-not-met replanning,
 and eventual goal satisfaction. That proof establishes the tested behavior, not
 general judge quality.
+
+## Tyler's follow-up
+
+decision: Tyler accepted the recommendation and requested an optional `version`
+key on model objects. Use the same model shape across all node types and loop
+roles. Third-party model routers are outside the current scope.
+
+correction: Tyler rejected the need for an authored provider selection because
+the model name identifies its provider. This supersedes the earlier proposal
+to require provider for unrecognized names. The authored object has `name`,
+optional `version`, and optional `effort`; provider and harness are derived
+resolution results. Reject names whose provider cannot be resolved rather than
+guessing or adding a provider override.
+
+recommendation: Make version a string, not a number. Omission selects Tractor's
+maintained default release for that name; an explicit version pins that release
+without silent fallback. A fully versioned native name remains a supported
+escape hatch and does not also take a separate version. Reject a selection that
+cannot be resolved. These version semantics are agent proposals implementing
+Tyler's requested optional key, not additional decisions made by Tyler.
+
+example: `{model: {name: fable, version: "5.1", effort: high}}`. This is proposed
+syntax; no runtime or schema implementation has been changed in this review.
