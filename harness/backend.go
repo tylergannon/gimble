@@ -99,7 +99,7 @@ func (b *HarnessBackend) Run(turn AgentTurn) (Outcome, *Error) {
 
 	key := turn.ThreadKey
 	if turn.Fidelity == FidelityNone {
-		key = noneThreadPrefix + turn.NodeID
+		key = noneThreadPrefix + turn.NodeID + ":" + turn.Role
 	}
 	lock := b.bindingLock(key)
 	lock.Lock()

@@ -116,8 +116,46 @@ func TestHarnessBackendFidelityBindingsAndInvariants(t *testing.T) {
 	if bindings["shared"].SessionID != "primary-1" {
 		t.Fatalf("shared binding = %#v", bindings["shared"])
 	}
-	if bindings[noneThreadPrefix+"isolated"].SessionID != "primary-3" {
-		t.Fatalf("none binding = %#v", bindings[noneThreadPrefix+"isolated"])
+	if bindings[noneThreadPrefix+"isolated:agent"].SessionID != "primary-3" {
+		t.Fatalf("none binding = %#v", bindings[noneThreadPrefix+"isolated:agent"])
+	}
+}
+
+func TestHarnessBackendIsolatesNoneFidelityBindingsByRole(t *testing.T) {
+	workdir := t.TempDir()
+	judgeAdapter := &scriptedAdapter{name: "judge"}
+	evaluatorAdapter := &scriptedAdapter{name: "evaluator"}
+	backend := newTestBackend(t, map[string]HarnessAdapter{
+		"judge":     judgeAdapter,
+		"evaluator": evaluatorAdapter,
+	}, map[string]string{"gemini": "judge", "openai": "evaluator"}, nil)
+
+	judge := testTurn("items", "", FidelityNone, "gemini", workdir)
+	judge.Role = "item_judge"
+	judge.Model = "gemini-3.8-flash-medium"
+	if _, err := backend.Run(allocateTestTurn(t, backend, judge)); err != nil {
+		t.Fatalf("item judge Run(): %v", err)
+	}
+
+	evaluator := testTurn("items", "", FidelityNone, "openai", workdir)
+	evaluator.Role = "goal_evaluator"
+	evaluator.Model = "gpt-5.6-sol"
+	if _, err := backend.Run(allocateTestTurn(t, backend, evaluator)); err != nil {
+		t.Fatalf("goal evaluator Run(): %v", err)
+	}
+
+	bindings := backend.Bindings()
+	if got := bindings[noneThreadPrefix+"items:item_judge"].Harness; got != "judge" {
+		t.Fatalf("item judge harness = %q, bindings = %#v", got, bindings)
+	}
+	if got := bindings[noneThreadPrefix+"items:goal_evaluator"].Harness; got != "evaluator" {
+		t.Fatalf("goal evaluator harness = %q, bindings = %#v", got, bindings)
+	}
+	if got := judgeAdapter.createdSessions(); !reflect.DeepEqual(got, []string{"judge-1"}) {
+		t.Fatalf("judge sessions = %v", got)
+	}
+	if got := evaluatorAdapter.createdSessions(); !reflect.DeepEqual(got, []string{"evaluator-1"}) {
+		t.Fatalf("evaluator sessions = %v", got)
 	}
 }
 
