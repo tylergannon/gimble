@@ -108,3 +108,19 @@ An early candidate passed 29 independent CLI preflight cases, including 23
 invalid inputs with no native launch or run-log creation, and cross-consumer
 atomic-resolution inspection. These are interim checks, not final acceptance
 or live convergence proof.
+
+review_findings: The first native proof uncovered shared fidelity-none binding
+identity across a loop's distinct roles, preventing a cross-harness evaluator.
+Sol isolated binding keys by role and the repeated real run passed. Source review
+also found preflight/per-turn system default divergence; Sol moved normalization
+into their shared resolver and cross-path regression checks passed.
+
+proof_result: Native Fable/Flash/Sol run completed after judge fail, repair/pass,
+evaluator not_done, appended expedited work, both items passing, and evaluator
+done. Independent external oracle passed all six shipping cases. Browser
+save/reload preserved a version pin and demonstrated name-only atomic replacement.
+Final CLI checks passed 29 preflight cases (23 invalid, zero harness launches/logs)
+and cross-consumer resolution checks. Seven sanitized proof artifacts uploaded;
+all URLs returned HTTP 200 with curl. Python urllib HEAD returned 403 in this
+environment, so link checks used curl. Full report records exact tested revisions
+and the limited intervening change. No unresolved material review findings.
