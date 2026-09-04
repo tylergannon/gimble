@@ -12,12 +12,14 @@
 		options,
 		size = 'default',
 		title = '',
+		disabled = false,
 		onchange
 	}: {
 		value?: string;
 		options: Option[];
 		size?: 'default' | 'sm';
 		title?: string;
+		disabled?: boolean;
 		onchange: (value: string, el: HTMLSelectElement) => void;
 	} = $props();
 </script>
@@ -28,6 +30,7 @@
 		class:cn-native-select-size-sm={size === 'sm'}
 		{title}
 		{value}
+		{disabled}
 		onchange={(e) => onchange(e.currentTarget.value, e.currentTarget)}
 	>
 		{#each options as o (o.v + o.l)}

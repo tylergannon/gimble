@@ -188,7 +188,7 @@
 
 <aside>
 	{#if !sel}
-		<div class="panel">
+		<fieldset class="panel" disabled={editor.readOnly}>
 			<div>
 				<div class="title">Graph settings</div>
 				<div class="subtitle">Pipeline metadata and file-level defaults.</div>
@@ -218,10 +218,10 @@
 					<Field field={f.vm} showRequired={false} onvalue={(v) => editor.setDefault(f.vm.key, parseValue(f.kind, v))} />
 				{/each}
 			</div>
-		</div>
+		</fieldset>
 	{:else}
 		{@const node = sel}
-		<div class="panel">
+		<fieldset class="panel" disabled={editor.readOnly}>
 			<div class="head">
 				<div class="head-main">
 					<div class="type-row">
@@ -399,7 +399,7 @@
 					{/each}
 				</div>
 			{/if}
-		</div>
+		</fieldset>
 	{/if}
 </aside>
 
@@ -415,6 +415,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 20px;
+		margin: 0;
+		border: 0;
+		min-inline-size: 0;
+	}
+	.panel:disabled {
+		opacity: 0.6;
 	}
 	.title {
 		font-weight: 600;

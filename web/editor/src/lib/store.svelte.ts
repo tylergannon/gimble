@@ -2,8 +2,8 @@
 // debounced save, and the merge of server and client diagnostics.
 
 import { ConflictError, getDoc, putDoc, subscribe, type Diagnostic, type ServerDoc } from './api';
-import { PipelineDoc } from './doc';
-import { autoLayout, isBox, NODE_H, NODE_W, type Layout, type LayoutEntry } from './layout';
+import { PipelineDoc, type SyntaxError } from './doc';
+import { autoLayout, isBox, NODE_H, NODE_W, type Box, type Layout, type LayoutEntry } from './layout';
 import {
 	edgesKey,
 	isTerminal,
@@ -20,6 +20,8 @@ import {
 } from './model';
 
 const SAVE_DELAY = 400;
+const RETRY_DELAY = 3000;
+const PLACE_STEP = 40;
 export const DARK_KEY = 'tractor-editor-dark';
 export const SNAP_KEY = 'tractor-editor-snap';
 
@@ -68,6 +70,13 @@ export class Editor {
 		void this.rev;
 		return this.doc.errors;
 	});
+	// A file with a YAML syntax error cannot be serialized, so every edit is
+	// refused until the next on-disk change reloads it.
+	syntaxError: SyntaxError | null = $derived.by(() => {
+		void this.rev;
+		return this.doc.syntaxError;
+	});
+	readOnly: boolean = $derived(this.syntaxError !== null);
 
 	// layout
 	savedLayout = $state<Layout>({});
@@ -88,11 +97,23 @@ export class Editor {
 
 	// diagnostics
 	clientErrors: Record<string, string[]> = $derived(validate(this.graph));
+	// The page node a server diagnostic belongs to: its node, or the fan_out
+	// that owns the branch it names; null when nothing on the page matches.
+	private diagnosticOwner(d: Diagnostic): string | null {
+		const id = d.node_id || d.edge?.[0];
+		if (!id) return null;
+		const g = this.graph;
+		if (g.nodes.some((n) => n.id === id)) return id;
+		const owner = g.nodes.find(
+			(n) => n.type === 'fan_out' && (n.branches ?? []).some((b) => normalizeBranch(b).id === id)
+		);
+		return owner ? owner.id : null;
+	}
 	errors: Record<string, string[]> = $derived.by(() => {
 		const out: Record<string, string[]> = {};
 		for (const [id, list] of Object.entries(this.clientErrors)) out[id] = [...list];
 		for (const d of this.serverDiagnostics) {
-			const id = d.node_id || d.edge?.[0];
+			const id = this.diagnosticOwner(d);
 			if (!id) continue;
 			const msg = d.severity === 'error' ? d.message : `${d.severity}: ${d.message}`;
 			const list = (out[id] ??= []);
@@ -109,8 +130,10 @@ export class Editor {
 		if (!g.start) list.push('Start is required');
 		else if (!ids.includes(g.start)) list.push('Start node does not exist');
 		for (const d of this.serverDiagnostics) {
-			if (d.node_id || d.edge) continue;
-			const msg = d.severity === 'error' ? d.message : `${d.severity}: ${d.message}`;
+			if (this.diagnosticOwner(d)) continue;
+			const where = d.node_id || d.edge?.[0];
+			const text = where ? `${where}: ${d.message}` : d.message;
+			const msg = d.severity === 'error' ? text : `${d.severity}: ${text}`;
 			if (!list.includes(msg)) list.push(msg);
 		}
 		return list;
@@ -127,33 +150,71 @@ export class Editor {
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private inflight = false;
 	private dirty = false;
+	private saveFailed = false;
+	// Every local edit bumps this; a load that started before an edit must
+	// not replace the edited document.
+	private edits = 0;
+	// SSE bookkeeping: the last announced version, whether a GET is in
+	// flight, and whether a change arrived while a request was in flight.
+	private announced = '';
+	private loadInflight = false;
+	private changePending = false;
 
 	get pending(): boolean {
-		return this.timer !== null || this.inflight || this.dirty;
+		return this.timer !== null || this.inflight || this.dirty || this.saveFailed;
 	}
 
 	// ---- lifecycle ----
 
 	start(): () => void {
 		void this.load();
-		const stop = subscribe((version) => {
-			if (version !== this.version && !this.pending) void this.load();
-		});
+		const stop = subscribe((version) => this.onChange(version));
 		return () => {
 			stop();
 			if (this.timer) clearTimeout(this.timer);
 		};
 	}
 
-	async load(): Promise<void> {
+	private onChange(version: string): void {
+		this.announced = version;
+		if (version === this.version) return;
+		if (this.loadInflight || this.inflight) {
+			this.changePending = true;
+			return;
+		}
+		// With edits waiting, the save will 409 and take the conflict path.
+		if (!this.pending) void this.load();
+	}
+
+	// After a request settles, pick up a change announced while it ran.
+	private settle(): void {
+		if (!this.changePending || this.pending) return; // a waiting save will 409 if needed
+		this.changePending = false;
+		if (this.announced !== this.version) void this.load();
+	}
+
+	async load(recheck = true): Promise<void> {
+		const edits = this.edits;
+		this.loadInflight = true;
 		try {
 			const d = await getDoc();
+			if (this.edits !== edits) return; // the user edited meanwhile; the save decides
 			const first = this.loading;
 			this.adopt(d);
 			if (first) this.needsFit = true;
 		} catch (e) {
 			this.banner = `Could not load the document: ${e instanceof Error ? e.message : String(e)}`;
 			this.loading = false;
+		} finally {
+			this.loadInflight = false;
+			// A version behind the last announcement means a change landed
+			// during the GET; fetch once more.
+			if (recheck && this.announced && this.announced !== this.version && !this.pending) {
+				this.changePending = false;
+				void this.load(false);
+			} else {
+				this.settle();
+			}
 		}
 	}
 
@@ -175,15 +236,16 @@ export class Editor {
 
 	private touch(): void {
 		this.rev++;
+		this.edits++;
 		this.scheduleSave();
 	}
 
-	private scheduleSave(): void {
+	private scheduleSave(delay = SAVE_DELAY): void {
 		if (this.timer) clearTimeout(this.timer);
 		this.timer = setTimeout(() => {
 			this.timer = null;
 			void this.flush();
-		}, SAVE_DELAY);
+		}, delay);
 	}
 
 	private async flush(): Promise<void> {
@@ -194,6 +256,7 @@ export class Editor {
 		this.inflight = true;
 		this.saving = true;
 		const layout = this.layoutFromDisk || this.layoutTouched ? $state.snapshot(this.savedLayout) : null;
+		let retry = false;
 		try {
 			const d = await putDoc({ yaml: this.doc.toString(), layout, version: this.version });
 			this.path = d.path;
@@ -201,14 +264,23 @@ export class Editor {
 			this.serverDiagnostics = d.diagnostics ?? [];
 			this.parseError = d.parse_error ?? '';
 			if (d.layout !== null) this.layoutFromDisk = true;
+			if (this.saveFailed) {
+				this.saveFailed = false;
+				this.banner = '';
+			}
 		} catch (e) {
 			if (e instanceof ConflictError) {
 				if (this.timer) clearTimeout(this.timer);
 				this.timer = null;
 				this.dirty = false;
+				this.saveFailed = false;
 				this.adopt(e.current);
 				this.banner = 'The file changed on disk; your unsaved edits were dropped.';
 			} else {
+				// Keep the edits and stay pending so SSE reloads wait; retry on
+				// the next edit or after a pause.
+				this.saveFailed = true;
+				retry = true;
 				this.banner = `Save failed: ${e instanceof Error ? e.message : String(e)}`;
 			}
 		} finally {
@@ -217,7 +289,10 @@ export class Editor {
 			if (this.dirty) {
 				this.dirty = false;
 				this.scheduleSave();
+			} else if (retry) {
+				this.scheduleSave(RETRY_DELAY);
 			}
+			this.settle();
 		}
 	}
 
@@ -228,12 +303,14 @@ export class Editor {
 	}
 
 	setGraphField(key: 'name' | 'goal' | 'start', value: string): void {
+		if (this.readOnly) return;
 		if (key === 'start') this.doc.set(['start'], value);
 		else this.doc.set([key], value === '' ? undefined : value);
 		this.touch();
 	}
 
 	setDefault(key: string, value: string | number | undefined): void {
+		if (this.readOnly) return;
 		if (value === undefined) this.doc.deleteAndPrune(['defaults', key]);
 		else this.doc.set(['defaults', key], value);
 		this.touch();
@@ -241,6 +318,7 @@ export class Editor {
 
 	// `key` may be dotted to reach into nested maps (edges.success).
 	setNodeField(id: string, key: string, value: unknown): void {
+		if (this.readOnly) return;
 		const i = this.index(id);
 		if (i < 0) return;
 		this.doc.set(['nodes', i, ...key.split('.')], value);
@@ -248,6 +326,7 @@ export class Editor {
 	}
 
 	setEdge(id: string, index: number, patch: Partial<Edge>): void {
+		if (this.readOnly) return;
 		const i = this.index(id);
 		const n = this.graph.nodes[i];
 		if (!n) return;
@@ -260,6 +339,7 @@ export class Editor {
 	}
 
 	addEdge(id: string): void {
+		if (this.readOnly) return;
 		const i = this.index(id);
 		const n = this.graph.nodes[i];
 		if (!n) return;
@@ -268,6 +348,7 @@ export class Editor {
 	}
 
 	removeEdge(id: string, index: number): void {
+		if (this.readOnly) return;
 		const i = this.index(id);
 		const n = this.graph.nodes[i];
 		if (!n) return;
@@ -285,6 +366,7 @@ export class Editor {
 	}
 
 	setBranch(id: string, index: number, patch: { id?: string; artifacts?: string[]; prompt?: string }): void {
+		if (this.readOnly) return;
 		const i = this.index(id);
 		const n = this.graph.nodes[i];
 		if (!n) return;
@@ -304,6 +386,7 @@ export class Editor {
 	}
 
 	addBranch(id: string): void {
+		if (this.readOnly) return;
 		const i = this.index(id);
 		if (i < 0) return;
 		this.doc.push(['nodes', i, 'branches'], { id: '', artifacts: [] });
@@ -311,6 +394,7 @@ export class Editor {
 	}
 
 	removeBranch(id: string, index: number): void {
+		if (this.readOnly) return;
 		const i = this.index(id);
 		if (i < 0) return;
 		this.doc.delete(['nodes', i, 'branches', index]);
@@ -318,6 +402,7 @@ export class Editor {
 	}
 
 	setStart(id: string, on: boolean): void {
+		if (this.readOnly) return;
 		const g = this.graph;
 		if (on) this.doc.set(['start'], id);
 		else if (g.start === id) this.doc.set(['start'], '');
@@ -325,6 +410,7 @@ export class Editor {
 	}
 
 	renameNode(oldId: string, newId: string): void {
+		if (this.readOnly) return;
 		newId = newId.trim();
 		if (!newId || newId === oldId) return;
 		const g = this.graph;
@@ -360,6 +446,7 @@ export class Editor {
 	}
 
 	deleteNode(id: string): void {
+		if (this.readOnly) return;
 		if (!id || isTerminal(id)) return;
 		const g = this.graph;
 		const i = this.index(id);
@@ -395,6 +482,7 @@ export class Editor {
 	}
 
 	addNode(type: NodeType): void {
+		if (this.readOnly) return;
 		const ids = this.graph.nodes.map((n) => n.id);
 		let i = 1;
 		let id: string = type;
@@ -417,15 +505,11 @@ export class Editor {
 				Object.assign(n, { edges: [] });
 		}
 		this.doc.push(['nodes'], n);
-		let cx = (this.vw / 2 - this.pan.x) / this.zoom - NODE_W / 2;
-		let cy = (this.vh / 2 - this.pan.y) / this.zoom - NODE_H / 2;
-		// Step aside when another card already sits at the viewport centre.
-		const taken = Object.values(this.layout).filter(isBox);
-		while (taken.some((l) => Math.abs(l.x - cx) < 24 && Math.abs(l.y - cy) < 24)) {
-			cx += 32;
-			cy += 32;
-		}
-		this.savedLayout[id] = { x: cx, y: cy, w: NODE_W, h: NODE_H };
+		const { x, y } = this.freeSlot(
+			(this.vw / 2 - this.pan.x) / this.zoom - NODE_W / 2,
+			(this.vh / 2 - this.pan.y) / this.zoom - NODE_H / 2
+		);
+		this.savedLayout[id] = { x, y, w: NODE_W, h: NODE_H };
 		this.layoutTouched = true;
 		this.sel = id;
 		this.touch();
@@ -433,9 +517,27 @@ export class Editor {
 
 	// ---- layout ----
 
+	// The first spot for a new card, scanning right then down from (x0, y0)
+	// in fixed steps, that overlaps no existing card or terminal.
+	private freeSlot(x0: number, y0: number): { x: number; y: number } {
+		const taken = Object.values(this.layout).filter(isBox);
+		const clear = (b: Box) =>
+			!taken.some((l) => b.x < l.x + l.w && b.x + b.w > l.x && b.y < l.y + l.h && b.y + b.h > l.y);
+		const cols = Math.max(1, Math.ceil(this.vw / this.zoom / 2 / PLACE_STEP));
+		for (let row = 0; row < 1000; row++) {
+			for (let col = 0; col < cols; col++) {
+				const b = { x: x0 + col * PLACE_STEP, y: y0 + row * PLACE_STEP, w: NODE_W, h: NODE_H };
+				if (clear(b)) return b;
+			}
+		}
+		return { x: x0, y: y0 };
+	}
+
 	setLayout(key: string, entry: LayoutEntry): void {
+		if (this.readOnly) return;
 		this.savedLayout[key] = entry;
 		this.layoutTouched = true;
+		this.edits++;
 		this.scheduleSave();
 	}
 

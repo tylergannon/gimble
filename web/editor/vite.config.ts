@@ -10,6 +10,9 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
+			// A constant version keeps the committed bundle byte-identical across
+			// rebuilds of unchanged source; the default is a build timestamp.
+			version: { name: 'tractor' },
 			adapter: adapter({
 				pages: '../../internal/editor/dist',
 				assets: '../../internal/editor/dist',

@@ -268,14 +268,26 @@
 		{/each}
 	</div>
 
-	{#if editor.banner}
-		<div class="banner cn-alert cn-alert-variant-default" role="status">
-			<span>{editor.banner}</span>
-			<button class="cn-button cn-button-variant-ghost cn-button-size-icon-xs" title="Dismiss" onclick={() => (editor.banner = '')}>
-				<X size={14} />
-			</button>
-		</div>
-	{/if}
+	<div class="banners">
+		{#if editor.syntaxError}
+			{@const e = editor.syntaxError}
+			<div class="banner cn-alert cn-alert-variant-destructive" role="alert">
+				<TriangleAlert size={15} />
+				<span>
+					The file has a YAML syntax error{e.line ? ` at line ${e.line}, column ${e.col ?? 1}` : ''}: {e.message}. Editing is
+					disabled until it is fixed on disk.
+				</span>
+			</div>
+		{/if}
+		{#if editor.banner}
+			<div class="banner cn-alert cn-alert-variant-default" role="status">
+				<span>{editor.banner}</span>
+				<button class="cn-button cn-button-variant-ghost cn-button-size-icon-xs" title="Dismiss" onclick={() => (editor.banner = '')}>
+					<X size={14} />
+				</button>
+			</div>
+		{/if}
+	</div>
 
 	<div class="minimap" role="presentation" onmousedown={onMiniDown}>
 		<svg width="180" height="112" viewBox={scene.mini.box} preserveAspectRatio="xMidYMid meet">
@@ -499,18 +511,27 @@
 		pointer-events: auto;
 		cursor: default;
 	}
-	.banner {
+	.banners {
 		position: absolute;
 		top: 12px;
 		left: 50%;
 		transform: translateX(-50%);
 		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+		max-width: calc(100% - 32px);
+		z-index: 6;
+		pointer-events: none;
+	}
+	.banner {
+		display: flex;
 		align-items: center;
 		gap: 8px;
 		padding: 6px 8px 6px 12px;
 		box-shadow: var(--shadow-md);
-		max-width: calc(100% - 32px);
-		z-index: 6;
+		max-width: 100%;
+		pointer-events: auto;
 	}
 	.minimap {
 		position: absolute;

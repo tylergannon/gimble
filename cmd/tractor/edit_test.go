@@ -117,8 +117,15 @@ func TestEditRefusesMissingOrOddPipelines(t *testing.T) {
 	if err := os.WriteFile(text, []byte("name: x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := executeCommand("edit", text, "--no-open"); err == nil || !strings.Contains(err.Error(), ".yaml, .yml, or .json") {
+	if _, _, err := executeCommand("edit", text, "--no-open"); err == nil || !strings.Contains(err.Error(), ".yaml or .yml") {
 		t.Fatalf("extension error = %v", err)
+	}
+	asJSON := filepath.Join(t.TempDir(), "pipeline.json")
+	if err := os.WriteFile(asJSON, []byte(`{"name":"x"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := executeCommand("edit", asJSON, "--no-open"); err == nil || !strings.Contains(err.Error(), ".yaml or .yml") {
+		t.Fatalf("json error = %v", err)
 	}
 	if _, _, err := executeCommand("edit", "--no-open"); err == nil {
 		t.Fatal("missing argument accepted")

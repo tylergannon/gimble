@@ -38,6 +38,7 @@
 		<NativeSelect
 			size="sm"
 			value=""
+			disabled={editor.readOnly}
 			options={addOptions}
 			onchange={(v, el) => {
 				if (v) editor.addNode(v as NodeType);

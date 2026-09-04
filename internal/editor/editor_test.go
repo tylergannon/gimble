@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -53,10 +54,18 @@ func newTestServer(t *testing.T, source string) (*Server, string) {
 	return server, pipeline
 }
 
+// newRequest builds a request whose Host is loopback, as a browser on the
+// printed URL would send.
+func newRequest(method, target string, body io.Reader) *http.Request {
+	request := httptest.NewRequest(method, target, body)
+	request.Host = "127.0.0.1:7331"
+	return request
+}
+
 func getDocument(t *testing.T, server http.Handler) Document {
 	t.Helper()
 	recorder := httptest.NewRecorder()
-	server.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/doc", nil))
+	server.ServeHTTP(recorder, newRequest(http.MethodGet, "/api/doc", nil))
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("GET /api/doc = %d: %s", recorder.Code, recorder.Body)
 	}
@@ -74,7 +83,7 @@ func putDocument(t *testing.T, server http.Handler, body any) (int, Document) {
 		t.Fatal(err)
 	}
 	recorder := httptest.NewRecorder()
-	server.ServeHTTP(recorder, httptest.NewRequest(http.MethodPut, "/api/doc", bytes.NewReader(payload)))
+	server.ServeHTTP(recorder, newRequest(http.MethodPut, "/api/doc", bytes.NewReader(payload)))
 	var document Document
 	if recorder.Code == http.StatusOK || recorder.Code == http.StatusConflict {
 		if err := json.Unmarshal(recorder.Body.Bytes(), &document); err != nil {
@@ -87,7 +96,7 @@ func putDocument(t *testing.T, server http.Handler, body any) (int, Document) {
 func TestGetReturnsFileAndDiagnostics(t *testing.T) {
 	server, pipeline := newTestServer(t, "../../examples/loops/bake-off.yaml")
 	recorder := httptest.NewRecorder()
-	server.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/doc", nil))
+	server.ServeHTTP(recorder, newRequest(http.MethodGet, "/api/doc", nil))
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", recorder.Code, recorder.Body)
 	}
@@ -249,7 +258,7 @@ func TestPutWritesFileAndSidecar(t *testing.T) {
 func TestPutRejectsBadBodies(t *testing.T) {
 	server, _ := newTestServer(t, "../../examples/loops/bake-off.yaml")
 	recorder := httptest.NewRecorder()
-	server.ServeHTTP(recorder, httptest.NewRequest(http.MethodPut, "/api/doc", strings.NewReader("{")))
+	server.ServeHTTP(recorder, newRequest(http.MethodPut, "/api/doc", strings.NewReader("{")))
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("invalid JSON status = %d", recorder.Code)
 	}
@@ -284,42 +293,86 @@ func TestEventsEmitChangeWhenFileChangesOnDisk(t *testing.T) {
 	}
 
 	reader := bufio.NewReader(response.Body)
+	readChange := func() string {
+		t.Helper()
+		var event, data string
+		for event == "" || data == "" {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch {
+			case strings.HasPrefix(line, "event: "):
+				event = strings.TrimSpace(strings.TrimPrefix(line, "event: "))
+			case strings.HasPrefix(line, "data: "):
+				data = strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+			}
+		}
+		if event != "change" {
+			t.Fatalf("event = %q", event)
+		}
+		if blank, err := reader.ReadString('\n'); err != nil || blank != "\n" {
+			t.Fatalf("event terminator %q, %v", blank, err)
+		}
+		var payload struct {
+			Version string `json:"version"`
+		}
+		if err := json.Unmarshal([]byte(data), &payload); err != nil {
+			t.Fatalf("data %q: %v", data, err)
+		}
+		return payload.Version
+	}
+
+	// The current version is announced on connect.
+	initial := getDocument(t, server).Version
+	if got := readChange(); got != initial {
+		t.Fatalf("initial event version %q, want %q", got, initial)
+	}
 	// The keepalive comment arrives before any change.
 	line, err := reader.ReadString('\n')
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.HasPrefix(line, ":") {
-		t.Fatalf("first line %q is not a comment", line)
+		t.Fatalf("line after the initial event %q is not a comment", line)
 	}
 
 	if err := os.WriteFile(pipeline, []byte(unreachableYAML), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	var event, data string
-	for event == "" || data == "" {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			t.Fatal(err)
+	if got, want := readChange(), getDocument(t, server).Version; got != want || got == initial {
+		t.Fatalf("event version %q, want %q (initial %q)", got, want, initial)
+	}
+}
+
+func TestRejectsForeignHost(t *testing.T) {
+	server, _ := newTestServer(t, "../../examples/loops/bake-off.yaml")
+	for _, target := range []string{"/api/doc", "/api/events", "/", "/api/nothing"} {
+		request := httptest.NewRequest(http.MethodGet, target, nil)
+		request.Host = "evil.example:7331"
+		recorder := httptest.NewRecorder()
+		server.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("%s with foreign host = %d, want 403", target, recorder.Code)
 		}
-		switch {
-		case strings.HasPrefix(line, "event: "):
-			event = strings.TrimSpace(strings.TrimPrefix(line, "event: "))
-		case strings.HasPrefix(line, "data: "):
-			data = strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+	}
+	for _, host := range []string{"127.0.0.1", "127.0.0.1:7331", "localhost", "localhost:7331", "LOCALHOST:80"} {
+		request := httptest.NewRequest(http.MethodGet, "/api/doc", nil)
+		request.Host = host
+		recorder := httptest.NewRecorder()
+		server.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("host %q = %d, want 200", host, recorder.Code)
 		}
 	}
-	if event != "change" {
-		t.Fatalf("event = %q", event)
-	}
-	var payload struct {
-		Version string `json:"version"`
-	}
-	if err := json.Unmarshal([]byte(data), &payload); err != nil {
-		t.Fatalf("data %q: %v", data, err)
-	}
-	if want := getDocument(t, server).Version; payload.Version != want {
-		t.Fatalf("event version %q, want %q", payload.Version, want)
+	for _, host := range []string{"127.0.0.1.evil.example", "127.0.0.2", "[::1]:7331", ""} {
+		request := httptest.NewRequest(http.MethodGet, "/api/doc", nil)
+		request.Host = host
+		recorder := httptest.NewRecorder()
+		server.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("host %q = %d, want 403", host, recorder.Code)
+		}
 	}
 }
 
@@ -327,7 +380,7 @@ func TestUnknownPathServesIndex(t *testing.T) {
 	server, _ := newTestServer(t, "../../examples/loops/bake-off.yaml")
 	for _, target := range []string{"/", "/nodes/judge", "/deep/route?x=1"} {
 		recorder := httptest.NewRecorder()
-		server.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, target, nil))
+		server.ServeHTTP(recorder, newRequest(http.MethodGet, target, nil))
 		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), "<h1>editor</h1>") {
 			t.Fatalf("%s: %d %q", target, recorder.Code, recorder.Body.String())
 		}
@@ -342,17 +395,17 @@ func TestUnknownPathServesIndex(t *testing.T) {
 	}
 	server.static = http.FileServerFS(server.dist)
 	recorder := httptest.NewRecorder()
-	server.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/_app/immutable/chunks/a.js", nil))
+	server.ServeHTTP(recorder, newRequest(http.MethodGet, "/_app/immutable/chunks/a.js", nil))
 	if recorder.Code != http.StatusOK || recorder.Header().Get("Cache-Control") != "public, max-age=31536000, immutable" {
 		t.Fatalf("immutable asset: %d %q", recorder.Code, recorder.Header().Get("Cache-Control"))
 	}
 	recorder = httptest.NewRecorder()
-	server.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/_app/version.json", nil))
+	server.ServeHTTP(recorder, newRequest(http.MethodGet, "/_app/version.json", nil))
 	if recorder.Code != http.StatusOK || recorder.Header().Get("Cache-Control") != "no-cache" {
 		t.Fatalf("version.json: %d %q", recorder.Code, recorder.Header().Get("Cache-Control"))
 	}
 	recorder = httptest.NewRecorder()
-	server.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/nothing", nil))
+	server.ServeHTTP(recorder, newRequest(http.MethodGet, "/api/nothing", nil))
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("/api/nothing = %d", recorder.Code)
 	}
@@ -360,7 +413,7 @@ func TestUnknownPathServesIndex(t *testing.T) {
 
 func TestEmbeddedDistHasIndex(t *testing.T) {
 	recorder := httptest.NewRecorder()
-	http.FileServerFS(Dist()).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	http.FileServerFS(Dist()).ServeHTTP(recorder, newRequest(http.MethodGet, "/", nil))
 	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), "<html") {
 		t.Fatalf("embedded index: %d %q", recorder.Code, recorder.Body.String())
 	}

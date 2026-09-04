@@ -120,8 +120,14 @@ func Listen(addr string) (net.Listener, error) {
 	return net.Listen("tcp", net.JoinHostPort(host, port))
 }
 
-// ServeHTTP routes the API and falls back to the embedded site.
+// ServeHTTP routes the API and falls back to the embedded site. Requests
+// whose Host is not loopback are refused so a DNS-rebinding page cannot
+// reach the API through a browser.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !loopbackHost(r.Host) {
+		writeError(w, http.StatusForbidden, fmt.Sprintf("host %q is not loopback", r.Host))
+		return
+	}
 	switch {
 	case r.URL.Path == "/api/doc":
 		switch r.Method {
@@ -145,6 +151,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		s.serveStatic(w, r)
 	}
+}
+
+// loopbackHost reports whether a Host header names 127.0.0.1 or localhost,
+// with or without a port.
+func loopbackHost(host string) bool {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	return host == "127.0.0.1" || strings.EqualFold(host, "localhost")
 }
 
 func (s *Server) handleGet(w http.ResponseWriter) {
@@ -223,7 +238,15 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The current version goes out first so a client can catch a change that
+	// landed between its GET and this subscription, or during a reconnect.
 	last := s.version()
+	if err := writeChange(w, last); err != nil {
+		return
+	}
+	if err := controller.Flush(); err != nil {
+		return
+	}
 	poll := time.NewTicker(s.pollInterval)
 	defer poll.Stop()
 	keepalive := time.NewTicker(s.keepaliveInterval)
@@ -242,10 +265,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			last = version
-			payload, _ := json.Marshal(struct {
-				Version string `json:"version"`
-			}{version})
-			if _, err := fmt.Fprintf(w, "event: change\ndata: %s\n\n", payload); err != nil {
+			if err := writeChange(w, version); err != nil {
 				return
 			}
 		}
@@ -253,6 +273,14 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+func writeChange(w io.Writer, version string) error {
+	payload, _ := json.Marshal(struct {
+		Version string `json:"version"`
+	}{version})
+	_, err := fmt.Fprintf(w, "event: change\ndata: %s\n\n", payload)
+	return err
 }
 
 // serveStatic serves the bundle; unknown paths are rewritten to "/" so the

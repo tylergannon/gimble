@@ -47,10 +47,12 @@ func runEditor(command *cobra.Command, pipeline, addr string, noOpen bool) error
 	if info.IsDir() {
 		return fmt.Errorf("pipeline %q is a directory", pipeline)
 	}
+	// The page always writes YAML back, so a JSON pipeline would be rewritten
+	// as YAML on its first edit.
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".yaml", ".yml", ".json":
+	case ".yaml", ".yml":
 	default:
-		return fmt.Errorf("pipeline %q must end in .yaml, .yml, or .json", pipeline)
+		return fmt.Errorf("pipeline %q must end in .yaml or .yml; the editor writes YAML", pipeline)
 	}
 
 	server, err := editor.New(path, cliValidator(), editor.Dist())

@@ -17,6 +17,12 @@ import type { Graph, GraphNode } from './model';
 
 export type Path = (string | number)[];
 
+export interface SyntaxError {
+	message: string;
+	line?: number;
+	col?: number;
+}
+
 const STR_TAG = 'tag:yaml.org,2002:str';
 const ORIGINAL = Symbol('original value');
 
@@ -95,25 +101,40 @@ function detectIndent(text: string): number {
 
 export class PipelineDoc {
 	readonly doc: Document;
+	private readonly source: string;
 	private readonly options: ToStringOptions;
 
-	private constructor(doc: Document, options: ToStringOptions) {
+	private constructor(doc: Document, source: string, options: ToStringOptions) {
 		this.doc = doc;
+		this.source = source;
 		this.options = options;
 	}
 
 	static parse(text: string): PipelineDoc {
 		const doc = parseDocument(text, { keepSourceTokens: true });
 		preserveSources(doc);
-		return new PipelineDoc(doc, { flowCollectionPadding: false, indent: detectIndent(text) });
+		return new PipelineDoc(doc, text, { flowCollectionPadding: false, indent: detectIndent(text) });
 	}
 
 	get errors(): string[] {
 		return this.doc.errors.map((e) => e.message.split('\n')[0]);
 	}
 
+	// The first YAML syntax error with its position, or null. A document
+	// with errors cannot be stringified, so the editor must stay read-only.
+	get syntaxError(): SyntaxError | null {
+		const e = this.doc.errors[0];
+		if (!e) return null;
+		const pos = e.linePos?.[0];
+		// The library's first line repeats the position; the caller shows it.
+		const message = e.message.split('\n')[0].replace(/ at line \d+, column \d+:?$/, '');
+		return { message, line: pos?.line, col: pos?.col };
+	}
+
 	toString(): string {
-		if (this.doc.contents === null) return '';
+		// A file with no content (empty, or comments only) keeps its text; the
+		// library would otherwise print `null`.
+		if (this.doc.contents === null) return this.source;
 		return this.doc.toString(this.options);
 	}
 
@@ -149,12 +170,17 @@ export class PipelineDoc {
 			return;
 		}
 		const existing = this.doc.getIn(path, true);
-		if (
-			isScalar(existing) &&
-			(typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') &&
-			typeof existing.value === typeof value
-		) {
-			existing.value = value;
+		if (isScalar(existing) && (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')) {
+			if (typeof existing.value === typeof value) {
+				existing.value = value;
+				return;
+			}
+			// A new JS type needs a new node; its comments and spacing carry over.
+			const created = this.doc.createNode(value) as Scalar;
+			created.comment = existing.comment;
+			created.commentBefore = existing.commentBefore;
+			created.spaceBefore = existing.spaceBefore;
+			this.doc.setIn(path, created);
 			return;
 		}
 		const flow = isSeq(existing) && existing.flow;
