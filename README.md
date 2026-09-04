@@ -149,6 +149,14 @@ tractor answer ephemeral/projects/my-build/interview/0001.md "Use the simpler op
 `tractor answer` also accepts the answer on stdin and refuses to replace an
 existing answer file.
 
+## Edit a pipeline in the browser
+
+`tractor edit <pipeline.yaml>` serves a graph editor for one file on loopback:
+nodes, edges, an inspector for every node type, and the same lint as
+`tractor validate`, saved back to the YAML with comments and key order intact.
+The page reloads when an agent or another editor writes the file, so both can
+work on it at once. See the [editor guide](src/content/docs/editor.md).
+
 ## License
 
 [MIT](LICENSE).
