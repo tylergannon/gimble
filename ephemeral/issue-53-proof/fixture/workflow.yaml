@@ -1,0 +1,51 @@
+name: issue-53-live-convergence
+goal: Complete the shipping quote CLI according to work.md.
+start: items
+defaults:
+  timeout: 5m
+  fidelity: none
+  max_retries: 1
+  model:
+    name: fable
+    version: "5.1"
+    effort: high
+nodes:
+  - id: items
+    type: loop
+    checklist: work.md
+    max_visits: 8
+    item_judge:
+      model:
+        name: flash
+        effort: medium
+    goal_evaluator:
+      model:
+        name: gpt-5.6-sol
+        effort: medium
+    edges:
+      loop: implement
+      exit: success
+  - id: implement
+    type: agent
+    prompt: >-
+      Work only in this disposable shipping-quote fixture. The first visit is
+      deliberately a fault-injection baseline: if baseline-captured does not
+      exist, run python3 capture.py, create baseline-captured, and return to
+      snapshot without editing quote.py or work.md. This lets the real item
+      judge reject the known bad boundary behavior. On every later visit,
+      implement only the current framed checklist item, use the actual failure
+      evidence to repair it, and regenerate evidence with python3 capture.py.
+      The evaluator owns planning; never modify work.md or mark anything done.
+      Do not modify capture.py. Do not implement undispatched future work.
+    edges:
+      - to: snapshot
+  - id: snapshot
+    type: command
+    command: >-
+      python3 -c 'from pathlib import Path; import shutil;
+      p=Path("snapshots"); p.mkdir(exist_ok=True);
+      n=len(list(p.glob("evidence-*.json")))+1;
+      shutil.copyfile("evidence.json", p/f"evidence-{n:02}.json");
+      shutil.copyfile("quote.py", p/f"quote-{n:02}.py")'
+    edges:
+      success: items

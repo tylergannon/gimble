@@ -85,3 +85,26 @@ review or genuinely new architectural questions, not required for the routine
 migration. This is an engineering judgment, not a measured comparison on this
 task. Current official model documentation was checked for Sol's capabilities
 and supported effort settings.
+
+## Authorized implementation and independent proof
+
+decision: Tyler authorized implementation by a subagent, parent final review,
+and PR creation plus squash merge once satisfactory. Existing work was already
+isolated in the b683 worktree; preserved its recommendation commits on branch
+`codex/unified-model-selection`. GPT-5.6 Sol owns implementation; parent owns
+the proof fixture and final review. The main checkout was fast-forwarded without
+removing its unrelated untracked work.
+
+proof_design: Parent created a disposable shipping-quote application with a
+real inclusive-threshold bug and missing expedited mode. The first worker turn
+captures the fault; a judge must reject it; the worker repairs; the evaluator
+must add remaining work before completion. Captures contain actual CLI outputs,
+and the final oracle lives outside the worker workspace. Baseline execution
+confirmed the intended faults and independent oracle rejection.
+
+proof_preparation: Transparent native CLI observers preserve traffic unchanged
+and record only model/effort/session metadata, excluding prompts and credentials.
+An early candidate passed 29 independent CLI preflight cases, including 23
+invalid inputs with no native launch or run-log creation, and cross-consumer
+atomic-resolution inspection. These are interim checks, not final acceptance
+or live convergence proof.
