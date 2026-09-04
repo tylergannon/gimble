@@ -68,3 +68,20 @@ Tyler's requested optional key, not additional decisions made by Tyler.
 
 example: `{model: {name: fable, version: "5.1", effort: high}}`. This is proposed
 syntax; no runtime or schema implementation has been changed in this review.
+
+## Executable issue
+
+decision: Tyler requested updating the original GitHub issue into an executable
+task and an assessment of whether GPT-5.6 Sol can implement it. Rewrote issue 53's
+title/body from `ephemeral/issue-53-executable.md`, distinguishing accepted design
+from agent execution clarifications, and read back the published body to verify
+it matches. The original loop-only scope and alternative-shape questions are
+superseded by the common model contract and all-consumer migration.
+
+assessment: Moderate-to-large migration with settled design; principal risk is
+cross-surface consistency and native effort behavior. Recommend GPT-5.6 Sol at
+high effort for implementation. GPT-6 is optional for a focused final semantic
+review or genuinely new architectural questions, not required for the routine
+migration. This is an engineering judgment, not a measured comparison on this
+task. Current official model documentation was checked for Sol's capabilities
+and supported effort settings.
