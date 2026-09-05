@@ -166,6 +166,27 @@ func TestRunTurnProjectsCompleteEventsAndValidatesResult(t *testing.T) {
 	}
 }
 
+func TestRunTextTurnReturnsNativeResultWithoutSchema(t *testing.T) {
+	const sessionID = "550e8400-e29b-41d4-a716-446655440000"
+	session := newFakeSession(2)
+	session.onSend = func(string) {
+		session.messages <- claudeagent.SystemMessage{Type: "system", Subtype: "init", SessionID: sessionID}
+		session.messages <- successResult(sessionID)
+	}
+	var observed nativeConfig
+	adapter := newAdapter(func(_ context.Context, config nativeConfig) (nativeSession, error) {
+		observed = config
+		return session, nil
+	})
+	text, runErr := adapter.RunTextTurn(validInput(sessionID, t.TempDir()), func(harness.Event) {})
+	if runErr != nil {
+		t.Fatal(runErr)
+	}
+	if text != "plain response" || observed.outputSchema != nil {
+		t.Fatalf("text = %q, output schema = %#v", text, observed.outputSchema)
+	}
+}
+
 func TestAssistantAPIErrorReturnsBeforeAssistantEvent(t *testing.T) {
 	const sessionID = "550e8400-e29b-41d4-a716-446655440000"
 	session := newFakeSession(3)
@@ -332,6 +353,7 @@ func validInput(sessionID, workdir string) harness.RunTurnInput {
 func successResult(sessionID string) claudeagent.ResultMessage {
 	return claudeagent.ResultMessage{
 		Type: "result", Status: "success", Subtype: "success", SessionID: sessionID,
+		Result:           "plain response",
 		StructuredOutput: map[string]any{"next": "done", "notes": "proved"},
 	}
 }

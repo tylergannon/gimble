@@ -151,6 +151,24 @@ tractor answer ephemeral/projects/my-build/interview/0001.md "Use the simpler op
 `tractor answer` also accepts the answer on stdin and refuses to replace an
 existing answer file.
 
+## Run one prompt
+
+`tractor run-prompt` runs one coding-agent turn with real tool access. It
+prints ordinary assistant text by default. When invoked from Codex without an
+explicit model it selects Fable; when invoked from Claude Code it selects GPT.
+Explicit model flags always win.
+
+```sh
+tractor run-prompt --workdir . "Explain the failing test."
+
+tractor run-prompt --model gpt --model-version 5.6 --effort max \
+  --output-schema '{"type":"object","properties":{"next":{"type":"string","enum":["fix","done"]}},"required":["next"],"additionalProperties":false}' \
+  "Decide whether this change still needs work."
+```
+
+`--output-schema` accepts exact JSON Schema and changes stdout to validated
+JSON. Without it there is no structured result and no `next` field.
+
 ## Edit a pipeline in the browser
 
 `tractor edit <pipeline.yaml>` serves a graph editor for one file on loopback:

@@ -133,7 +133,7 @@ model:
   effort: high
 ```
 
-A node's `model` replaces `defaults.model` as a whole. Missing `version` or `effort` values are resolved from the selected model's policy; they never carry over from the lower-precedence object. Tractor maintains `fable` releases `5.1` and `5`, and `flash` releases `3.8`, `3.7`, and `3.6`. Provider-native IDs such as `claude-sonnet-4-5` and `gpt-5.6-sol` remain usable directly. An already-versioned native name cannot also take `version`.
+A node's `model` replaces `defaults.model` as a whole. Missing `version` or `effort` values are resolved from the selected model's policy; they never carry over from the lower-precedence object. Tractor maintains `gpt` release `5.6`, `fable` releases `5.1` and `5`, and `flash` releases `3.8`, `3.7`, and `3.6`. Provider-native IDs such as `claude-sonnet-4-5` and `gpt-5.6-sol` remain usable directly. An already-versioned native name cannot also take `version`.
 
 Use `tractor inspect-models pipeline.yaml` to see every effective node and role selection, including its native model, effort, provider, harness, and source.
 

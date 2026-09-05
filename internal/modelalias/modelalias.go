@@ -37,6 +37,7 @@ type Model struct {
 }
 
 var available = []Model{
+	{Alias: "gpt", Provider: "openai", Model: "gpt-5.6-sol", Version: "5.6", DefaultEffort: "high"},
 	{Alias: "flash", Provider: "gemini", Model: "gemini-3.8-flash-medium", Version: "3.8", DefaultEffort: "medium"},
 	{Alias: "fable", Provider: "anthropic", Model: "claude-fable-5-1", Version: "5.1", DefaultEffort: "high"},
 	{Alias: "fable-5.1", Provider: "anthropic", Model: "claude-fable-5-1", Version: "5.1", DefaultEffort: "high"},
@@ -44,6 +45,9 @@ var available = []Model{
 }
 
 var familyVersions = map[string]map[string]Model{
+	"gpt": {
+		"5.6": {Alias: "gpt", Provider: "openai", Model: "gpt-5.6-sol", Version: "5.6", DefaultEffort: "high"},
+	},
 	"flash": {
 		"3.8": {Alias: "flash", Provider: "gemini", Model: "gemini-3.8-flash-medium", Version: "3.8", DefaultEffort: "medium"},
 		"3.7": {Alias: "flash", Provider: "gemini", Model: "gemini-3.7-flash-medium", Version: "3.7", DefaultEffort: "medium"},
@@ -92,12 +96,12 @@ func ResolveModel(selection Selection) (ResolvedSelection, error) {
 		return ResolvedSelection{}, fmt.Errorf("model version %q must not have surrounding whitespace", selection.Version)
 	}
 	if selection.EffortPresent && !validEffort(selection.Effort) {
-		return ResolvedSelection{}, fmt.Errorf("unsupported model effort %q; expected low, medium, or high", selection.Effort)
+		return ResolvedSelection{}, fmt.Errorf("unsupported model effort %q; expected low, medium, high, xhigh, or max", selection.Effort)
 	}
 
 	entry, knownAlias := Resolve(selection.Name)
 	if selection.VersionPresent {
-		if knownAlias && selection.Name != "flash" && selection.Name != "fable" {
+		if knownAlias && selection.Name != "gpt" && selection.Name != "flash" && selection.Name != "fable" {
 			return ResolvedSelection{}, fmt.Errorf("model name %q already selects a version and cannot also declare version", selection.Name)
 		}
 		versions, family := familyVersions[selection.Name]
@@ -162,7 +166,7 @@ func ResolveSelection(provider, model string) (string, string, error) {
 }
 
 func validEffort(effort string) bool {
-	return effort == "low" || effort == "medium" || effort == "high"
+	return effort == "low" || effort == "medium" || effort == "high" || effort == "xhigh" || effort == "max"
 }
 
 func nativeEffort(model string) string {

@@ -581,6 +581,44 @@ func (a *scriptedAdapter) RunTurn(input RunTurnInput, onEvent OnEvent) (Result, 
 	return Result{"next": "done", "notes": a.name + " result"}, nil
 }
 
+func (a *scriptedAdapter) RunTextTurn(input RunTurnInput, _ OnEvent) (string, *Error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.operationsLog = append(a.operationsLog, "text:"+input.SessionID)
+	return "plain " + a.name + " result", nil
+}
+
+func TestHarnessBackendKeepsPromptResultsSeparateFromPipelineOutcomes(t *testing.T) {
+	workdir := t.TempDir()
+	adapter := &scriptedAdapter{name: "prompt"}
+	adapter.run = func(RunTurnInput, OnEvent) (Result, *Error) {
+		return Result{"answer": "schema-valid"}, nil
+	}
+	backend := newTestBackend(t, map[string]HarnessAdapter{"harness": adapter}, map[string]string{"provider": "harness"}, nil)
+	turn := testTurn("prompt", "prompt", FidelityFull, "provider", workdir)
+	turn.OutputSchema = json.RawMessage(`{"type":"object","properties":{"answer":{"const":"schema-valid"}},"required":["answer"],"additionalProperties":false}`)
+	turn.RunLog = filepath.Join(t.TempDir(), "structured.jsonl")
+	if err := os.WriteFile(turn.RunLog, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result, resultErr := backend.RunResult(turn)
+	if resultErr != nil || result["answer"] != "schema-valid" {
+		t.Fatalf("RunResult() = %#v, %v", result, resultErr)
+	}
+	textLog := filepath.Join(t.TempDir(), "text.jsonl")
+	if err := os.WriteFile(textLog, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	text, textErr := backend.RunText(TextTurn{
+		NodeID: "text", Role: "agent", Parts: textParts("prompt"), Model: "model",
+		Provider: "provider", ReasoningEffort: "medium", Fidelity: FidelityFull,
+		ThreadKey: "text", Workdir: workdir, RunLog: textLog,
+	})
+	if textErr != nil || text != "plain prompt result" {
+		t.Fatalf("RunText() = %q, %v", text, textErr)
+	}
+}
+
 func (a *scriptedAdapter) Steer(sessionID string, _ []ContentPart) {
 	a.mu.Lock()
 	defer a.mu.Unlock()

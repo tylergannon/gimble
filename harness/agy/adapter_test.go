@@ -644,6 +644,22 @@ func validInput(sessionID, workdir string, timeout time.Duration) harness.RunTur
 	}
 }
 
+func TestRunTextTurnOmitsSchemaAndReturnsResponse(t *testing.T) {
+	record := filepath.Join(t.TempDir(), "invocations.jsonl")
+	adapter := testAdapter(t, "success", record)
+	text, runErr := adapter.RunTextTurn(validInput("conversation-test", t.TempDir(), 5*time.Second), func(harness.Event) {})
+	if runErr != nil {
+		t.Fatal(runErr)
+	}
+	if text != "plain response" {
+		t.Fatalf("text = %q", text)
+	}
+	args := readInvocations(t, record)[0]
+	if value := flagValue(args, "--json-schema"); value != "" {
+		t.Fatalf("plain turn sent --json-schema %q", value)
+	}
+}
+
 func testAdapter(t *testing.T, mode, record string) *Adapter {
 	t.Helper()
 	environment := append(os.Environ(), "GO_WANT_AGY_HELPER=1", "AGY_HELPER_MODE="+mode)
@@ -760,7 +776,7 @@ func TestAgyHelperProcess(t *testing.T) {
 		structured = map[string]any{"wrong": true}
 	}
 	writeJSON(map[string]any{"event": "result", "conversation_id": sessionID, "result": map[string]any{
-		"conversation_id": sessionID, "status": "SUCCESS", "structured_output": structured, "json_schema": schemaValue,
+		"conversation_id": sessionID, "status": "SUCCESS", "response": "plain response", "structured_output": structured, "json_schema": schemaValue,
 	}})
 	os.Exit(0)
 }

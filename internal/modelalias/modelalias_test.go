@@ -12,6 +12,7 @@ func TestResolveModelAliasesVersionsAndEffort(t *testing.T) {
 		want      ResolvedSelection
 	}{
 		{name: "Flash default", selection: Selection{Name: "flash"}, want: ResolvedSelection{Name: "flash", Version: "3.8", Model: "gemini-3.8-flash-medium", Effort: "medium", Provider: "gemini", Harness: "agy"}},
+		{name: "GPT release pin", selection: Selection{Name: "gpt", Version: "5.6", VersionPresent: true, Effort: "max", EffortPresent: true}, want: ResolvedSelection{Name: "gpt", Version: "5.6", Model: "gpt-5.6-sol", Effort: "max", Provider: "openai", Harness: "codex"}},
 		{name: "Flash explicit effort translates native ID", selection: Selection{Name: "flash", Effort: "high", EffortPresent: true}, want: ResolvedSelection{Name: "flash", Version: "3.8", Model: "gemini-3.8-flash-high", Effort: "high", Provider: "gemini", Harness: "agy"}},
 		{name: "Flash older release pin", selection: Selection{Name: "flash", Version: "3.7", VersionPresent: true, Effort: "low", EffortPresent: true}, want: ResolvedSelection{Name: "flash", Version: "3.7", Model: "gemini-3.7-flash-low", Effort: "low", Provider: "gemini", Harness: "agy"}},
 		{name: "Fable default release", selection: Selection{Name: "fable"}, want: ResolvedSelection{Name: "fable", Version: "5.1", Model: "claude-fable-5-1", Effort: "high", Provider: "anthropic", Harness: "claude"}},
@@ -46,7 +47,7 @@ func TestResolveModelRejectsInvalidSelectionsWithoutFallback(t *testing.T) {
 		{name: "version with versioned alias", selection: Selection{Name: "fable-5", Version: "5", VersionPresent: true}, want: "already selects a version"},
 		{name: "version with native", selection: Selection{Name: "gpt-5.6-sol", Version: "5.6", VersionPresent: true}, want: "already selects a version"},
 		{name: "explicit blank effort", selection: Selection{Name: "fable", EffortPresent: true}, want: "unsupported model effort"},
-		{name: "unknown effort", selection: Selection{Name: "fable", Effort: "max", EffortPresent: true}, want: "unsupported model effort"},
+		{name: "unknown effort", selection: Selection{Name: "fable", Effort: "ultra", EffortPresent: true}, want: "unsupported model effort"},
 		{name: "fixed native effort conflict", selection: Selection{Name: "gemini-3.1-pro-low", Effort: "high", EffortPresent: true}, want: "fixes effort"},
 		{name: "unknown provider", selection: Selection{Name: "mystery-model"}, want: "cannot determine provider"},
 	}
@@ -63,8 +64,8 @@ func TestResolveModelRejectsInvalidSelectionsWithoutFallback(t *testing.T) {
 func TestAvailableReturnsCopy(t *testing.T) {
 	models := Available()
 	models[0].Model = "changed"
-	resolved, _ := Resolve("flash")
-	if resolved.Model != "gemini-3.8-flash-medium" {
+	resolved, _ := Resolve("gpt")
+	if resolved.Model != "gpt-5.6-sol" {
 		t.Fatalf("registry mutated through Available(): %#v", resolved)
 	}
 }

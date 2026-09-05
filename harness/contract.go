@@ -82,6 +82,22 @@ type AgentTurn struct {
 	Timeout         time.Duration
 }
 
+// TextTurn is a fully resolved agent turn whose result is ordinary assistant
+// text. It deliberately has no output schema and no routing semantics.
+type TextTurn struct {
+	NodeID          string
+	Role            string
+	Parts           []ContentPart
+	Model           string
+	Provider        string
+	ReasoningEffort string
+	Fidelity        FidelityMode
+	ThreadKey       string
+	Workdir         string
+	RunLog          string
+	Timeout         time.Duration
+}
+
 // SupervisorTurn is one advisory flush on a supervisor-owned thread.
 type SupervisorTurn struct {
 	NodeID          string
@@ -179,4 +195,11 @@ type HarnessAdapter interface {
 	Steer(sessionID string, parts []ContentPart)
 	Interrupt(sessionID string)
 	Compact(sessionID, workdir string) *Error
+}
+
+// TextHarnessAdapter is the additive plain-text capability implemented by
+// adapters that support ordinary, non-schema turns. HarnessAdapter remains the
+// exact structured-output contract used by pipeline execution.
+type TextHarnessAdapter interface {
+	RunTextTurn(RunTurnInput, OnEvent) (string, *Error)
 }
