@@ -122,16 +122,42 @@ func (a *Adapter) RunTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (
 	if validationErr != nil {
 		return nil, validationErr
 	}
+	raw, optionalProperties, runErr := a.runNativeTurn(input, onEvent)
+	if runErr != nil {
+		return nil, runErr
+	}
+	var err error
+	raw, err = omitOptionalNulls(raw, optionalProperties)
+	if err != nil {
+		return nil, terminal(fmt.Sprintf("normalize Codex result: %v", err))
+	}
+	return validator.Validate(raw)
+}
+
+// RunTextTurn runs a native Codex turn without an output schema.
+func (a *Adapter) RunTextTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (string, *harness.Error) {
+	if err := harness.ValidateRunTurnInput(input, onEvent); err != nil {
+		return "", err
+	}
+	input.OutputSchema = nil
+	raw, _, runErr := a.runNativeTurn(input, onEvent)
+	if runErr != nil {
+		return "", runErr
+	}
+	return string(raw), nil
+}
+
+func (a *Adapter) runNativeTurn(input harness.RunTurnInput, onEvent harness.OnEvent) ([]byte, map[string]struct{}, *harness.Error) {
 	state, stateErr := a.state(input.SessionID)
 	if stateErr != nil {
-		return nil, stateErr
+		return nil, nil, stateErr
 	}
 
 	state.opMu.Lock()
 	defer state.opMu.Unlock()
 	connection, fresh, openErr := a.openSession(state, input.SessionID, input.Workdir)
 	if openErr != nil {
-		return nil, openErr
+		return nil, nil, openErr
 	}
 	defer func() {
 		state.mu.Lock()
@@ -144,17 +170,17 @@ func (a *Adapter) RunTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (
 
 	params, optionalProperties, err := turnStartParams(input)
 	if err != nil {
-		return nil, terminal(err.Error())
+		return nil, nil, terminal(err.Error())
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	result, err := connection.call(ctx, "turn/start", params)
 	cancel()
 	if err != nil {
-		return nil, categorize(err, false)
+		return nil, nil, categorize(err, false)
 	}
 	turnID, err := decodeTurnID(result)
 	if err != nil {
-		return nil, terminal(err.Error())
+		return nil, nil, terminal(err.Error())
 	}
 	projector := newEventProjector(onEvent)
 	active := &activeTurn{connection: connection, turnID: turnID, projector: projector}
@@ -172,13 +198,9 @@ func (a *Adapter) RunTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (
 
 	raw, runErr := waitTurn(connection, input, turnID, active)
 	if runErr != nil {
-		return nil, runErr
+		return nil, nil, runErr
 	}
-	raw, err = omitOptionalNulls(raw, optionalProperties)
-	if err != nil {
-		return nil, terminal(fmt.Sprintf("normalize Codex result: %v", err))
-	}
-	return validator.Validate(raw)
+	return raw, optionalProperties, nil
 }
 
 // Steer best-effort delivers ordered text parts to a currently active turn.
@@ -426,9 +448,14 @@ func finishActive(state *sessionState, active *activeTurn) {
 }
 
 func turnStartParams(input harness.RunTurnInput) (schema.TurnStartParams, map[string]struct{}, error) {
-	outputSchema, optionalProperties, err := codexCompatibleOutputSchema(input.OutputSchema)
-	if err != nil {
-		return schema.TurnStartParams{}, nil, err
+	var outputSchema any
+	var optionalProperties map[string]struct{}
+	if len(input.OutputSchema) > 0 {
+		var err error
+		outputSchema, optionalProperties, err = codexCompatibleOutputSchema(input.OutputSchema)
+		if err != nil {
+			return schema.TurnStartParams{}, nil, err
+		}
 	}
 	model := input.Model
 	workdir := input.Workdir

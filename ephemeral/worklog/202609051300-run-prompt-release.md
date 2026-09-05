@@ -1,0 +1,3 @@
+correction: `next` has routing meaning only when constrained to caller-supplied or graph-offered enum values; ordinary prompt turns must return native text and never pass through `Outcome`.
+decision: add `tractor run-prompt` with plain text by default and exact JSON Schema only when `--output-schema` is supplied; preserve the existing structured pipeline turn contract unchanged and retire `cmd/agent`.
+decision: when Tyler says to build and release, choose the appropriate semantic version from repository history without asking him to make routine patch/minor/major judgments; this release is v0.8.0.

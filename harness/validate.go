@@ -85,6 +85,27 @@ func ValidateAgentTurn(turn AgentTurn) *Error {
 	return nil
 }
 
+// ValidateTextTurn validates a plain-text turn without weakening the
+// structured AgentTurn contract.
+func ValidateTextTurn(turn TextTurn) *Error {
+	if err := validateBackendTurn(turn.NodeID, turn.Role, turn.Provider, turn.Model, turn.ReasoningEffort, turn.Workdir, turn.RunLog, turn.Parts, turn.Timeout); err != nil {
+		return err
+	}
+	switch turn.Fidelity {
+	case FidelityNone:
+		if turn.ThreadKey != "" {
+			return terminalError("thread key must be empty for none fidelity")
+		}
+	case FidelityFull, FidelityCompacted:
+		if strings.TrimSpace(turn.ThreadKey) == "" {
+			return terminalError("thread key must not be empty for reusable fidelity")
+		}
+	default:
+		return terminalError(fmt.Sprintf("unsupported fidelity %q", turn.Fidelity))
+	}
+	return nil
+}
+
 // ValidateSupervisorTurn validates a fully resolved advisory turn.
 func ValidateSupervisorTurn(turn SupervisorTurn) *Error {
 	return validateBackendTurn(turn.NodeID, turn.Role, turn.Provider, turn.Model, turn.ReasoningEffort, turn.Workdir, turn.RunLog, turn.Parts, turn.Timeout)

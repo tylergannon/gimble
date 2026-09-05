@@ -109,6 +109,7 @@ type nativeResult struct {
 	conversationID string
 	status         string
 	errorMessage   string
+	response       string
 	structured     any
 	echoedSchema   any
 }
@@ -275,6 +276,61 @@ func (a *Adapter) RunTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (
 		return nil, terminal("agy result does not conform to the supplied schema: " + invalid.Message)
 	}
 	return validated, nil
+}
+
+// RunTextTurn runs one ordinary agy turn without a JSON schema.
+func (a *Adapter) RunTextTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (string, *harness.Error) {
+	if err := harness.ValidateRunTurnInput(input, onEvent); err != nil {
+		return "", err
+	}
+	absolute, pathErr := filepath.Abs(input.Workdir)
+	if pathErr != nil {
+		return "", terminal(fmt.Sprintf("resolve working directory: %v", pathErr))
+	}
+	state, stateErr := a.state(input.SessionID)
+	if stateErr != nil {
+		return "", stateErr
+	}
+	state.opMu.Lock()
+	defer state.opMu.Unlock()
+	if err := bindWorkdir(state, absolute); err != nil {
+		return "", err
+	}
+	projector := newEventProjector(onEvent)
+	projector.user(input.Parts)
+	deadline := time.Time{}
+	if input.Timeout > 0 {
+		deadline = time.Now().Add(input.Timeout)
+	}
+	originalPrompt := artifactMetadataPromptPreamble + joinParts(input.Parts)
+	request := runRequest{
+		prompt: originalPrompt, model: input.Model, effort: input.ReasoningEffort,
+		workdir: absolute, sessionID: state.resolveConversationID(input.SessionID),
+		timeout: remaining(deadline, input.Timeout), projector: projector, requireResultID: true,
+	}
+	if request.timeout <= 0 && input.Timeout > 0 {
+		return "", interrupted("turn timed out and was interrupted")
+	}
+	result, _, runErr := a.runWithSteering(state, request, deadline, input.Timeout)
+	if runErr != nil && isArtifactPathError(runErr) {
+		repairPrompt := artifactWriteRepairPrompt(originalPrompt, runErr.Message)
+		projector.user([]harness.ContentPart{{Type: harness.ContentPartText, Text: repairPrompt}})
+		request.prompt = repairPrompt
+		request.sessionID = ""
+		request.newProject = true
+		request.timeout = remaining(deadline, input.Timeout)
+		if request.timeout <= 0 && input.Timeout > 0 {
+			return "", interrupted("turn timed out and was interrupted")
+		}
+		result, _, runErr = a.runWithSteering(state, request, deadline, input.Timeout)
+		if runErr == nil {
+			state.adoptConversationID(result.conversationID)
+		}
+	}
+	if runErr != nil {
+		return "", runErr
+	}
+	return result.response, nil
 }
 
 // Steer interrupts the active print process and resumes its native
@@ -599,6 +655,7 @@ func (a *Adapter) runOnceWithActive(request runRequest, started func(*activeTurn
 					conversationID: envelopeConversationID(envelope),
 					status:         stringValue(envelope.Result.Status),
 					errorMessage:   stringValue(envelope.Result.Error),
+					response:       stringValue(envelope.Result.Response),
 					structured:     envelope.Result.StructuredOutput,
 					echoedSchema:   envelope.Result.JsonSchema,
 				}

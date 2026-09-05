@@ -117,16 +117,41 @@ func (a *Adapter) RunTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (
 	if err != nil {
 		return nil, terminal(err.Error())
 	}
+	result, runErr := a.runNativeTurn(input, onEvent, outputSchema, true)
+	if runErr != nil {
+		return nil, runErr
+	}
+	raw, err := json.Marshal(result.StructuredOutput)
+	if err != nil {
+		return nil, terminal(fmt.Sprintf("encode Claude structured output: %v", err))
+	}
+	return validator.Validate(raw)
+}
+
+// RunTextTurn runs a native Claude turn without requesting structured output.
+func (a *Adapter) RunTextTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (string, *harness.Error) {
+	if err := harness.ValidateRunTurnInput(input, onEvent); err != nil {
+		return "", err
+	}
+	input.OutputSchema = nil
+	result, runErr := a.runNativeTurn(input, onEvent, nil, false)
+	if runErr != nil {
+		return "", runErr
+	}
+	return result.Result, nil
+}
+
+func (a *Adapter) runNativeTurn(input harness.RunTurnInput, onEvent harness.OnEvent, outputSchema any, requireStructured bool) (claudeagent.ResultMessage, *harness.Error) {
 	state, stateErr := a.state(input.SessionID)
 	if stateErr != nil {
-		return nil, stateErr
+		return claudeagent.ResultMessage{}, stateErr
 	}
 
 	state.opMu.Lock()
 	defer state.opMu.Unlock()
 	fresh, workdirErr := prepareState(state, input.Workdir)
 	if workdirErr != nil {
-		return nil, workdirErr
+		return claudeagent.ResultMessage{}, workdirErr
 	}
 	sessionCtx := context.Background()
 	var cancelSession context.CancelFunc
@@ -147,7 +172,7 @@ func (a *Adapter) RunTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (
 		fresh:           fresh,
 	})
 	if openErr != nil {
-		return nil, categorize(openErr, false)
+		return claudeagent.ResultMessage{}, categorize(openErr, false)
 	}
 	defer func() { _ = session.Close() }()
 
@@ -160,7 +185,7 @@ func (a *Adapter) RunTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (
 
 	projector.user(input.Parts)
 	if err := session.Send(sessionCtx, joinParts(input.Parts)); err != nil {
-		return nil, categorize(err, false)
+		return claudeagent.ResultMessage{}, categorize(err, false)
 	}
 	if !turnDeadline.IsZero() {
 		input.Timeout = time.Until(turnDeadline)
@@ -168,15 +193,11 @@ func (a *Adapter) RunTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (
 			input.Timeout = time.Nanosecond
 		}
 	}
-	result, runErr := waitTurn(session, state, input, active)
+	result, runErr := waitTurn(session, state, input, active, requireStructured)
 	if runErr != nil {
-		return nil, runErr
+		return claudeagent.ResultMessage{}, runErr
 	}
-	raw, err := json.Marshal(result.StructuredOutput)
-	if err != nil {
-		return nil, terminal(fmt.Sprintf("encode Claude structured output: %v", err))
-	}
-	return validator.Validate(raw)
+	return result, nil
 }
 
 // Steer best-effort sends ordered text parts to an active Claude stream.
@@ -390,7 +411,7 @@ func finishActive(state *sessionState, active *activeTurn) {
 	active.controls.Wait()
 }
 
-func waitTurn(session nativeSession, state *sessionState, input harness.RunTurnInput, active *activeTurn) (claudeagent.ResultMessage, *harness.Error) {
+func waitTurn(session nativeSession, state *sessionState, input harness.RunTurnInput, active *activeTurn, requireStructured bool) (claudeagent.ResultMessage, *harness.Error) {
 	messages, stop := readMessages(session)
 	defer stop()
 
@@ -438,7 +459,7 @@ func waitTurn(session nativeSession, state *sessionState, input harness.RunTurnI
 				if result.Subtype != "success" && result.Status != "success" {
 					return claudeagent.ResultMessage{}, categorize(errors.New(resultFailure(result)), false)
 				}
-				if result.StructuredOutput == nil {
+				if requireStructured && result.StructuredOutput == nil {
 					return claudeagent.ResultMessage{}, terminal("Claude completed without structured output")
 				}
 				return result, nil

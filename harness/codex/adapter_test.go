@@ -99,6 +99,28 @@ func TestAdapterRetainsFreshProcessThenResumesWithCompleteEvents(t *testing.T) {
 	assertTurnStartParams(t, firstTurn.Params, workdir)
 }
 
+func TestAdapterPlainTextTurnOmitsOutputSchema(t *testing.T) {
+	adapter, logPath := newProtocolTestAdapter(t)
+	defer adapter.Close()
+	workdir := t.TempDir()
+	sessionID, createErr := adapter.CreateSession("gpt-test", workdir)
+	if createErr != nil {
+		t.Fatal(createErr)
+	}
+	input := validInput(sessionID, workdir, "plain")
+	text, runErr := adapter.RunTextTurn(input, func(harness.Event) {})
+	if runErr != nil {
+		t.Fatal(runErr)
+	}
+	if text != "plain result" {
+		t.Fatalf("text = %q", text)
+	}
+	params := nthRecord(t, readProtocolLog(t, logPath), "turn/start", 0).Params
+	if _, exists := params["outputSchema"]; exists {
+		t.Fatalf("plain turn sent outputSchema: %#v", params)
+	}
+}
+
 func TestAdapterReadsTractorRunDirAtProcessStart(t *testing.T) {
 	const runDir = "/tmp/tractor-run-for-codex"
 	logPath := t.TempDir() + "/protocol.jsonl"
@@ -543,7 +565,8 @@ func TestCodexProtocolHelperProcess(t *testing.T) {
 			if strings.Contains(prompt, "hang") {
 				continue
 			}
-			emitCompletedProtocolTurn(writer, turnID, prompt)
+			_, structured := request.Params["outputSchema"]
+			emitCompletedProtocolTurn(writer, turnID, prompt, structured)
 		case "turn/interrupt":
 			respond(map[string]any{})
 			turnID, _ := request.Params["turnId"].(string)
@@ -588,7 +611,7 @@ func TestCodexProtocolHelperProcess(t *testing.T) {
 	}
 }
 
-func emitCompletedProtocolTurn(writer *json.Encoder, turnID, prompt string) {
+func emitCompletedProtocolTurn(writer *json.Encoder, turnID, prompt string, structured bool) {
 	envelope := func(item map[string]any) map[string]any {
 		return map[string]any{"threadId": "thread-1", "turnId": turnID, "item": item}
 	}
@@ -611,7 +634,10 @@ func emitCompletedProtocolTurn(writer *json.Encoder, turnID, prompt string) {
 			"id": "reason-1", "type": "reasoning", "summary": []string{"checked the workspace"},
 		}),
 	})
-	result := fmt.Sprintf(`{"next":"done","notes":%q}`, prompt+" result")
+	result := prompt + " result"
+	if structured {
+		result = fmt.Sprintf(`{"next":"done","notes":%q}`, prompt+" result")
+	}
 	switch prompt {
 	case "optional null verdict":
 		result = `{"verdict":"ok","target":null,"message":"observed"}`

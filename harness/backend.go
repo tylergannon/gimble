@@ -85,16 +85,26 @@ func NewHarnessBackend(
 
 // Run executes one fully resolved agent turn.
 func (b *HarnessBackend) Run(turn AgentTurn) (Outcome, *Error) {
+	result, resultErr := b.RunResult(turn)
+	if resultErr != nil {
+		return Outcome{}, resultErr
+	}
+	return decodeOutcome(result)
+}
+
+// RunResult executes the existing exact-schema turn and returns its generic
+// validated object before any pipeline-specific Outcome decoding.
+func (b *HarnessBackend) RunResult(turn AgentTurn) (Result, *Error) {
 	if err := ValidateAgentTurn(turn); err != nil {
-		return Outcome{}, err
+		return nil, err
 	}
 	validator, validationErr := NewResultValidator(turn.OutputSchema)
 	if validationErr != nil {
-		return Outcome{}, validationErr
+		return nil, validationErr
 	}
 	harnessName, adapter, err := b.selectAdapter(turn.Provider)
 	if err != nil {
-		return Outcome{}, err
+		return nil, err
 	}
 
 	key := turn.ThreadKey
@@ -106,12 +116,12 @@ func (b *HarnessBackend) Run(turn AgentTurn) (Outcome, *Error) {
 	defer lock.Unlock()
 	binding, err := b.prepareBinding(key, harnessName, adapter, turn)
 	if err != nil {
-		return Outcome{}, err
+		return nil, err
 	}
 
 	turnLog, liveID, err := b.startTurnLog(turn.NodeID, turn.Role, turn.RunLog, binding, true)
 	if err != nil {
-		return Outcome{}, err
+		return nil, err
 	}
 	turnLog.writeEvent(Event{"type": EventModelSelection, "role": turn.Role, "provider": turn.Provider, "harness": binding.Harness, "native_model": turn.Model, "effective_effort": turn.ReasoningEffort})
 	result, adapterErr := adapter.RunTurn(RunTurnInput{
@@ -126,20 +136,73 @@ func (b *HarnessBackend) Run(turn AgentTurn) (Outcome, *Error) {
 	logErr := b.finishTurnLog(liveID, turnLog)
 
 	if adapterErr != nil {
-		return Outcome{}, adapterErr
+		return nil, adapterErr
 	}
 	if logErr != nil {
-		return Outcome{}, logErr
+		return nil, logErr
 	}
 	rawResult, marshalErr := json.Marshal(result)
 	if marshalErr != nil {
-		return Outcome{}, terminalError(fmt.Sprintf("encode harness result: %v", marshalErr))
+		return nil, terminalError(fmt.Sprintf("encode harness result: %v", marshalErr))
 	}
 	validated, resultErr := validator.Validate(rawResult)
 	if resultErr != nil {
-		return Outcome{}, resultErr
+		return nil, resultErr
 	}
-	return decodeOutcome(validated)
+	return validated, nil
+}
+
+// RunText executes an ordinary assistant turn through the same binding,
+// logging, steering, interruption, and timeout machinery as structured turns.
+func (b *HarnessBackend) RunText(turn TextTurn) (string, *Error) {
+	if err := ValidateTextTurn(turn); err != nil {
+		return "", err
+	}
+	harnessName, adapter, err := b.selectAdapter(turn.Provider)
+	if err != nil {
+		return "", err
+	}
+	textAdapter, ok := adapter.(TextHarnessAdapter)
+	if !ok {
+		return "", terminalError(fmt.Sprintf("harness %q does not support plain-text turns", harnessName))
+	}
+	key := turn.ThreadKey
+	if turn.Fidelity == FidelityNone {
+		key = noneThreadPrefix + turn.NodeID + ":" + turn.Role
+	}
+	lock := b.bindingLock(key)
+	lock.Lock()
+	defer lock.Unlock()
+	agentTurn := AgentTurn{
+		NodeID: turn.NodeID, Role: turn.Role, Parts: turn.Parts, Model: turn.Model,
+		Provider: turn.Provider, ReasoningEffort: turn.ReasoningEffort,
+		Fidelity: turn.Fidelity, ThreadKey: turn.ThreadKey, Workdir: turn.Workdir,
+		RunLog: turn.RunLog, Timeout: turn.Timeout,
+	}
+	binding, err := b.prepareBinding(key, harnessName, adapter, agentTurn)
+	if err != nil {
+		return "", err
+	}
+	turnLog, liveID, err := b.startTurnLog(turn.NodeID, turn.Role, turn.RunLog, binding, true)
+	if err != nil {
+		return "", err
+	}
+	turnLog.writeEvent(Event{"type": EventModelSelection, "role": turn.Role, "provider": turn.Provider, "harness": binding.Harness, "native_model": turn.Model, "effective_effort": turn.ReasoningEffort})
+	text, adapterErr := textAdapter.RunTextTurn(RunTurnInput{
+		SessionID: binding.SessionID, Model: turn.Model, ReasoningEffort: turn.ReasoningEffort,
+		Workdir: turn.Workdir, Parts: turn.Parts, Timeout: turn.Timeout,
+	}, turnLog.writeEvent)
+	logErr := b.finishTurnLog(liveID, turnLog)
+	if adapterErr != nil {
+		return "", adapterErr
+	}
+	if logErr != nil {
+		return "", logErr
+	}
+	if strings.TrimSpace(text) == "" {
+		return "", terminalError("harness completed without assistant text")
+	}
+	return text, nil
 }
 
 // RunSupervisor executes one advisory turn on the supervisor's full session.
