@@ -9,7 +9,7 @@ defaults:
   fidelity: none
   max_retries: 1
   model:
-    name: fable
+    name: claude-sonnet-5
 
 # The delivery loop, with the plan as a checklist the engine owns.
 #
@@ -25,6 +25,8 @@ defaults:
 nodes:
   - id: plan
     type: agent
+    model:
+      name: fable
     prompt: >
       $goal
 
@@ -50,6 +52,8 @@ nodes:
 
   - id: plan_update
     type: agent
+    model:
+      name: fable
     prompt: >
       Read the specification, plan.md, and plan-critique.md. Rewrite plan.md,
       taking only the changes that reduce risk or make the work provable.
@@ -81,6 +85,8 @@ nodes:
 
   - id: review
     type: agent
+    model:
+      name: claude-opus-5
     prompt: >
       Review the current item against the specification. Run the software and
       the repository's test set yourself rather than reading the diff. Decide

@@ -9,7 +9,7 @@ defaults:
   fidelity: none
   max_retries: 1
   model:
-    name: fable
+    name: claude-sonnet-5
 
 # The sprint loop. The sprint ledger is the checklist: one item per sprint,
 # each carrying the command that demonstrates it, an optional infer judge,
@@ -36,10 +36,12 @@ nodes:
       exit: success
     goal_evaluator:
       model:
-        name: flash
+        name: fable
 
   - id: implement
     type: agent
+    model:
+      name: claude-opus-5
     prompt: >
       Execute the current sprint. Work through its document phase by phase,
       in order, and prove each phase before moving on. Commit as you go with

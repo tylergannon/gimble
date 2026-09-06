@@ -10,7 +10,7 @@ defaults:
   fidelity: none
   max_retries: 1
   model:
-    name: fable
+    name: claude-sonnet-5
 
 # A promise loop driven by the promise tool rather than by an agent narrating
 # the protocol. The gates file is the checklist: one item per contract gate,
@@ -54,6 +54,8 @@ nodes:
 
   - id: inspect
     type: agent
+    model:
+      name: claude-opus-5
     prompt: >
       Take the smallest uncovered or stale slice this gate still needs.
       Review it with the promise's own tools and the authority its contract

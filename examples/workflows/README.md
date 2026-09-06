@@ -30,6 +30,25 @@ contain, what makes a promise falsifiable. That belongs in a skill attached to
 the node that needs it, which is issue #56. Until then it lives in the prompts
 here, marked in each file.
 
+## Model roles
+
+The same few roles recur across all five, so the choices follow one convention
+rather than being decided node by node:
+
+- **manager** — the planner, the merge, and every loop's goal evaluator: `fable`
+- **workhorse** — the default for ordinary turns: `claude-sonnet-5`, raised to
+  `claude-opus-5` where a node has to reason over a whole codebase
+- **validation** — the reviewer, always on the other provider from whoever
+  wrote the code: `gpt`
+- **evidence** — the item judge over screenshots and other artifacts: the
+  engine's own default, gemini flash
+
+The convention is retyped in every file, and the workhorse cannot even be
+named briefly: `gpt`, `flash`, and `fable` are maintained aliases, while
+sonnet and opus have to be spelled as provider-native IDs. Named runtime
+presets would let these files say `model: workhorse` and let the operator
+decide what that resolves to, which is issue #58.
+
 ## The workflows
 
 **`sprint-execute.yaml`** — the sprint loop. The sprint ledger is the

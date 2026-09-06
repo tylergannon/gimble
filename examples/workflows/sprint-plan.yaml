@@ -9,7 +9,7 @@ defaults:
   fidelity: none
   max_retries: 1
   model:
-    name: fable
+    name: claude-sonnet-5
 
 # Competitive planning as a graph. Three providers draft the same intent in
 # isolated worktrees, then each critiques the two drafts it did not write.
@@ -22,6 +22,8 @@ defaults:
 nodes:
   - id: intent
     type: agent
+    model:
+      name: fable
     prompt: >
       $goal
 
@@ -120,6 +122,8 @@ nodes:
 
   - id: questions
     type: agent
+    model:
+      name: fable
     prompt: >
       Read the three drafts and the three critiques. Write
       drafts/questions.md: the decisions that differ across the drafts and
@@ -140,6 +144,8 @@ nodes:
 
   - id: merge
     type: agent
+    model:
+      name: fable
     prompt: >
       Read the three drafts, the three critiques, and the answers in
       interview/. Write the sprint document, then append its entry to
