@@ -89,9 +89,11 @@ every time is noise.
 
 They run on the workhorse tier rather than the manager tier. The judgment is
 narrow — is this in the requirement or not — and it repeats on a clock for as
-long as the run lasts, which is workhorse-shaped work. The patrol interval
-matters more than the tier for what a supervised run costs, since every patrol
-is a turn that goes and reads the logs.
+long as the run lasts, which is workhorse-shaped work. A supervisor keeps one
+native session for the whole run, so it is not re-deriving the world each
+patrol, but the nudge hands it paths rather than content, so every patrol
+starts with a round of reading. That is issue #59; until it lands, the interval
+is what governs the cost.
 
 One limit is worth knowing before relying on them: a supervisor coaches turns
 that are live when it patrols. A planning node that finishes in a couple of

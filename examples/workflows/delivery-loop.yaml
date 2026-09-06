@@ -127,7 +127,7 @@ nodes:
   - id: serves_the_requirement
     type: supervisor
     supervises: [coding, review]
-    interval: 300s
+    interval: 180s
     timeout: 180s
     model:
       name: claude-sonnet-5
@@ -147,7 +147,7 @@ nodes:
   - id: proof_is_evidence
     type: supervisor
     supervises: [review]
-    interval: 300s
+    interval: 180s
     timeout: 180s
     model:
       name: claude-sonnet-5
