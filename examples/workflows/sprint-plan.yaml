@@ -158,11 +158,10 @@ nodes:
   - id: done_is_demonstrable
     type: supervisor
     supervises: [intent, draft_claude, draft_codex, draft_gemini, critique_claude, critique_codex, critique_gemini, merge]
-    interval: 120s
+    interval: 180s
     timeout: 180s
     model:
-      name: fable
-      effort: medium
+      name: claude-sonnet-5
     prompt: >
       You watch how the plan says what done means.
 

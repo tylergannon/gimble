@@ -84,11 +84,10 @@ nodes:
   - id: serves_the_requirement
     type: supervisor
     supervises: [inspect]
-    interval: 120s
+    interval: 300s
     timeout: 180s
     model:
-      name: fable
-      effort: medium
+      name: claude-sonnet-5
     prompt: >
       You watch for work nobody asked for.
 
@@ -105,11 +104,10 @@ nodes:
   - id: proof_is_evidence
     type: supervisor
     supervises: [inspect]
-    interval: 120s
+    interval: 300s
     timeout: 180s
     model:
-      name: fable
-      effort: medium
+      name: claude-sonnet-5
     prompt: >
       You watch for proof becoming a project of its own.
 

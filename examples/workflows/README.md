@@ -87,6 +87,18 @@ attempt digests, and either says ok or steers one named target with a message
 delivered to it verbatim. Most patrols should be ok; a supervisor that steers
 every time is noise.
 
+They run on the workhorse tier rather than the manager tier. The judgment is
+narrow — is this in the requirement or not — and it repeats on a clock for as
+long as the run lasts, which is workhorse-shaped work. The patrol interval
+matters more than the tier for what a supervised run costs, since every patrol
+is a turn that goes and reads the logs.
+
+One limit is worth knowing before relying on them: a supervisor coaches turns
+that are live when it patrols. A planning node that finishes in a couple of
+minutes may never be seen. `done_is_demonstrable` patrols faster than the
+others for that reason, but plan-shape doctrine is ultimately better placed in
+the planner's own instructions than in a patrol.
+
 **`serves_the_requirement`** watches the coding and validating agents for work
 nobody asked for: speculative fixes, hardening against conditions the
 requirement never mentions, edge cases outside the stated outcome, a second
