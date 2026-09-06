@@ -32,6 +32,29 @@ Copy-and-run loop pipelines live in `examples/loops/` (also bundled with the
 
 `examples/loops/README.md` carries a symptom→fix table for misbehaving loops.
 
+## Built-in workflows
+
+Examples are single shapes to copy. Whole workflows ship inside the binary and
+run by name — `tractor run <name>` — with nothing to copy first. `tractor
+workflows` lists them with the situation each is for; `tractor workflows show
+<name>` prints the pipeline, so redirecting it into a file is how you adapt
+one. A name resolves to a built-in only when no file of that name exists.
+
+- `sprint-execute` — a planned sprint ledger worked to done, one sprint per
+  lap, each demonstrated before the engine closes it.
+- `chapter-loop` — the same shape nested: chapters holding sprints holding
+  coding and validation, all in one run.
+- `sprint-plan` — three independent drafts of the next sprint, mutual
+  critique, one round of questions to the human, one merge.
+- `delivery-loop` — a written specification to working software: plan,
+  cross-provider critique, then a loop the engine validates item by item.
+- `promise-loop` — one repository promise advanced by a bounded run that
+  finishes with a verdict.
+
+All of them mark work done in the engine rather than trusting an agent to, run
+validation on a different provider from whoever wrote the code, and carry
+supervisors that coach without ever routing.
+
 ## Requirements
 
 - Codex with plugin marketplace support, or Claude Code with plugin support.

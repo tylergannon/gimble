@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -18,6 +20,7 @@ import (
 	"github.com/tylergannon/tractor/harness/claude"
 	"github.com/tylergannon/tractor/harness/codex"
 	"github.com/tylergannon/tractor/internal/modelalias"
+	"github.com/tylergannon/tractor/internal/workflows"
 	"github.com/tylergannon/tractor/lint"
 )
 
@@ -34,7 +37,7 @@ func newRootCommand() *cobra.Command {
 		SilenceUsage:      true,
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	}
-	root.AddCommand(newAskCommand(), newAnswerCommand(), newValidateCommand(), newInspectModelsCommand(), newRunCommand(), newRunPromptCommand(), newEditCommand(), newPrintSchemaCommand(), newMCPCommand(), newMCPRunnerCommand(), newPluginCommand())
+	root.AddCommand(newAskCommand(), newAnswerCommand(), newValidateCommand(), newInspectModelsCommand(), newRunCommand(), newRunPromptCommand(), newEditCommand(), newWorkflowsCommand(), newPrintSchemaCommand(), newMCPCommand(), newMCPRunnerCommand(), newPluginCommand())
 	return root
 }
 
@@ -152,17 +155,35 @@ func loadPipeline(args []string, inlineJSON string, jsonSet bool, inlineYAML str
 		pipeline, err := graph.ParseYAML([]byte(inlineYAML))
 		return pipeline, "--yaml", err
 	}
-	raw, err := os.ReadFile(args[0])
+	return loadPipelineSource(args[0])
+}
+
+// loadPipelineSource reads a pipeline from a file, or from the built-in
+// catalogue when no such file exists. A file on disk always wins, so a local
+// pipeline is never shadowed by a workflow that ships in the binary.
+func loadPipelineSource(source string) (*graph.Graph, string, error) {
+	raw, err := os.ReadFile(source)
 	if err != nil {
-		return nil, "", fmt.Errorf("read pipeline %q: %w", args[0], err)
+		if !errors.Is(err, fs.ErrNotExist) {
+			return nil, "", fmt.Errorf("read pipeline %q: %w", source, err)
+		}
+		builtin, builtinErr := workflows.Read(source)
+		if builtinErr != nil {
+			return nil, "", fmt.Errorf(
+				"pipeline %q is neither a file nor a built-in workflow; built-in workflows are %s",
+				source, builtinPipelineHint(),
+			)
+		}
+		pipeline, parseErr := graph.ParseYAML(builtin)
+		return pipeline, source, parseErr
 	}
 	var pipeline *graph.Graph
-	if extension := strings.ToLower(filepath.Ext(args[0])); extension == ".yaml" || extension == ".yml" {
+	if extension := strings.ToLower(filepath.Ext(source)); extension == ".yaml" || extension == ".yml" {
 		pipeline, err = graph.ParseYAML(raw)
 	} else {
 		pipeline, err = graph.Parse(raw)
 	}
-	return pipeline, args[0], err
+	return pipeline, source, err
 }
 
 func runPipeline(command *cobra.Command, pipeline graph.Graph, workdir, logsRoot string, resume bool) error {

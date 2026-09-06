@@ -59,6 +59,28 @@ files that teach ("read AGENTS.md first"), never script the checks.
 They ship beside this file, mirroring `examples/loops/` in the Tractor repo;
 if neither is at hand, the pipeline above is a complete start.
 
+## Or run a workflow that already ships
+
+Those examples are single shapes to copy and edit. Whole workflows ship inside
+the binary and run by name, with nothing to copy. `tractor workflows` lists
+what the installed binary carries and the situation each one is for — run it
+rather than trusting this table, which cannot know the installed version.
+
+| The moment                                            | Workflow         |
+| ----------------------------------------------------- | ---------------- |
+| "Work the sprint backlog until it's done"             | `sprint-execute` |
+| "Run the whole chapter, not one sprint"               | `chapter-loop`   |
+| "Plan the next sprint properly"                       | `sprint-plan`    |
+| "Build what this spec describes while I'm gone"       | `delivery-loop`  |
+| "Advance the promise and record a verdict"            | `promise-loop`   |
+
+Pass the name where a pipeline path goes; a name resolves to a built-in only
+when no file of that name exists. `tractor workflows show <name>` prints the
+pipeline, so redirect it into a file when the user wants one changed, then use
+the copy. Prefer a built-in over authoring a graph when the moment matches one:
+they carry engine-owned done, cross-provider validation, and supervisors
+already.
+
 1. Copy the chosen example into the target project (a git repo).
 2. Replace its placeholders with the user's goal; command-gated loops also
    need the check node's `command`. Read the file — examples differ.

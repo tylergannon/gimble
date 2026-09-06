@@ -1,11 +1,24 @@
-# Workflow proposals
+# Built-in workflows
 
-Five workflows ported from the diffusioninc skills mounted at
-`reference/diffusion-skills`. Each one is a graph the engine can run today;
-the diagrams in `ephemeral/projects/tractor/workflows/diagrams/` were
-rendered from these files with `tractor edit`.
+The pipelines that ship inside the binary. They are embedded from this
+directory, so editing one here changes what `tractor run <name>` runs after a
+rebuild, and `workflows.go` is the catalogue that gives each one the line
+`tractor workflows` prints. A test holds the catalogue and these files to each
+other, so a workflow cannot ship undocumented or be documented without
+shipping.
 
-They are proposals, not built-ins. Nothing in the binary loads them yet.
+```sh
+tractor workflows                       # the catalogue
+tractor workflows show sprint-execute   # one pipeline, verbatim
+tractor run sprint-execute --workdir . --logs .tractor/run
+```
+
+They were ported from the diffusioninc skills mounted at
+`reference/diffusion-skills`. The diagrams in
+`ephemeral/projects/tractor/workflows/diagrams/` were rendered from these
+files with `tractor edit`.
+
+None of them has been run end to end yet.
 
 ## What changed in the port
 

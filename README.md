@@ -131,6 +131,31 @@ Copy one into a git repo, change the goal and the check, run it:
 | "Have another model check this" | [`critique-circle.yaml`](examples/loops/critique-circle.yaml) |
 | Live supervision, steering, parallel fan-out | [`examples/`](examples/README.md) |
 
+## Or run a workflow that already ships
+
+The examples above are single shapes to copy and edit. Whole workflows ship
+inside the binary and run by name, with nothing to copy:
+
+```sh
+tractor workflows                       # what this binary carries
+tractor workflows show sprint-execute   # the pipeline itself
+tractor run sprint-execute --workdir . --logs .tractor/run
+```
+
+| The situation | Workflow |
+| --- | --- |
+| A sprint ledger is planned and you want it worked to done | `sprint-execute` |
+| A chapter's worth of work should run as one long run | `chapter-loop` |
+| The next sprint needs planning properly | `sprint-plan` |
+| A specification exists and you want software from it | `delivery-loop` |
+| One repository promise needs advancing and a verdict recording | `promise-loop` |
+
+A name resolves to a built-in only when no file of that name exists, so a
+pipeline on disk is never shadowed. `tractor workflows show <name> > mine.yaml`
+gives you an ordinary pipeline to edit. The [workflow
+reference](internal/workflows/README.md) says what they have in common and how
+to adapt one.
+
 The [spec](docs/spec.md) is the sole normative definition of Tractor's
 Attractor variant; where anything else disagrees with it, the spec governs.
 
