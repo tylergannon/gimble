@@ -1,0 +1,80 @@
+name: promise-loop
+goal: >
+  Advance one repository promise: inspect the slices its gates still need,
+  let each gate's own command record the evidence, and finish the run with a
+  verdict.
+start: begin
+
+defaults:
+  timeout: 1800s
+  fidelity: none
+  max_retries: 1
+  model:
+    name: fable
+
+# A promise loop driven by the promise tool rather than by an agent narrating
+# the protocol. The gates file is the checklist: one item per contract gate,
+# each carrying the command that records that gate's evidence and, where the
+# gate is a judgement rather than a measurement, an infer judge over the
+# evidence the inspection produced.
+#
+# Per-gate specifics live where they belong, in the item's own command, so
+# nothing here has to know what any one promise measures. The engine owns
+# done, so a gate closes on its recorded evidence rather than on the
+# inspecting agent's opinion of its own work.
+#
+# Non-fulfilment is a real outcome, not a failed run: a promise that cannot
+# be fulfilled finishes and says so. Only a broken contract or an already
+# active run fails the pipeline.
+#
+# This workflow needs the promise tool on PATH. Today that means installing
+# the skill that bundles it; once per-node skills land (issue #56), the
+# promise skill is declared on the inspect node and the engine puts it there.
+nodes:
+  - id: begin
+    type: command
+    command: |
+      set -eu
+      promise validate "$PROMISE_ID"
+      promise start "$PROMISE_ID" > .promises/current-run-id
+    edges:
+      success: gates
+      error: failure
+
+  - id: gates
+    type: loop
+    checklist: .promises/gates.md
+    max_visits: 30
+    edges:
+      loop: inspect
+      exit: fulfilled
+    goal_evaluator:
+      model:
+        name: fable
+
+  - id: inspect
+    type: agent
+    prompt: >
+      Take the smallest uncovered or stale slice this gate still needs.
+      Review it with the promise's own tools and the authority its contract
+      grants. Leave the evidence where this gate's command will find it.
+    edges:
+      - to: gates
+
+  - id: fulfilled
+    type: command
+    command: |
+      set -eu
+      promise finish "$PROMISE_ID" "$(cat .promises/current-run-id)" --verdict fulfilled
+      promise badge
+    edges:
+      success: success
+      error: not_fulfilled
+
+  - id: not_fulfilled
+    type: command
+    command: |
+      set -eu
+      promise finish "$PROMISE_ID" "$(cat .promises/current-run-id)" --verdict not-fulfilled
+    edges:
+      success: success

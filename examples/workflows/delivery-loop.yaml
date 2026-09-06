@@ -1,0 +1,92 @@
+name: delivery-loop
+goal: >
+  Turn a specification into working software: plan, critique the plan, then
+  loop coding and validation until the plan's items are demonstrated.
+start: plan
+
+defaults:
+  timeout: 1800s
+  fidelity: none
+  max_retries: 1
+  model:
+    name: fable
+
+# The delivery loop, with the plan as a checklist the engine owns.
+#
+# plan_update writes plan.md as a checklist file: YAML frontmatter items,
+# each with the command that demonstrates it, and the definition of done in
+# the prose below. From there the loop node validates every item itself. The
+# coding agent cannot check a box, the reviewer cannot check a box, and no
+# protocol is needed to stop them trying.
+#
+# The coding node keeps its native session across laps (fidelity: full), so
+# it resumes rather than re-reading the workspace from scratch. Review runs
+# on the other provider with fresh context.
+nodes:
+  - id: plan
+    type: agent
+    prompt: >
+      $goal
+
+      Read the specification, do focused recon of this workspace, and write
+      plan.md as a checklist: YAML frontmatter with one item per unit of
+      work, each with a name, the check that proves it, and the command that
+      runs the check. Put the definition of done in the prose below the
+      frontmatter. Do not write a done field on any item.
+    edges:
+      - to: plan_critique
+
+  - id: plan_critique
+    type: agent
+    model:
+      name: gpt
+    prompt: >
+      Read the specification and plan.md. Write plan-critique.md: where the
+      plan is wrong, where it is missing work, where an item's check would
+      pass while the item is false, and where it is stricter than the
+      specification requires.
+    edges:
+      - to: plan_update
+
+  - id: plan_update
+    type: agent
+    prompt: >
+      Read the specification, plan.md, and plan-critique.md. Rewrite plan.md,
+      taking only the changes that reduce risk or make the work provable.
+      Keep the checklist shape and write no done fields.
+    edges:
+      - to: work
+
+  - id: work
+    type: loop
+    checklist: plan.md
+    max_visits: 40
+    edges:
+      loop: coding
+      exit: success
+    goal_evaluator:
+      model:
+        name: fable
+
+  - id: coding
+    type: agent
+    model:
+      name: gpt
+    fidelity: full
+    prompt: >
+      Do the current plan item. Test what you write, run the repository's
+      standard test set, and commit with specific paths.
+    edges:
+      - to: review
+
+  - id: review
+    type: agent
+    prompt: >
+      Review the current item against the specification. Run the software and
+      the repository's test set yourself rather than reading the diff. Decide
+      whether the item is finished.
+    edges:
+      - to: work
+        condition: The item is done and the work holds up.
+      - to: coding
+        condition: The item is unfinished, or the work does not hold up.

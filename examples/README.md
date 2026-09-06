@@ -16,6 +16,10 @@ spend tokens on a substantial coding task.
 - [`supervisor/live-steering.json`](supervisor/live-steering.json) proves that
   a Claude supervisor patrol can steer a live Codex worker and cause an
   independently verified workspace effect.
+- [`workflows/`](workflows/README.md) are proposals, not proofs: five larger
+  workflows ported from the diffusioninc skills — sprint execution, a nested
+  chapter loop, competitive sprint planning, a delivery loop, and a promise
+  loop.
 - [`loops/`](loops/README.md) are the starting points for iterative work:
   fix-until-green, critique circle, bake-off, a milestone loop, and a
   checklist loop. Copy one, change the goal and the check, run it.
