@@ -30,7 +30,8 @@ nodes:
     prompt: >
       $goal
 
-      Read the specification, do focused recon of this workspace, and write
+      Read the specification named above, do focused recon of this workspace,
+      and write
       plan.md as a checklist: YAML frontmatter with one item per unit of
       work, each with a name, the check that proves it, and the command that
       runs the check. Put the definition of done in the prose below the
@@ -43,7 +44,9 @@ nodes:
     model:
       name: gpt
     prompt: >
-      Read the specification and plan.md. Write plan-critique.md: where the
+      $goal
+
+      Read that specification and plan.md. Write plan-critique.md: where the
       plan is wrong, where it is missing work, where an item's check would
       pass while the item is false, and where it is stricter than the
       specification requires.
@@ -55,7 +58,9 @@ nodes:
     model:
       name: fable
     prompt: >
-      Read the specification, plan.md, and plan-critique.md. Rewrite plan.md,
+      $goal
+
+      Read that specification, plan.md, and plan-critique.md. Rewrite plan.md,
       taking only the changes that reduce risk or make the work provable.
       Keep the checklist shape and write no done fields.
     edges:
@@ -88,7 +93,9 @@ nodes:
     model:
       name: claude-opus-5
     prompt: >
-      Review the current item against the specification. Run the software and
+      $goal
+
+      Review the current item against that specification. Run the software and
       the repository's test set yourself rather than reading the diff. Decide
       whether the item is finished.
     edges:

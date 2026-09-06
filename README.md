@@ -142,13 +142,26 @@ tractor workflows show sprint-execute   # the pipeline itself
 tractor run sprint-execute --workdir . --logs .tractor/run
 ```
 
-| The situation | Workflow |
-| --- | --- |
-| A sprint ledger is planned and you want it worked to done | `sprint-execute` |
-| A chapter's worth of work should run as one long run | `chapter-loop` |
-| The next sprint needs planning properly | `sprint-plan` |
-| A specification exists and you want software from it | `delivery-loop` |
-| One repository promise needs advancing and a verdict recording | `promise-loop` |
+| The situation | Workflow | What it works on |
+| --- | --- | --- |
+| A sprint ledger is planned and you want it worked to done | `sprint-execute` | `docs/sprints/ledger.md` |
+| A chapter's worth of work should run as one long run | `chapter-loop` | `docs/chapters/ledger.md` |
+| The next sprint needs planning properly | `sprint-plan` | `--goal`, the seed |
+| A specification exists and you want software from it | `delivery-loop` | `--goal`, naming the spec |
+| One repository promise needs advancing and a verdict recording | `promise-loop` | `$PROMISE_ID` |
+
+Some workflows read their work from the workspace — a ledger names every
+sprint, so nothing else is needed. The rest work on whatever you name, and
+take it from `--goal`, which replaces the pipeline's goal so that every
+`$goal` in a prompt expands to yours:
+
+```sh
+tractor run delivery-loop --goal "Build what docs/SPEC.md describes" \
+  --workdir . --logs .tractor/run
+```
+
+Those refuse to start without one rather than running against the generic goal
+in their file, and `tractor workflows` marks them.
 
 A name resolves to a built-in only when no file of that name exists, so a
 pipeline on disk is never shadowed. `tractor workflows show <name> > mine.yaml`

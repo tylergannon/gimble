@@ -106,3 +106,78 @@ func TestUnknownPipelineSourceNamesTheBuiltins(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkflowsListingMarksTheOnesThatNeedAGoal(t *testing.T) {
+	stdout, _, err := executeCommand("workflows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(stdout), "\n") {
+		name, _, _ := strings.Cut(line, " ")
+		workflow, ok := workflows.Lookup(name)
+		if !ok {
+			t.Fatalf("listing names an unknown workflow: %q", line)
+		}
+		if got := strings.Contains(line, "needs --goal"); got != workflow.NeedsGoal {
+			t.Errorf("%s: marked needs --goal = %v, want %v", name, got, workflow.NeedsGoal)
+		}
+	}
+}
+
+func TestRunRefusesAGoalHungryWorkflowWithoutOne(t *testing.T) {
+	for _, workflow := range workflows.List() {
+		if !workflow.NeedsGoal {
+			continue
+		}
+		t.Run(workflow.Name, func(t *testing.T) {
+			_, _, err := executeCommand("run", workflow.Name, "--workdir", t.TempDir(), "--logs", t.TempDir())
+			if err == nil {
+				t.Fatal("expected a refusal")
+			}
+			if !strings.Contains(err.Error(), "--goal") {
+				t.Errorf("refusal does not name the flag: %v", err)
+			}
+			if !strings.Contains(err.Error(), workflow.GoalHint) {
+				t.Errorf("refusal does not show what a goal looks like: %v", err)
+			}
+		})
+	}
+}
+
+func TestApplyGoalReplacesTheGoalEveryPromptExpands(t *testing.T) {
+	pipeline, source, err := loadPipelineSource("sprint-plan")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := applyGoal(pipeline, source, "Ship the CSV exporter", true); err != nil {
+		t.Fatal(err)
+	}
+	if pipeline.Goal != "Ship the CSV exporter" {
+		t.Errorf("goal = %q", pipeline.Goal)
+	}
+}
+
+func TestApplyGoalRejectsBlankText(t *testing.T) {
+	pipeline, source, err := loadPipelineSource("sprint-plan")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := applyGoal(pipeline, source, "   ", true); err == nil {
+		t.Fatal("expected an error for a blank goal")
+	}
+}
+
+// A workflow that reads its work from the workspace starts without a goal.
+func TestApplyGoalLeavesLedgerDrivenWorkflowsAlone(t *testing.T) {
+	pipeline, source, err := loadPipelineSource("sprint-execute")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := pipeline.Goal
+	if err := applyGoal(pipeline, source, "", false); err != nil {
+		t.Fatal(err)
+	}
+	if pipeline.Goal != before {
+		t.Error("goal changed without --goal")
+	}
+}

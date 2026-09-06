@@ -55,6 +55,20 @@ All of them mark work done in the engine rather than trusting an agent to, run
 validation on a different provider from whoever wrote the code, and carry
 supervisors that coach without ever routing.
 
+They take their input two ways. `sprint-execute` and `chapter-loop` read a
+ledger in the workspace, and `promise-loop` reads `PROMISE_ID` from the
+environment, so none of those needs anything else. `sprint-plan` and
+`delivery-loop` work on whatever you name and take it from `--goal`, which
+replaces the pipeline's goal so every `$goal` in a prompt expands to yours:
+
+```
+tractor run delivery-loop --goal "Build what docs/SPEC.md describes" \
+  --workdir . --logs .tractor/run
+```
+
+Both refuse to start without a goal rather than running against the generic
+one in their file. `tractor workflows` marks which.
+
 ## Requirements
 
 - Codex with plugin marketplace support, or Claude Code with plugin support.

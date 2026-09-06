@@ -16,12 +16,19 @@ func newWorkflowsCommand() *cobra.Command {
 		Long: "List the workflows that ship in this binary.\n\n" +
 			"Run one by name with `tractor run <name>`, read one with\n" +
 			"`tractor workflows show <name>`, or redirect that into a file to\n" +
-			"start your own.",
+			"start your own.\n\n" +
+			"A workflow marked `needs --goal` works on whatever you name; the\n" +
+			"rest take their input from a file in the workspace, such as a\n" +
+			"ledger, and refuse nothing.",
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			writer := tabwriter.NewWriter(command.OutOrStdout(), 0, 0, 2, ' ', 0)
 			for _, workflow := range workflows.List() {
-				if _, err := fmt.Fprintf(writer, "%s\t%s\n", workflow.Name, workflow.When); err != nil {
+				line := fmt.Sprintf("%s\t%s", workflow.Name, workflow.When)
+				if workflow.NeedsGoal {
+					line += "\tneeds --goal"
+				}
+				if _, err := fmt.Fprintln(writer, line); err != nil {
 					return err
 				}
 			}

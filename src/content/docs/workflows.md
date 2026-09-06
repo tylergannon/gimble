@@ -24,15 +24,35 @@ pipeline with no tie back to the binary.
 A name resolves to a built-in only when no file of that name exists, so a
 pipeline on disk is never shadowed by one that ships.
 
+## What a workflow works on
+
+Some read their work from the workspace. `sprint-execute` and `chapter-loop`
+iterate a ledger that already names every sprint or chapter, and `promise-loop`
+takes `PROMISE_ID` from the environment, so a workdir is all any of them needs.
+
+The rest work on whatever you name, and take it from `--goal`. That replaces
+the pipeline's goal, so every `$goal` in a prompt expands to yours:
+
+```sh
+tractor run delivery-loop --goal "Build what docs/SPEC.md describes" \
+  --workdir . --logs .tractor/run
+
+tractor run sprint-plan --goal "Replace polling with server-sent events" \
+  --workdir . --logs .tractor/run
+```
+
+A workflow that needs a goal refuses to start without one rather than running
+against the generic goal its file carries, and `tractor workflows` marks it.
+
 ## When to run which
 
-| The situation | Workflow |
-| --- | --- |
-| A sprint ledger is planned and you want it worked to done | `sprint-execute` |
-| A chapter's worth of work should run as one long run | `chapter-loop` |
-| The next sprint needs planning properly, not off the cuff | `sprint-plan` |
-| A specification exists and you want software from it while you are away | `delivery-loop` |
-| One repository promise needs advancing and a verdict recording | `promise-loop` |
+| The situation | Workflow | What it works on |
+| --- | --- | --- |
+| A sprint ledger is planned and you want it worked to done | `sprint-execute` | `docs/sprints/ledger.md` |
+| A chapter's worth of work should run as one long run | `chapter-loop` | `docs/chapters/ledger.md` |
+| The next sprint needs planning properly, not off the cuff | `sprint-plan` | `--goal`, the seed |
+| A specification exists and you want software from it while you are away | `delivery-loop` | `--goal`, naming the spec |
+| One repository promise needs advancing and a verdict recording | `promise-loop` | `$PROMISE_ID` |
 
 ## What they have in common
 

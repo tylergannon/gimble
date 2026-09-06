@@ -11,7 +11,15 @@ shipping.
 tractor workflows                       # the catalogue
 tractor workflows show sprint-execute   # one pipeline, verbatim
 tractor run sprint-execute --workdir . --logs .tractor/run
+tractor run delivery-loop --goal "Build what docs/SPEC.md describes" \
+  --workdir . --logs .tractor/run
 ```
+
+A workflow either reads its work from the workspace — a ledger, or
+`PROMISE_ID` in the environment — or works on whatever the operator names and
+takes it from `--goal`, which replaces the pipeline's goal so every `$goal` in
+a prompt expands to it. The catalogue records which, and one that needs a goal
+refuses to start without it.
 
 They were ported from the diffusioninc skills mounted at
 `reference/diffusion-skills`. The diagrams in

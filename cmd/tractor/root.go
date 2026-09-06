@@ -102,16 +102,20 @@ func newRunCommand() *cobra.Command {
 	var workdir string
 	var logsRoot string
 	var resume bool
+	var goal string
 	command := &cobra.Command{
 		Use:   "run [pipeline]",
 		Short: "Run a pipeline",
 		RunE: func(command *cobra.Command, args []string) error {
-			pipeline, _, err := loadPipeline(
+			pipeline, source, err := loadPipeline(
 				args,
 				inlineJSON, command.Flags().Changed("json"),
 				inlineYAML, command.Flags().Changed("yaml"),
 			)
 			if err != nil {
+				return err
+			}
+			if err := applyGoal(pipeline, source, goal, command.Flags().Changed("goal")); err != nil {
 				return err
 			}
 			return runPipeline(command, *pipeline, workdir, logsRoot, resume)
@@ -122,6 +126,7 @@ func newRunCommand() *cobra.Command {
 	command.Flags().StringVar(&workdir, "workdir", ".", "pipeline workspace")
 	command.Flags().StringVar(&logsRoot, "logs", "", "run log directory")
 	command.Flags().BoolVar(&resume, "resume", false, "resume from the logs checkpoint")
+	command.Flags().StringVar(&goal, "goal", "", "replace the pipeline's goal; every $goal in a prompt expands to this")
 	return command
 }
 
@@ -184,6 +189,27 @@ func loadPipelineSource(source string) (*graph.Graph, string, error) {
 		pipeline, err = graph.Parse(raw)
 	}
 	return pipeline, source, err
+}
+
+// applyGoal replaces the pipeline's goal with the one supplied at the command
+// line. A built-in workflow that exists to work on something the operator
+// names refuses to start without one, rather than running against the generic
+// goal its file carries.
+func applyGoal(pipeline *graph.Graph, source, goal string, goalSet bool) error {
+	if goalSet {
+		if strings.TrimSpace(goal) == "" {
+			return fmt.Errorf("--goal requires text")
+		}
+		pipeline.Goal = goal
+		return nil
+	}
+	if workflow, ok := workflows.Lookup(source); ok && workflow.NeedsGoal {
+		return fmt.Errorf(
+			"the %s workflow needs a goal: pass --goal with what it should work on.\n%s",
+			workflow.Name, workflow.GoalHint,
+		)
+	}
+	return nil
 }
 
 func runPipeline(command *cobra.Command, pipeline graph.Graph, workdir, logsRoot string, resume bool) error {

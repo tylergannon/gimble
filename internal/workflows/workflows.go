@@ -18,6 +18,13 @@ type Workflow struct {
 	Name string
 	// When describes the situation that calls for this workflow, in one line.
 	When string
+	// NeedsGoal reports whether the workflow is meaningless without a goal
+	// supplied at the command line. Workflows that take their input from a
+	// file in the workspace, such as a ledger, do not need one.
+	NeedsGoal bool
+	// GoalHint shows what a usable goal looks like. It is set only when
+	// NeedsGoal is.
+	GoalHint string
 }
 
 // builtin is the catalogue. A test holds it and the embedded files to each
@@ -33,12 +40,16 @@ var builtin = []Workflow{
 		When: "Carry a chapter's worth of work in one run: chapters holding sprints holding coding and validation.",
 	},
 	{
-		Name: "sprint-plan",
-		When: "Plan the next sprint properly: three independent drafts, mutual critique, your answers, one merge.",
+		Name:      "sprint-plan",
+		When:      "Plan the next sprint properly: three independent drafts, mutual critique, your answers, one merge.",
+		NeedsGoal: true,
+		GoalHint:  `for example: --goal "Replace the polling status endpoint with server-sent events"`,
 	},
 	{
-		Name: "delivery-loop",
-		When: "Turn a written specification into working software while you are away.",
+		Name:      "delivery-loop",
+		When:      "Turn a written specification into working software while you are away.",
+		NeedsGoal: true,
+		GoalHint:  `for example: --goal "Build what docs/SPEC.md describes"`,
 	},
 	{
 		Name: "promise-loop",
