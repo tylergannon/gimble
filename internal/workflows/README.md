@@ -47,13 +47,12 @@ port is mostly deletion:
   no rule is needed about which agent may check a box.
 
 What is left over is doctrine: how a sprint is shaped, what a chapter may not
-contain, what makes a promise falsifiable. That belongs in a skill attached to
-the node that needs it, which is issue #56. Until then it lives in the prompts
-here, marked in each file.
+contain. That belongs in a skill attached to the node that needs it, which is
+issue #56. Until then it lives in the prompts here, marked in each file.
 
 ## Model roles
 
-The same few roles recur across all five, so the choices follow one convention
+The same few roles recur across all four, so the choices follow one convention
 rather than being decided node by node:
 
 - **manager** — the planner, the merge, and every loop's goal evaluator: `fable`
@@ -94,11 +93,6 @@ them. Drop those two nodes for an unattended plan.
 plan update, then a loop over the plan's own checklist. The plan is written as
 a checklist file, so the engine validates each item rather than the reviewer
 being trusted to check boxes honestly.
-
-**`promise-loop.yaml`** — one repository promise advanced by bounded runs.
-Per-gate specifics live in each gate item's command, so the graph does not
-need to know what any one promise measures. Non-fulfilment finishes the run
-with a verdict instead of looping until something passes.
 
 ## Supervisors
 
@@ -156,6 +150,9 @@ says what done looks like and leaves the route to the implementer.
   frontmatter. Upstream keeps them as `ledger.yaml`; the checklist format is
   markdown with frontmatter so the definition of done can sit in prose beside
   the items.
-- `promise-loop` needs the promise tool on PATH.
-- All five would rather declare their doctrine as skills than carry it in
+- All four would rather declare their doctrine as skills than carry it in
   prompts.
+- A checked ledger item records that it passed, not what it passed against, so
+  a ledger committed with every box ticked is a claim rather than evidence once
+  the code moves on. Re-attestation happens on every lap inside a run and stops
+  when the run does.

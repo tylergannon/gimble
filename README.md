@@ -148,7 +148,6 @@ tractor run sprint-execute --workdir . --logs .tractor/run
 | A chapter's worth of work should run as one long run | `chapter-loop` | `docs/chapters/ledger.md` |
 | The next sprint needs planning properly | `sprint-plan` | `--goal`, the seed |
 | A specification exists and you want software from it | `delivery-loop` | `--goal`, naming the spec |
-| One repository promise needs advancing and a verdict recording | `promise-loop` | `$PROMISE_ID` |
 
 `--goal` replaces the pipeline's goal, so every `$goal` in a prompt expands to
 yours. Every workflow carries it into its working prompts, so a goal always
@@ -162,9 +161,14 @@ tractor run delivery-loop --goal "Build what docs/SPEC.md describes" \
 Two of them are meaningless without it — there is no seed to plan and no
 specification to build — so they refuse to start without one rather than
 running against the generic goal in their file, and `tractor workflows` marks
-them. The rest already know their work: a ledger names every sprint, and
-`promise-loop` reads `PROMISE_ID` from the environment. For those a goal is a
-steer, not the assignment.
+them. The other two already know their work: a ledger names every sprint. For
+those a goal is a steer, not the assignment, and the listing names the file
+each one reads so a missing ledger is a known precondition rather than a
+surprise on the first node.
+
+None of them hardcodes a test command. The mechanical proof of an item is the
+command that item carries, which the engine runs, so these work in a repository
+of any language.
 
 A name resolves to a built-in only when no file of that name exists, so a
 pipeline on disk is never shadowed. `tractor workflows show <name> > mine.yaml`

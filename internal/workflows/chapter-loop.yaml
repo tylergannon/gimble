@@ -23,6 +23,10 @@ defaults:
 #
 # max_visits counts per activation, so the sprint loop's budget is per
 # chapter rather than across the whole run.
+#
+# There is no test node. The mechanical gate is each ledger item's own command,
+# which the loop node runs on arrival, so nothing here assumes a language or a
+# build system.
 nodes:
   - id: chapters
     type: loop
@@ -56,16 +60,7 @@ nodes:
       The run's goal, which frames the work but never replaces the current
       item: $goal
     edges:
-      - to: test
-
-  - id: test
-    type: command
-    command: |
-      set -eu
-      go test ./...
-    edges:
-      success: review
-      error: implement
+      - to: review
 
   - id: review
     type: agent

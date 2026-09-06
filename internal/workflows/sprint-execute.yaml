@@ -18,6 +18,10 @@ defaults:
 # marks it done itself. No agent writes done, so a sprint cannot be closed
 # by an agent that believes it finished.
 #
+# There is no test node. The mechanical gate is the ledger item's own command,
+# which the loop node runs on arrival, so nothing here has to know what
+# language this repository is written in or how it is built.
+#
 # The reviewer runs on another provider with fresh context, per the rule that
 # a sprint is demonstrated rather than asserted. It cannot route to success:
 # leaving the loop is the loop node's decision, made against the ledger's
@@ -51,16 +55,7 @@ nodes:
       The run's goal, which frames the work but never replaces the current
       item: $goal
     edges:
-      - to: test
-
-  - id: test
-    type: command
-    command: |
-      set -eu
-      go test ./...
-    edges:
-      success: review
-      error: implement
+      - to: review
 
   - id: review
     type: agent

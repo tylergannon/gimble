@@ -72,7 +72,6 @@ rather than trusting this table, which cannot know the installed version.
 | "Run the whole chapter, not one sprint"               | `chapter-loop`   |
 | "Plan the next sprint properly"                       | `sprint-plan`    |
 | "Build what this spec describes while I'm gone"       | `delivery-loop`  |
-| "Advance the promise and record a verdict"            | `promise-loop`   |
 
 Pass the name where a pipeline path goes; a name resolves to a built-in only
 when no file of that name exists.
@@ -80,10 +79,11 @@ when no file of that name exists.
 Pass the user's ask as `--goal`: it replaces the pipeline's goal, and every
 workflow carries that into its working prompts. `sprint-plan` and
 `delivery-loop` are meaningless without one and refuse to start; the listing
-marks them. `sprint-execute` and `chapter-loop` iterate a ledger in the
-workspace and `promise-loop` reads `PROMISE_ID` from the environment, so for
-those a goal steers the run rather than assigning it, and a workdir alone is
-enough. `tractor workflows show <name>` prints the
+marks them. `sprint-execute` and `chapter-loop` iterate a ledger that must
+already be in the workspace — the listing names the path, and a missing one
+fails on the first node — so for those a goal steers the run rather than
+assigning it. None of them hardcodes a test command; an item's own command is
+the gate, so they work in any language. `tractor workflows show <name>` prints the
 pipeline, so redirect it into a file when the user wants one changed, then use
 the copy. Prefer a built-in over authoring a graph when the moment matches one:
 they carry engine-owned done, cross-provider validation, and supervisors

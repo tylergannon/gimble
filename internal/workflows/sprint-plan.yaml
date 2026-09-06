@@ -19,6 +19,10 @@ defaults:
 # The interview is a real gate: questions writes a numbered question file,
 # ask blocks until the answer file appears beside it, and merge reads the
 # answers. Drop those two nodes for an unattended plan.
+#
+# The output is the handoff to sprint-execute: a sprint document plus a ledger
+# entry in the checklist shape that workflow iterates. merge states that shape
+# because nothing else enforces it.
 nodes:
   - id: intent
     type: agent
@@ -122,6 +126,7 @@ nodes:
 
   - id: questions
     type: agent
+    max_visits: 3
     model:
       name: fable
     prompt: >
@@ -148,8 +153,18 @@ nodes:
       name: fable
     prompt: >
       Read the three drafts, the three critiques, and the answers in
-      interview/. Write the sprint document, then append its entry to
-      docs/sprints/ledger.md with the command that will demonstrate it.
+      interview/. Write the sprint document under docs/sprints/, then append
+      its entry to docs/sprints/ledger.md.
+
+      That ledger is a checklist file, which is what the sprint-execute
+      workflow iterates: YAML frontmatter holding an items list, each item
+      with a name, the check that proves it, the command that runs the check,
+      and a doc pointing at the sprint document. Add an infer block — files
+      and prompt — where the proof is a judgement over evidence rather than an
+      exit code. Write no done field on any item: the engine owns done, and an
+      agent-authored one is rejected. The markdown below the frontmatter is
+      the definition of done for the ledger as a whole.
+
       Record in drafts/merge-notes.md which critiques you accepted, which you
       rejected and why, and how the answers changed the plan.
     edges:

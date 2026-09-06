@@ -17,16 +17,21 @@ func newWorkflowsCommand() *cobra.Command {
 			"Run one by name with `tractor run <name>`, read one with\n" +
 			"`tractor workflows show <name>`, or redirect that into a file to\n" +
 			"start your own.\n\n" +
-			"A workflow marked `needs --goal` works on whatever you name; the\n" +
-			"rest take their input from a file in the workspace, such as a\n" +
-			"ledger, and refuse nothing.",
+			"The third column is what a workflow wants before it will do\n" +
+			"anything: `needs --goal` means it works on whatever you name and\n" +
+			"refuses to start without one; `needs <path>` means it reads that\n" +
+			"file in the workspace and fails on the first node if it is\n" +
+			"missing.",
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			writer := tabwriter.NewWriter(command.OutOrStdout(), 0, 0, 2, ' ', 0)
 			for _, workflow := range workflows.List() {
 				line := fmt.Sprintf("%s\t%s", workflow.Name, workflow.When)
-				if workflow.NeedsGoal {
+				switch {
+				case workflow.NeedsGoal:
 					line += "\tneeds --goal"
+				case workflow.Needs != "":
+					line += "\tneeds " + workflow.Needs
 				}
 				if _, err := fmt.Fprintln(writer, line); err != nil {
 					return err

@@ -25,6 +25,10 @@ type Workflow struct {
 	// GoalHint shows what a usable goal looks like. It is set only when
 	// NeedsGoal is.
 	GoalHint string
+	// Needs is the workspace path that must already exist for the workflow to
+	// get past its first node. Empty when the workflow builds its own inputs.
+	// A workflow needs a goal or a file, never both.
+	Needs string
 }
 
 // builtin is the catalogue. A test holds it and the embedded files to each
@@ -32,12 +36,14 @@ type Workflow struct {
 // shipping.
 var builtin = []Workflow{
 	{
-		Name: "sprint-execute",
-		When: "Work a planned sprint ledger to done, one sprint per lap, each demonstrated before it closes.",
+		Name:  "sprint-execute",
+		When:  "Work a planned sprint ledger to done, one sprint per lap, each demonstrated before it closes.",
+		Needs: "docs/sprints/ledger.md",
 	},
 	{
-		Name: "chapter-loop",
-		When: "Carry a chapter's worth of work in one run: chapters holding sprints holding coding and validation.",
+		Name:  "chapter-loop",
+		When:  "Carry a chapter's worth of work in one run: chapters holding sprints holding coding and validation.",
+		Needs: "docs/chapters/ledger.md",
 	},
 	{
 		Name:      "sprint-plan",
@@ -50,10 +56,6 @@ var builtin = []Workflow{
 		When:      "Turn a written specification into working software while you are away.",
 		NeedsGoal: true,
 		GoalHint:  `for example: --goal "Build what docs/SPEC.md describes"`,
-	},
-	{
-		Name: "promise-loop",
-		When: "Advance one repository promise by a bounded run and finish with a verdict.",
 	},
 }
 

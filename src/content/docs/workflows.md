@@ -1,6 +1,6 @@
 ---
 title: Built-in workflows
-description: Five whole workflows ship inside the binary — sprint execution, a nested chapter loop, competitive planning, a delivery loop, and a promise loop. Run one by name; nothing to copy.
+description: Four whole workflows ship inside the binary — sprint execution, a nested chapter loop, competitive planning, and a delivery loop. Run one by name; nothing to copy.
 eyebrow: Reference
 order: 2
 sourceLabel: Read the pipelines
@@ -41,9 +41,10 @@ What differs is whether a goal is the assignment or a steer. `sprint-plan` has
 nothing to plan and `delivery-loop` has nothing to build without one, so both
 refuse to start rather than running against the generic goal their file
 carries, and `tractor workflows` marks them. `sprint-execute` and
-`chapter-loop` iterate a ledger that already names every sprint, and
-`promise-loop` reads `PROMISE_ID` from the environment; a goal frames those
-without replacing the item in hand, and a workdir alone is enough to start.
+`chapter-loop` iterate a ledger that already names every sprint; a goal frames
+those without replacing the item in hand. That ledger has to be there — the
+listing names the path each one reads, and a run against a workspace without
+it stops on the first node.
 
 ## When to run which
 
@@ -53,7 +54,6 @@ without replacing the item in hand, and a workdir alone is enough to start.
 | A chapter's worth of work should run as one long run | `chapter-loop` | `docs/chapters/ledger.md` |
 | The next sprint needs planning properly, not off the cuff | `sprint-plan` | `--goal`, the seed |
 | A specification exists and you want software from it while you are away | `delivery-loop` | `--goal`, naming the spec |
-| One repository promise needs advancing and a verdict recording | `promise-loop` | `$PROMISE_ID` |
 
 ## What they have in common
 
@@ -62,6 +62,10 @@ without replacing the item in hand, and a workdir alone is enough to start.
 re-reads it every arrival, validates the item the previous lap worked on, and
 marks it done itself. No agent writes `done`, so no protocol is needed to stop
 one from claiming work it did not finish.
+
+**Nothing hardcodes a test command.** The mechanical proof of an item is the
+command that item carries, which the loop node runs on arrival. No workflow
+knows what language the repository is written in or how it is built.
 
 **Validation runs on the other provider.** Whoever reviews is never whoever
 wrote the code, and the reviewer cannot route to success — leaving a loop is

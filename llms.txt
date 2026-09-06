@@ -48,15 +48,15 @@ one. A name resolves to a built-in only when no file of that name exists.
   critique, one round of questions to the human, one merge.
 - `delivery-loop` — a written specification to working software: plan,
   cross-provider critique, then a loop the engine validates item by item.
-- `promise-loop` — one repository promise advanced by a bounded run that
-  finishes with a verdict.
 
-All of them mark work done in the engine rather than trusting an agent to, run
+All four mark work done in the engine rather than trusting an agent to, run
 validation on a different provider from whoever wrote the code, and carry
-supervisors that coach without ever routing.
+supervisors that coach without ever routing. None of them hardcodes a test
+command: the mechanical gate is whatever the checklist item names, so a
+workflow does not care what language the repository is written in.
 
 `--goal` on `tractor run` replaces the pipeline's goal, so every `$goal` in a
-prompt expands to yours. All five carry it into their working prompts, so a
+prompt expands to yours. All four carry it into their working prompts, so a
 goal always steers:
 
 ```
@@ -66,9 +66,9 @@ tractor run delivery-loop --goal "Build what docs/SPEC.md describes" \
 
 `sprint-plan` and `delivery-loop` are meaningless without one — there is no
 seed to plan and no specification to build — so they refuse to start without
-it, and `tractor workflows` marks them. The others already know their work:
-`sprint-execute` and `chapter-loop` iterate a ledger, `promise-loop` reads
-`PROMISE_ID` from the environment. For those a goal frames the run without
+it, and `tractor workflows` marks them. The other two already know their work:
+`sprint-execute` and `chapter-loop` each iterate a ledger the workspace must
+already hold, which the listing names. For those a goal frames the run without
 replacing the current item.
 
 ## Requirements

@@ -125,3 +125,39 @@ func TestReadRejectsUnknownName(t *testing.T) {
 		t.Fatal("expected an error for an unknown workflow")
 	}
 }
+
+// A workflow that advertises a precondition must actually read that path, and
+// one that says nothing must not be waiting on a file the operator never
+// heard about. Needs and NeedsGoal are alternatives, never both.
+func TestNeedsNamesAChecklistTheWorkflowReads(t *testing.T) {
+	t.Parallel()
+	for _, workflow := range workflows.List() {
+		if workflow.Needs != "" && workflow.NeedsGoal {
+			t.Errorf("%s declares both Needs and NeedsGoal", workflow.Name)
+		}
+		raw, err := workflows.Read(workflow.Name)
+		if err != nil {
+			t.Fatalf("read %s: %v", workflow.Name, err)
+		}
+		pipeline, err := graph.ParseYAML(raw)
+		if err != nil {
+			t.Fatalf("parse %s: %v", workflow.Name, err)
+		}
+		declared := map[string]bool{}
+		for _, node := range pipeline.Nodes {
+			loop, ok := node.(*graph.LoopNode)
+			if !ok || !loop.Checklist.Present {
+				continue
+			}
+			if path := strings.TrimSpace(loop.Checklist.Value); path != "" {
+				declared[path] = true
+			}
+		}
+		if workflow.Needs != "" && !declared[workflow.Needs] {
+			t.Errorf("%s needs %q but no loop node reads it", workflow.Name, workflow.Needs)
+		}
+		if workflow.Needs == "" && len(declared) > 0 && !workflow.NeedsGoal {
+			t.Errorf("%s reads %v but declares no precondition", workflow.Name, declared)
+		}
+	}
+}
