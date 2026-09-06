@@ -12,3 +12,8 @@ state.
 Before planning, designing, or running an interview, loop, or workflow for
 this repo, read `ephemeral/projects/tractor/workflow-designer/rules.md`. It
 records the rules, each marked as decided by Tyler or proposed by an agent.
+
+## Reference submodules
+
+`reference/` holds upstream projects mounted as submodules for reading only.
+Never commit inside one and never push from one. See `reference/README.md`.
