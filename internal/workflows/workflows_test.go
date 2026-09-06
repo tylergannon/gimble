@@ -83,6 +83,41 @@ func TestBuiltinNamesMatchPipelineNames(t *testing.T) {
 	}
 }
 
+// --goal is only meaningful where a prompt expands it, so every workflow has
+// to carry the run goal into at least one agent turn.
+func TestEveryBuiltinCarriesTheRunGoalIntoAnAgentTurn(t *testing.T) {
+	t.Parallel()
+
+	for _, workflow := range workflows.List() {
+		t.Run(workflow.Name, func(t *testing.T) {
+			t.Parallel()
+			raw, err := workflows.Read(workflow.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pipeline, err := graph.ParseYAML(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, node := range pipeline.Nodes {
+				var prompt string
+				switch typed := node.(type) {
+				case *graph.AgentNode:
+					prompt = typed.PromptValue("")
+				case *graph.FanInNode:
+					prompt = typed.PromptValue("")
+				case *graph.FanOutNode:
+					prompt = typed.PromptValue("")
+				}
+				if strings.Contains(prompt, "$goal") {
+					return
+				}
+			}
+			t.Error("no agent prompt expands $goal, so --goal cannot steer this workflow")
+		})
+	}
+}
+
 func TestReadRejectsUnknownName(t *testing.T) {
 	t.Parallel()
 

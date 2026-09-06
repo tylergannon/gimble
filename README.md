@@ -150,18 +150,21 @@ tractor run sprint-execute --workdir . --logs .tractor/run
 | A specification exists and you want software from it | `delivery-loop` | `--goal`, naming the spec |
 | One repository promise needs advancing and a verdict recording | `promise-loop` | `$PROMISE_ID` |
 
-Some workflows read their work from the workspace — a ledger names every
-sprint, so nothing else is needed. The rest work on whatever you name, and
-take it from `--goal`, which replaces the pipeline's goal so that every
-`$goal` in a prompt expands to yours:
+`--goal` replaces the pipeline's goal, so every `$goal` in a prompt expands to
+yours. Every workflow carries it into its working prompts, so a goal always
+steers:
 
 ```sh
 tractor run delivery-loop --goal "Build what docs/SPEC.md describes" \
   --workdir . --logs .tractor/run
 ```
 
-Those refuse to start without one rather than running against the generic goal
-in their file, and `tractor workflows` marks them.
+Two of them are meaningless without it — there is no seed to plan and no
+specification to build — so they refuse to start without one rather than
+running against the generic goal in their file, and `tractor workflows` marks
+them. The rest already know their work: a ledger names every sprint, and
+`promise-loop` reads `PROMISE_ID` from the environment. For those a goal is a
+steer, not the assignment.
 
 A name resolves to a built-in only when no file of that name exists, so a
 pipeline on disk is never shadowed. `tractor workflows show <name> > mine.yaml`

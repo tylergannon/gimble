@@ -52,6 +52,9 @@ nodes:
     prompt: >
       Execute the current sprint, keeping the work aligned with the chapter
       it belongs to and inside that chapter's non-goals.
+
+      The run's goal, which frames the work but never replaces the current
+      item: $goal
     edges:
       - to: test
 
@@ -72,6 +75,9 @@ nodes:
       Review the work against the current sprint's document and the chapter
       it serves. Run the software yourself. Decide whether the sprint's
       claims are demonstrated.
+
+      The run's goal, which frames the work but never replaces the current
+      item: $goal
     edges:
       - to: sprints
         condition: The sprint is demonstrated and nothing material is missing.

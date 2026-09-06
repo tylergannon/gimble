@@ -77,12 +77,13 @@ rather than trusting this table, which cannot know the installed version.
 Pass the name where a pipeline path goes; a name resolves to a built-in only
 when no file of that name exists.
 
-`sprint-execute` and `chapter-loop` read their work from a ledger in the
-workspace and `promise-loop` reads `PROMISE_ID` from the environment, so those
-need only a workdir. `sprint-plan` and `delivery-loop` work on whatever the
-user names: pass it as `--goal`, which replaces the pipeline's goal so every
-`$goal` in a prompt expands to it. Both refuse to start without one, and the
-listing marks them. `tractor workflows show <name>` prints the
+Pass the user's ask as `--goal`: it replaces the pipeline's goal, and every
+workflow carries that into its working prompts. `sprint-plan` and
+`delivery-loop` are meaningless without one and refuse to start; the listing
+marks them. `sprint-execute` and `chapter-loop` iterate a ledger in the
+workspace and `promise-loop` reads `PROMISE_ID` from the environment, so for
+those a goal steers the run rather than assigning it, and a workdir alone is
+enough. `tractor workflows show <name>` prints the
 pipeline, so redirect it into a file when the user wants one changed, then use
 the copy. Prefer a built-in over authoring a graph when the moment matches one:
 they carry engine-owned done, cross-provider validation, and supervisors

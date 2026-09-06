@@ -26,12 +26,8 @@ pipeline on disk is never shadowed by one that ships.
 
 ## What a workflow works on
 
-Some read their work from the workspace. `sprint-execute` and `chapter-loop`
-iterate a ledger that already names every sprint or chapter, and `promise-loop`
-takes `PROMISE_ID` from the environment, so a workdir is all any of them needs.
-
-The rest work on whatever you name, and take it from `--goal`. That replaces
-the pipeline's goal, so every `$goal` in a prompt expands to yours:
+`--goal` replaces the pipeline's goal, and every workflow carries that into its
+working prompts, so a goal always steers the run:
 
 ```sh
 tractor run delivery-loop --goal "Build what docs/SPEC.md describes" \
@@ -41,8 +37,13 @@ tractor run sprint-plan --goal "Replace polling with server-sent events" \
   --workdir . --logs .tractor/run
 ```
 
-A workflow that needs a goal refuses to start without one rather than running
-against the generic goal its file carries, and `tractor workflows` marks it.
+What differs is whether a goal is the assignment or a steer. `sprint-plan` has
+nothing to plan and `delivery-loop` has nothing to build without one, so both
+refuse to start rather than running against the generic goal their file
+carries, and `tractor workflows` marks them. `sprint-execute` and
+`chapter-loop` iterate a ledger that already names every sprint, and
+`promise-loop` reads `PROMISE_ID` from the environment; a goal frames those
+without replacing the item in hand, and a workdir alone is enough to start.
 
 ## When to run which
 

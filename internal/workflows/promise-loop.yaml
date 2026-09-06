@@ -60,6 +60,9 @@ nodes:
       Take the smallest uncovered or stale slice this gate still needs.
       Review it with the promise's own tools and the authority its contract
       grants. Leave the evidence where this gate's command will find it.
+
+      The run's goal, which frames the work but never replaces the current
+      item: $goal
     edges:
       - to: gates
 

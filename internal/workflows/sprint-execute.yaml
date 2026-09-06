@@ -47,6 +47,9 @@ nodes:
       in order, and prove each phase before moving on. Commit as you go with
       specific paths. If something blocks you, record what is blocked and
       why, then continue with the next unblocked task.
+
+      The run's goal, which frames the work but never replaces the current
+      item: $goal
     edges:
       - to: test
 
@@ -67,6 +70,9 @@ nodes:
       Review the work against the current sprint's document. Run the software
       yourself; do not judge from the diff alone. Decide whether the sprint's
       claims are demonstrated.
+
+      The run's goal, which frames the work but never replaces the current
+      item: $goal
     edges:
       - to: sprints
         condition: The sprint is demonstrated and nothing material is missing.
