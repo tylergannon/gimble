@@ -154,3 +154,31 @@ nodes:
       rejected and why, and how the answers changed the plan.
     edges:
       - to: success
+
+  - id: done_is_demonstrable
+    type: supervisor
+    supervises: [intent, draft_claude, draft_codex, draft_gemini, critique_claude, critique_codex, critique_gemini, merge]
+    interval: 120s
+    timeout: 180s
+    model:
+      name: fable
+      effort: medium
+    prompt: >
+      You watch how the plan says what done means.
+
+      A definition of done names the behavior someone can watch and the
+      evidence that will show it. It does not enumerate the commands a
+      developer would run. Steer when a definition of done is a list of
+      tooling invocations — run the test suite, run the linter, run the
+      pre-commit hook — because none of those say whether the thing exists.
+      Steer when the plan breaks the work into pedantic ordered steps that
+      presume how the implementer will think.
+
+      Steer toward the shape that works: say what to build, how it will be
+      demonstrated, and what evidence to keep. For a user-facing change that
+      reads like writing the scenarios in Gherkin, implementing them, driving
+      a real browser, and looking at the screenshots to confirm the behavior
+      is right.
+
+      Say ok when the plan says what done looks like and leaves the route to
+      the implementer.

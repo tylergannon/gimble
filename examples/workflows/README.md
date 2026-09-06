@@ -79,6 +79,42 @@ Per-gate specifics live in each gate item's command, so the graph does not
 need to know what any one promise measures. Non-fulfilment finishes the run
 with a verdict instead of looping until something passes.
 
+## Supervisors
+
+Each workflow carries supervisors, named by the question they ask. A supervisor
+runs on its own patrol clock outside the walk, sees the live snapshot and the
+attempt digests, and either says ok or steers one named target with a message
+delivered to it verbatim. Most patrols should be ok; a supervisor that steers
+every time is noise.
+
+**`serves_the_requirement`** watches the coding and validating agents for work
+nobody asked for: speculative fixes, hardening against conditions the
+requirement never mentions, edge cases outside the stated outcome, a second
+mechanism where one already works.
+
+**`proof_is_evidence`** watches the validating agents for proof becoming a
+project of its own. Proof means running the software and recording what
+happened. It is not an ideal to be approached and never reached, and it is not
+a reason to invent requirements the work never promised. The steer is always
+toward the concrete: run the thing, capture the output or the screenshot, say
+whether it worked.
+
+**`done_is_demonstrable`** watches the planning agents for definitions of done
+that are lists of commands. A definition of done that reads
+
+    run go test ./...
+    run golangci-lint run ./...
+    run lefthook run pre-commit
+
+says nothing about whether the feature exists. One that reads
+
+    Build the feature described in the goal document. Write the scenarios in
+    Gherkin, implement them, use them to demonstrate the feature in a real
+    browser, then collect screenshots and look at them to confirm the
+    behavior is correct.
+
+says what done looks like and leaves the route to the implementer.
+
 ## What they need that does not exist yet
 
 - `sprint-execute` and `chapter-loop` want ledgers as markdown with YAML
