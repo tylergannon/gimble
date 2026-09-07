@@ -79,6 +79,7 @@ nodes:
 
   - id: coding
     type: agent
+    max_visits: 12
     model:
       name: gpt
     fidelity: full
@@ -90,6 +91,7 @@ nodes:
 
   - id: review
     type: agent
+    max_visits: 12
     model:
       name: claude-opus-5
     prompt: >

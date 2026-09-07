@@ -51,6 +51,7 @@ nodes:
 
   - id: implement
     type: agent
+    max_visits: 12
     model:
       name: claude-opus-5
     prompt: >
@@ -64,6 +65,7 @@ nodes:
 
   - id: review
     type: agent
+    max_visits: 12
     model:
       name: gpt
     prompt: >
