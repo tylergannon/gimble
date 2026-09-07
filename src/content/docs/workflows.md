@@ -48,12 +48,12 @@ it stops on the first node.
 
 ## When to run which
 
-| The situation | Workflow | What it works on |
-| --- | --- | --- |
-| A sprint ledger is planned and you want it worked to done | `sprint-execute` | `docs/sprints/ledger.md` |
-| A chapter's worth of work should run as one long run | `chapter-loop` | `docs/chapters/ledger.md` |
-| The next sprint needs planning properly, not off the cuff | `sprint-plan` | `--goal`, the seed |
-| A specification exists and you want software from it while you are away | `delivery-loop` | `--goal`, naming the spec |
+| The situation                                                           | Workflow         | What it works on          |
+| ----------------------------------------------------------------------- | ---------------- | ------------------------- |
+| A sprint ledger is planned and you want it worked to done               | `sprint-execute` | `docs/sprints/ledger.md`  |
+| A chapter's worth of work should run as one long run                    | `chapter-loop`   | `docs/chapters/ledger.md` |
+| The next sprint needs planning properly, not off the cuff               | `sprint-plan`    | `--goal`, the seed        |
+| A specification exists and you want software from it while you are away | `delivery-loop`  | `--goal`, naming the spec |
 
 ## What they have in common
 

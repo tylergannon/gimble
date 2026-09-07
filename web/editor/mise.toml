@@ -27,7 +27,7 @@ run = [
 [tasks.check]
 description = "svelte-check over the page."
 dir = "{{config_root}}"
-run = "svelte-check --tsconfig ./tsconfig.json"
+run = "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
 
 [tasks."dev:web"]
 description = "The vite dev server. Run `mise run build` once first: tractor embeds the build."

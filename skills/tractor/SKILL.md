@@ -66,12 +66,12 @@ the binary and run by name, with nothing to copy. `tractor workflows` lists
 what the installed binary carries and the situation each one is for — run it
 rather than trusting this table, which cannot know the installed version.
 
-| The moment                                            | Workflow         |
-| ----------------------------------------------------- | ---------------- |
-| "Work the sprint backlog until it's done"             | `sprint-execute` |
-| "Run the whole chapter, not one sprint"               | `chapter-loop`   |
-| "Plan the next sprint properly"                       | `sprint-plan`    |
-| "Build what this spec describes while I'm gone"       | `delivery-loop`  |
+| The moment                                      | Workflow         |
+| ----------------------------------------------- | ---------------- |
+| "Work the sprint backlog until it's done"       | `sprint-execute` |
+| "Run the whole chapter, not one sprint"         | `chapter-loop`   |
+| "Plan the next sprint properly"                 | `sprint-plan`    |
+| "Build what this spec describes while I'm gone" | `delivery-loop`  |
 
 Pass the name where a pipeline path goes; a name resolves to a built-in only
 when no file of that name exists.
