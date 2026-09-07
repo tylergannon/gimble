@@ -17,25 +17,28 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/tractor/internal/editor"
+	"github.com/tylergannon/tractor/internal/editor/server"
 )
 
 func newEditCommand() *cobra.Command {
-	var addr string
+	var addr, proxy string
 	var noOpen bool
 	command := &cobra.Command{
 		Use:   "edit <pipeline>",
 		Short: "Edit a pipeline in the browser",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
-			return runEditor(command, args[0], addr, noOpen)
+			return runEditor(command, args[0], addr, proxy, noOpen)
 		},
 	}
 	command.Flags().StringVar(&addr, "addr", "127.0.0.1:0", "listen address (loopback only)")
 	command.Flags().BoolVar(&noOpen, "no-open", false, "print the URL without opening a browser")
+	command.Flags().StringVar(&proxy, "proxy", "", "URL of a `vp dev` server to forward pages to while developing the editor page; empty serves the embedded build")
+	_ = command.Flags().MarkHidden("proxy")
 	return command
 }
 
-func runEditor(command *cobra.Command, pipeline, addr string, noOpen bool) error {
+func runEditor(command *cobra.Command, pipeline, addr, proxy string, noOpen bool) error {
 	path, err := filepath.Abs(pipeline)
 	if err != nil {
 		return fmt.Errorf("resolve pipeline path: %w", err)
@@ -55,7 +58,11 @@ func runEditor(command *cobra.Command, pipeline, addr string, noOpen bool) error
 		return fmt.Errorf("pipeline %q must end in .yaml or .yml; the editor writes YAML", pipeline)
 	}
 
-	server, err := editor.New(path, cliValidator(), editor.Dist())
+	store, err := editor.Open(path, cliValidator())
+	if err != nil {
+		return err
+	}
+	dist, err := server.Dist()
 	if err != nil {
 		return err
 	}
@@ -63,12 +70,21 @@ func runEditor(command *cobra.Command, pipeline, addr string, noOpen bool) error
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("http://%s/", listener.Addr())
+	// The origin is the URL printed below, and it is the only origin a save
+	// is accepted from: skgo refuses a command whose Origin header differs,
+	// which is kit's own cross-site rule. Browse the editor at this URL.
+	origin := "http://" + listener.Addr().String()
+	url := origin + "/"
+	handler, err := server.NewHandler(store, dist, proxy, origin)
+	if err != nil {
+		_ = listener.Close()
+		return err
+	}
 
 	ctx, stop := signal.NotifyContext(command.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	httpServer := &http.Server{
-		Handler:           server,
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}

@@ -8,13 +8,19 @@ export default defineConfig({
       "docs/**",
       "graph/**",
       "harness/**",
-      "internal/editor/dist/**",
+      "internal/editor/generated/**",
+      "internal/editor/jsonschema/**",
       "web/editor/**",
     ],
     singleQuote: false,
   },
   lint: {
-    ignorePatterns: ["ephemeral/**", "internal/editor/dist/**", "web/editor/**"],
+    ignorePatterns: [
+      "ephemeral/**",
+      "internal/editor/generated/**",
+      "internal/editor/jsonschema/**",
+      "web/editor/**",
+    ],
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
     rules: { "vite-plus/prefer-vite-plus-imports": "error" },
     // rsvelte-check owns type-checking because it generates the Svelte overlays

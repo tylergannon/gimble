@@ -82,8 +82,8 @@ func TestSupervisorPatrolSteersLiveTargetAndPersistsRecord(t *testing.T) {
 func TestSupervisorQuietScopeCostsNoTurn(t *testing.T) {
 	backend := newSupervisorBackend()
 	pipeline := graph.Graph{Start: "work", Nodes: []graph.Node{
-		&graph.CommandNode{NodeBase: graph.NodeBase{ID: "work"}, Command: "true", Edges: graph.CommandEdges{Success: graph.Success}},
-		&graph.SupervisorNode{NodeBase: graph.NodeBase{ID: "coach"}, Prompt: "watch", Supervises: []string{"work"}, Interval: optional(graph.Duration("200ms"))},
+		&graph.CommandNode{ID: "work", Command: "true", Edges: graph.CommandEdges{Success: graph.Success}},
+		&graph.SupervisorNode{ID: "coach", Prompt: "watch", Supervises: []string{"work"}, Interval: optional(graph.Duration("200ms"))},
 	}}
 	runner, err := NewRunner(pipeline, NewRegistry(), RunnerConfig{
 		LogsRoot: t.TempDir(), Workdir: t.TempDir(), Validate: func(graph.Graph) error { return nil }, Backend: backend,
@@ -105,7 +105,7 @@ func TestSupervisorTurnResolvesFableAliasAndRejectsUnknownSelection(t *testing.T
 		graph:  graph.Graph{Defaults: graph.Defaults{Model: modelSelection("fable", "", "")}},
 		config: RunnerConfig{Workdir: "/workspace", DefaultReasoningEffort: "high"},
 	}}
-	node := &graph.SupervisorNode{NodeBase: graph.NodeBase{ID: "coach"}, Supervises: []string{"work"}}
+	node := &graph.SupervisorNode{ID: "coach", Supervises: []string{"work"}}
 	turn, turnErr := service.supervisorTurn(node, "watch", "/logs/coach.jsonl")
 	if turnErr != nil {
 		t.Fatal(turnErr)
@@ -203,7 +203,7 @@ func TestFreshSupervisorBindingRequiresBriefing(t *testing.T) {
 	}
 	backend := newSupervisorBackend()
 	backend.bindings["coach"] = harness.ThreadBinding{Harness: "test", SessionID: "fresh", Workdir: "/work"}
-	runtime := &supervisorRuntime{node: &graph.SupervisorNode{NodeBase: graph.NodeBase{ID: "coach"}}, dir: dir}
+	runtime := &supervisorRuntime{node: &graph.SupervisorNode{ID: "coach"}, dir: dir}
 	service := &supervisionService{runner: &Runner{config: RunnerConfig{Backend: backend}}}
 	briefing, err := service.supervisorNeedsBriefing(runtime)
 	if err != nil || !briefing {
@@ -220,7 +220,7 @@ func TestSupervisorBindingCheckpointEventNamesSupervisor(t *testing.T) {
 	backend := newSupervisorBackend()
 	binding := harness.ThreadBinding{Harness: "test", SessionID: "coach-session", Workdir: t.TempDir()}
 	backend.bindings["coach"] = binding
-	runtime := &supervisorRuntime{node: &graph.SupervisorNode{NodeBase: graph.NodeBase{ID: "coach"}}}
+	runtime := &supervisorRuntime{node: &graph.SupervisorNode{ID: "coach"}}
 	runner := &Runner{
 		config: RunnerConfig{Backend: backend},
 		supervision: &supervisionService{
@@ -439,7 +439,7 @@ func TestSupervisorInboxRotationIsLosslessAndMonotonic(t *testing.T) {
 
 func TestSupervisorDigestTallyAcceptsOversizedLine(t *testing.T) {
 	dir := t.TempDir()
-	runtime := &supervisorRuntime{node: &graph.SupervisorNode{NodeBase: graph.NodeBase{ID: "coach"}}, dir: dir}
+	runtime := &supervisorRuntime{node: &graph.SupervisorNode{ID: "coach"}, dir: dir}
 	if err := runtime.append(attemptDigest{NodeID: "work", Disposition: "outcome", Notes: strings.Repeat("x", 128*1024)}); err != nil {
 		t.Fatal(err)
 	}
@@ -455,7 +455,7 @@ func TestSupervisorDigestTallyAcceptsOversizedLine(t *testing.T) {
 func TestOutOfScopeAttemptAppendsNothing(t *testing.T) {
 	dir := t.TempDir()
 	runtime := &supervisorRuntime{
-		node: &graph.SupervisorNode{NodeBase: graph.NodeBase{ID: "coach"}, Supervises: []string{"work"}},
+		node: &graph.SupervisorNode{ID: "coach", Supervises: []string{"work"}},
 		dir:  dir,
 	}
 	service := &supervisionService{all: []*supervisorRuntime{runtime}}
@@ -471,7 +471,7 @@ func TestSupervisorAppendFailureIsRecorded(t *testing.T) {
 		t.Fatal(err)
 	}
 	runtime := &supervisorRuntime{
-		node: &graph.SupervisorNode{NodeBase: graph.NodeBase{ID: "coach"}, Supervises: []string{"work"}},
+		node: &graph.SupervisorNode{ID: "coach", Supervises: []string{"work"}},
 		dir:  dir,
 	}
 	service := &supervisionService{all: []*supervisorRuntime{runtime}}
@@ -492,8 +492,8 @@ func TestSupervisorVerdictsFlowUpAndCoachingFlowsDown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lower := &supervisorRuntime{node: &graph.SupervisorNode{NodeBase: graph.NodeBase{ID: "lead"}, Supervises: []string{"work"}}, dir: filepath.Join(root, "supervisors", "lead")}
-	upper := &supervisorRuntime{node: &graph.SupervisorNode{NodeBase: graph.NodeBase{ID: "director"}, Supervises: []string{"lead"}}, dir: filepath.Join(root, "supervisors", "director")}
+	lower := &supervisorRuntime{node: &graph.SupervisorNode{ID: "lead", Supervises: []string{"work"}}, dir: filepath.Join(root, "supervisors", "lead")}
+	upper := &supervisorRuntime{node: &graph.SupervisorNode{ID: "director", Supervises: []string{"lead"}}, dir: filepath.Join(root, "supervisors", "director")}
 	for _, runtime := range []*supervisorRuntime{lower, upper} {
 		if err := os.MkdirAll(runtime.dir, 0o755); err != nil {
 			t.Fatal(err)
@@ -532,7 +532,7 @@ func TestMalformedSupervisorSteerDegradesToRecordedOK(t *testing.T) {
 		t.Fatal(err)
 	}
 	runtime := &supervisorRuntime{
-		node: &graph.SupervisorNode{NodeBase: graph.NodeBase{ID: "coach"}, Supervises: []string{"work"}},
+		node: &graph.SupervisorNode{ID: "coach", Supervises: []string{"work"}},
 		dir:  filepath.Join(root, "supervisors", "coach"),
 	}
 	service := &supervisionService{runner: &Runner{}, store: store, all: []*supervisorRuntime{runtime}, byID: map[string]*supervisorRuntime{"coach": runtime}}
@@ -551,9 +551,9 @@ func TestMalformedSupervisorSteerDegradesToRecordedOK(t *testing.T) {
 
 func supervisedTestGraph(interval graph.Duration) graph.Graph {
 	return graph.Graph{Goal: "ship the task", Start: "work", Nodes: []graph.Node{
-		&graph.AgentNode{NodeBase: graph.NodeBase{ID: "work"}, Edges: []graph.Edge{{To: graph.Success}}},
+		&graph.AgentNode{ID: "work", Edges: []graph.Edge{{To: graph.Success}}},
 		&graph.SupervisorNode{
-			NodeBase: graph.NodeBase{ID: "coach"}, Prompt: "Keep $goal bounded.", Supervises: []string{"work"}, Interval: optional(interval),
+			ID: "coach", Prompt: "Keep $goal bounded.", Supervises: []string{"work"}, Interval: optional(interval),
 		},
 	}}
 }

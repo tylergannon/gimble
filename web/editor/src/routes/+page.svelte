@@ -1,8 +1,8 @@
 <script lang="ts">
-	import Canvas from '$lib/components/Canvas.svelte';
-	import Header from '$lib/components/Header.svelte';
-	import Inspector from '$lib/components/Inspector.svelte';
-	import { Editor } from '$lib/store.svelte';
+	import Canvas from '#lib/components/Canvas.svelte';
+	import Header from '#lib/components/Header.svelte';
+	import Inspector from '#lib/components/Inspector.svelte';
+	import { Editor } from '#lib/store.svelte.ts';
 
 	const editor = new Editor();
 

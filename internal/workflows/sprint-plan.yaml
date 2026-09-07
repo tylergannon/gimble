@@ -172,7 +172,17 @@ nodes:
 
   - id: done_is_demonstrable
     type: supervisor
-    supervises: [intent, draft_claude, draft_codex, draft_gemini, critique_claude, critique_codex, critique_gemini, merge]
+    supervises:
+      [
+        intent,
+        draft_claude,
+        draft_codex,
+        draft_gemini,
+        critique_claude,
+        critique_codex,
+        critique_gemini,
+        merge,
+      ]
     interval: 180s
     timeout: 180s
     model:

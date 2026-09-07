@@ -1,0 +1,1 @@
+../../../../../web/editor/src/routes/editor.remote.go

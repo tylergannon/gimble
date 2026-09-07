@@ -13,8 +13,8 @@
 		normalizeBranch,
 		type Defaults,
 		type GraphNode
-	} from '$lib/model';
-	import type { Editor } from '$lib/store.svelte';
+	} from '#lib/model.ts';
+	import type { Editor } from '#lib/store.svelte.ts';
 	import Field, { type FieldVM } from './Field.svelte';
 	import NativeSelect from './NativeSelect.svelte';
 

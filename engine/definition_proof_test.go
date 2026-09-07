@@ -88,15 +88,15 @@ func TestDefinitionProofRunnerCodergenChoiceSchemaRoutesThroughHarnessBackend(t 
 	pipeline := testGraph(
 		startNode("start", "choose"),
 		&graph.AgentNode{
-			NodeBase: graph.NodeBase{ID: "choose"},
+			ID: "choose",
 			Edges: []graph.Edge{
 				{To: "left", Condition: "choose the left result"},
 				{To: "right", Condition: "choose the right result"},
 			},
-			LLMNodeFields: graph.LLMNodeFields{Prompt: optional("Select the better result")},
+			Prompt: optional("Select the better result"),
 		},
-		&graph.CommandNode{NodeBase: graph.NodeBase{ID: "left"}, Command: "true", Edges: graph.CommandEdges{Success: graph.Success}},
-		&graph.CommandNode{NodeBase: graph.NodeBase{ID: "right"}, Command: "true", Edges: graph.CommandEdges{Success: graph.Success}},
+		&graph.CommandNode{ID: "left", Command: "true", Edges: graph.CommandEdges{Success: graph.Success}},
+		&graph.CommandNode{ID: "right", Command: "true", Edges: graph.CommandEdges{Success: graph.Success}},
 	)
 	registry := NewRegistry()
 	registry.Register("agent", NewAgentHandler(AgentConfig{
@@ -185,7 +185,7 @@ func TestDefinitionProofParallelReplayUsesFreshWorktreeAndReboundSession(t *test
 	root := shortProofTempDir(t)
 	sends := filepath.Join(t.TempDir(), "sends.jsonl")
 	parallel := &graph.FanOutNode{
-		NodeBase:    graph.NodeBase{ID: "fanout"},
+		ID:          "fanout",
 		Branches:    graph.LegacyFanOutBranches("send", "other"),
 		MaxParallel: jsonschema.Optional[int]{Present: true, Value: 2},
 	}
@@ -193,15 +193,13 @@ func TestDefinitionProofParallelReplayUsesFreshWorktreeAndReboundSession(t *test
 		startNode("start", "fanout"),
 		parallel,
 		&graph.AgentNode{
-			NodeBase: graph.NodeBase{ID: "send"},
+			ID:       "send",
 			Edges:    []graph.Edge{{To: "join"}},
-			LLMNodeFields: graph.LLMNodeFields{
-				Prompt:   optional("perform the observable send"),
-				Fidelity: optional("full"),
-			},
+			Prompt:   optional("perform the observable send"),
+			Fidelity: optional("full"),
 		},
-		&graph.CommandNode{NodeBase: graph.NodeBase{ID: "other"}, Command: "true", Edges: graph.CommandEdges{Success: "join"}},
-		&graph.FanInNode{NodeBase: graph.NodeBase{ID: "join"}, Edges: []graph.Edge{{To: "done"}}},
+		&graph.CommandNode{ID: "other", Command: "true", Edges: graph.CommandEdges{Success: "join"}},
+		&graph.FanInNode{ID: "join", Edges: []graph.Edge{{To: "done"}}},
 		exitNode("done"),
 	)
 

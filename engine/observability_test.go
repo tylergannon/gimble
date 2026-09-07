@@ -28,7 +28,7 @@ func TestRunnerTimelineNarratesRetriesFanOutBranchesAndCheckpoints(t *testing.T)
 	root := t.TempDir()
 	retry := customNode("retry", "retry_task", []graph.Edge{{To: "fanout"}}, 0).(*graph.AgentNode)
 	retry.MaxRetries = jsonschema.Optional[int]{Present: true, Value: 1}
-	parallel := &graph.FanOutNode{NodeBase: graph.NodeBase{ID: "fanout"}, Branches: graph.LegacyFanOutBranches("left", "right")}
+	parallel := &graph.FanOutNode{ID: "fanout", Branches: graph.LegacyFanOutBranches("left", "right")}
 	parallel.MaxParallel = jsonschema.Optional[int]{Present: true, Value: 1}
 	pipeline := testGraph(
 		startNode("start", "retry"),
@@ -36,7 +36,7 @@ func TestRunnerTimelineNarratesRetriesFanOutBranchesAndCheckpoints(t *testing.T)
 		parallel,
 		customNode("left", "task", []graph.Edge{{To: "join"}}, 0),
 		customNode("right", "task", []graph.Edge{{To: "join"}}, 0),
-		&graph.FanInNode{NodeBase: graph.NodeBase{ID: "join"}, Edges: []graph.Edge{{To: "done"}}},
+		&graph.FanInNode{ID: "join", Edges: []graph.Edge{{To: "done"}}},
 		exitNode("done"),
 	)
 	pipeline.Name = "timeline-test"

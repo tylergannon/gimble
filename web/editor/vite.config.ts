@@ -1,30 +1,22 @@
-import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vite-plus';
+import skgo from './skgo-adapter.js';
 
 export default defineConfig({
 	plugins: [
 		sveltekit({
+			// The build is committed and embedded, so it is not compressed and
+			// carries a constant version: rebuilding unchanged source yields
+			// byte-identical files, and the tree shows no spurious diff.
+			adapter: skgo({ precompress: false }),
+			version: { name: 'tractor' },
+			experimental: { remoteFunctions: true },
 			compilerOptions: {
-				// Force runes mode for the project, except for libraries. Can be removed in svelte 6.
+				experimental: { async: true },
+				// Runes mode for the app's own files; libraries keep their default.
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
-			},
-			// A constant version keeps the committed bundle byte-identical across
-			// rebuilds of unchanged source; the default is a build timestamp.
-			version: { name: 'tractor' },
-			adapter: adapter({
-				pages: '../../internal/editor/dist',
-				assets: '../../internal/editor/dist',
-				fallback: 'index.html',
-				precompress: false,
-				strict: true
-			})
+			}
 		})
-	],
-	server: {
-		proxy: {
-			'/api': { target: 'http://127.0.0.1:7331', changeOrigin: false }
-		}
-	}
+	]
 });

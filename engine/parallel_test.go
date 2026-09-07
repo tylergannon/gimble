@@ -404,7 +404,7 @@ func TestParallelRunnerStopInterruptsActiveAndQueuedBranches(t *testing.T) {
 func parallelRunnerGraph(branchIDs []string, maxParallel int) graph.Graph {
 	nodes := make([]graph.Node, 0, len(branchIDs)+4)
 	nodes = append(nodes, startNode("start", "fanout"))
-	parallel := &graph.FanOutNode{NodeBase: graph.NodeBase{ID: "fanout"}}
+	parallel := &graph.FanOutNode{ID: "fanout"}
 	parallel.MaxParallel = jsonschema.Optional[int]{Present: true, Value: maxParallel}
 	parallel.Branches = graph.LegacyFanOutBranches(branchIDs...)
 	nodes = append(nodes, parallel)
@@ -412,7 +412,7 @@ func parallelRunnerGraph(branchIDs []string, maxParallel int) graph.Graph {
 		nodes = append(nodes, customNode(branchID, "task", []graph.Edge{{To: "join"}}, 0))
 	}
 	nodes = append(nodes,
-		&graph.FanInNode{NodeBase: graph.NodeBase{ID: "join"}, Edges: []graph.Edge{{To: "done"}}},
+		&graph.FanInNode{ID: "join", Edges: []graph.Edge{{To: "done"}}},
 		exitNode("done"),
 	)
 	return testGraph(nodes...)

@@ -1,0 +1,31 @@
+{
+	"appDir": "_app",
+	"base": "",
+	"version": "tractor",
+	"nodes": [
+		"",
+		"",
+		""
+	],
+	"routes": [
+		{
+			"id": "/",
+			"pattern": "^\\/$",
+			"params": [],
+			"endpoint": null,
+			"page": {
+				"layouts": [
+					0
+				],
+				"leaf": 2
+			}
+		}
+	],
+	"remotes": [
+		"1t7vxpr/getDoc",
+		"1t7vxpr/saveDoc",
+		"1t7vxpr/watchDoc"
+	],
+	"prerendered": [],
+	"precompressed": false
+}

@@ -62,6 +62,10 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/tylergannon/go-gen-jsonschema v1.0.0-rc.2 h1:rsd7ofJxI0KWx5fWx+q5K1if61zbrWqcsimnYh4tCjI=
 github.com/tylergannon/go-gen-jsonschema v1.0.0-rc.2/go.mod h1:pGhDY9FOuZ2HnZNbD8R0qtmr6D9cSGTHCIeHkr+pnqM=
+github.com/tylergannon/polytype v1.0.0-rc.10 h1:lixO3dCaT5r+1G7lwmdsnG49Gz7Hj7k02khu4zdWEdU=
+github.com/tylergannon/polytype v1.0.0-rc.10/go.mod h1:HjvaoQ55ionY6k/kb3WFIicPpO15zBBZwxX3n/+Yksg=
+github.com/tylergannon/skgo v0.0.0-20260907023726-c64663c68c74 h1:Ge4bBsO7XQ+v8xYZ5i5YpT0v9lD2JduI2BX9aC8Dzm8=
+github.com/tylergannon/skgo v0.0.0-20260907023726-c64663c68c74/go.mod h1:b36I1lUC8qjC7SRLwtvChHwDBz5gRgy/QdmK/2AM4qU=
 github.com/tylergannon/structtag v0.1.0 h1:Vn4ZEemGUtAfw9ddEtHQILKnIWqSWCSpciFTNPh1gcY=
 github.com/tylergannon/structtag v0.1.0/go.mod h1:Rjgg4hJfebaKNeyqoLh4n+zKhfVBdMyc7nBHIlQsVw0=
 github.com/yosida95/uritemplate/v3 v3.0.2 h1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zIM+UJPGz4=
@@ -69,8 +73,8 @@ github.com/yosida95/uritemplate/v3 v3.0.2/go.mod h1:ILOh0sOhIJR3+L/8afwt/kE++YT0
 go.yaml.in/yaml/v3 v3.0.4/go.mod h1:DhzuOOF2ATzADvBadXxruRBLzYTpT36CKvDb3+aBEFg=
 go.yaml.in/yaml/v4 v4.0.0-rc.6 h1:1h7H1ohdUh93/FyE4YaDa1Zh64K6VVbjF4K6WUxMtH4=
 go.yaml.in/yaml/v4 v4.0.0-rc.6/go.mod h1:aZqd9kCMsGL7AuUv/m/PvWLdg5sjJsZ4oHDEnfPPfY0=
-golang.org/x/mod v0.39.0 h1:UF5zwQdCRRUpHfyPwr7d4UrGiVeldIsogtzWVnczL74=
-golang.org/x/mod v0.39.0/go.mod h1:bvIbwjQ0HUFFf5AKukeeYQG4ZBUG9yxQbR9aEweIwYY=
+golang.org/x/mod v0.40.0 h1:hUv+3cXcdRHz08UmSiOob7sadHig73uo5bkXxQ/tvUs=
+golang.org/x/mod v0.40.0/go.mod h1:0/weTWkPWGBikyTWAX3dkjVztMmBA5hM0DH6BElSupE=
 golang.org/x/sync v0.22.0 h1:SZjpbeLmrCk4xhRSZFNZW5gFUeCeFgjekvI/+gfScek=
 golang.org/x/sync v0.22.0/go.mod h1:9xrNwdLfx4jkKbNva9FpL6vEN7evnE43NNNJQ2LF3+0=
 golang.org/x/sys v0.47.0 h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=

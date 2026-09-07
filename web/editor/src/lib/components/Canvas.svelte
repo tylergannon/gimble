@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { TriangleAlert, X } from '@lucide/svelte';
-	import { isBox } from '$lib/layout';
-	import { isTerminal } from '$lib/model';
-	import { buildScene } from '$lib/scene';
-	import type { Editor } from '$lib/store.svelte';
+	import { isBox } from '#lib/layout.ts';
+	import { isTerminal } from '#lib/model.ts';
+	import { buildScene } from '#lib/scene.ts';
+	import type { Editor } from '#lib/store.svelte.ts';
 
 	let { editor }: { editor: Editor } = $props();
 

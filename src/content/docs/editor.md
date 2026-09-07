@@ -23,6 +23,10 @@ to pick a port, or a fixed one such as `--addr 127.0.0.1:7331`; any address
 that is not loopback is refused. `--no-open` prints the URL without opening a
 browser, which is what you want over SSH.
 
+Browse the editor at the URL it prints. A save is a cross-site request from
+any other origin, and the server refuses it: opening the same port as
+`http://localhost:7331/` shows the graph but every save fails with 403.
+
 The pipeline must end in `.yaml` or `.yml`. The page always writes YAML, so a
 `.json` pipeline is rejected rather than silently rewritten.
 
@@ -65,15 +69,45 @@ pipeline with no sidecar is laid out automatically: columns by distance from
 `start`, supervisors in a row beneath, terminals on the right. The sidecar is
 written the first time you move or resize a node; commit it or ignore it.
 
+## How the page talks to the server
+
+The page is a SvelteKit app served by [skgo](https://github.com/tylergannon/skgo):
+Go owns the socket and answers every endpoint the page calls. The three calls
+are SvelteKit remote functions written in Go beside the route, in
+`web/editor/src/routes/editor.remote.go`:
+
+- `getDoc`, a query: the file, its layout sidecar, the lint diagnostics, and a
+  version hash of both files.
+- `saveDoc`, a command: writes the file, and the sidecar when a node moved,
+  provided the version the page quotes is still the one on disk. A stale save
+  writes nothing and returns what is on disk, which is how the page learns the
+  agent got there first.
+- `watchDoc`, a live query: a stream that announces the version on disk now
+  and again after every change, which is what makes the page follow the agent.
+
+`skgo generate` writes the `editor.remote.ts` the page imports, the
+TypeScript types in `web/editor/src/lib/skgo/editor/types.ts`, and the Go
+registration the server mounts. Every body in the generated `.remote.ts`
+throws, so a graph on screen is proof that Go answered.
+
 ## Rebuilding the page
 
-The page is a SvelteKit app in `web/editor`, compiled into the binary from
-`internal/editor/dist`. After changing anything under `web/editor/src`, run:
+The page lives in `web/editor`, is built by the skgo adapter into
+`web/editor/build`, and is compiled into the binary from there. The build is
+committed so `go install` needs no Node. After changing anything under
+`web/editor/src`, or any Go type that crosses to the page, run:
 
 ```sh
-pnpm --dir web/editor build
+cd web/editor && mise run build
 ```
 
-and rebuild `tractor`. The bundle uses a constant version string instead of a
-build timestamp, so rebuilding unchanged source produces byte-identical files
-and the committed `dist` shows no spurious diff.
+which installs the page's dependencies, runs `go generate` for the editor,
+builds the page, and rebuilds `tractor`. The bundle uses a constant version
+string instead of a build timestamp, so rebuilding unchanged source produces
+byte-identical files and the committed build shows no spurious diff.
+
+To work on the page with hot reload, run `mise run dev:web` in one terminal
+and `mise run dev:go` in another. The second starts `tractor edit` on port
+7331 with a hidden `--proxy` flag that forwards page requests to the vite dev
+server; remote functions are still answered by Go, so the page you are
+editing talks to the real server.

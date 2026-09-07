@@ -26,12 +26,10 @@ func TestFanInHandlerLoadsEvidenceAndDelegatesExactTurn(t *testing.T) {
 	})
 	backend := &captureBackend{outcome: harness.Outcome{Next: "accept", Notes: "selected A"}}
 	join := &graph.FanInNode{
-		NodeBase: graph.NodeBase{ID: "join"},
-		LLMNodeFields: graph.LLMNodeFields{
-			Prompt: optional("Compare candidates for $goal"), Model: modelSelection("claude-opus-4-6", "", "medium"),
-			Fidelity: optional("full"), ThreadID: optional("judge"),
-			Timeout: optional(graph.Duration("5s")),
-		},
+		ID:     "join",
+		Prompt: optional("Compare candidates for $goal"), Model: modelSelection("claude-opus-4-6", "", "medium"),
+		Fidelity: optional("full"), ThreadID: optional("judge"),
+		Timeout: optional(graph.Duration("5s")),
 	}
 	pipeline := fanInGraph(join)
 	offered := []graph.Edge{{To: "accept", Condition: "A candidate is ready"}, {To: "retry", Condition: "More work is needed"}}
@@ -72,7 +70,7 @@ func TestFanInHandlerUsesDefaultPrompt(t *testing.T) {
 		BranchID: "branch-a", Outcome: &harness.Outcome{Notes: "done"}, Notes: "done", Path: []string{"branch-a"},
 		Workdir: "/worktrees/a", StageDirs: []string{}, Segments: []string{},
 	}})
-	join := &graph.FanInNode{NodeBase: graph.NodeBase{ID: "join"}, LLMNodeFields: graph.LLMNodeFields{Prompt: optional("")}}
+	join := &graph.FanInNode{ID: "join", Prompt: optional("")}
 	outcome, runErr := NewFanInHandler(AgentConfig{DefaultModel: "gpt-5.3-codex"}).Execute(
 		join, []graph.Edge{{To: "accept"}}, ExecutionScope{Workdir: "/main", StageDir: stageDir, Stop: NewStopSignal()}, fanInGraph(join),
 	)
@@ -102,7 +100,7 @@ func TestFanInHandlerRejectsMissingMalformedOrEmptyEvidenceBeforeBackend(t *test
 		t.Run(test.name, func(t *testing.T) {
 			stageDir := prepareFanInStageRaw(t, test.evidence)
 			backend := &captureBackend{outcome: harness.Outcome{Notes: "must not run"}}
-			join := &graph.FanInNode{NodeBase: graph.NodeBase{ID: "join"}}
+			join := &graph.FanInNode{ID: "join"}
 			_, runErr := NewFanInHandler(AgentConfig{Backend: backend, DefaultModel: "gpt-5.3-codex"}).Execute(
 				join, []graph.Edge{{To: "accept"}}, ExecutionScope{Workdir: "/main", StageDir: stageDir, RunLog: filepath.Join(stageDir, "events.jsonl"), Stop: NewStopSignal()}, fanInGraph(join),
 			)
@@ -124,7 +122,7 @@ func TestFanInHandlerRejectsEvidenceForUnknownBranch(t *testing.T) {
 		BranchID: "stranger", Outcome: &harness.Outcome{Notes: "done"}, Notes: "done", Path: []string{"stranger"},
 		Workdir: "/worktrees/stranger", StageDirs: []string{}, Segments: []string{},
 	}})
-	join := &graph.FanInNode{NodeBase: graph.NodeBase{ID: "join"}}
+	join := &graph.FanInNode{ID: "join"}
 	backend := &captureBackend{}
 	_, runErr := NewFanInHandler(AgentConfig{Backend: backend, DefaultModel: "gpt-5.3-codex"}).Execute(
 		join, []graph.Edge{{To: "accept"}}, ExecutionScope{Workdir: "/main", StageDir: stageDir, RunLog: filepath.Join(stageDir, "events.jsonl"), Stop: NewStopSignal()}, fanInGraph(join),
@@ -139,10 +137,10 @@ func TestFanInHandlerRejectsAmbiguousOwnerBeforeBackend(t *testing.T) {
 	if err := os.MkdirAll(stageDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	join := &graph.FanInNode{NodeBase: graph.NodeBase{ID: "join"}}
+	join := &graph.FanInNode{ID: "join"}
 	pipeline := &graph.Graph{Nodes: []graph.Node{
-		&graph.FanOutNode{NodeBase: graph.NodeBase{ID: "first"}, Branches: graph.LegacyFanOutBranches("left")},
-		&graph.FanOutNode{NodeBase: graph.NodeBase{ID: "second"}, Branches: graph.LegacyFanOutBranches("right")},
+		&graph.FanOutNode{ID: "first", Branches: graph.LegacyFanOutBranches("left")},
+		&graph.FanOutNode{ID: "second", Branches: graph.LegacyFanOutBranches("right")},
 		customNode("left", "task", []graph.Edge{{To: "join"}}, 0),
 		customNode("right", "task", []graph.Edge{{To: "join"}}, 0),
 		join,
@@ -158,7 +156,7 @@ func TestFanInHandlerRejectsAmbiguousOwnerBeforeBackend(t *testing.T) {
 
 func fanInGraph(join *graph.FanInNode) *graph.Graph {
 	return &graph.Graph{Defaults: graph.Defaults{Model: modelSelection("gpt-5.2", "", "")}, Nodes: []graph.Node{
-		&graph.FanOutNode{NodeBase: graph.NodeBase{ID: "fanout"}, Branches: graph.LegacyFanOutBranches("branch-a", "branch-b")},
+		&graph.FanOutNode{ID: "fanout", Branches: graph.LegacyFanOutBranches("branch-a", "branch-b")},
 		customNode("branch-a", "task", []graph.Edge{{To: "join"}}, 0),
 		customNode("branch-b", "task", []graph.Edge{{To: "join"}}, 0),
 		join,

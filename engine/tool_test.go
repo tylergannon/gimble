@@ -79,9 +79,9 @@ func TestCommandHandlerExitCodeRouting(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			node := &graph.CommandNode{
-				NodeBase: graph.NodeBase{ID: "command"},
-				Command:  test.command,
-				Edges:    graph.CommandEdges{Success: test.onSuccess},
+				ID:      "command",
+				Command: test.command,
+				Edges:   graph.CommandEdges{Success: test.onSuccess},
 			}
 			if test.onFail != "" {
 				node.Edges.Error = optional(test.onFail)
@@ -157,9 +157,9 @@ func TestCommandHandlerRejectsExhaustedMechanicalRoute(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			node := &graph.CommandNode{
-				NodeBase: graph.NodeBase{ID: "command"},
-				Command:  test.command,
-				Edges:    graph.CommandEdges{Success: "passed", Error: optional("failed")},
+				ID:      "command",
+				Command: test.command,
+				Edges:   graph.CommandEdges{Success: "passed", Error: optional("failed")},
 			}
 			_, runErr := commandHandler(node, test.offered, toolScope(t.TempDir(), t.TempDir(), nil), nil)
 			if runErr == nil || runErr.Category != harness.ErrorTerminal ||
@@ -205,9 +205,9 @@ func TestCommandHandlerRejectsInvalidInputs(t *testing.T) {
 
 func toolNode(command, target string) *graph.CommandNode {
 	return &graph.CommandNode{
-		NodeBase: graph.NodeBase{ID: "command"},
-		Command:  command,
-		Edges:    graph.CommandEdges{Success: target},
+		ID:      "command",
+		Command: command,
+		Edges:   graph.CommandEdges{Success: target},
 	}
 }
 
