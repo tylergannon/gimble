@@ -131,6 +131,51 @@ Copy one into a git repo, change the goal and the check, run it:
 | "Have another model check this" | [`critique-circle.yaml`](examples/loops/critique-circle.yaml) |
 | Live supervision, steering, parallel fan-out | [`examples/`](examples/README.md) |
 
+## Or run a workflow that already ships
+
+The examples above are single shapes to copy and edit. Whole workflows ship
+inside the binary and run by name, with nothing to copy:
+
+```sh
+tractor workflows                       # what this binary carries
+tractor workflows show sprint-execute   # the pipeline itself
+tractor run sprint-execute --workdir . --logs .tractor/run
+```
+
+| The situation | Workflow | What it works on |
+| --- | --- | --- |
+| A sprint ledger is planned and you want it worked to done | `sprint-execute` | `docs/sprints/ledger.md` |
+| A chapter's worth of work should run as one long run | `chapter-loop` | `docs/chapters/ledger.md` |
+| The next sprint needs planning properly | `sprint-plan` | `--goal`, the seed |
+| A specification exists and you want software from it | `delivery-loop` | `--goal`, naming the spec |
+
+`--goal` replaces the pipeline's goal, so every `$goal` in a prompt expands to
+yours. Every workflow carries it into its working prompts, so a goal always
+steers:
+
+```sh
+tractor run delivery-loop --goal "Build what docs/SPEC.md describes" \
+  --workdir . --logs .tractor/run
+```
+
+Two of them are meaningless without it — there is no seed to plan and no
+specification to build — so they refuse to start without one rather than
+running against the generic goal in their file, and `tractor workflows` marks
+them. The other two already know their work: a ledger names every sprint. For
+those a goal is a steer, not the assignment, and the listing names the file
+each one reads so a missing ledger is a known precondition rather than a
+surprise on the first node.
+
+None of them hardcodes a test command. The mechanical proof of an item is the
+command that item carries, which the engine runs, so these work in a repository
+of any language.
+
+A name resolves to a built-in only when no file of that name exists, so a
+pipeline on disk is never shadowed. `tractor workflows show <name> > mine.yaml`
+gives you an ordinary pipeline to edit. The [workflow
+reference](internal/workflows/README.md) says what they have in common and how
+to adapt one.
+
 The [spec](docs/spec.md) is the sole normative definition of Tractor's
 Attractor variant; where anything else disagrees with it, the spec governs.
 

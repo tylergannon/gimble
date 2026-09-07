@@ -2,7 +2,7 @@
 title: Graph editor
 description: Open a pipeline file in the browser, edit nodes and edges with inline lint, and keep sharing the same YAML with the agent that is writing it.
 eyebrow: Operator guide
-order: 5
+order: 6
 sourceLabel: Browse the editor source
 sourceUrl: https://github.com/tylergannon/tractor/tree/main/web/editor
 ---

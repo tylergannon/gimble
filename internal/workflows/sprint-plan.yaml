@@ -1,0 +1,198 @@
+name: sprint-plan
+goal: >
+  Produce one sprint document from a seed: three independent drafts, mutual
+  critique, one round of human questions, one merge.
+start: intent
+
+defaults:
+  timeout: 1800s
+  fidelity: none
+  max_retries: 1
+  model:
+    name: claude-sonnet-5
+
+# Competitive planning as a graph. Three providers draft the same intent in
+# isolated worktrees, then each critiques the two drafts it did not write.
+# The engine runs the branches; nothing here backgrounds a shell or waits on
+# a process.
+#
+# The interview is a real gate: questions writes a numbered question file,
+# ask blocks until the answer file appears beside it, and merge reads the
+# answers. Drop those two nodes for an unattended plan.
+#
+# The output is the handoff to sprint-execute: a sprint document plus a ledger
+# entry in the checklist shape that workflow iterates. merge states that shape
+# because nothing else enforces it.
+nodes:
+  - id: intent
+    type: agent
+    model:
+      name: fable
+    prompt: >
+      $goal
+
+      Orient in this repository, then write drafts/INTENT.md: the seed, what
+      the repo already does about it, the constraints a plan must respect,
+      what success looks like, and the questions the drafts should answer.
+    edges:
+      - to: drafts
+
+  - id: drafts
+    type: fan_out
+    max_parallel: 3
+    branches:
+      - id: draft_claude
+        artifacts: [DRAFT.md]
+        agent:
+          model:
+            name: fable
+          prompt: >
+            Read drafts/INTENT.md and write your own sprint plan to DRAFT.md:
+            overview, architecture, phased implementation with files and
+            tasks, definition of done, risks, dependencies, open questions.
+      - id: draft_codex
+        artifacts: [DRAFT.md]
+        agent:
+          model:
+            name: gpt
+          prompt: >
+            Read drafts/INTENT.md and write your own sprint plan to DRAFT.md:
+            overview, architecture, phased implementation with files and
+            tasks, definition of done, risks, dependencies, open questions.
+      - id: draft_gemini
+        artifacts: [DRAFT.md]
+        agent:
+          model:
+            name: gemini-3.1-pro-low
+          prompt: >
+            Read drafts/INTENT.md and write your own sprint plan to DRAFT.md:
+            overview, architecture, phased implementation with files and
+            tasks, definition of done, risks, dependencies, open questions.
+    branch_edges:
+      - to: collect_drafts
+
+  - id: collect_drafts
+    type: fan_in
+    prompt: >
+      Copy each branch's DRAFT.md unchanged into this workspace as
+      drafts/<name>-draft.md, where <name> is claude, codex, or gemini.
+    edges:
+      - to: critiques
+
+  - id: critiques
+    type: fan_out
+    max_parallel: 3
+    branches:
+      - id: critique_claude
+        artifacts: [CRITIQUE.md]
+        agent:
+          model:
+            name: fable
+          prompt: >
+            Critique the two drafts in drafts/ that you did not write — yours
+            is drafts/claude-draft.md — in CRITIQUE.md. Judge architectural
+            soundness, phasing, risk coverage, feasibility, and definition of
+            done. Name the strongest idea in each and the gaps in both.
+      - id: critique_codex
+        artifacts: [CRITIQUE.md]
+        agent:
+          model:
+            name: gpt
+          prompt: >
+            Critique the two drafts in drafts/ that you did not write — yours
+            is drafts/codex-draft.md — in CRITIQUE.md. Judge architectural
+            soundness, phasing, risk coverage, feasibility, and definition of
+            done. Name the strongest idea in each and the gaps in both.
+      - id: critique_gemini
+        artifacts: [CRITIQUE.md]
+        agent:
+          model:
+            name: gemini-3.1-pro-low
+          prompt: >
+            Critique the two drafts in drafts/ that you did not write — yours
+            is drafts/gemini-draft.md — in CRITIQUE.md. Judge architectural
+            soundness, phasing, risk coverage, feasibility, and definition of
+            done. Name the strongest idea in each and the gaps in both.
+    branch_edges:
+      - to: collect_critiques
+
+  - id: collect_critiques
+    type: fan_in
+    prompt: >
+      Copy each branch's CRITIQUE.md unchanged into this workspace as
+      drafts/<name>-critique.md, where <name> is claude, codex, or gemini.
+    edges:
+      - to: questions
+
+  - id: questions
+    type: agent
+    max_visits: 3
+    model:
+      name: fable
+    prompt: >
+      Read the three drafts and the three critiques. Write
+      drafts/questions.md: the decisions that differ across the drafts and
+      that only the human can settle, numbered, each with the options seen in
+      the drafts and your recommendation. Ask nothing the drafts already
+      agree on.
+    edges:
+      - to: ask
+
+  - id: ask
+    type: command
+    command: |
+      set -eu
+      tractor ask drafts/questions.md --into interview
+    edges:
+      success: merge
+      error: questions
+
+  - id: merge
+    type: agent
+    model:
+      name: fable
+    prompt: >
+      Read the three drafts, the three critiques, and the answers in
+      interview/. Write the sprint document under docs/sprints/, then append
+      its entry to docs/sprints/ledger.md.
+
+      That ledger is a checklist file, which is what the sprint-execute
+      workflow iterates: YAML frontmatter holding an items list, each item
+      with a name, the check that proves it, the command that runs the check,
+      and a doc pointing at the sprint document. Add an infer block — files
+      and prompt — where the proof is a judgement over evidence rather than an
+      exit code. Write no done field on any item: the engine owns done, and an
+      agent-authored one is rejected. The markdown below the frontmatter is
+      the definition of done for the ledger as a whole.
+
+      Record in drafts/merge-notes.md which critiques you accepted, which you
+      rejected and why, and how the answers changed the plan.
+    edges:
+      - to: success
+
+  - id: done_is_demonstrable
+    type: supervisor
+    supervises: [intent, draft_claude, draft_codex, draft_gemini, critique_claude, critique_codex, critique_gemini, merge]
+    interval: 180s
+    timeout: 180s
+    model:
+      name: claude-sonnet-5
+    prompt: >
+      You watch how the plan says what done means.
+
+      A definition of done names the behavior someone can watch and the
+      evidence that will show it. It does not enumerate the commands a
+      developer would run. Steer when a definition of done is a list of
+      tooling invocations — run the test suite, run the linter, run the
+      pre-commit hook — because none of those say whether the thing exists.
+      Steer when the plan breaks the work into pedantic ordered steps that
+      presume how the implementer will think.
+
+      Steer toward the shape that works: say what to build, how it will be
+      demonstrated, and what evidence to keep. For a user-facing change that
+      reads like writing the scenarios in Gherkin, implementing them, driving
+      a real browser, and looking at the screenshots to confirm the behavior
+      is right.
+
+      Say ok when the plan says what done looks like and leaves the route to
+      the implementer.

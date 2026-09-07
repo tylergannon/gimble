@@ -1,0 +1,121 @@
+name: sprint-execute
+goal: >
+  Work the sprint ledger until every planned sprint is demonstrated and its
+  ledger entry is closed by the engine.
+start: sprints
+
+defaults:
+  timeout: 3600s
+  fidelity: none
+  max_retries: 1
+  model:
+    name: claude-sonnet-5
+
+# The sprint loop. The sprint ledger is the checklist: one item per sprint,
+# each carrying the command that demonstrates it, an optional infer judge,
+# and a doc pointing at that sprint's document. The loop re-reads the ledger
+# on every arrival, validates the sprint the previous lap worked on, and
+# marks it done itself. No agent writes done, so a sprint cannot be closed
+# by an agent that believes it finished.
+#
+# There is no test node. The mechanical gate is the ledger item's own command,
+# which the loop node runs on arrival, so nothing here has to know what
+# language this repository is written in or how it is built.
+#
+# The reviewer runs on another provider with fresh context, per the rule that
+# a sprint is demonstrated rather than asserted. It cannot route to success:
+# leaving the loop is the loop node's decision, made against the ledger's
+# definition of done.
+#
+# Once per-node skills land (issue #56), the sprint doctrine — ledger shape,
+# chapter links, the pyramid index, what a sprint may not do — moves out of
+# these prompts and onto the implement and review nodes as a skill.
+nodes:
+  - id: sprints
+    type: loop
+    checklist: docs/sprints/ledger.md
+    max_visits: 40
+    edges:
+      loop: implement
+      exit: success
+    goal_evaluator:
+      model:
+        name: fable
+
+  - id: implement
+    type: agent
+    model:
+      name: claude-opus-5
+    prompt: >
+      Execute the current sprint. Work through its document phase by phase,
+      in order, and prove each phase before moving on. Commit as you go with
+      specific paths. If something blocks you, record what is blocked and
+      why, then continue with the next unblocked task.
+
+      The run's goal, which frames the work but never replaces the current
+      item: $goal
+    edges:
+      - to: review
+
+  - id: review
+    type: agent
+    model:
+      name: gpt
+    prompt: >
+      Review the work against the current sprint's document. Run the software
+      yourself; do not judge from the diff alone. Decide whether the sprint's
+      claims are demonstrated.
+
+      The run's goal, which frames the work but never replaces the current
+      item: $goal
+    edges:
+      - to: sprints
+        condition: The sprint is demonstrated and nothing material is missing.
+      - to: implement
+        condition: Work remains, or the demonstration does not convince you.
+
+  - id: serves_the_requirement
+    type: supervisor
+    supervises: [implement, review]
+    interval: 180s
+    timeout: 180s
+    model:
+      name: claude-sonnet-5
+    prompt: >
+      You watch for work nobody asked for.
+
+      Steer when an agent is fixing something speculative, hardening against a
+      condition the requirement never mentions, handling edge cases that are
+      not part of the stated outcome, or adding a second mechanism where one
+      already works. Belt and suspenders is the failure, not the safeguard.
+
+      Say ok on every patrol where the work in flight is the work that was
+      asked for. Most patrols should be ok; a supervisor that steers
+      constantly is noise. When you do steer, name the specific thing to drop
+      and say why it is not part of the outcome.
+
+  - id: proof_is_evidence
+    type: supervisor
+    supervises: [review]
+    interval: 180s
+    timeout: 180s
+    model:
+      name: claude-sonnet-5
+    prompt: >
+      You watch for proof becoming a project of its own.
+
+      Proof here means running the software and recording what happened. It is
+      not an ideal to be approached and never reached: not exhaustive
+      coverage, not a harness that anticipates every input, not a suite that
+      outlives the requirement it was written for. Steer when an agent starts
+      building validation machinery instead of exercising the thing that was
+      built, when it invents requirements the work never promised so it can
+      test them, or when it treats a check it cannot construct as evidence
+      that the work is unfinished.
+
+      Steer toward the concrete: run the software the way someone would
+      actually use it, capture the output, the screenshot, or the recording,
+      and say plainly whether it worked.
+
+      Say ok whenever the agent is running the real thing and collecting
+      evidence of what it did.

@@ -32,6 +32,45 @@ Copy-and-run loop pipelines live in `examples/loops/` (also bundled with the
 
 `examples/loops/README.md` carries a symptom→fix table for misbehaving loops.
 
+## Built-in workflows
+
+Examples are single shapes to copy. Whole workflows ship inside the binary and
+run by name — `tractor run <name>` — with nothing to copy first. `tractor
+workflows` lists them with the situation each is for; `tractor workflows show
+<name>` prints the pipeline, so redirecting it into a file is how you adapt
+one. A name resolves to a built-in only when no file of that name exists.
+
+- `sprint-execute` — a planned sprint ledger worked to done, one sprint per
+  lap, each demonstrated before the engine closes it.
+- `chapter-loop` — the same shape nested: chapters holding sprints holding
+  coding and validation, all in one run.
+- `sprint-plan` — three independent drafts of the next sprint, mutual
+  critique, one round of questions to the human, one merge.
+- `delivery-loop` — a written specification to working software: plan,
+  cross-provider critique, then a loop the engine validates item by item.
+
+All four mark work done in the engine rather than trusting an agent to, run
+validation on a different provider from whoever wrote the code, and carry
+supervisors that coach without ever routing. None of them hardcodes a test
+command: the mechanical gate is whatever the checklist item names, so a
+workflow does not care what language the repository is written in.
+
+`--goal` on `tractor run` replaces the pipeline's goal, so every `$goal` in a
+prompt expands to yours. All four carry it into their working prompts, so a
+goal always steers:
+
+```
+tractor run delivery-loop --goal "Build what docs/SPEC.md describes" \
+  --workdir . --logs .tractor/run
+```
+
+`sprint-plan` and `delivery-loop` are meaningless without one — there is no
+seed to plan and no specification to build — so they refuse to start without
+it, and `tractor workflows` marks them. The other two already know their work:
+`sprint-execute` and `chapter-loop` each iterate a ledger the workspace must
+already hold, which the listing names. For those a goal frames the run without
+replacing the current item.
+
 ## Requirements
 
 - Codex with plugin marketplace support, or Claude Code with plugin support.

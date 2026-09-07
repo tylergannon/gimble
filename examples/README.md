@@ -21,3 +21,7 @@ spend tokens on a substantial coding task.
   checklist loop. Copy one, change the goal and the check, run it.
 
 Each directory documents the invocation and the observable success criteria.
+
+Larger workflows do not live here: they ship inside the binary. Run `tractor
+workflows` to list them, or read them in
+[`internal/workflows/`](../internal/workflows/README.md).

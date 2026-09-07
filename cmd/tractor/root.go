@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -18,6 +20,7 @@ import (
 	"github.com/tylergannon/tractor/harness/claude"
 	"github.com/tylergannon/tractor/harness/codex"
 	"github.com/tylergannon/tractor/internal/modelalias"
+	"github.com/tylergannon/tractor/internal/workflows"
 	"github.com/tylergannon/tractor/lint"
 )
 
@@ -34,7 +37,7 @@ func newRootCommand() *cobra.Command {
 		SilenceUsage:      true,
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	}
-	root.AddCommand(newAskCommand(), newAnswerCommand(), newValidateCommand(), newInspectModelsCommand(), newRunCommand(), newRunPromptCommand(), newEditCommand(), newPrintSchemaCommand(), newMCPCommand(), newMCPRunnerCommand(), newPluginCommand())
+	root.AddCommand(newAskCommand(), newAnswerCommand(), newValidateCommand(), newInspectModelsCommand(), newRunCommand(), newRunPromptCommand(), newEditCommand(), newWorkflowsCommand(), newPrintSchemaCommand(), newMCPCommand(), newMCPRunnerCommand(), newPluginCommand())
 	return root
 }
 
@@ -99,16 +102,20 @@ func newRunCommand() *cobra.Command {
 	var workdir string
 	var logsRoot string
 	var resume bool
+	var goal string
 	command := &cobra.Command{
 		Use:   "run [pipeline]",
 		Short: "Run a pipeline",
 		RunE: func(command *cobra.Command, args []string) error {
-			pipeline, _, err := loadPipeline(
+			pipeline, source, err := loadPipeline(
 				args,
 				inlineJSON, command.Flags().Changed("json"),
 				inlineYAML, command.Flags().Changed("yaml"),
 			)
 			if err != nil {
+				return err
+			}
+			if err := applyGoal(pipeline, source, goal, command.Flags().Changed("goal")); err != nil {
 				return err
 			}
 			return runPipeline(command, *pipeline, workdir, logsRoot, resume)
@@ -119,6 +126,7 @@ func newRunCommand() *cobra.Command {
 	command.Flags().StringVar(&workdir, "workdir", ".", "pipeline workspace")
 	command.Flags().StringVar(&logsRoot, "logs", "", "run log directory")
 	command.Flags().BoolVar(&resume, "resume", false, "resume from the logs checkpoint")
+	command.Flags().StringVar(&goal, "goal", "", "replace the pipeline's goal; every $goal in a prompt expands to this")
 	return command
 }
 
@@ -152,17 +160,56 @@ func loadPipeline(args []string, inlineJSON string, jsonSet bool, inlineYAML str
 		pipeline, err := graph.ParseYAML([]byte(inlineYAML))
 		return pipeline, "--yaml", err
 	}
-	raw, err := os.ReadFile(args[0])
+	return loadPipelineSource(args[0])
+}
+
+// loadPipelineSource reads a pipeline from a file, or from the built-in
+// catalogue when no such file exists. A file on disk always wins, so a local
+// pipeline is never shadowed by a workflow that ships in the binary.
+func loadPipelineSource(source string) (*graph.Graph, string, error) {
+	raw, err := os.ReadFile(source)
 	if err != nil {
-		return nil, "", fmt.Errorf("read pipeline %q: %w", args[0], err)
+		if !errors.Is(err, fs.ErrNotExist) {
+			return nil, "", fmt.Errorf("read pipeline %q: %w", source, err)
+		}
+		builtin, builtinErr := workflows.Read(source)
+		if builtinErr != nil {
+			return nil, "", fmt.Errorf(
+				"pipeline %q is neither a file nor a built-in workflow; built-in workflows are %s",
+				source, builtinPipelineHint(),
+			)
+		}
+		pipeline, parseErr := graph.ParseYAML(builtin)
+		return pipeline, source, parseErr
 	}
 	var pipeline *graph.Graph
-	if extension := strings.ToLower(filepath.Ext(args[0])); extension == ".yaml" || extension == ".yml" {
+	if extension := strings.ToLower(filepath.Ext(source)); extension == ".yaml" || extension == ".yml" {
 		pipeline, err = graph.ParseYAML(raw)
 	} else {
 		pipeline, err = graph.Parse(raw)
 	}
-	return pipeline, args[0], err
+	return pipeline, source, err
+}
+
+// applyGoal replaces the pipeline's goal with the one supplied at the command
+// line. A built-in workflow that exists to work on something the operator
+// names refuses to start without one, rather than running against the generic
+// goal its file carries.
+func applyGoal(pipeline *graph.Graph, source, goal string, goalSet bool) error {
+	if goalSet {
+		if strings.TrimSpace(goal) == "" {
+			return fmt.Errorf("--goal requires text")
+		}
+		pipeline.Goal = goal
+		return nil
+	}
+	if workflow, ok := workflows.Lookup(source); ok && workflow.NeedsGoal {
+		return fmt.Errorf(
+			"the %s workflow needs a goal: pass --goal with what it should work on.\n%s",
+			workflow.Name, workflow.GoalHint,
+		)
+	}
+	return nil
 }
 
 func runPipeline(command *cobra.Command, pipeline graph.Graph, workdir, logsRoot string, resume bool) error {
