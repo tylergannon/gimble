@@ -45,8 +45,10 @@ jobs:
           cache: true
       - run: vp install --frozen-lockfile
       - run: vp run check
-      - run: vp run build
-      - run: git diff --exit-code -- internal/editor/dist
+      # The skgo adapter reads skgo.remotes.json, which `go generate` wrote
+      # and the tree commits, so the page builds without Go.
+      - run: vp build
+      - run: git diff --exit-code -- web/editor/build
         working-directory: .
 
   deploy:
