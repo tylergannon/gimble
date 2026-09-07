@@ -92,21 +92,9 @@ func (h *loopHandler) Execute(node graph.Node, offered []graph.Edge, scope Execu
 			notes = fmt.Sprintf("item vanished: %s; ", frame.item)
 			h.runner.popFrame(loop.ID)
 		default:
-			records := make([]validationRecord, 0, len(list.Items))
-			allPassed := true
-			for index, candidate := range list.Items {
-				if !candidate.Done && candidate.Name != frame.item {
-					continue
-				}
-				logPath := filepath.Join(scope.StageDir, fmt.Sprintf("validation-%03d.log", index+1))
-				record, validateErr := h.validate(loop, candidate, logPath, scope, pipeline)
-				if validateErr != nil {
-					return harness.Outcome{}, validateErr
-				}
-				records = append(records, record)
-				if !record.Passed {
-					allPassed = false
-				}
+			records, allPassed, validateErr := h.validateSet(loop, list, frame.item, scope, pipeline)
+			if validateErr != nil {
+				return harness.Outcome{}, validateErr
 			}
 			report := validationReport{Validations: records}
 			if err := writeJSON(filepath.Join(scope.StageDir, "validation.json"), report); err != nil {
@@ -284,16 +272,91 @@ func (h *loopHandler) resolveChecklist(loop *graph.LoopNode, frame loopFrame, ha
 	return enclosing.itemChecklist, nil
 }
 
+// validateSet validates the framed item and every item already marked done,
+// against one instance of the application under test. The service is started
+// once for the whole set rather than once per item, which is what keeps a
+// browser validator affordable across a long loop.
+//
+// A service that never becomes ready fails every item in the set without
+// consulting a model. Inability to observe is a failure, never an absence of
+// findings, and there is no inconclusive verdict for a judge to reach for.
+func (h *loopHandler) validateSet(loop *graph.LoopNode, list *checklist.Checklist, framed string, scope ExecutionScope, pipeline *graph.Graph) ([]validationRecord, bool, *harness.Error) {
+	type candidate struct {
+		item  checklist.Item
+		index int
+	}
+	candidates := make([]candidate, 0, len(list.Items))
+	for index, item := range list.Items {
+		if !item.Done && item.Name != framed {
+			continue
+		}
+		candidates = append(candidates, candidate{item: item, index: index})
+	}
+
+	app, startErr := h.startAppUnderTest(scope)
+	switch {
+	case errors.Is(startErr, errShellStopped):
+		return nil, false, interruptedError("stopped by operator while starting the application")
+	case errors.Is(startErr, errServiceNotReady):
+		summary := serviceFailureSummary(startErr, filepath.Join(scope.StageDir, serviceLogName))
+		records := make([]validationRecord, 0, len(candidates))
+		for _, entry := range candidates {
+			records = append(records, validationRecord{Item: entry.item.Name, Command: entry.item.Command, Summary: summary})
+		}
+		if err := h.store.appendTimeline(timelineEvent{
+			"type": "ServiceUnavailable", "node": loop.ID, "reason": startErr.Error(),
+		}); err != nil {
+			return nil, false, terminalError(err.Error())
+		}
+		return records, false, nil
+	case startErr != nil:
+		return nil, false, terminalError(fmt.Sprintf("start %s: %v", ServiceFile, startErr))
+	}
+	if app != nil {
+		defer app.stop()
+	}
+
+	records := make([]validationRecord, 0, len(candidates))
+	allPassed := true
+	for _, entry := range candidates {
+		logPath := filepath.Join(scope.StageDir, fmt.Sprintf("validation-%03d.log", entry.index+1))
+		record, validateErr := h.validate(loop, entry.item, logPath, scope, pipeline, app)
+		if validateErr != nil {
+			return nil, false, validateErr
+		}
+		records = append(records, record)
+		if !record.Passed {
+			allPassed = false
+		}
+	}
+	return records, allPassed, nil
+}
+
+// startAppUnderTest starts the repository's service, if it declares one. A
+// repository with no service file validates exactly as it always has, so
+// nothing here changes a pipeline that does not want it.
+func (h *loopHandler) startAppUnderTest(scope ExecutionScope) (*service, error) {
+	command, present, err := readServiceCommand(scope.Workdir)
+	if err != nil || !present {
+		return nil, err
+	}
+	return startService(command, scope.Workdir, filepath.Join(scope.StageDir, serviceLogName), scope.Stop)
+}
+
 // validate runs the item's command and then its infer judge. An item with
 // neither passes. logPath is unique to this item within the loop stage.
-func (h *loopHandler) validate(loop *graph.LoopNode, item checklist.Item, logPath string, scope ExecutionScope, pipeline *graph.Graph) (validationRecord, *harness.Error) {
+func (h *loopHandler) validate(loop *graph.LoopNode, item checklist.Item, logPath string, scope ExecutionScope, pipeline *graph.Graph, app *service) (validationRecord, *harness.Error) {
 	record := validationRecord{Item: item.Name, Command: item.Command, LogPath: logPath}
 	if strings.TrimSpace(item.Command) != "" {
 		timeout, hasTimeout, timeoutErr := loopTimeout(loop)
 		if timeoutErr != nil {
 			return record, terminalError(timeoutErr.Error())
 		}
-		exitCode, err := runShell(item.Command, scope.Workdir, logPath, timeout, hasTimeout, scope.Stop)
+		var env []string
+		if app != nil {
+			env = app.env()
+		}
+		exitCode, err := runShell(item.Command, scope.Workdir, logPath, timeout, hasTimeout, scope.Stop, env)
 		switch {
 		case errors.Is(err, errShellStopped):
 			return record, interruptedError("validation command stopped by operator")

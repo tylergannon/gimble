@@ -71,6 +71,19 @@ it, and `tractor workflows` marks them. The other two already know their work:
 already hold, which the listing names. For those a goal frames the run without
 replacing the current item.
 
+## Starting the software under test
+
+A repository with a `.tractor/run` has it started by the engine on an
+allocated port, once per loop arrival, with `PORT` and `TRACTOR_URL` in the
+environment of every validation command. The contents go to `/bin/sh`, so
+`exec go run ./cmd/server`, `OVERMIND_PORT=$PORT exec overmind start`, and
+`exec docker compose up` are all just commands as far as Tractor is concerned.
+
+The engine picks the port so that nothing else can be mistaken for the build:
+a stale server from the previous lap, a developer's own instance, and a
+staging URL are all somewhere else by construction. An application that never
+accepts fails every item in the set without a model being consulted.
+
 ## Requirements
 
 - Codex with plugin marketplace support, or Claude Code with plugin support.

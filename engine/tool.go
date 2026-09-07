@@ -28,7 +28,7 @@ func commandHandler(node graph.Node, offered []graph.Edge, scope ExecutionScope,
 		return harness.Outcome{}, terminalError(timeoutErr.Error())
 	}
 	logPath := filepath.Join(scope.StageDir, "tool.log")
-	exitCode, err := runShell(command.Command, scope.Workdir, logPath, timeout, command.Timeout.Present, scope.Stop)
+	exitCode, err := runShell(command.Command, scope.Workdir, logPath, timeout, command.Timeout.Present, scope.Stop, nil)
 	switch {
 	case errors.Is(err, errShellStopped):
 		return harness.Outcome{}, interruptedError("command stopped by operator")
