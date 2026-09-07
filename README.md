@@ -46,6 +46,12 @@ the budget.
 
 ## Why
 
+Tractor serves [five arts of orchestration](docs/five-arts.md): making an agent
+actually do the work, splitting the work so no agent carries too much, helping
+a human define it, showing how it is going, and letting an observer steer it.
+They compete, and the document says how.
+
+
 - **Completion follows the evidence.** In a command-gated loop, the exit code
   selects the route. In a checklist loop, commands supply evidence, the item
   judge assesses inferred checks, and the goal evaluator decides whether the
