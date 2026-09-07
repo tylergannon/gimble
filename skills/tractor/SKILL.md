@@ -100,6 +100,20 @@ already.
    under `~/.local/state/tractor/mcp-runs` and outlives this session and any
    MCP restart — a later session reconnects with the same `run_id`.
 
+## Starting the software under test
+
+If the target repository has a `.tractor/run`, the engine starts it on a port
+it allocates, once per loop arrival, and exports `PORT` and `TRACTOR_URL` into
+every validation command. Point an item's `command` at `$TRACTOR_URL` and it
+is talking to the build, not to whatever was already listening. An application
+that never accepts fails every item in the set with no judge consulted.
+
+Write the file if the repo has none and the work is worth demonstrating: one
+shell command, whatever the project already uses — `exec go run ./cmd/server`,
+`OVERMIND_PORT=$PORT exec overmind start`, `exec docker compose up`. There is
+no readiness URL or port to configure, and a repository without the file
+behaves exactly as before.
+
 ## Make "done" honest
 
 In a command-gated loop, the command's exit code decides the route. Point it

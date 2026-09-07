@@ -28,11 +28,13 @@ func (f *shellFailure) Error() string { return f.Op + ": " + f.Err.Error() }
 func (f *shellFailure) Unwrap() error { return f.Err }
 
 // runShell runs command through /bin/sh -c in workdir with stdout and stderr
-// written to a fresh log file at logPath. The command runs in its own
-// process group, which is killed when stop is set or, when hasTimeout is
-// true, when timeout elapses. The returned error is errShellStopped,
-// errShellTimedOut, or a *shellFailure; otherwise the exit code is returned.
-func runShell(command, workdir, logPath string, timeout time.Duration, hasTimeout bool, stop *StopSignal) (int, error) {
+// written to a fresh log file at logPath. env holds extra variables layered
+// over the engine's own environment, which is how a command reaches the
+// service the engine started. The command runs in its own process group,
+// which is killed when stop is set or, when hasTimeout is true, when timeout
+// elapses. The returned error is errShellStopped, errShellTimedOut, or a
+// *shellFailure; otherwise the exit code is returned.
+func runShell(command, workdir, logPath string, timeout time.Duration, hasTimeout bool, stop *StopSignal, env []string) (int, error) {
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
 	if err != nil {
 		return 0, &shellFailure{Op: "open log", Err: err}
@@ -56,6 +58,9 @@ func runShell(command, workdir, logPath string, timeout time.Duration, hasTimeou
 
 	process := exec.CommandContext(ctx, "/bin/sh", "-c", command)
 	process.Dir = workdir
+	if len(env) > 0 {
+		process.Env = append(os.Environ(), env...)
+	}
 	process.Stdout = logFile
 	process.Stderr = logFile
 	process.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
