@@ -112,7 +112,7 @@ func TestWorkflowsListingMarksTheOnesThatNeedAGoal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, line := range strings.Split(strings.TrimSpace(stdout), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(stdout), "\n") {
 		name, _, _ := strings.Cut(line, " ")
 		workflow, ok := workflows.Lookup(name)
 		if !ok {
