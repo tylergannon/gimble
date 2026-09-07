@@ -1,5 +1,12 @@
 # Tractor repository instructions
 
+## What Tractor is for
+
+`docs/five-arts.md` names the five arts of orchestration this project exists to
+serve, and the tensions between them. Read it before proposing a feature, so a
+change that serves one art at another's expense is proposed as that trade
+rather than as a straight improvement.
+
 ## Releases
 
 For every request to release, publish, tag, bump a version, or update Tractor's
