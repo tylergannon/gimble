@@ -161,3 +161,46 @@ func TestNeedsNamesAChecklistTheWorkflowReads(t *testing.T) {
 		}
 	}
 }
+
+// An agent inside a loop body must carry a visit budget. The loop node's own
+// max_visits guards arrivals at the loop, which a cycle between two body
+// agents never reaches — so a reviewer that keeps routing back to the coder
+// runs forever. v0.9.0 shipped three workflows that could do exactly that.
+func TestEveryAgentInALoopBodyIsBounded(t *testing.T) {
+	t.Parallel()
+	for _, workflow := range workflows.List() {
+		raw, err := workflows.Read(workflow.Name)
+		if err != nil {
+			t.Fatalf("read %s: %v", workflow.Name, err)
+		}
+		pipeline, err := graph.ParseYAML(raw)
+		if err != nil {
+			t.Fatalf("parse %s: %v", workflow.Name, err)
+		}
+		byID := map[string]graph.Node{}
+		for _, node := range pipeline.Nodes {
+			byID[node.Base().ID] = node
+		}
+		for _, node := range pipeline.Nodes {
+			loop, ok := node.(*graph.LoopNode)
+			if !ok {
+				continue
+			}
+			body, found := lint.LoopBodyNodes(*pipeline, loop.ID)
+			if !found {
+				t.Errorf("%s: no body node-set for loop %q", workflow.Name, loop.ID)
+				continue
+			}
+			for _, id := range body {
+				agent, isAgent := byID[id].(*graph.AgentNode)
+				if !isAgent {
+					continue
+				}
+				if !agent.MaxVisits.Present || agent.MaxVisits.Value <= 0 {
+					t.Errorf("%s: agent %q is in loop %q's body with no max_visits; a cycle between body agents never reaches the loop node's own budget",
+						workflow.Name, id, loop.ID)
+				}
+			}
+		}
+	}
+}
