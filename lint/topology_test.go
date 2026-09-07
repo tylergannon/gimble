@@ -24,8 +24,8 @@ func TestFanOutForFanInRejectsMissingOrAmbiguousOwner(t *testing.T) {
 	}
 
 	ambiguous := graph.Graph{Start: "first", Nodes: []graph.Node{
-		&graph.FanOutNode{NodeBase: graph.NodeBase{ID: "first"}, Branches: graph.LegacyFanOutBranches("left")},
-		&graph.FanOutNode{NodeBase: graph.NodeBase{ID: "second"}, Branches: graph.LegacyFanOutBranches("right")},
+		&graph.FanOutNode{ID: "first", Branches: graph.LegacyFanOutBranches("left")},
+		&graph.FanOutNode{ID: "second", Branches: graph.LegacyFanOutBranches("right")},
 		codergen("left", edge("join")),
 		codergen("right", edge("join")),
 		fanIn("join"),

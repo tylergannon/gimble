@@ -925,17 +925,17 @@ func testGraph(nodes ...graph.Node) graph.Graph {
 }
 
 func startNode(id, next string) graph.Node {
-	node := &graph.AgentNode{NodeBase: graph.NodeBase{ID: id}, Edges: []graph.Edge{{To: next}}}
+	node := &graph.AgentNode{ID: id, Edges: []graph.Edge{{To: next}}}
 	node.Prompt = optional("__test_start__")
 	return node
 }
 
 func exitNode(id string) graph.Node {
-	return &graph.SupervisorNode{NodeBase: graph.NodeBase{ID: id}, Prompt: "__test_exit__"}
+	return &graph.SupervisorNode{ID: id, Prompt: "__test_exit__"}
 }
 
 func customNode(id, nodeType string, edges []graph.Edge, maxVisits int) graph.Node {
-	node := &graph.AgentNode{NodeBase: graph.NodeBase{ID: id}, Edges: edges}
+	node := &graph.AgentNode{ID: id, Edges: edges}
 	if maxVisits > 0 {
 		node.MaxVisits = jsonschema.Optional[int]{Present: true, Value: maxVisits}
 	}

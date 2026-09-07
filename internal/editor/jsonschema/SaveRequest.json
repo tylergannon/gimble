@@ -1,0 +1,14 @@
+{"type":"object",
+"description":"SaveRequest is what the page sends to write the file.","properties":{
+"yaml":{"type":"string","description":"YAML is the whole file to write."},
+"layout":{"type":"array","description":"Layout is the placements to write to the sidecar when WriteLayout is set.","items":{"type":"object",
+"description":"Placement is where one node sits on the canvas.","properties":{
+"id":{"type":"string","description":"ID is the node's id in the pipeline."},
+"x":{"type":"number","description":"X is the left edge, in canvas units."},
+"y":{"type":"number","description":"Y is the top edge, in canvas units."},
+"w":{"type":"number","description":"W is the width; zero means the page decides."},
+"h":{"type":"number","description":"H is the height; zero means the page decides."}
+},"required":["id","x","y","w","h"],"additionalProperties":false}},
+"write_layout":{"type":"boolean","description":"WriteLayout says whether to write the sidecar at all. A page that has not moved a node leaves a pipeline without one alone."},
+"version":{"type":"string","description":"Version is the Document.Version the page last saw. A save against any other version is refused and the current document is returned instead."}
+},"required":["yaml","layout","write_layout","version"],"additionalProperties":false}

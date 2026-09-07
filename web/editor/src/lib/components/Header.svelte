@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Minus, Moon, Plus, Sun } from '@lucide/svelte';
-	import { NODE_TYPES, type NodeType } from '$lib/model';
-	import type { Editor } from '$lib/store.svelte';
+	import { NODE_TYPES, type NodeType } from '#lib/model.ts';
+	import type { Editor } from '#lib/store.svelte.ts';
 	import NativeSelect from './NativeSelect.svelte';
 
 	let { editor }: { editor: Editor } = $props();

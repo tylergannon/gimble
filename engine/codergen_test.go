@@ -23,14 +23,12 @@ func TestAgentHandlerBuildsExactTurnSchemaAndArtifacts(t *testing.T) {
 		DefaultReasoningEffort: "low",
 	})
 	node := &graph.AgentNode{
-		NodeBase: graph.NodeBase{ID: "plan", Label: optional("Plan")},
-		LLMNodeFields: graph.LLMNodeFields{
-			Prompt:   optional("Do $goal, then $goal"),
-			Model:    modelSelection("claude-opus-4-6", "", "high"),
-			Fidelity: optional("none"),
-			ThreadID: optional("ignored-thread"),
-			Timeout:  optional(graph.Duration("3s")),
-		},
+		ID: "plan", Label: optional("Plan"),
+		Prompt:   optional("Do $goal, then $goal"),
+		Model:    modelSelection("claude-opus-4-6", "", "high"),
+		Fidelity: optional("none"),
+		ThreadID: optional("ignored-thread"),
+		Timeout:  optional(graph.Duration("3s")),
 	}
 	pipeline := &graph.Graph{
 		Goal: "unused graph goal",
@@ -41,8 +39,8 @@ func TestAgentHandlerBuildsExactTurnSchemaAndArtifacts(t *testing.T) {
 		},
 		Nodes: []graph.Node{
 			node,
-			&graph.AgentNode{NodeBase: graph.NodeBase{ID: "implement", Label: optional("Implement")}},
-			&graph.AgentNode{NodeBase: graph.NodeBase{ID: "review", Label: optional("Review")}},
+			&graph.AgentNode{ID: "implement", Label: optional("Implement")},
+			&graph.AgentNode{ID: "review", Label: optional("Review")},
 		},
 	}
 	offered := []graph.Edge{
@@ -173,7 +171,7 @@ func TestAgentHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.T) 
 		t.Run(test.name, func(t *testing.T) {
 			backend := &captureBackend{outcome: harness.Outcome{Notes: "ok"}}
 			test.config.Backend = backend
-			node := &graph.AgentNode{NodeBase: graph.NodeBase{ID: "work", Label: optional("Work")}, LLMNodeFields: test.nodeFields}
+			node := &graph.AgentNode{ID: "work", Label: optional("Work"), LLMNodeFields: test.nodeFields}
 			pipeline := &graph.Graph{Defaults: test.defaults, Nodes: []graph.Node{node, exitNode("done")}}
 			stageDir := t.TempDir()
 			_, runErr := NewAgentHandler(test.config).Execute(node, []graph.Edge{{To: "done"}}, ExecutionScope{
@@ -193,8 +191,8 @@ func TestAgentHandlerResolutionPrecedenceAndProviderAutodetection(t *testing.T) 
 
 func TestAgentHandlerRejectsUnknownModelProvider(t *testing.T) {
 	node := &graph.AgentNode{
-		NodeBase:      graph.NodeBase{ID: "work"},
-		LLMNodeFields: graph.LLMNodeFields{Model: modelSelection("mystery-model", "", "")},
+		ID:    "work",
+		Model: modelSelection("mystery-model", "", ""),
 	}
 	pipeline := &graph.Graph{Nodes: []graph.Node{node, exitNode("done")}}
 	stageDir := t.TempDir()
@@ -221,7 +219,7 @@ func TestChoiceSchemaOmitsNextForZeroOrOneSuccessor(t *testing.T) {
 
 func TestChoiceSchemaRouteDescriptionFallsBackToLabelThenID(t *testing.T) {
 	pipeline := &graph.Graph{Nodes: []graph.Node{
-		&graph.SupervisorNode{NodeBase: graph.NodeBase{ID: "retry", Label: optional("Try again")}, Prompt: "__test_exit__"},
+		&graph.SupervisorNode{ID: "retry", Label: optional("Try again"), Prompt: "__test_exit__"},
 		exitNode("done"),
 	}}
 	schema, err := choiceSchema([]graph.Edge{{To: "retry"}, {To: "done"}}, pipeline)
@@ -247,8 +245,8 @@ func TestAgentHandlerSimulationRoutingAndPromptFallback(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			stageDir := t.TempDir()
 			node := &graph.AgentNode{
-				NodeBase:      graph.NodeBase{ID: "plan", Label: optional("Plan $goal")},
-				LLMNodeFields: graph.LLMNodeFields{Prompt: optional("")},
+				ID: "plan", Label: optional("Plan $goal"),
+				Prompt: optional(""),
 			}
 			pipeline := &graph.Graph{Nodes: []graph.Node{node, exitNode("left"), exitNode("right")}}
 			outcome, runErr := NewAgentHandler(AgentConfig{DefaultModel: "gpt-5.3-codex"}).Execute(
@@ -276,7 +274,7 @@ func TestAgentHandlerPassesBackendErrorUnchanged(t *testing.T) {
 	stageDir := t.TempDir()
 	wantError := &harness.Error{Category: harness.ErrorRetryable, Message: "try later"}
 	backend := &captureBackend{runErr: wantError}
-	node := &graph.AgentNode{NodeBase: graph.NodeBase{ID: "work", Label: optional("Work")}}
+	node := &graph.AgentNode{ID: "work", Label: optional("Work")}
 	_, runErr := NewAgentHandler(AgentConfig{Backend: backend, DefaultModel: "gpt-5.3-codex"}).Execute(
 		node, []graph.Edge{{To: "done"}}, ExecutionScope{Workdir: "/workspace", StageDir: stageDir, RunLog: filepath.Join(stageDir, "events.jsonl"), Stop: NewStopSignal()},
 		&graph.Graph{Nodes: []graph.Node{node, exitNode("done")}},
@@ -302,7 +300,7 @@ func TestAgentHandlerRejectsInvalidResolvedTurnInSimulation(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			stageDir := t.TempDir()
-			node := &graph.AgentNode{NodeBase: graph.NodeBase{ID: "work", Label: optional("Work")}, LLMNodeFields: test.fields}
+			node := &graph.AgentNode{ID: "work", Label: optional("Work"), LLMNodeFields: test.fields}
 			_, runErr := NewAgentHandler(test.config).Execute(
 				node, []graph.Edge{{To: "done"}}, ExecutionScope{Workdir: "/workspace", StageDir: stageDir, Stop: NewStopSignal()},
 				&graph.Graph{Nodes: []graph.Node{node, exitNode("done")}},

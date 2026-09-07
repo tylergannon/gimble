@@ -126,7 +126,7 @@ func (g *Graph) expandFanOutBranches() error {
 
 func resolveFanOutAgent(parent *FanOutNode, branch FanOutBranch) *AgentNode {
 	resolved := &AgentNode{
-		NodeBase:      NodeBase{ID: branch.ID, Label: parent.Label},
+		ID: branch.ID, Label: parent.Label,
 		Edges:         append([]Edge(nil), parent.BranchEdges...),
 		LLMNodeFields: parent.LLMNodeFields,
 		synthesized:   true,

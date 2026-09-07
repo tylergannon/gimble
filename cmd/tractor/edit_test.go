@@ -12,6 +12,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/tylergannon/polytype/devalue"
+	"github.com/tylergannon/tractor/internal/editor/generated"
 )
 
 // lineWriter delivers the first complete line written to it over a channel.
@@ -70,7 +73,18 @@ func TestEditPrintsURLAndServesDocument(t *testing.T) {
 		t.Fatalf("url = %q", url)
 	}
 
-	response, err := http.Get(url + "api/doc")
+	// The page reads the document through the getDoc remote function, which
+	// kit's client addresses by the id `skgo generate` gave it.
+	var id string
+	for _, r := range generated.Remotes() {
+		if r.Name() == "getDoc" {
+			id = r.ID()
+		}
+	}
+	if id == "" {
+		t.Fatal("no getDoc remote function is registered")
+	}
+	response, err := http.Get(url + "_app/remote/" + id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,21 +94,37 @@ func TestEditPrintsURLAndServesDocument(t *testing.T) {
 		t.Fatal(err)
 	}
 	if response.StatusCode != http.StatusOK {
-		t.Fatalf("GET /api/doc = %d: %s", response.StatusCode, body)
+		t.Fatalf("getDoc = %d: %s", response.StatusCode, body)
 	}
-	var document struct {
-		Path        string          `json:"path"`
-		YAML        string          `json:"yaml"`
-		Diagnostics json.RawMessage `json:"diagnostics"`
-		ParseError  string          `json:"parse_error"`
+	var envelope struct {
+		Type string `json:"type"`
+		Data string `json:"data"`
 	}
-	if err := json.Unmarshal(body, &document); err != nil {
+	if err := json.Unmarshal(body, &envelope); err != nil {
 		t.Fatalf("decode: %v\n%s", err, body)
 	}
-	if document.Path != pipeline || document.YAML != string(source) || document.ParseError != "" {
-		t.Fatalf("document = %+v", document)
+	if envelope.Type != "result" {
+		t.Fatalf("response = %s", body)
 	}
-	if string(document.Diagnostics) == "null" {
+	parsed, err := devalue.Parse(envelope.Data, nil)
+	if err != nil {
+		t.Fatalf("devalue: %v", err)
+	}
+	value, _ := parsed.(*devalue.Object).Get("_")
+	document, ok := value.(*devalue.Object)
+	if !ok {
+		t.Fatalf("document = %#v", value)
+	}
+	if path, _ := document.Get("path"); path != pipeline {
+		t.Fatalf("path = %#v", path)
+	}
+	if yaml, _ := document.Get("yaml"); yaml != string(source) {
+		t.Fatalf("yaml = %#v", yaml)
+	}
+	if parseError, _ := document.Get("parse_error"); parseError != "" {
+		t.Fatalf("parse_error = %#v", parseError)
+	}
+	if diagnostics, _ := document.Get("diagnostics"); diagnostics == nil {
 		t.Fatal("diagnostics is null")
 	}
 

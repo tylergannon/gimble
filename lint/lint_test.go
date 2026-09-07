@@ -322,7 +322,7 @@ func TestSupervisorValidationDetails(t *testing.T) {
 
 func TestPseudoTargetsAndMechanicalToolRoutes(t *testing.T) {
 	g := graph.Graph{Start: "check", Nodes: []graph.Node{
-		&graph.CommandNode{NodeBase: graph.NodeBase{ID: "check"}, Command: "true", Edges: graph.CommandEdges{Success: graph.Success, Error: set(graph.Success)}},
+		&graph.CommandNode{ID: "check", Command: "true", Edges: graph.CommandEdges{Success: graph.Success, Error: set(graph.Success)}},
 	}}
 	diagnostics := lint.Validate(g)
 	assertNoRule(t, diagnostics, "edge_target_exists")
@@ -419,7 +419,7 @@ func validLinear() graph.Graph {
 
 func validParallel() graph.Graph {
 	return graph.Graph{Start: "parallel", Nodes: []graph.Node{
-		&graph.FanOutNode{NodeBase: graph.NodeBase{ID: "parallel"}, Branches: graph.LegacyFanOutBranches("left", "right")},
+		&graph.FanOutNode{ID: "parallel", Branches: graph.LegacyFanOutBranches("left", "right")},
 		codergen("left", edge("join")),
 		codergen("right", edge("join")),
 		fanIn("join", edge(graph.Success)),
@@ -436,7 +436,7 @@ func overlappingParallel() graph.Graph {
 
 func nestedParallel() graph.Graph {
 	g := validParallel()
-	g.Nodes = append(g.Nodes, &graph.FanOutNode{NodeBase: graph.NodeBase{ID: "nested"}, Branches: graph.LegacyFanOutBranches("join")})
+	g.Nodes = append(g.Nodes, &graph.FanOutNode{ID: "nested", Branches: graph.LegacyFanOutBranches("join")})
 	coder(g, "left").Edges = []graph.Edge{edge("nested")}
 	return g
 }
@@ -514,15 +514,15 @@ func sharedThreadLinear() graph.Graph {
 }
 
 func codergen(id string, edges ...graph.Edge) *graph.AgentNode {
-	return &graph.AgentNode{NodeBase: graph.NodeBase{ID: id}, Edges: edges, LLMNodeFields: graph.LLMNodeFields{Prompt: set("work")}}
+	return &graph.AgentNode{ID: id, Edges: edges, Prompt: set("work")}
 }
 
 func fanIn(id string, edges ...graph.Edge) *graph.FanInNode {
-	return &graph.FanInNode{NodeBase: graph.NodeBase{ID: id}, Edges: edges, LLMNodeFields: graph.LLMNodeFields{Prompt: set("evaluate")}}
+	return &graph.FanInNode{ID: id, Edges: edges, Prompt: set("evaluate")}
 }
 
 func loop(id, checklist, body, onDone string) *graph.LoopNode {
-	node := &graph.LoopNode{NodeBase: graph.NodeBase{ID: id}, Edges: graph.LoopEdges{Loop: body, Exit: onDone}}
+	node := &graph.LoopNode{ID: id, Edges: graph.LoopEdges{Loop: body, Exit: onDone}}
 	if checklist != "" {
 		node.Checklist = set(checklist)
 	}
@@ -539,7 +539,7 @@ func loopNode(g graph.Graph, id string) *graph.LoopNode {
 }
 
 func supervisor(id string, supervises ...string) *graph.SupervisorNode {
-	return &graph.SupervisorNode{NodeBase: graph.NodeBase{ID: id}, Prompt: "watch", Supervises: supervises}
+	return &graph.SupervisorNode{ID: id, Prompt: "watch", Supervises: supervises}
 }
 
 func coder(g graph.Graph, id string) *graph.AgentNode {

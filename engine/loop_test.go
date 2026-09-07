@@ -1500,7 +1500,7 @@ func TestFanInPrependsFrame(t *testing.T) {
 }
 
 func loopNode(id, checklistPath, body, onDone string, maxVisits int) *graph.LoopNode {
-	node := &graph.LoopNode{NodeBase: graph.NodeBase{ID: id}, Edges: graph.LoopEdges{Loop: body, Exit: onDone}}
+	node := &graph.LoopNode{ID: id, Edges: graph.LoopEdges{Loop: body, Exit: onDone}}
 	if checklistPath != "" {
 		node.Checklist = optional(checklistPath)
 	}

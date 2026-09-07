@@ -1,0 +1,40 @@
+[tools]
+node = "24.16.0"
+# Bootstrap copy of `vp`, used only before node_modules exists. Once the page
+# is installed, `_.path` below makes the project-local `vp` win.
+"npm:vite-plus" = "0.3.0"
+
+[env]
+# SvelteKit checks the dev server's SSR environment with `isRunnableDevEnvironment`,
+# which is an `instanceof` against the *project's* resolved `vite`. The
+# mise-global `npm:vite-plus` install ships its own copy of
+# @voidzero-dev/vite-plus-core, so a dev server created by that binary carries
+# classes from a different module realm and the check fails. Putting the
+# project's bin dir first on PATH makes `vp` resolve the copy that shares a
+# realm with the project's kit.
+_.path = ["./node_modules/.bin"]
+
+[tasks.build]
+description = "The build gesture: install, generate the Go/kit glue, build the page into build/, and rebuild tractor."
+dir = "{{config_root}}"
+run = [
+	"vp install",
+	"cd ../.. && go generate ./internal/editor/...",
+	"vp build",
+	"cd ../.. && go build ./...",
+]
+
+[tasks.check]
+description = "svelte-check over the page."
+dir = "{{config_root}}"
+run = "svelte-check --tsconfig ./tsconfig.json"
+
+[tasks."dev:web"]
+description = "The vite dev server. Run `mise run build` once first: tractor embeds the build."
+dir = "{{config_root}}"
+run = "vp dev --host 127.0.0.1 --port 5173 --strictPort"
+
+[tasks."dev:go"]
+description = "tractor edit on a fixed port, proxying pages to `vp dev`. Remote functions are still answered by Go."
+dir = "{{config_root}}"
+run = "cd ../.. && go run ./cmd/tractor edit --addr 127.0.0.1:7331 --proxy http://127.0.0.1:5173 {{arg(name='pipeline', default='examples/loops/bake-off.yaml')}}"
