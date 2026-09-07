@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/tractor/engine"
@@ -103,6 +104,8 @@ func newRunCommand() *cobra.Command {
 	var logsRoot string
 	var resume bool
 	var goal string
+	var wake string
+	var wakeInterval time.Duration
 	command := &cobra.Command{
 		Use:   "run [pipeline]",
 		Short: "Run a pipeline",
@@ -118,7 +121,11 @@ func newRunCommand() *cobra.Command {
 			if err := applyGoal(pipeline, source, goal, command.Flags().Changed("goal")); err != nil {
 				return err
 			}
-			return runPipeline(command, *pipeline, workdir, logsRoot, resume)
+			wakeConfig, err := wakeConfiguration(wake, wakeInterval)
+			if err != nil {
+				return err
+			}
+			return runPipeline(command, *pipeline, workdir, logsRoot, resume, wakeConfig)
 		},
 	}
 	command.Flags().StringVar(&inlineJSON, "json", "", "pipeline JSON")
@@ -127,7 +134,23 @@ func newRunCommand() *cobra.Command {
 	command.Flags().StringVar(&logsRoot, "logs", "", "run log directory")
 	command.Flags().BoolVar(&resume, "resume", false, "resume from the logs checkpoint")
 	command.Flags().StringVar(&goal, "goal", "", "replace the pipeline's goal; every $goal in a prompt expands to this")
+	command.Flags().StringVar(&wake, "wake", string(engine.WakeAuto), "wake the agent session that started the run: auto (background sessions only), on (any session), off")
+	command.Flags().DurationVar(&wakeInterval, "wake-interval", engine.DefaultWakeInterval, "how often an armed run checks whether it has news to deliver")
 	return command
+}
+
+// wakeConfiguration turns the --wake flags into engine configuration.
+func wakeConfiguration(mode string, interval time.Duration) (engine.WakeConfig, error) {
+	switch engine.WakeMode(strings.ToLower(strings.TrimSpace(mode))) {
+	case engine.WakeAuto:
+		return engine.WakeConfig{Mode: engine.WakeAuto, Interval: interval}, nil
+	case engine.WakeOn:
+		return engine.WakeConfig{Mode: engine.WakeOn, Interval: interval}, nil
+	case engine.WakeOff:
+		return engine.WakeConfig{Mode: engine.WakeOff}, nil
+	default:
+		return engine.WakeConfig{}, fmt.Errorf("unknown --wake value %q: use auto, on, or off", mode)
+	}
 }
 
 func newPrintSchemaCommand() *cobra.Command {
@@ -212,7 +235,7 @@ func applyGoal(pipeline *graph.Graph, source, goal string, goalSet bool) error {
 	return nil
 }
 
-func runPipeline(command *cobra.Command, pipeline graph.Graph, workdir, logsRoot string, resume bool) error {
+func runPipeline(command *cobra.Command, pipeline graph.Graph, workdir, logsRoot string, resume bool, wake engine.WakeConfig) error {
 	if strings.TrimSpace(logsRoot) == "" {
 		return fmt.Errorf("--logs is required")
 	}
@@ -274,6 +297,7 @@ func runPipeline(command *cobra.Command, pipeline graph.Graph, workdir, logsRoot
 			return err
 		},
 		Backend: backend,
+		Wake:    wake,
 	}
 	var runner *engine.Runner
 	if resume {
