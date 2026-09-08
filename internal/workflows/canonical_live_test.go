@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/tractor/checklist"
+	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/internal/workflows"
 )
 
@@ -151,6 +152,48 @@ func TestCanonicalLoop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("workflow failed: %v; inspect %s", err, root)
 	}
+	var manifest struct {
+		Invocations []struct {
+			Argv       []string `json:"argv"`
+			Executable struct {
+				Path    string `json:"path"`
+				SHA256  string `json:"sha256"`
+				Version string `json:"version"`
+			} `json:"executable"`
+			PipelineSource string `json:"pipeline_source"`
+			GraphSHA256    string `json:"graph_sha256"`
+		} `json:"invocations"`
+	}
+	if err := json.Unmarshal(canonicalRead(t, filepath.Join(root, "run", "manifest.json")), &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.Invocations) != 1 {
+		t.Fatalf("run manifest invocations = %#v", manifest.Invocations)
+	}
+	invocation := manifest.Invocations[0]
+	wantArgv := append([]string{binary}, args...)
+	if !reflect.DeepEqual(invocation.Argv, wantArgv) {
+		t.Fatalf("manifest argv = %q, want %q", invocation.Argv, wantArgv)
+	}
+	if invocation.Executable.Path != binary || invocation.Executable.SHA256 != binaryHash || invocation.Executable.Version == "" {
+		t.Fatalf("manifest executable = %#v", invocation.Executable)
+	}
+	if invocation.PipelineSource != "builtin:sprint-execute" {
+		t.Fatalf("manifest pipeline source = %q", invocation.PipelineSource)
+	}
+	resolved, err := graph.ParseYAML(embedded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedJSON, err := json.Marshal(resolved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantGraphHash := fmt.Sprintf("%x", sha256.Sum256(resolvedJSON))
+	if invocation.GraphSHA256 != wantGraphHash {
+		t.Fatalf("manifest graph hash = %q, want %q", invocation.GraphSHA256, wantGraphHash)
+	}
+	receipt["run_provenance"] = invocation
 	events := canonicalEvents(t, filepath.Join(root, "run", "timeline.jsonl"))
 	if err := verifyCanonicalTrace(events); err != nil {
 		t.Fatal(err)

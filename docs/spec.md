@@ -493,7 +493,9 @@ PARSE -> VALIDATE -> INITIALIZE -> EXECUTE -> FINALIZE
 
 1. **Parse:** Read the pipeline JSON and produce an in-memory Graph model (nodes with their edges and fields), applying file-level defaults (Section 2.7) and rejecting structural violations (Section 2.8).
 2. **Validate:** Run lint rules (Section 7). Reject invalid graphs. Warn on suspicious patterns.
-3. **Initialize:** Create the run directory, the initial engine state (Section 5.1), and the initial checkpoint.
+3. **Initialize:** Create the run directory, append this process invocation and
+   its executable/pipeline identity to the manifest (Section 5.6), create the
+   initial engine state (Section 5.1), and create the initial checkpoint.
 4. **Execute:** Traverse the graph from the node `start` names,
    executing handlers and following chosen successors (Section 3.3).
 5. **Finalize:** When a chooser routes to a pseudo-target -- `success`
@@ -2340,7 +2342,7 @@ Each pipeline execution produces a directory tree for logging, checkpoints, and 
 ```
 {logs_root}/
     checkpoint.json              -- Serialized checkpoint after each top-level execution (Section 5.3)
-    manifest.json                -- Pipeline metadata (name, goal, start time), control-surface advertisement (Section 3.9), and the launching agent session, credential-free (Section 3.11)
+    manifest.json                -- Pipeline metadata, ordered invocation provenance, control-surface advertisement (Section 3.9), and the launching agent session, credential-free (Section 3.11)
     timeline.jsonl               -- Engine event stream as JSONL (Section 10)
     worktrees.jsonl              -- Append-only worktree inventory, one line per branch worktree created; Finalize's cleanup sweep (Section 4.6)
     frames.json                  -- The current loop frame stack, outermost first; rewritten whenever it changes. An observer cache, never read by the engine (Section 4.8)
@@ -2370,6 +2372,36 @@ Each pipeline execution produces a directory tree for logging, checkpoints, and 
             inbox.jsonl          -- Engine-appended digests of in-scope attempts not yet rotated into a batch
             inbox.000042.jsonl   -- Numbered permanent batch files, renamed from inbox.jsonl at each flush (Section 3.10): the supervisor's own durable records and the observer's audit; never deleted by the engine
 ```
+
+**`manifest.json`.** The manifest makes a run directory independently
+identifiable as evidence. Alongside the run ID, pipeline name and goal,
+workdir, original start time, control socket, and optional credential-free
+host session, it contains an ordered `invocations` array. The engine appends
+one entry whenever a fresh or resumed process initializes the run; it never
+replaces an earlier entry. Each invocation records:
+
+- `started_at`: the process invocation's UTC timestamp;
+- `argv`: the complete argument vector as invoked;
+- `executable.path`, `executable.sha256`, and `executable.version`: the exact
+  Tractor executable, the lowercase SHA-256 of its bytes, and its embedded Go
+  module version (`unknown` only when the build exposes none);
+- `pipeline_source`: exactly one of `builtin:<name>`,
+  `file:<absolute-path>`, `inline:json`, `inline:yaml`, or `api` for a direct
+  engine caller; and
+- `graph_sha256`: the lowercase SHA-256 of the compact JSON serialization of
+  the in-memory Graph after parsing, fan-out expansion, default application,
+  and any CLI goal replacement. Serialization retains graph field and node
+  order, so the hash binds the semantics Tractor actually executed rather
+  than a mutable source file or its YAML/JSON formatting.
+
+The CLI derives the source classification while resolving the pipeline, and
+the running engine measures the executable and resolved graph before work
+begins. A verifier can therefore distinguish a built-in workflow from a
+same-named file or inline document, identify the exact binary, and see every
+executable or graph used across resume. A legacy manifest with no invocation
+history gains an entry for the first invocation made by an implementation of
+this contract; that entry does not retroactively attest earlier process
+lives.
 
 ---
 
@@ -2610,6 +2642,11 @@ logging -- with checkpoint-resume equivalence, worktree-isolated
 parallel convergence, and a 10+ node pipeline exercised end to end. The subsections below define the
 additional conformance evidence required at the adapter, backend, and
 supervision boundaries.
+
+The end-to-end evidence MUST also show that `manifest.json` identifies the
+actual argument vector, executable bytes and build version, source kind, and
+resolved graph used by the run. A resume MUST append a second invocation
+without replacing the first.
 
 ### 11.1 HarnessAdapter Conformance
 

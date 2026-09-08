@@ -105,8 +105,12 @@ type ValidateFunc func(graph.Graph) error
 
 // RunnerConfig supplies the run paths and the already-configured backend.
 type RunnerConfig struct {
-	LogsRoot               string
-	Workdir                string
+	LogsRoot string
+	Workdir  string
+	// PipelineSource identifies how the graph entered the process. CLI callers
+	// use builtin:<name>, file:<absolute-path>, inline:json, or inline:yaml.
+	// Direct API callers default to api.
+	PipelineSource         string
 	Validate               ValidateFunc
 	Backend                harness.AgentBackend
 	Stop                   *StopSignal
@@ -199,6 +203,11 @@ func newRunner(pipeline graph.Graph, registry *Registry, config RunnerConfig) (*
 	if strings.TrimSpace(config.Workdir) == "" {
 		return nil, fmt.Errorf("workdir must not be empty")
 	}
+	pipelineSource, err := normalizePipelineSource(config.PipelineSource)
+	if err != nil {
+		return nil, err
+	}
+	config.PipelineSource = pipelineSource
 	if config.Validate == nil {
 		return nil, fmt.Errorf("validate function must not be nil")
 	}
@@ -272,6 +281,9 @@ func (r *Runner) Run() (RunResult, error) {
 	currentID := r.startID
 	if r.resumeCheckpoint != nil {
 		if graph.IsPseudoTarget(r.resumeCheckpoint.NextNode) {
+			if _, err := r.loadOrCreateManifest(""); err != nil {
+				return RunResult{}, err
+			}
 			if err := cleanupBranchWorktrees(r.config.Workdir, r.config.LogsRoot); err != nil {
 				return RunResult{}, err
 			}

@@ -18,12 +18,13 @@ import (
 )
 
 type runManifest struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name"`
-	Goal          string    `json:"goal"`
-	Workdir       string    `json:"workdir"`
-	StartedAt     time.Time `json:"started_at"`
-	ControlSocket string    `json:"control_socket"`
+	ID            string          `json:"id"`
+	Name          string          `json:"name"`
+	Goal          string          `json:"goal"`
+	Workdir       string          `json:"workdir"`
+	StartedAt     time.Time       `json:"started_at"`
+	ControlSocket string          `json:"control_socket"`
+	Invocations   []runInvocation `json:"invocations"`
 	// HostSession is the agent session that launched the run, when there was
 	// one. It carries no credential, so a manifest stays safe to hand over as
 	// evidence.
@@ -118,6 +119,11 @@ func (r *Runner) loadOrCreateManifest(socketPath string) (runManifest, error) {
 		manifest.ID = id
 		manifest.StartedAt = time.Now().UTC()
 	}
+	invocation, err := captureRunInvocation(r.graph, r.config)
+	if err != nil {
+		return runManifest{}, fmt.Errorf("capture run provenance: %w", err)
+	}
+	manifest.Invocations = append(manifest.Invocations, invocation)
 	if session, ok := r.captureHostSession(); ok {
 		manifest.HostSession = &session
 	}

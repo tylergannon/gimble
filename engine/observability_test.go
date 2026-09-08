@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,6 +23,115 @@ import (
 	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/harness"
 )
+
+func TestManifestRecordsEveryInvocationAndTheResolvedGraph(t *testing.T) {
+	root := t.TempDir()
+	pipeline := testGraph(
+		toolNode("true", "done"),
+		exitNode("done"),
+	)
+	pipeline.Name = "provenance-test"
+	firstArgv := append([]string(nil), os.Args...)
+	first, err := NewRunner(pipeline, NewRegistry(), RunnerConfig{
+		LogsRoot: root, Workdir: t.TempDir(),
+		PipelineSource: "builtin:sprint-execute",
+		Validate:       func(graph.Graph) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result, runErr := first.Run(); runErr != nil || result.Status != RunCompleted {
+		t.Fatalf("first run = %#v, %v", result, runErr)
+	}
+
+	manifest := mustManifest(t, root)
+	if len(manifest.Invocations) != 1 {
+		t.Fatalf("invocations = %#v", manifest.Invocations)
+	}
+	invocation := manifest.Invocations[0]
+	if !reflect.DeepEqual(invocation.Argv, firstArgv) || invocation.PipelineSource != "builtin:sprint-execute" {
+		t.Fatalf("first invocation = %#v", invocation)
+	}
+	encoded, err := json.Marshal(pipeline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantGraphHash := fmt.Sprintf("%x", sha256.Sum256(encoded))
+	if invocation.GraphSHA256 != wantGraphHash {
+		t.Fatalf("graph hash = %q, want %q", invocation.GraphSHA256, wantGraphHash)
+	}
+	if invocation.Executable.Path == "" || len(invocation.Executable.SHA256) != 64 || invocation.Executable.Version == "" {
+		t.Fatalf("executable identity = %#v", invocation.Executable)
+	}
+
+	resumed, err := ResumeRunner(pipeline, NewRegistry(), RunnerConfig{
+		LogsRoot: root, Workdir: first.config.Workdir,
+		PipelineSource: "file:/tmp/copied.yaml",
+		Validate:       func(graph.Graph) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result, runErr := resumed.Run(); runErr != nil || result.Status != RunCompleted {
+		t.Fatalf("resumed run = %#v, %v", result, runErr)
+	}
+	manifest = mustManifest(t, root)
+	if len(manifest.Invocations) != 2 {
+		t.Fatalf("resumed invocations = %#v", manifest.Invocations)
+	}
+	if !reflect.DeepEqual(manifest.Invocations[0].Argv, firstArgv) {
+		t.Fatalf("resume replaced the original invocation: %#v", manifest.Invocations)
+	}
+	second := manifest.Invocations[1]
+	if !reflect.DeepEqual(second.Argv, os.Args) || second.PipelineSource != "file:/tmp/copied.yaml" || second.GraphSHA256 != wantGraphHash {
+		t.Fatalf("second invocation = %#v", second)
+	}
+}
+
+func TestRunnerRejectsAnAmbiguousPipelineSource(t *testing.T) {
+	pipeline := testGraph(toolNode("true", "done"), exitNode("done"))
+	for _, source := range []string{"builtin:", "file:relative.yaml", "sprint-execute"} {
+		t.Run(source, func(t *testing.T) {
+			_, err := NewRunner(pipeline, NewRegistry(), RunnerConfig{
+				LogsRoot: t.TempDir(), Workdir: t.TempDir(), PipelineSource: source,
+				Validate: func(graph.Graph) error { return nil },
+			})
+			if err == nil || !strings.Contains(err.Error(), "invalid pipeline source") {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+}
+
+func TestGraphProvenanceHashesResolvedSemanticsNotSourceFormatting(t *testing.T) {
+	jsonGraph, err := graph.Parse([]byte(`{"name":"same","start":"check","nodes":[{"id":"check","type":"command","command":"true","edges":{"success":"success"}}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	yamlGraph, err := graph.ParseYAML([]byte("name: same\nstart: check\nnodes:\n  - id: check\n    type: command\n    command: \"true\"\n    edges:\n      success: success\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	jsonHash, err := graphSHA256(*jsonGraph)
+	if err != nil {
+		t.Fatal(err)
+	}
+	yamlHash, err := graphSHA256(*yamlGraph)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jsonHash != yamlHash {
+		t.Fatalf("equivalent JSON and YAML hashes differ: %s != %s", jsonHash, yamlHash)
+	}
+	yamlGraph.Goal = "changed"
+	changedHash, err := graphSHA256(*yamlGraph)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changedHash == jsonHash {
+		t.Fatal("a resolved graph change did not change the provenance hash")
+	}
+}
 
 func TestRunnerTimelineNarratesRetriesFanOutBranchesAndCheckpoints(t *testing.T) {
 	repo := newGitTestRepository(t)
