@@ -11,6 +11,9 @@ tractor run examples/loops/<file>.yaml
 - [`fix-until-green.yaml`](fix-until-green.yaml) — the hello world. An
   agent works, a command decides, failure routes back, `max_visits` stops
   it from running forever. For *"don't stop until it actually works."*
+- [`canonical/`](canonical/README.md) — the mandatory new-build proof: the
+  shipped sprint loop repairs a real shipping CLI across two sprints, with
+  independent review, engine validation and captured before/after output.
 - [`critique-circle.yaml`](critique-circle.yaml) — three providers write a
   proposal on the same topic, then each critiques the other two. For
   *"have a couple of models cross-check this."*

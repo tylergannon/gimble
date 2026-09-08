@@ -14,6 +14,22 @@ Codex plugin or marketplace, load and follow the `release-tractor` repository
 skill at `.agents/skills/release-tractor/SKILL.md` before changing release
 state.
 
+## New-build proof
+
+Before calling any new Tractor build proved, run:
+
+```sh
+go test -tags=integration ./internal/workflows -run '^TestCanonicalLoop$' -count=1 -v -timeout=25m
+```
+
+This launches the shipped `sprint-execute` workflow through a freshly built
+Tractor binary with real native agents and the [canonical Go example](examples/loops/canonical/README.md).
+To prove a separately built candidate, append `-args -tractor-binary /absolute/path/to/tractor`.
+Require exit zero and the fresh artifact directory's `result.json` with
+`passed: true`; inspect its review transcripts and report its binary hash and
+artifact path. A skipped, failed, interrupted or stale run is not proof.
+This is required in addition to ordinary checks and proof of changed behavior.
+
 ## Planning, design, and execution rules
 
 Before planning, designing, or running an interview, loop, or workflow for

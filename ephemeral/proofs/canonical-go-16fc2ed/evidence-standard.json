@@ -1,0 +1,50 @@
+[
+  {
+    "args": [
+      "49.99",
+      "standard"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"mode\":\"standard\",\"shipping_cents\":800,\"subtotal_cents\":4999,\"total_cents\":5799}\n",
+    "stderr": "",
+    "expected": {
+      "subtotal_cents": 4999,
+      "shipping_cents": 800,
+      "total_cents": 5799,
+      "mode": "standard"
+    },
+    "passed": true
+  },
+  {
+    "args": [
+      "50.00",
+      "standard"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"mode\":\"standard\",\"shipping_cents\":0,\"subtotal_cents\":5000,\"total_cents\":5000}\n",
+    "stderr": "",
+    "expected": {
+      "subtotal_cents": 5000,
+      "shipping_cents": 0,
+      "total_cents": 5000,
+      "mode": "standard"
+    },
+    "passed": true
+  },
+  {
+    "args": [
+      "50.01",
+      "standard"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"mode\":\"standard\",\"shipping_cents\":0,\"subtotal_cents\":5001,\"total_cents\":5001}\n",
+    "stderr": "",
+    "expected": {
+      "subtotal_cents": 5001,
+      "shipping_cents": 0,
+      "total_cents": 5001,
+      "mode": "standard"
+    },
+    "passed": true
+  }
+]

@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "/tmp/tractor-canonical-go-16fc2ed/tractor",
+    "run",
+    "sprint-execute",
+    "--workdir",
+    "/tmp/tractor-canonical-go-16fc2ed/workspace",
+    "--logs",
+    "/tmp/tractor-canonical-go-16fc2ed/run"
+  ],
+  "binary": "/tmp/tractor-canonical-go-16fc2ed/tractor",
+  "binary_sha256": "47a0e8f6fbbb5710e5106c3731b0049acf4780c8e86f010e9232935ecaaf2dc6",
+  "codex_overrides": [
+    "--disable",
+    "memories"
+  ],
+  "exit_code": 0,
+  "finished_at": "2026-09-08T02:40:42.415519Z",
+  "passed": true,
+  "source_revision": "16fc2edd7b38a3902f30653bf8dd5b1ff7899ac8",
+  "started_at": "2026-09-08T02:35:24.936795Z"
+}

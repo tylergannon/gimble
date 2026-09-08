@@ -44,6 +44,11 @@ A loop is two nodes pointing at each other:
 The agent works. The command decides. Failure routes back. `max_visits` is
 the budget.
 
+The [canonical checklist-loop example](examples/loops/canonical/README.md)
+runs the shipped `sprint-execute` workflow against a deliberately broken Go
+CLI. Real agents repair it across two sprints. The same workflow is the live
+acceptance case for every new build, launched by `TestCanonicalLoop`.
+
 ## Why
 
 Tractor serves [five arts of orchestration](docs/five-arts.md): making an agent
