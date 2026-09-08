@@ -45,6 +45,7 @@ type fakeProcessManager struct {
 	state      ServiceState
 	ensureErr  error
 	downErr    error
+	onDown     func()
 	ensureCall int
 	downCall   int
 }
@@ -56,7 +57,90 @@ func (m *fakeProcessManager) Ensure(context.Context) (ServiceState, error) {
 
 func (m *fakeProcessManager) Down(context.Context) error {
 	m.downCall++
+	if m.onDown != nil {
+		m.onDown()
+	}
 	return m.downErr
+}
+
+func TestServiceStopsBeforeTerminalWorktreesAreDeleted(t *testing.T) {
+	repo := newGitTestRepository(t)
+	logsRoot := t.TempDir()
+	snapshot, err := freezeGitWorkspace(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worktrees, err := createBranchWorktrees(snapshot, logsRoot, []string{"branch"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	branchPath := worktrees[0].Path
+	manager := &fakeProcessManager{
+		state: ServiceState{Name: "web", Port: 43123, Running: true},
+		onDown: func() {
+			if _, err := os.Stat(branchPath); err != nil {
+				t.Errorf("branch worktree was removed before service teardown: %v", err)
+			}
+		},
+	}
+	runner, err := NewRunner(serviceTestGraph(&graph.CommandNode{
+		ID: "finish", Command: "true", Edges: graph.CommandEdges{Success: graph.Success},
+	}), NewRegistry(), RunnerConfig{
+		LogsRoot: logsRoot, Workdir: repo, Validate: validateTestGraph,
+		ProcessManager: manager,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := runner.Run()
+	if err != nil || result.Status != RunCompleted {
+		t.Fatalf("result = %#v, error = %v", result, err)
+	}
+	if manager.downCall != 1 {
+		t.Fatalf("Down calls = %d, want 1", manager.downCall)
+	}
+	if _, err := os.Stat(branchPath); !os.IsNotExist(err) {
+		t.Fatalf("branch worktree still exists after service teardown: %v", err)
+	}
+}
+
+func TestServiceTeardownFailurePreservesTerminalWorktrees(t *testing.T) {
+	repo := newGitTestRepository(t)
+	logsRoot := t.TempDir()
+	snapshot, err := freezeGitWorkspace(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worktrees, err := createBranchWorktrees(snapshot, logsRoot, []string{"branch"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	branchPath := worktrees[0].Path
+	t.Cleanup(func() {
+		if err := cleanupBranchWorktrees(repo, logsRoot); err != nil {
+			t.Errorf("clean preserved test worktree: %v", err)
+		}
+	})
+	manager := &fakeProcessManager{
+		state:   ServiceState{Name: "web", Port: 43123, Running: true},
+		downErr: fmt.Errorf("still running"),
+	}
+	runner, err := NewRunner(serviceTestGraph(&graph.CommandNode{
+		ID: "finish", Command: "true", Edges: graph.CommandEdges{Success: graph.Success},
+	}), NewRegistry(), RunnerConfig{
+		LogsRoot: logsRoot, Workdir: repo, Validate: validateTestGraph,
+		ProcessManager: manager,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, runErr := runner.Run()
+	if runErr == nil || result.Status != RunFailed || !strings.Contains(result.FailureReason, "still running") {
+		t.Fatalf("result = %#v, error = %v", result, runErr)
+	}
+	if _, err := os.Stat(branchPath); err != nil {
+		t.Fatalf("teardown failure removed branch worktree: %v", err)
+	}
 }
 
 func TestServiceTeardownFailureDoesNotClaimTheServiceStopped(t *testing.T) {
