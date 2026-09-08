@@ -197,6 +197,11 @@ func TestRunFreshThenResumeWithRealBackendWiring(t *testing.T) {
 	if checkpoint.CurrentNode != "done" || checkpoint.NextNode != graph.Success {
 		t.Fatalf("checkpoint = %#v", checkpoint)
 	}
+	manifest := readCLIRunManifest(t, logsRoot)
+	if manifest.PipelineSource != "inline" {
+		t.Fatalf("fresh manifest provenance = %#v", manifest)
+	}
+	originalSource := manifest.PipelineSource
 
 	stdout, _, err = executeCommand("run", "--resume", "--json", linearPipeline, "--workdir", workdir, "--logs", logsRoot)
 	if err != nil {
@@ -204,6 +209,26 @@ func TestRunFreshThenResumeWithRealBackendWiring(t *testing.T) {
 	}
 	if stdout != "COMPLETED\n" {
 		t.Fatalf("resume stdout = %q", stdout)
+	}
+	manifest = readCLIRunManifest(t, logsRoot)
+	if manifest.PipelineSource != originalSource {
+		t.Fatalf("resume changed manifest provenance = %#v", manifest)
+	}
+}
+
+func TestRunRecordsAnAbsoluteFilePipelineSource(t *testing.T) {
+	workdir := t.TempDir()
+	logsRoot := filepath.Join(t.TempDir(), "run")
+	pipelinePath := filepath.Join(t.TempDir(), "pipeline.yaml")
+	if err := os.WriteFile(pipelinePath, []byte(linearYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := executeCommand("run", pipelinePath, "--workdir", workdir, "--logs", logsRoot); err != nil {
+		t.Fatal(err)
+	}
+	manifest := readCLIRunManifest(t, logsRoot)
+	if manifest.PipelineSource != "file:"+pipelinePath {
+		t.Fatalf("manifest provenance = %#v", manifest)
 	}
 }
 
@@ -291,4 +316,21 @@ func executeCommand(args ...string) (string, string, error) {
 	command.SetArgs(args)
 	err := command.Execute()
 	return stdout.String(), stderr.String(), err
+}
+
+type cliRunManifest struct {
+	PipelineSource string `json:"pipeline_source"`
+}
+
+func readCLIRunManifest(t *testing.T, root string) cliRunManifest {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(root, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest cliRunManifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	return manifest
 }

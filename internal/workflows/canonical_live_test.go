@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/tractor/checklist"
+	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/internal/workflows"
 )
 
@@ -151,6 +152,42 @@ func TestCanonicalLoop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("workflow failed: %v; inspect %s", err, root)
 	}
+	var manifest struct {
+		Argv       []string `json:"argv"`
+		Executable struct {
+			Path    string `json:"path"`
+			SHA256  string `json:"sha256"`
+			Version string `json:"version"`
+		} `json:"executable"`
+		PipelineSource string `json:"pipeline_source"`
+		GraphSHA256    string `json:"graph_sha256"`
+	}
+	if err := json.Unmarshal(canonicalRead(t, filepath.Join(root, "run", "manifest.json")), &manifest); err != nil {
+		t.Fatal(err)
+	}
+	wantArgv := append([]string{binary}, args...)
+	if !reflect.DeepEqual(manifest.Argv, wantArgv) {
+		t.Fatalf("manifest argv = %q, want %q", manifest.Argv, wantArgv)
+	}
+	if manifest.Executable.Path != binary || manifest.Executable.SHA256 != binaryHash || manifest.Executable.Version == "" {
+		t.Fatalf("manifest executable = %#v", manifest.Executable)
+	}
+	if manifest.PipelineSource != "builtin:sprint-execute" {
+		t.Fatalf("manifest pipeline source = %q", manifest.PipelineSource)
+	}
+	resolved, err := graph.ParseYAML(embedded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedJSON, err := json.Marshal(resolved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantGraphHash := fmt.Sprintf("%x", sha256.Sum256(resolvedJSON))
+	if manifest.GraphSHA256 != wantGraphHash {
+		t.Fatalf("manifest graph hash = %q, want %q", manifest.GraphSHA256, wantGraphHash)
+	}
+	receipt["run_provenance"] = manifest
 	events := canonicalEvents(t, filepath.Join(root, "run", "timeline.jsonl"))
 	if err := verifyCanonicalTrace(events); err != nil {
 		t.Fatal(err)

@@ -88,7 +88,7 @@ func newValidateCommand() *cobra.Command {
 			if err := validateAndReport(command, cliValidator(), *pipeline); err != nil {
 				return err
 			}
-			_, err = fmt.Fprintf(command.OutOrStdout(), "valid %s\n", source)
+			_, err = fmt.Fprintf(command.OutOrStdout(), "valid %s\n", source.Display)
 			return err
 		},
 	}
@@ -125,7 +125,7 @@ func newRunCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return runPipeline(command, *pipeline, workdir, logsRoot, resume, wakeConfig)
+			return runPipeline(command, *pipeline, source.Provenance, workdir, logsRoot, resume, wakeConfig)
 		},
 	}
 	command.Flags().StringVar(&inlineJSON, "json", "", "pipeline JSON")
@@ -165,23 +165,29 @@ func newPrintSchemaCommand() *cobra.Command {
 	}
 }
 
-func loadPipeline(args []string, inlineJSON string, jsonSet bool, inlineYAML string, yamlSet bool) (*graph.Graph, string, error) {
+type pipelineSource struct {
+	Display    string
+	Provenance string
+	Builtin    bool
+}
+
+func loadPipeline(args []string, inlineJSON string, jsonSet bool, inlineYAML string, yamlSet bool) (*graph.Graph, pipelineSource, error) {
 	if len(args) > 1 {
-		return nil, "", fmt.Errorf("accepts exactly one pipeline source")
+		return nil, pipelineSource{}, fmt.Errorf("accepts exactly one pipeline source")
 	}
 	if (jsonSet && yamlSet) || (len(args) == 1 && (jsonSet || yamlSet)) {
-		return nil, "", fmt.Errorf("pipeline file, --json, and --yaml are mutually exclusive")
+		return nil, pipelineSource{}, fmt.Errorf("pipeline file, --json, and --yaml are mutually exclusive")
 	}
 	if !jsonSet && !yamlSet && len(args) == 0 {
-		return nil, "", fmt.Errorf("pipeline source is required: provide a file, --json, or --yaml")
+		return nil, pipelineSource{}, fmt.Errorf("pipeline source is required: provide a file, --json, or --yaml")
 	}
 	if jsonSet {
 		pipeline, err := graph.Parse([]byte(inlineJSON))
-		return pipeline, "--json", err
+		return pipeline, pipelineSource{Display: "--json", Provenance: "inline"}, err
 	}
 	if yamlSet {
 		pipeline, err := graph.ParseYAML([]byte(inlineYAML))
-		return pipeline, "--yaml", err
+		return pipeline, pipelineSource{Display: "--yaml", Provenance: "inline"}, err
 	}
 	return loadPipelineSource(args[0])
 }
@@ -189,21 +195,25 @@ func loadPipeline(args []string, inlineJSON string, jsonSet bool, inlineYAML str
 // loadPipelineSource reads a pipeline from a file, or from the built-in
 // catalogue when no such file exists. A file on disk always wins, so a local
 // pipeline is never shadowed by a workflow that ships in the binary.
-func loadPipelineSource(source string) (*graph.Graph, string, error) {
+func loadPipelineSource(source string) (*graph.Graph, pipelineSource, error) {
 	raw, err := os.ReadFile(source)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
-			return nil, "", fmt.Errorf("read pipeline %q: %w", source, err)
+			return nil, pipelineSource{}, fmt.Errorf("read pipeline %q: %w", source, err)
 		}
 		builtin, builtinErr := workflows.Read(source)
 		if builtinErr != nil {
-			return nil, "", fmt.Errorf(
+			return nil, pipelineSource{}, fmt.Errorf(
 				"pipeline %q is neither a file nor a built-in workflow; built-in workflows are %s",
 				source, builtinPipelineHint(),
 			)
 		}
 		pipeline, parseErr := graph.ParseYAML(builtin)
-		return pipeline, source, parseErr
+		return pipeline, pipelineSource{Display: source, Provenance: "builtin:" + source, Builtin: true}, parseErr
+	}
+	absolute, absoluteErr := filepath.Abs(source)
+	if absoluteErr != nil {
+		return nil, pipelineSource{}, fmt.Errorf("resolve pipeline path %q: %w", source, absoluteErr)
 	}
 	var pipeline *graph.Graph
 	if extension := strings.ToLower(filepath.Ext(source)); extension == ".yaml" || extension == ".yml" {
@@ -211,14 +221,14 @@ func loadPipelineSource(source string) (*graph.Graph, string, error) {
 	} else {
 		pipeline, err = graph.Parse(raw)
 	}
-	return pipeline, source, err
+	return pipeline, pipelineSource{Display: source, Provenance: "file:" + absolute}, err
 }
 
 // applyGoal replaces the pipeline's goal with the one supplied at the command
 // line. A built-in workflow that exists to work on something the operator
 // names refuses to start without one, rather than running against the generic
 // goal its file carries.
-func applyGoal(pipeline *graph.Graph, source, goal string, goalSet bool) error {
+func applyGoal(pipeline *graph.Graph, source pipelineSource, goal string, goalSet bool) error {
 	if goalSet {
 		if strings.TrimSpace(goal) == "" {
 			return fmt.Errorf("--goal requires text")
@@ -226,7 +236,7 @@ func applyGoal(pipeline *graph.Graph, source, goal string, goalSet bool) error {
 		pipeline.Goal = goal
 		return nil
 	}
-	if workflow, ok := workflows.Lookup(source); ok && workflow.NeedsGoal {
+	if workflow, ok := workflows.Lookup(source.Display); source.Builtin && ok && workflow.NeedsGoal {
 		return fmt.Errorf(
 			"the %s workflow needs a goal: pass --goal with what it should work on.\n%s",
 			workflow.Name, workflow.GoalHint,
@@ -235,7 +245,7 @@ func applyGoal(pipeline *graph.Graph, source, goal string, goalSet bool) error {
 	return nil
 }
 
-func runPipeline(command *cobra.Command, pipeline graph.Graph, workdir, logsRoot string, resume bool, wake engine.WakeConfig) error {
+func runPipeline(command *cobra.Command, pipeline graph.Graph, pipelineSource, workdir, logsRoot string, resume bool, wake engine.WakeConfig) error {
 	if strings.TrimSpace(logsRoot) == "" {
 		return fmt.Errorf("--logs is required")
 	}
@@ -290,6 +300,7 @@ func runPipeline(command *cobra.Command, pipeline graph.Graph, workdir, logsRoot
 	runnerConfig := engine.RunnerConfig{
 		LogsRoot:               logsRoot,
 		Workdir:                workdir,
+		PipelineSource:         pipelineSource,
 		DefaultModel:           defaultModel,
 		DefaultReasoningEffort: defaultReasoningEffort,
 		Validate: func(candidate graph.Graph) error {

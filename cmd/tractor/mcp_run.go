@@ -296,14 +296,14 @@ func runDetachedMCPRun(command *cobra.Command, store *mcpRunStore, runID string)
 	if !shouldRun {
 		return nil
 	}
-	pipeline, _, loadErr := loadPipeline([]string{record.Pipeline}, "", false, "", false)
+	pipeline, source, loadErr := loadPipeline([]string{record.Pipeline}, "", false, "", false)
 	runErr := loadErr
 	if runErr == nil {
 		wake := engine.WakeConfig{Mode: engine.WakeAuto}
 		if record.HostSession != nil {
 			wake = engine.WakeConfig{Mode: engine.WakeOn, Session: record.HostSession}
 		}
-		runErr = runPipeline(command, *pipeline, record.Workdir, record.LogsRoot, record.Resume, wake)
+		runErr = runPipeline(command, *pipeline, source.Provenance, record.Workdir, record.LogsRoot, record.Resume, wake)
 	}
 
 	_, persistErr := store.update(runID, func(record *mcpRunRecord) error {

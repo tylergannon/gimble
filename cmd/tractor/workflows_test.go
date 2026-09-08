@@ -38,6 +38,50 @@ func TestWorkflowsShowPrintsPipelineSourceVerbatim(t *testing.T) {
 	}
 }
 
+func TestPipelineSourcesHaveUnambiguousProvenance(t *testing.T) {
+	builtin, builtinSource, err := loadPipelineSource("sprint-execute")
+	if err != nil || builtin == nil {
+		t.Fatalf("load builtin = %#v, %v", builtin, err)
+	}
+	if builtinSource.Display != "sprint-execute" || builtinSource.Provenance != "builtin:sprint-execute" || !builtinSource.Builtin {
+		t.Fatalf("builtin source = %#v", builtinSource)
+	}
+
+	file := filepath.Join(t.TempDir(), "pipeline.yaml")
+	if err := os.WriteFile(file, []byte(linearYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, fileSource, err := loadPipelineSource(file)
+	if err != nil || loaded == nil {
+		t.Fatalf("load file = %#v, %v", loaded, err)
+	}
+	if fileSource.Display != file || fileSource.Provenance != "file:"+file || fileSource.Builtin {
+		t.Fatalf("file source = %#v", fileSource)
+	}
+
+	for _, test := range []struct {
+		name       string
+		jsonSet    bool
+		yamlSet    bool
+		inlineJSON string
+		inlineYAML string
+		want       pipelineSource
+	}{
+		{name: "json", jsonSet: true, inlineJSON: linearPipeline, want: pipelineSource{Display: "--json", Provenance: "inline"}},
+		{name: "yaml", yamlSet: true, inlineYAML: linearYAML, want: pipelineSource{Display: "--yaml", Provenance: "inline"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			pipeline, source, err := loadPipeline(nil, test.inlineJSON, test.jsonSet, test.inlineYAML, test.yamlSet)
+			if err != nil || pipeline == nil {
+				t.Fatalf("load inline = %#v, %v", pipeline, err)
+			}
+			if source != test.want {
+				t.Fatalf("source = %#v, want %#v", source, test.want)
+			}
+		})
+	}
+}
+
 func TestWorkflowsShowNamesTheListingWhenTheNameIsUnknown(t *testing.T) {
 	_, _, err := executeCommand("workflows", "show", "no-such-workflow")
 	if err == nil {
