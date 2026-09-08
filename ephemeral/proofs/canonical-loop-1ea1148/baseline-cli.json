@@ -1,0 +1,114 @@
+{
+  "standard": [
+    {
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "quote.py",
+        "49.99",
+        "standard"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"subtotal_cents\": 4999, \"shipping_cents\": 800, \"total_cents\": 5799, \"mode\": \"standard\"}\n",
+      "stderr": "",
+      "expected": {
+        "subtotal_cents": 4999,
+        "shipping_cents": 800,
+        "total_cents": 5799,
+        "mode": "standard"
+      },
+      "passed": true
+    },
+    {
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "quote.py",
+        "50.00",
+        "standard"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"subtotal_cents\": 5000, \"shipping_cents\": 800, \"total_cents\": 5800, \"mode\": \"standard\"}\n",
+      "stderr": "",
+      "expected": {
+        "subtotal_cents": 5000,
+        "shipping_cents": 0,
+        "total_cents": 5000,
+        "mode": "standard"
+      },
+      "passed": false
+    },
+    {
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "quote.py",
+        "50.01",
+        "standard"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"subtotal_cents\": 5001, \"shipping_cents\": 0, \"total_cents\": 5001, \"mode\": \"standard\"}\n",
+      "stderr": "",
+      "expected": {
+        "subtotal_cents": 5001,
+        "shipping_cents": 0,
+        "total_cents": 5001,
+        "mode": "standard"
+      },
+      "passed": true
+    }
+  ],
+  "expedited": [
+    {
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "quote.py",
+        "49.99",
+        "expedited"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "unsupported shipping mode\n",
+      "expected": {
+        "subtotal_cents": 4999,
+        "shipping_cents": 1200,
+        "total_cents": 6199,
+        "mode": "expedited"
+      },
+      "passed": false
+    },
+    {
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "quote.py",
+        "50.00",
+        "expedited"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "unsupported shipping mode\n",
+      "expected": {
+        "subtotal_cents": 5000,
+        "shipping_cents": 1200,
+        "total_cents": 6200,
+        "mode": "expedited"
+      },
+      "passed": false
+    },
+    {
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "quote.py",
+        "50.01",
+        "expedited"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "unsupported shipping mode\n",
+      "expected": {
+        "subtotal_cents": 5001,
+        "shipping_cents": 1200,
+        "total_cents": 6201,
+        "mode": "expedited"
+      },
+      "passed": false
+    }
+  ]
+}
