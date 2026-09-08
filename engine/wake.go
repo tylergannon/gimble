@@ -34,7 +34,7 @@ const (
 
 // DefaultWakeInterval is how often an armed run checks whether it has news
 // for the session that launched it.
-const DefaultWakeInterval = 5 * time.Minute
+const DefaultWakeInterval = 4 * time.Minute
 
 // MinimumWakeInterval floors the configured interval. The host refills its
 // per-sender budget at half a message per second, so this keeps any number of

@@ -221,7 +221,7 @@ tractor run sprint-execute --wake=on --logs .tractor/run     # wakes this sessio
 tractor run sprint-execute --wake=off --logs .tractor/run    # never wakes anybody
 ```
 
-Waking is on an interval — `--wake-interval`, five minutes by default — and a
+Waking is on an interval — `--wake-interval`, four minutes by default — and a
 wake happens only when the run has something the session has not been told
 already, so a quiet run never interrupts. The run's ending is always delivered.
 `auto`, the default, wakes a session started in the background and leaves an
