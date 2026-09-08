@@ -231,6 +231,14 @@ session that is gone is recorded on the timeline and the run carries on.
 The manifest records which session launched a run but never the credential to
 reach it, so a run directory stays safe to hand over as evidence.
 
+In Codex desktop, Tractor uses the public `codex queue` command as the host
+channel. The launching task supplies its exact thread ID; whenever the existing
+wake service has bounded run news, the detached runner queues that digest as a
+user message for the parent. A loaded idle task starts the turn immediately,
+while a busy task keeps the message queued until it becomes idle. An unloaded
+task retains queued input until it is resumed. Queue failures are recorded in
+the run timeline and never fail the pipeline.
+
 ## Run one prompt
 
 `tractor run-prompt` runs one coding-agent turn with real tool access. It

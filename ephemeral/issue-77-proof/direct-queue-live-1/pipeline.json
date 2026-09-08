@@ -1,0 +1,1 @@
+{"goal":"When this digest reaches the parent task, continue issue 77 through merge and cleanup.","name":"TRACTOR_CODEX_QUEUE_77_DIRECT_LIVE_1","nodes":[{"command":"printf codex-queue-live","edges":{"success":"success"},"id":"mark","type":"command"}],"start":"mark"}

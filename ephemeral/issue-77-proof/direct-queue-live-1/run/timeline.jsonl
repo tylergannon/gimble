@@ -1,0 +1,7 @@
+{"id":"d3c507b8afc07cd539cddf5cabf7e7fd","name":"TRACTOR_CODEX_QUEUE_77_DIRECT_LIVE_1","ts":"2026-09-08T02:54:42.255478Z","type":"PipelineStarted"}
+{"node_id":"mark","ts":"2026-09-08T02:54:42.255807Z","type":"CheckpointSaved"}
+{"index":1,"name":"mark","ts":"2026-09-08T02:54:42.255968Z","type":"StageStarted"}
+{"duration":"5.766625ms","index":1,"name":"mark","next":"success","ts":"2026-09-08T02:54:42.261735Z","type":"StageCompleted"}
+{"node_id":"mark","ts":"2026-09-08T02:54:42.262028Z","type":"CheckpointSaved"}
+{"duration":"6.614375ms","ts":"2026-09-08T02:54:42.262092Z","type":"PipelineCompleted"}
+{"delivered":true,"events":6,"host":"codex_desktop","kind":"interactive","session_id":"01a07eab-99d5-7923-84ac-f41374506751","ts":"2026-09-08T02:54:42.326749Z","type":"HostWake"}

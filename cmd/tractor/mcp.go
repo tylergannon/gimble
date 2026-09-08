@@ -25,6 +25,7 @@ import (
 	"github.com/tylergannon/tractor/engine"
 	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/harness"
+	"github.com/tylergannon/tractor/internal/hostwake"
 	"github.com/tylergannon/tractor/lint"
 )
 
@@ -45,22 +46,30 @@ type schemaOutput struct {
 }
 
 type startRunInput struct {
-	PipelinePath string `json:"pipeline_path" jsonschema:"Pipeline JSON, YAML, or YML file. Relative paths resolve from workdir."`
-	Workdir      string `json:"workdir,omitempty" jsonschema:"Pipeline workspace. Defaults to the MCP server working directory."`
-	LogsRoot     string `json:"logs_root,omitempty" jsonschema:"Run log directory. Relative paths resolve from workdir. Defaults to .tractor/runs/<run-id>."`
-	Resume       bool   `json:"resume,omitempty" jsonschema:"Resume from the checkpoint in logs_root."`
+	PipelinePath string            `json:"pipeline_path" jsonschema:"Pipeline JSON, YAML, or YML file. Relative paths resolve from workdir."`
+	Workdir      string            `json:"workdir,omitempty" jsonschema:"Pipeline workspace. Defaults to the MCP server working directory."`
+	LogsRoot     string            `json:"logs_root,omitempty" jsonschema:"Run log directory. Relative paths resolve from workdir. Defaults to .tractor/runs/<run-id>."`
+	Resume       bool              `json:"resume,omitempty" jsonschema:"Resume from the checkpoint in logs_root."`
+	Parent       *codexParentInput `json:"parent,omitempty" jsonschema:"Explicit Codex desktop parent identity for direct run-news delivery. Omit outside a local Codex desktop task."`
+}
+
+type codexParentInput struct {
+	ThreadID  string `json:"thread_id" jsonschema:"Current Codex thread UUID, supplied explicitly by the launching task."`
+	HostID    string `json:"host_id" jsonschema:"Codex desktop host identity. Use local for the local desktop host."`
+	SessionID string `json:"session_id,omitempty" jsonschema:"Current Codex session identity when available."`
 }
 
 type startRunOutput struct {
-	RunID      string   `json:"run_id"`
-	PID        int      `json:"pid"`
-	Status     string   `json:"status"`
-	Pipeline   string   `json:"pipeline_path"`
-	Workdir    string   `json:"workdir"`
-	LogsRoot   string   `json:"logs_root"`
-	Warnings   []string `json:"warnings"`
-	StdoutPath string   `json:"stdout_path"`
-	StderrPath string   `json:"stderr_path"`
+	RunID          string   `json:"run_id"`
+	PID            int      `json:"pid"`
+	Status         string   `json:"status"`
+	Pipeline       string   `json:"pipeline_path"`
+	Workdir        string   `json:"workdir"`
+	LogsRoot       string   `json:"logs_root"`
+	Warnings       []string `json:"warnings"`
+	StdoutPath     string   `json:"stdout_path"`
+	StderrPath     string   `json:"stderr_path"`
+	ParentThreadID string   `json:"parent_thread_id,omitempty"`
 }
 
 type runIDInput struct {
@@ -68,22 +77,23 @@ type runIDInput struct {
 }
 
 type runStatusOutput struct {
-	RunID        string               `json:"run_id"`
-	PID          int                  `json:"pid"`
-	Status       string               `json:"status"`
-	Pipeline     string               `json:"pipeline_path"`
-	Workdir      string               `json:"workdir"`
-	LogsRoot     string               `json:"logs_root"`
-	StartedAt    string               `json:"started_at"`
-	FinishedAt   string               `json:"finished_at,omitempty"`
-	ExitCode     *int                 `json:"exit_code,omitempty"`
-	Failure      string               `json:"failure,omitempty"`
-	CurrentNode  string               `json:"current_node,omitempty"`
-	NextNode     string               `json:"next_node,omitempty"`
-	LastStage    string               `json:"last_stage,omitempty"`
-	LastResponse string               `json:"last_response,omitempty"`
-	StderrTail   string               `json:"stderr_tail,omitempty"`
-	Service      *engine.ServiceState `json:"service,omitempty"`
+	RunID          string               `json:"run_id"`
+	PID            int                  `json:"pid"`
+	Status         string               `json:"status"`
+	Pipeline       string               `json:"pipeline_path"`
+	Workdir        string               `json:"workdir"`
+	LogsRoot       string               `json:"logs_root"`
+	StartedAt      string               `json:"started_at"`
+	FinishedAt     string               `json:"finished_at,omitempty"`
+	ExitCode       *int                 `json:"exit_code,omitempty"`
+	Failure        string               `json:"failure,omitempty"`
+	CurrentNode    string               `json:"current_node,omitempty"`
+	NextNode       string               `json:"next_node,omitempty"`
+	LastStage      string               `json:"last_stage,omitempty"`
+	LastResponse   string               `json:"last_response,omitempty"`
+	StderrTail     string               `json:"stderr_tail,omitempty"`
+	ParentThreadID string               `json:"parent_thread_id,omitempty"`
+	Service        *engine.ServiceState `json:"service,omitempty"`
 }
 
 type steerRunInput struct {
@@ -137,7 +147,7 @@ func newTractorMCPServer() (*server.MCPServer, *tractorMCPServer, error) {
 	mcpServer := server.NewMCPServer(
 		"tractor",
 		tractorMCPVersion,
-		server.WithInstructions("Use Tractor when work should fan out across several models or approaches, be cross-checked by another model, pass a deterministic verification gate, or keep running after this session ends. Start from a copy-and-run example (examples/loops/ in the Tractor repo; also bundled with the tractor skill) — no pipeline authoring needed. Pipeline definitions are files: start_run lints the graph first and refuses to launch a broken one, and the returned run_id drives later operations. Runs are detached processes that survive this stdio session and can be inspected, steered, or stopped after reconnecting."),
+		server.WithInstructions("Use Tractor when work should fan out across several models or approaches, be cross-checked by another model, pass a deterministic verification gate, or keep running after this session ends. Start from a copy-and-run example (examples/loops/ in the Tractor repo; also bundled with the tractor skill) — no pipeline authoring needed. Pipeline definitions are files: start_run lints the graph first and refuses to launch a broken one, and the returned run_id drives later operations. Runs are detached processes that survive this stdio session and can be inspected, steered, or stopped after reconnecting. In local Codex desktop, pass the launching task's explicit parent identity to start_run so Tractor can queue bounded run news directly back to that thread."),
 		server.WithToolCapabilities(false),
 		server.WithInputSchemaValidation(),
 		server.WithOutputSchemaValidation(),
@@ -184,6 +194,10 @@ func newTractorMCPServer() (*server.MCPServer, *tractorMCPServer, error) {
 }
 
 func (s *tractorMCPServer) startRun(_ context.Context, _ mcp.CallToolRequest, input startRunInput) (startRunOutput, error) {
+	hostSession, err := codexParentSession(input.Parent)
+	if err != nil {
+		return startRunOutput{}, err
+	}
 	pipelinePath, warnings, err := loadAndValidatePipeline(input.PipelinePath, input.Workdir)
 	if err != nil {
 		return startRunOutput{}, err
@@ -238,7 +252,7 @@ func (s *tractorMCPServer) startRun(_ context.Context, _ mcp.CallToolRequest, in
 		Version: mcpRunStateVersion, ID: runID, Status: "STARTING",
 		Pipeline: pipelinePath, Workdir: workdir, LogsRoot: logsRoot,
 		StdoutPath: stdoutPath, StderrPath: stderrPath, Resume: input.Resume,
-		StartedAt: startedAt,
+		StartedAt: startedAt, HostSession: hostSession,
 	}
 	if err := s.runs.create(record); err != nil {
 		_ = stdout.Close()
@@ -288,7 +302,44 @@ func (s *tractorMCPServer) startRun(_ context.Context, _ mcp.CallToolRequest, in
 		RunID: runID, PID: record.PID, Status: record.Status,
 		Pipeline: pipelinePath, Workdir: workdir, LogsRoot: logsRoot,
 		Warnings: warnings, StdoutPath: stdoutPath, StderrPath: stderrPath,
+		ParentThreadID: hostThreadID(record.HostSession),
 	}, nil
+}
+
+func codexParentSession(parent *codexParentInput) (*hostwake.Session, error) {
+	if parent == nil {
+		return nil, nil
+	}
+	threadID := strings.TrimSpace(parent.ThreadID)
+	if !looksLikeUUID(threadID) {
+		return nil, fmt.Errorf("parent thread_id %q is not a UUID", parent.ThreadID)
+	}
+	hostID := strings.TrimSpace(parent.HostID)
+	if hostID == "" {
+		return nil, errors.New("parent host_id must not be empty")
+	}
+	return &hostwake.Session{
+		Host: hostwake.HostCodexDesktop, HostID: hostID, ThreadID: threadID,
+		SessionID: strings.TrimSpace(parent.SessionID), Kind: hostwake.KindInteractive,
+	}, nil
+}
+
+func looksLikeUUID(value string) bool {
+	if len(value) != 36 {
+		return false
+	}
+	for index, character := range value {
+		if index == 8 || index == 13 || index == 18 || index == 23 {
+			if character != '-' {
+				return false
+			}
+			continue
+		}
+		if !strings.ContainsRune("0123456789abcdefABCDEF", character) {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *tractorMCPServer) getRunStatus(_ context.Context, _ mcp.CallToolRequest, input runIDInput) (runStatusOutput, error) {
@@ -308,7 +359,7 @@ func snapshotRun(run mcpRunRecord) runStatusOutput {
 		RunID: run.ID, PID: run.PID, Status: run.Status,
 		Pipeline: run.Pipeline, Workdir: run.Workdir, LogsRoot: run.LogsRoot,
 		StartedAt: run.StartedAt.Format(time.RFC3339Nano), ExitCode: run.ExitCode,
-		Failure: run.Failure,
+		Failure: run.Failure, ParentThreadID: hostThreadID(run.HostSession),
 	}
 	if run.FinishedAt != nil {
 		result.FinishedAt = run.FinishedAt.Format(time.RFC3339Nano)
@@ -327,6 +378,13 @@ func snapshotRun(run mcpRunRecord) runStatusOutput {
 		result.Service = &service
 	}
 	return result
+}
+
+func hostThreadID(session *hostwake.Session) string {
+	if session == nil {
+		return ""
+	}
+	return session.ThreadID
 }
 
 func (s *tractorMCPServer) steerRun(ctx context.Context, _ mcp.CallToolRequest, input steerRunInput) (steerRunOutput, error) {

@@ -100,6 +100,14 @@ already.
    under `~/.local/state/tractor/mcp-runs` and outlives this session and any
    MCP restart — a later session reconnects with the same `run_id`.
 
+## Run news in Codex desktop
+
+When the user asks this local Codex desktop task to keep watch, attach the run
+to this exact parent so Tractor can queue bounded news directly back to it.
+Read and follow [codex-queue.md](references/codex-queue.md) before `start_run`;
+it contains the identity and delivery contract. Do not create a heartbeat or
+poll Tractor from the parent.
+
 ## Starting the software under test
 
 Set `system_file` in the workflow to `Procfile` or a name such as

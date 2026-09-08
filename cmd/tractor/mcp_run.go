@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/tractor/engine"
+	"github.com/tylergannon/tractor/internal/hostwake"
 )
 
 const (
@@ -24,21 +25,22 @@ type mcpRunStore struct {
 }
 
 type mcpRunRecord struct {
-	Version    int        `json:"version"`
-	ID         string     `json:"run_id"`
-	PID        int        `json:"pid"`
-	Status     string     `json:"status"`
-	Pipeline   string     `json:"pipeline_path"`
-	Workdir    string     `json:"workdir"`
-	LogsRoot   string     `json:"logs_root"`
-	StdoutPath string     `json:"stdout_path"`
-	StderrPath string     `json:"stderr_path"`
-	Resume     bool       `json:"resume"`
-	StartedAt  time.Time  `json:"started_at"`
-	FinishedAt *time.Time `json:"finished_at,omitempty"`
-	ExitCode   *int       `json:"exit_code,omitempty"`
-	Failure    string     `json:"failure,omitempty"`
-	StopAt     *time.Time `json:"stop_at,omitempty"`
+	Version     int               `json:"version"`
+	ID          string            `json:"run_id"`
+	PID         int               `json:"pid"`
+	Status      string            `json:"status"`
+	Pipeline    string            `json:"pipeline_path"`
+	Workdir     string            `json:"workdir"`
+	LogsRoot    string            `json:"logs_root"`
+	StdoutPath  string            `json:"stdout_path"`
+	StderrPath  string            `json:"stderr_path"`
+	Resume      bool              `json:"resume"`
+	StartedAt   time.Time         `json:"started_at"`
+	FinishedAt  *time.Time        `json:"finished_at,omitempty"`
+	ExitCode    *int              `json:"exit_code,omitempty"`
+	Failure     string            `json:"failure,omitempty"`
+	StopAt      *time.Time        `json:"stop_at,omitempty"`
+	HostSession *hostwake.Session `json:"host_session,omitempty"`
 }
 
 type mcpInstance struct {
@@ -297,7 +299,11 @@ func runDetachedMCPRun(command *cobra.Command, store *mcpRunStore, runID string)
 	pipeline, _, loadErr := loadPipeline([]string{record.Pipeline}, "", false, "", false)
 	runErr := loadErr
 	if runErr == nil {
-		runErr = runPipeline(command, *pipeline, record.Workdir, record.LogsRoot, record.Resume, engine.WakeConfig{Mode: engine.WakeAuto})
+		wake := engine.WakeConfig{Mode: engine.WakeAuto}
+		if record.HostSession != nil {
+			wake = engine.WakeConfig{Mode: engine.WakeOn, Session: record.HostSession}
+		}
+		runErr = runPipeline(command, *pipeline, record.Workdir, record.LogsRoot, record.Resume, wake)
 	}
 
 	_, persistErr := store.update(runID, func(record *mcpRunRecord) error {
