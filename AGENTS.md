@@ -14,6 +14,17 @@ Codex plugin or marketplace, load and follow the `release-tractor` repository
 skill at `.agents/skills/release-tractor/SKILL.md` before changing release
 state.
 
+## New-build proof
+
+Before calling any new Tractor build proved, run `python3 scripts/prove-build.py`
+from its checkout, or pass `--binary /absolute/path/to/tractor` for the exact
+candidate. This runs the shipped `sprint-execute` workflow with real native
+agents against the [canonical loop fixture](examples/loops/canonical/README.md).
+Require exit zero and the fresh artifact directory's `result.json` with
+`passed: true`; inspect its review transcripts and report its binary hash and
+artifact path. A skipped, failed, interrupted or stale run is not proof.
+This is required in addition to ordinary checks and proof of changed behavior.
+
 ## Planning, design, and execution rules
 
 Before planning, designing, or running an interview, loop, or workflow for

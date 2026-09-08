@@ -39,15 +39,25 @@ golangci-lint run ./...
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/plugin-creator/scripts/validate_plugin.py" .
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-creator/scripts/quick_validate.py" .agents/skills/release-tractor
 git diff --check
+python3 scripts/prove-build.py
 ```
 
-Also run focused tests and live entry-point proof appropriate to the changed
-behavior. A passing test suite is not a substitute for exercising the released
-interface.
+The canonical loop proof is mandatory. Require its exit zero and fresh
+`result.json` with `passed: true`, inspect the reviewer transcripts, and retain
+the artifact path and binary hash in the release evidence. For a separately
+built release binary, run `python3 scripts/prove-build.py --binary <absolute-path>`
+against that candidate. If source or binary changes afterward, rerun the proof.
+A missing harness, quota failure or timeout blocks build-proof completion;
+never replace this run with unit tests or a prior receipt.
+
+Also run focused tests and live entry-point proof appropriate to changed
+behavior. The canonical fixture proves the flat checklist loop; it does not
+replace proof of services, nested loops or other changed surfaces.
 
 ## Publish and refresh Codex
 
-1. Squash-merge the release PR to `main` and synchronize the root checkout.
+1. Require the canonical loop proof above before publishing. Squash-merge the
+   release PR to `main` and synchronize the root checkout.
 2. For a versioned release, create and push `v<version>` at the verified merge
    commit. Do not move or overwrite an existing tag. Create a GitHub release
    only when requested or when the repository establishes that convention.
