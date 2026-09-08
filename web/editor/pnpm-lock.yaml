@@ -214,6 +214,9 @@ importers:
         specifier: ^2.9.0
         version: 2.9.0
     devDependencies:
+      '@skgo/adapter':
+        specifier: github:tylergannon/skgo#v0.2.5&path:internal/adapter
+        version: https://codeload.github.com/tylergannon/skgo/tar.gz/e9d3edd7bc84914493f05103050105ade563e0e4#path:internal/adapter(@sveltejs/kit@3.0.0-next.25(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.1)(typescript@6.0.3)(yaml@2.9.0))(svelte@5.56.10))(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.1)(typescript@6.0.3)(yaml@2.9.0))(svelte@5.56.10)(typescript@6.0.3))
       '@sveltejs/kit':
         specifier: 3.0.0-next.25
         version: 3.0.0-next.25(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.1)(typescript@6.0.3)(yaml@2.9.0))(svelte@5.56.10))(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.1)(typescript@6.0.3)(yaml@2.9.0))(svelte@5.56.10)(typescript@6.0.3)
@@ -567,6 +570,12 @@ packages:
 
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
+
+  '@skgo/adapter@https://codeload.github.com/tylergannon/skgo/tar.gz/e9d3edd7bc84914493f05103050105ade563e0e4#path:internal/adapter':
+    resolution: {gitHosted: true, integrity: sha512-WtpIWDLaWse8AF2eMyzRnbq65+Xk14UVhXa59l12mNYeji74st9zgZt7+/XNMcx+yVslKlgX46Z1uKbeHfW9GQ==, path: internal/adapter, tarball: https://codeload.github.com/tylergannon/skgo/tar.gz/e9d3edd7bc84914493f05103050105ade563e0e4}
+    version: 0.0.0-dev
+    peerDependencies:
+      '@sveltejs/kit': ^3.0.0-next.0
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
@@ -1508,6 +1517,10 @@ snapshots:
   '@polka/url@1.0.0-next.29': {}
 
   '@rolldown/pluginutils@1.0.1': {}
+
+  '@skgo/adapter@https://codeload.github.com/tylergannon/skgo/tar.gz/e9d3edd7bc84914493f05103050105ade563e0e4#path:internal/adapter(@sveltejs/kit@3.0.0-next.25(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.1)(typescript@6.0.3)(yaml@2.9.0))(svelte@5.56.10))(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.1)(typescript@6.0.3)(yaml@2.9.0))(svelte@5.56.10)(typescript@6.0.3))':
+    dependencies:
+      '@sveltejs/kit': 3.0.0-next.25(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.1)(typescript@6.0.3)(yaml@2.9.0))(svelte@5.56.10))(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.1)(typescript@6.0.3)(yaml@2.9.0))(svelte@5.56.10)(typescript@6.0.3)
 
   '@standard-schema/spec@1.1.0': {}
 

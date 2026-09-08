@@ -40,7 +40,7 @@ export class ConflictError extends Error {
 	}
 }
 
-function fromWire(d: Document): ServerDoc {
+export function fromWire(d: Document): ServerDoc {
 	let layout: Layout | null = null;
 	if (d.has_layout) {
 		layout = {};

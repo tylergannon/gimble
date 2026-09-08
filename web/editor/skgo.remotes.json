@@ -4,6 +4,8 @@
 		"1t7vxpr/saveDoc",
 		"1t7vxpr/watchDoc"
 	],
-	"loads": [],
+	"loads": [
+		"src/routes/+page.server.ts"
+	],
 	"endpoints": {}
 }

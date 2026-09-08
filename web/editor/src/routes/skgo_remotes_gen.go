@@ -2,23 +2,25 @@
 
 package routes
 
-import "github.com/tylergannon/skgo"
+import (
+	editor "github.com/tylergannon/tractor/internal/editor"
+)
 
-// SkgoRemotes returns the remote functions declared in this package.
-func SkgoRemotes() []*skgo.Remote {
-	return []*skgo.Remote{
-		skgo.NewQueryNoArg("src/routes/editor.remote.ts", "getDoc", getDoc),
-		skgo.NewCommand("src/routes/editor.remote.ts", "saveDoc", saveDoc),
-		skgo.NewLiveQueryNoArg("src/routes/editor.remote.ts", "watchDoc", watchDoc),
-	}
-}
+// The functions this package declares, published under names the generated
+// bindings package can spell. Each is the function itself and not a wrapper:
+// skgo.Refresh finds a query by the code pointer of the function it names.
+var (
+	// Skgo_getDoc is getDoc, published as src/routes/editor.remote.ts#getDoc.
+	Skgo_getDoc = getDoc
+	// Skgo_saveDoc is saveDoc, published as src/routes/editor.remote.ts#saveDoc.
+	Skgo_saveDoc = saveDoc
+	// Skgo_watchDoc is watchDoc, published as src/routes/editor.remote.ts#watchDoc.
+	Skgo_watchDoc = watchDoc
+	// Skgo_pageLoad is pageLoad, published as the server load of src/routes/+page.server.ts.
+	Skgo_pageLoad = pageLoad
+)
 
-// SkgoLoads returns the server loads declared in this package.
-func SkgoLoads() []*skgo.ServerLoad {
-	return []*skgo.ServerLoad{}
-}
-
-// SkgoEndpoints returns the server routes declared in this package.
-func SkgoEndpoints() []*skgo.Endpoint {
-	return []*skgo.Endpoint{}
-}
+type (
+	// SkgoOut_watchDoc is the type watchDoc yields.
+	SkgoOut_watchDoc = editor.Change
+)

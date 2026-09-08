@@ -130,7 +130,7 @@ func object(t *testing.T, v any) *devalue.Object {
 	return o
 }
 
-func TestTheBootDocumentIsServedFromTheEmbeddedBuild(t *testing.T) {
+func TestThePipelineIsServerRenderedFromTheEmbeddedBuild(t *testing.T) {
 	h, _ := newHandler(t)
 	rec := do(h, request(http.MethodGet, "/", ""))
 	if rec.Code != http.StatusOK {
@@ -138,6 +138,28 @@ func TestTheBootDocumentIsServedFromTheEmbeddedBuild(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "<title>Tractor editor</title>") {
 		t.Fatalf("GET / is not the editor page:\n%s", rec.Body)
+	}
+	if !strings.Contains(rec.Body.String(), ">bake-off</span>") ||
+		!strings.Contains(rec.Body.String(), ">3 nodes</span>") {
+		t.Fatalf("GET / did not render the pipeline before JavaScript ran:\n%s", rec.Body)
+	}
+}
+
+func TestAnOrdinaryGoHandlerCanShareTheServer(t *testing.T) {
+	app, _ := newHandler(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	})
+	mux.Handle("/", app)
+
+	health := do(mux, request(http.MethodGet, "/healthz", ""))
+	if health.Code != http.StatusOK || health.Body.String() != "ok" {
+		t.Fatalf("GET /healthz = %d %q", health.Code, health.Body.String())
+	}
+	page := do(mux, request(http.MethodGet, "/", ""))
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), ">bake-off</span>") {
+		t.Fatalf("GET / through the shared mux = %d:\n%s", page.Code, page.Body)
 	}
 }
 

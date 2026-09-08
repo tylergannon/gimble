@@ -2,9 +2,15 @@
 	import Canvas from '#lib/components/Canvas.svelte';
 	import Header from '#lib/components/Header.svelte';
 	import Inspector from '#lib/components/Inspector.svelte';
+	import { fromWire } from '#lib/api.ts';
 	import { Editor } from '#lib/store.svelte.ts';
+	import type { PageProps } from './$types';
 
-	const editor = new Editor();
+	let { data }: PageProps = $props();
+	// Route data may change after navigation, but this one-page editor adopts
+	// later file changes through its live query. The server value is its seed.
+	const initialDocument = () => fromWire(data);
+	const editor = new Editor(initialDocument());
 
 	$effect(() => editor.start());
 

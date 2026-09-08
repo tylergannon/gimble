@@ -5,6 +5,8 @@ node = "24.16.0"
 "npm:vite-plus" = "0.3.0"
 
 [env]
+ORIGIN = "http://127.0.0.1:7331"
+
 # SvelteKit checks the dev server's SSR environment with `isRunnableDevEnvironment`,
 # which is an `instanceof` against the *project's* resolved `vite`. The
 # mise-global `npm:vite-plus` install ships its own copy of
