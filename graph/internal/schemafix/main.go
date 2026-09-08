@@ -34,6 +34,9 @@ func fixSchema(check bool) error {
 	}
 	root["required"] = []any{"start", "nodes"}
 	properties := object(root["properties"])
+	services := object(properties["services"])
+	services["minItems"] = 1
+	services["maxItems"] = 1
 	nodes := object(properties["nodes"])
 	items := object(nodes["items"])
 	options, ok := items["anyOf"].([]any)

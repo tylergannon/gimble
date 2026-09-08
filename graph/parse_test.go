@@ -237,6 +237,38 @@ func TestParseRejectsStructuralViolations(t *testing.T) {
 	}
 }
 
+func TestParseAcceptsZeroOrOneNamedProcfileService(t *testing.T) {
+	without := `{"start":"x","nodes":[{"id":"x","type":"agent","edges":[{"to":"success"}]}]}`
+	if _, err := Parse([]byte(without)); err != nil {
+		t.Fatalf("workflow without services: %v", err)
+	}
+	with := `{"system_file":"dev/Procfile.dev","services":["web"],"start":"x","nodes":[{"id":"x","type":"agent","edges":[{"to":"success"}]}]}`
+	pipeline, err := Parse([]byte(with))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pipeline.SystemFile.Value != "dev/Procfile.dev" || !reflect.DeepEqual(pipeline.Services, []string{"web"}) {
+		t.Fatalf("service declaration = %#v, %#v", pipeline.SystemFile, pipeline.Services)
+	}
+}
+
+func TestParseRejectsBroaderServiceConfigurations(t *testing.T) {
+	tests := map[string]string{
+		"multiple services": `{"system_file":"Procfile","services":["web","worker"],"start":"x","nodes":[{"id":"x","type":"agent","edges":[{"to":"success"}]}]}`,
+		"compose":           `{"system_file":"docker-compose.yaml","services":["web"],"start":"x","nodes":[{"id":"x","type":"agent","edges":[{"to":"success"}]}]}`,
+		"file alone":        `{"system_file":"Procfile","start":"x","nodes":[{"id":"x","type":"agent","edges":[{"to":"success"}]}]}`,
+		"service alone":     `{"services":["web"],"start":"x","nodes":[{"id":"x","type":"agent","edges":[{"to":"success"}]}]}`,
+		"outside workdir":   `{"system_file":"../Procfile","services":["web"],"start":"x","nodes":[{"id":"x","type":"agent","edges":[{"to":"success"}]}]}`,
+	}
+	for name, document := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, err := Parse([]byte(document)); err == nil {
+				t.Fatal("configuration was accepted")
+			}
+		})
+	}
+}
+
 func TestParseRejectsDuplicateMembersAndNodeIDs(t *testing.T) {
 	for name, document := range map[string]string{
 		"top":  `{"start":"x","start":"y","nodes":[]}`,

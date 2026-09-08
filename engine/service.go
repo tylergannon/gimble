@@ -1,6 +1,10 @@
 package engine
 
 import (
+	"bufio"
+	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -9,222 +13,389 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/tylergannon/tractor/graph"
+	"github.com/tylergannon/tractor/harness"
 )
 
-// ServiceFile is the repository-level file naming how to start the software
-// under test. Its contents go to /bin/sh, the same as any command node, so it
-// can be a single line or a script. It is written once by a person and
-// committed; nothing in a run authors it.
-const ServiceFile = ".tractor/run"
-
-// serviceLogName is the service's log within a loop stage directory.
-const serviceLogName = "service.log"
-
 const (
+	ServicePortEnv = "TRACTOR_SERVICE_PORT"
+
 	serviceReadyTimeout = 90 * time.Second
 	serviceReadyPoll    = 150 * time.Millisecond
 	serviceDialTimeout  = 500 * time.Millisecond
-	serviceTermGrace    = 5 * time.Second
-	serviceStartTries   = 2
+	serviceDownTimeout  = 10 * time.Second
+	serviceStateFile    = "services.json"
 )
 
-// errServiceNotReady is returned when the application never accepted a
-// connection on the port the engine allocated for it. It is a validation
-// failure, never a question put to a model.
-var errServiceNotReady = errors.New("service never became ready")
-
-// service is one running application under test: a process group the engine
-// started, on a port the engine chose. Nothing about what is inside the group
-// is known here, which is what keeps Tractor out of process supervision —
-// `run` may be a single binary, `overmind start`, or `docker compose up`, and
-// the engine cannot tell the difference.
-type service struct {
-	port    int
-	url     string
-	logPath string
-
-	process *exec.Cmd
-	logFile *os.File
-	exited  chan struct{}
+// ServiceState is the durable view of the one service a workflow may name.
+type ServiceState struct {
+	Name    string `json:"name"`
+	Port    int    `json:"port"`
+	Running bool   `json:"running"`
 }
 
-// env returns the variables handed to every command validated against this
-// service. PORT is the twelve-factor spelling that most frameworks already
-// honour; a tool with its own spelling is adapted in the service file itself,
-// as in `OVERMIND_PORT=$PORT overmind start`.
-func (s *service) env() []string {
-	return []string{
-		"PORT=" + strconv.Itoa(s.port),
-		"TRACTOR_URL=" + s.url,
-	}
+// ProcessManager is the lifecycle boundary between the engine and a real
+// process manager. The initial adapter is Overmind over one Procfile.
+type ProcessManager interface {
+	Ensure(context.Context) (ServiceState, error)
+	Down(context.Context) error
 }
 
-// readServiceCommand returns the contents of the service file under workdir.
-// The second result reports whether the file exists; a repository with no
-// service file simply runs without one.
-func readServiceCommand(workdir string) (string, bool, error) {
-	raw, err := os.ReadFile(filepath.Join(workdir, ServiceFile))
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-		return "", false, nil
-	case err != nil:
-		return "", false, fmt.Errorf("read %s: %w", ServiceFile, err)
-	}
-	command := strings.TrimSpace(string(raw))
-	if command == "" {
-		return "", false, fmt.Errorf("%s is empty", ServiceFile)
-	}
-	return command, true, nil
+type procfile struct {
+	path      string
+	processes []string
 }
 
-// freePort asks the kernel for an unused port and releases it. The window
-// between that release and the application's own bind is a race, which is why
-// startService retries: a lost race shows up as the process exiting before it
-// ever accepts, and a fresh port is drawn for the next attempt.
-func freePort() (int, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+func readProcfile(workdir, configuredPath, service string) (procfile, int, error) {
+	path := filepath.Join(workdir, filepath.Clean(configuredPath))
+	file, err := os.Open(path)
 	if err != nil {
-		return 0, fmt.Errorf("allocate port: %w", err)
+		return procfile{}, 0, fmt.Errorf("open system_file %s: %w", configuredPath, err)
 	}
-	port := listener.Addr().(*net.TCPAddr).Port
-	if err := listener.Close(); err != nil {
-		return 0, fmt.Errorf("release allocated port: %w", err)
+	defer func() { _ = file.Close() }()
+
+	definition := procfile{path: path}
+	selected := -1
+	seen := map[string]struct{}{}
+	scanner := bufio.NewScanner(file)
+	for line := 1; scanner.Scan(); line++ {
+		text := strings.TrimSpace(scanner.Text())
+		if text == "" || strings.HasPrefix(text, "#") {
+			continue
+		}
+		name, command, ok := strings.Cut(text, ":")
+		name, command = strings.TrimSpace(name), strings.TrimSpace(command)
+		if !ok || name == "" || command == "" {
+			return procfile{}, 0, fmt.Errorf("parse system_file %s line %d: expected name: command", configuredPath, line)
+		}
+		if _, duplicate := seen[name]; duplicate {
+			return procfile{}, 0, fmt.Errorf("parse system_file %s line %d: duplicate process %q", configuredPath, line, name)
+		}
+		seen[name] = struct{}{}
+		if name == service {
+			selected = len(definition.processes)
+		}
+		definition.processes = append(definition.processes, name)
 	}
-	return port, nil
+	if err := scanner.Err(); err != nil {
+		return procfile{}, 0, fmt.Errorf("read system_file %s: %w", configuredPath, err)
+	}
+	if len(definition.processes) == 0 {
+		return procfile{}, 0, fmt.Errorf("system_file %s declares no processes", configuredPath)
+	}
+	if selected < 0 {
+		return procfile{}, 0, fmt.Errorf("service %q is not declared in system_file %s", service, configuredPath)
+	}
+	return definition, selected, nil
 }
 
-// startService runs command on a freshly allocated port and waits for that
-// port to accept a connection. It retries on a new port when the process
-// exits before becoming ready, which is how a lost port race recovers. A
-// returned service is running and must be stopped.
-func startService(command, workdir, logPath string, stop *StopSignal) (*service, error) {
-	var lastErr error
-	for attempt := range serviceStartTries {
-		if stop != nil && stop.IsSet() {
-			return nil, errShellStopped
-		}
-		started, err := launchService(command, workdir, logPath, attempt)
-		if err != nil {
-			return nil, err
-		}
-		readyErr := started.waitReady(serviceReadyTimeout, stop)
-		if readyErr == nil {
-			return started, nil
-		}
-		started.stop()
-		if errors.Is(readyErr, errShellStopped) {
-			return nil, readyErr
-		}
-		lastErr = readyErr
-	}
-	return nil, lastErr
+type overmindManager struct {
+	workdir     string
+	definition  procfile
+	service     string
+	servicePort int
+	basePort    int
+	socket      string
+	logPath     string
+	readyFor    time.Duration
 }
 
-// launchService allocates a port and starts one attempt in its own process
-// group. attempt only distinguishes the log file, so a retry does not erase
-// the reason the first try failed.
-func launchService(command, workdir, logPath string, attempt int) (*service, error) {
-	port, err := freePort()
+func newOvermindManager(workdir, logsRoot, configuredPath, service string) (*overmindManager, error) {
+	if _, err := exec.LookPath("overmind"); err != nil {
+		return nil, fmt.Errorf("workflow declares a service but overmind is not installed: %w", err)
+	}
+	definition, selected, err := readProcfile(workdir, configuredPath, service)
 	if err != nil {
 		return nil, err
 	}
-	if attempt > 0 {
-		logPath = fmt.Sprintf("%s.retry%d", logPath, attempt)
-	}
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	basePort, err := freePortRange(len(definition.processes))
 	if err != nil {
-		return nil, &shellFailure{Op: "open log", Err: err}
+		return nil, err
 	}
-
-	started := &service{
-		port:    port,
-		url:     fmt.Sprintf("http://127.0.0.1:%d", port),
-		logPath: logPath,
-		logFile: logFile,
-		exited:  make(chan struct{}),
-	}
-
-	process := exec.Command("/bin/sh", "-c", command)
-	process.Dir = workdir
-	process.Stdout = logFile
-	process.Stderr = logFile
-	process.Env = append(os.Environ(), started.env()...)
-	process.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := process.Start(); err != nil {
-		_ = logFile.Close()
-		return nil, &shellFailure{Op: "run", Err: err}
-	}
-	started.process = process
-
-	go func() {
-		_ = process.Wait()
-		close(started.exited)
-	}()
-	return started, nil
+	digest := sha256.Sum256([]byte(logsRoot))
+	socket := filepath.Join(os.TempDir(), fmt.Sprintf("tractor-overmind-%x.sock", digest[:8]))
+	return &overmindManager{
+		workdir: workdir, definition: definition, service: service,
+		basePort: basePort, servicePort: basePort + selected, socket: socket,
+		logPath: filepath.Join(logsRoot, "services.log"), readyFor: serviceReadyTimeout,
+	}, nil
 }
 
-// waitReady polls until the port accepts a connection. An exit before that
-// happens is a failure in its own right: an application that could not bind
-// almost always dies, so watching the process closes the port race far more
-// cheaply than inspecting who holds the listener.
-func (s *service) waitReady(timeout time.Duration, stop *StopSignal) error {
-	deadline := time.Now().Add(timeout)
-	address := net.JoinHostPort("127.0.0.1", strconv.Itoa(s.port))
+func freePortRange(size int) (int, error) {
+	for range 20 {
+		seed, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return 0, fmt.Errorf("allocate service port: %w", err)
+		}
+		base := seed.Addr().(*net.TCPAddr).Port
+		listeners := []net.Listener{seed}
+		available := base+size <= 65535
+		for offset := 1; available && offset < size; offset++ {
+			listener, listenErr := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(base+offset)))
+			if listenErr != nil {
+				available = false
+				break
+			}
+			listeners = append(listeners, listener)
+		}
+		for _, listener := range listeners {
+			_ = listener.Close()
+		}
+		if available {
+			return base, nil
+		}
+	}
+	return 0, errors.New("allocate consecutive ports for Procfile processes")
+}
+
+func (m *overmindManager) Ensure(ctx context.Context) (ServiceState, error) {
+	running := m.instanceRunning(ctx)
+	if !running {
+		_ = os.Remove(m.socket)
+		if err := m.start(ctx); err != nil {
+			return ServiceState{Name: m.service, Port: m.servicePort}, err
+		}
+	}
+	if m.portAccepts() {
+		return ServiceState{Name: m.service, Port: m.servicePort, Running: true}, nil
+	}
+	if running {
+		if output, err := m.command(ctx, "restart", m.service); err != nil {
+			return ServiceState{Name: m.service, Port: m.servicePort}, fmt.Errorf("restart service %q: %w: %s", m.service, err, strings.TrimSpace(output))
+		}
+		if err := m.waitReady(ctx); err != nil {
+			return ServiceState{Name: m.service, Port: m.servicePort}, err
+		}
+	}
+	return ServiceState{Name: m.service, Port: m.servicePort, Running: true}, nil
+}
+
+func (m *overmindManager) start(ctx context.Context) error {
+	logFile, err := os.OpenFile(m.logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("open service log: %w", err)
+	}
+	defer func() { _ = logFile.Close() }()
+	command := exec.CommandContext(ctx, "overmind", "start", "--daemonize", "--any-can-die",
+		"--socket", m.socket, "--procfile", m.definition.path, "--root", m.workdir,
+		"--port", strconv.Itoa(m.basePort), "--port-step", "1")
+	command.Dir = m.workdir
+	command.Stdout, command.Stderr = logFile, logFile
+	if err := command.Run(); err != nil {
+		return fmt.Errorf("start Overmind: %w (see %s)", err, m.logPath)
+	}
+	return m.waitReady(ctx)
+}
+
+func (m *overmindManager) waitReady(ctx context.Context) error {
+	started := time.Now()
+	deadline := time.Now().Add(m.readyFor)
 	for {
-		select {
-		case <-s.exited:
-			return fmt.Errorf("%w: %s exited before accepting on port %d", errServiceNotReady, ServiceFile, s.port)
-		default:
-		}
-		if stop != nil && stop.IsSet() {
-			return errShellStopped
-		}
-		conn, err := net.DialTimeout("tcp", address, serviceDialTimeout)
-		if err == nil {
-			_ = conn.Close()
+		if m.portAccepts() {
 			return nil
 		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("%w: nothing accepted on port %d within %s", errServiceNotReady, s.port, timeout)
+		if time.Since(started) > 2*time.Second && !m.instanceRunning(ctx) {
+			return fmt.Errorf("service %q exited before accepting connections on port %d (see %s)", m.service, m.servicePort, m.logPath)
 		}
-		time.Sleep(serviceReadyPoll)
+		if time.Now().After(deadline) {
+			return fmt.Errorf("service %q did not accept connections on port %d within %s (see %s)", m.service, m.servicePort, m.readyFor, m.logPath)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(serviceReadyPoll):
+		}
 	}
 }
 
-// stop signals the whole process group and waits for it to go. SIGTERM first,
-// because a supervisor such as `docker compose up` tears its own children
-// down on it and would leave containers behind under SIGKILL; SIGKILL after
-// the grace period, because leaving a survivor makes it the next lap's stale
-// target. Safe to call more than once.
-func (s *service) stop() {
-	if s.process == nil || s.process.Process == nil {
-		return
+func (m *overmindManager) portAccepts() bool {
+	connection, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(m.servicePort)), serviceDialTimeout)
+	if err != nil {
+		return false
 	}
-	group := -s.process.Process.Pid
-	if err := syscall.Kill(group, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
-		_ = syscall.Kill(group, syscall.SIGKILL)
-	}
-	select {
-	case <-s.exited:
-	case <-time.After(serviceTermGrace):
-		_ = syscall.Kill(group, syscall.SIGKILL)
-		<-s.exited
-	}
-	if s.logFile != nil {
-		_ = s.logFile.Close()
-		s.logFile = nil
-	}
+	_ = connection.Close()
+	return true
 }
 
-// serviceFailureSummary phrases a readiness failure for a validation record,
-// with the tail of the service log so the reason is in front of whoever reads
-// the run rather than buried in a file.
-func serviceFailureSummary(err error, logPath string) string {
-	summary := err.Error()
-	if tail, tailErr := logTail(logPath, validationLogTailRunes); tailErr == nil && tail != "" {
-		return summary + " — " + tail
+func (m *overmindManager) instanceRunning(ctx context.Context) bool {
+	_, err := m.command(ctx, "status")
+	return err == nil
+}
+
+func (m *overmindManager) command(ctx context.Context, verb string, args ...string) (string, error) {
+	arguments := []string{verb, "--socket", m.socket}
+	arguments = append(arguments, args...)
+	command := exec.CommandContext(ctx, "overmind", arguments...)
+	command.Dir = m.workdir
+	output, err := command.CombinedOutput()
+	return string(output), err
+}
+
+func (m *overmindManager) Down(ctx context.Context) error {
+	if !m.instanceRunning(ctx) {
+		_ = os.Remove(m.socket)
+		return nil
 	}
-	return summary
+	output, err := m.command(ctx, "quit")
+	if err != nil {
+		_ = os.Remove(m.socket)
+		return fmt.Errorf("quit Overmind: %w: %s", err, strings.TrimSpace(output))
+	}
+	for m.portAccepts() {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for service %q to stop: %w", m.service, ctx.Err())
+		case <-time.After(serviceReadyPoll):
+		}
+	}
+	_ = os.Remove(m.socket)
+	return nil
+}
+
+func serviceManagerFor(pipeline graph.Graph, workdir, logsRoot string) (ProcessManager, error) {
+	if len(pipeline.Services) == 0 {
+		return nil, nil
+	}
+	return newOvermindManager(workdir, logsRoot, pipeline.SystemFile.Value, pipeline.Services[0])
+}
+
+func (r *Runner) prepareService(store *runStore) (func(), error) {
+	manager := r.config.ProcessManager
+	if manager == nil {
+		var err error
+		manager, err = serviceManagerFor(r.graph, r.config.Workdir, r.config.LogsRoot)
+		if err != nil {
+			return func() {}, err
+		}
+	}
+	if manager == nil {
+		return func() {}, nil
+	}
+	r.processManager = manager
+	state, err := r.ensureServiceState(store, r.startID, 0)
+	if err != nil {
+		return func() {}, err
+	}
+	previous, existed := os.LookupEnv(ServicePortEnv)
+	if err := os.Setenv(ServicePortEnv, strconv.Itoa(state.Port)); err != nil {
+		return func() {}, fmt.Errorf("set %s: %w", ServicePortEnv, err)
+	}
+	return func() {
+		if existed {
+			_ = os.Setenv(ServicePortEnv, previous)
+		} else {
+			_ = os.Unsetenv(ServicePortEnv)
+		}
+	}, nil
+}
+
+func (r *Runner) ensureService(nodeID string, stage uint64, store *runStore) *harness.Error {
+	if r.processManager == nil {
+		return nil
+	}
+	state, err := r.ensureServiceState(store, nodeID, stage)
+	if err != nil {
+		return terminalError(fmt.Sprintf("ensure service for %s: %v", nodeID, err))
+	}
+	if current := os.Getenv(ServicePortEnv); current != strconv.Itoa(state.Port) {
+		if err := os.Setenv(ServicePortEnv, strconv.Itoa(state.Port)); err != nil {
+			return terminalError(fmt.Sprintf("set %s: %v", ServicePortEnv, err))
+		}
+	}
+	return nil
+}
+
+func (r *Runner) ensureServiceState(store *runStore, nodeID string, stage uint64) (ServiceState, error) {
+	r.serviceMu.Lock()
+	defer r.serviceMu.Unlock()
+	started := time.Now()
+	ctx, cancel := r.serviceContext()
+	defer cancel()
+	state, err := r.processManager.Ensure(ctx)
+	if writeErr := writeServiceState(store.root, state); writeErr != nil && err == nil {
+		err = writeErr
+	}
+	event := timelineEvent{
+		"type": "ServiceChecked", "node": nodeID, "stage": stage,
+		"service": state.Name, "port": state.Port, "running": state.Running,
+		"duration": time.Since(started).String(),
+	}
+	if err != nil {
+		event["error"] = err.Error()
+	}
+	if eventErr := store.appendTimeline(event); eventErr != nil && err == nil {
+		err = eventErr
+	}
+	return state, err
+}
+
+func (r *Runner) downService(store *runStore) error {
+	if r.processManager == nil {
+		return nil
+	}
+	r.serviceMu.Lock()
+	defer r.serviceMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), serviceDownTimeout)
+	defer cancel()
+	err := r.processManager.Down(ctx)
+	state, loadErr := LoadServiceState(store.root)
+	if loadErr == nil && err == nil {
+		state.Running = false
+		if writeErr := writeServiceState(store.root, state); writeErr != nil {
+			err = writeErr
+		}
+	}
+	event := timelineEvent{"type": "ServiceDown"}
+	if err != nil {
+		event["error"] = err.Error()
+	}
+	if eventErr := store.appendTimeline(event); eventErr != nil && err == nil {
+		err = eventErr
+	}
+	return err
+}
+
+func (r *Runner) serviceContext() (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		select {
+		case <-r.stop.done:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx, cancel
+}
+
+func writeServiceState(root string, state ServiceState) error {
+	raw, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode service state: %w", err)
+	}
+	raw = append(raw, '\n')
+	temporary := filepath.Join(root, ".services.json.tmp")
+	if err := os.WriteFile(temporary, raw, 0o644); err != nil {
+		return fmt.Errorf("write service state: %w", err)
+	}
+	if err := os.Rename(temporary, filepath.Join(root, serviceStateFile)); err != nil {
+		_ = os.Remove(temporary)
+		return fmt.Errorf("replace service state: %w", err)
+	}
+	return nil
+}
+
+// LoadServiceState reads the most recently observed service state for status
+// surfaces. A workflow without a service has no state file.
+func LoadServiceState(root string) (ServiceState, error) {
+	raw, err := os.ReadFile(filepath.Join(root, serviceStateFile))
+	if err != nil {
+		return ServiceState{}, err
+	}
+	var state ServiceState
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return ServiceState{}, fmt.Errorf("decode service state: %w", err)
+	}
+	return state, nil
 }

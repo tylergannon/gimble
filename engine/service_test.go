@@ -1,324 +1,230 @@
 package engine
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/tylergannon/tractor/checklist"
+	jsonschema "github.com/tylergannon/go-gen-jsonschema"
 	"github.com/tylergannon/tractor/graph"
+	"github.com/tylergannon/tractor/lint"
 )
 
-// writeServiceFile puts a service command in a fresh workdir and returns it.
-func writeServiceFile(t *testing.T, command string) string {
-	t.Helper()
+func TestReadProcfileSelectsTheNamedProcessByName(t *testing.T) {
 	workdir := t.TempDir()
-	writeServiceFileIn(t, workdir, command)
-	return workdir
-}
+	writeFile(t, filepath.Join(workdir, "Procfile.dev"), "worker: sleep 60\nweb: python3 server.py\n")
 
-func writeServiceFileIn(t *testing.T, workdir, command string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Join(workdir, ".tractor"), 0o755); err != nil {
+	definition, selected, err := readProcfile(workdir, "Procfile.dev", "web")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(workdir, ServiceFile), []byte(command), 0o644); err != nil {
-		t.Fatal(err)
+	if !strings.HasSuffix(definition.path, "Procfile.dev") || selected != 1 {
+		t.Fatalf("definition = %#v, selected = %d", definition, selected)
+	}
+	if got := strings.Join(definition.processes, ","); got != "worker,web" {
+		t.Fatalf("processes = %q", got)
 	}
 }
 
-// stubServer is a minimal HTTP server that honours PORT. It deliberately
-// avoids http.server, whose server_bind calls getfqdn and can block on DNS for
-// tens of seconds — which the readiness wait would correctly report as an
-// application that had not come up.
-const stubServer = `import os, socket
-sock = socket.socket()
-sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-sock.bind(("127.0.0.1", int(os.environ["PORT"])))
-sock.listen(8)
-while True:
-    conn, _ = sock.accept()
-    conn.recv(4096)
-    conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
-    conn.close()
-`
-
-// newStubApp writes a repository that starts the stub server and returns its
-// workdir and the service command.
-func newStubApp(t *testing.T) (string, string) {
-	t.Helper()
-	requirePython(t)
+func TestReadProcfileRejectsAnUnknownNamedService(t *testing.T) {
 	workdir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(workdir, "server.py"), []byte(stubServer), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	command := "exec python3 server.py"
-	writeServiceFileIn(t, workdir, command)
-	return workdir, command
-}
-
-// requirePython skips when no python3 is available to stand in for a real
-// application under test.
-func requirePython(t *testing.T) string {
-	t.Helper()
-	path, err := exec.LookPath("python3")
-	if err != nil {
-		t.Skip("python3 not available to stand in for an application")
-	}
-	return path
-}
-
-// A repository that declares nothing runs exactly as it always has.
-func TestReadServiceCommandAbsentIsNotAnError(t *testing.T) {
-	t.Parallel()
-	command, present, err := readServiceCommand(t.TempDir())
-	if err != nil {
-		t.Fatalf("absent service file should not error: %v", err)
-	}
-	if present || command != "" {
-		t.Errorf("got present=%v command=%q, want absent", present, command)
+	writeFile(t, filepath.Join(workdir, "Procfile"), "web: sleep 60\n")
+	_, _, err := readProcfile(workdir, "Procfile", "api")
+	if err == nil || !strings.Contains(err.Error(), `service "api" is not declared`) {
+		t.Fatalf("error = %v", err)
 	}
 }
 
-// An empty file is a mistake worth naming rather than silently ignoring.
-func TestReadServiceCommandRejectsEmptyFile(t *testing.T) {
-	t.Parallel()
-	_, _, err := readServiceCommand(writeServiceFile(t, "   \n\t\n"))
-	if err == nil {
-		t.Fatal("expected an error for an empty service file")
-	}
-	if !strings.Contains(err.Error(), ServiceFile) {
-		t.Errorf("error should name the file, got %q", err)
-	}
+type fakeProcessManager struct {
+	state      ServiceState
+	ensureErr  error
+	downErr    error
+	ensureCall int
+	downCall   int
 }
 
-func TestFreePortReturnsABindablePort(t *testing.T) {
-	t.Parallel()
-	port, err := freePort()
+func (m *fakeProcessManager) Ensure(context.Context) (ServiceState, error) {
+	m.ensureCall++
+	return m.state, m.ensureErr
+}
+
+func (m *fakeProcessManager) Down(context.Context) error {
+	m.downCall++
+	return m.downErr
+}
+
+func TestServiceTeardownFailureDoesNotClaimTheServiceStopped(t *testing.T) {
+	manager := &fakeProcessManager{
+		state:   ServiceState{Name: "web", Port: 43123, Running: true},
+		downErr: fmt.Errorf("still running"),
+	}
+	logsRoot := t.TempDir()
+	runner, err := NewRunner(serviceTestGraph(&graph.CommandNode{
+		ID: "probe", Command: "true",
+		Edges: graph.CommandEdges{Success: graph.Success},
+	}), NewRegistry(), RunnerConfig{
+		LogsRoot: logsRoot, Workdir: t.TempDir(), Validate: validateTestGraph,
+		ProcessManager: manager,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
-	if err != nil {
-		t.Fatalf("port %d was not bindable after allocation: %v", port, err)
+	result, runErr := runner.Run()
+	if runErr == nil || result.Status != RunFailed || !strings.Contains(result.FailureReason, "still running") {
+		t.Fatalf("result = %#v, error = %v", result, runErr)
 	}
-	if err := listener.Close(); err != nil {
+	state, err := LoadServiceState(logsRoot)
+	if err != nil {
 		t.Fatal(err)
 	}
-}
-
-// The engine picks the port, hands it over as PORT, and the application that
-// honours it is reachable at TRACTOR_URL. This is the whole guarantee: the
-// target was chosen here, not found by whoever validates it.
-func TestStartServiceRunsTheApplicationOnTheEnginesPort(t *testing.T) {
-	workdir, _ := newStubApp(t)
-	logPath := filepath.Join(t.TempDir(), "service.log")
-
-	command, present, err := readServiceCommand(workdir)
-	if err != nil || !present {
-		t.Fatalf("read service command: %v present=%v", err, present)
-	}
-
-	app, err := startService(command, workdir, logPath, nil)
-	if err != nil {
-		t.Fatalf("start service: %v", err)
-	}
-	t.Cleanup(app.stop)
-
-	if app.port == 0 {
-		t.Fatal("service has no port")
-	}
-	if want := fmt.Sprintf("http://127.0.0.1:%d", app.port); app.url != want {
-		t.Errorf("url = %q, want %q", app.url, want)
-	}
-
-	response, err := http.Get(app.url)
-	if err != nil {
-		t.Fatalf("the application the engine started did not answer: %v", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode != http.StatusOK {
-		t.Errorf("status = %d, want 200", response.StatusCode)
-	}
-
-	env := app.env()
-	wantPort := "PORT=" + strconv.Itoa(app.port)
-	if len(env) != 2 || env[0] != wantPort || env[1] != "TRACTOR_URL="+app.url {
-		t.Errorf("env = %v, want [%s TRACTOR_URL=%s]", env, wantPort, app.url)
+	if !state.Running {
+		t.Fatalf("service state falsely reports teardown success: %#v", state)
 	}
 }
 
-// Stopping releases the port. A survivor would become the next lap's stale
-// target, which is the failure the whole design exists to prevent.
-func TestStopReleasesThePort(t *testing.T) {
-	workdir, command := newStubApp(t)
-
-	app, err := startService(command, workdir, filepath.Join(t.TempDir(), "service.log"), nil)
-	if err != nil {
-		t.Fatalf("start service: %v", err)
-	}
-	port := app.port
-	app.stop()
-
-	address := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		listener, err := net.Listen("tcp", address)
-		if err == nil {
-			if closeErr := listener.Close(); closeErr != nil {
-				t.Fatal(closeErr)
-			}
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("port %d still held after stop: %v", port, err)
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-}
-
-// stop is called from a defer and again on teardown, so it must not block or
-// panic the second time.
-func TestStopIsIdempotent(t *testing.T) {
-	workdir, command := newStubApp(t)
-	app, err := startService(command, workdir, filepath.Join(t.TempDir(), "service.log"), nil)
-	if err != nil {
-		t.Fatalf("start service: %v", err)
-	}
-	app.stop()
-	app.stop()
-}
-
-// An application that never accepts is a failure, and the reason it failed
-// reaches the record rather than staying in a log nobody opens.
-func TestStartServiceFailsWhenTheApplicationExits(t *testing.T) {
-	t.Parallel()
-	logPath := filepath.Join(t.TempDir(), "service.log")
-	_, err := startService("echo 'boom: port already in use' >&2; exit 1", t.TempDir(), logPath, nil)
-	if !errors.Is(err, errServiceNotReady) {
-		t.Fatalf("err = %v, want errServiceNotReady", err)
-	}
-
-	// The retry drew a second port, so the last attempt's log carries the reason.
-	summary := serviceFailureSummary(err, fmt.Sprintf("%s.retry%d", logPath, serviceStartTries-1))
-	if !strings.Contains(summary, "boom") {
-		t.Errorf("summary should carry the service's own output, got %q", summary)
-	}
-}
-
-// A readiness failure must never be reported as a passing or inconclusive
-// validation: every item in the set fails, and no judge is consulted.
-func TestReadinessFailureIsNotReadyNotAnAbsenceOfFindings(t *testing.T) {
-	t.Parallel()
-	_, err := startService("exit 3", t.TempDir(), filepath.Join(t.TempDir(), "service.log"), nil)
-	if err == nil {
-		t.Fatal("a service that exits immediately must not be reported ready")
-	}
-	if !errors.Is(err, errServiceNotReady) {
-		t.Fatalf("err = %v, want errServiceNotReady so the loop fails the set", err)
-	}
-}
-
-// An operator stop reaches the readiness wait rather than blocking for the
-// full timeout.
-func TestStartServiceHonoursTheStopSignal(t *testing.T) {
-	t.Parallel()
-	stop := NewStopSignal()
-	stop.Stop()
-
-	start := time.Now()
-	_, stoppedErr := startService("sleep 60", t.TempDir(), filepath.Join(t.TempDir(), "service.log"), stop)
-	if !errors.Is(stoppedErr, errShellStopped) {
-		t.Fatalf("err = %v, want errShellStopped", stoppedErr)
-	}
-	if elapsed := time.Since(start); elapsed > 5*time.Second {
-		t.Errorf("stop took %s to take effect", elapsed)
-	}
-}
-
-// The whole point, end to end: the engine starts the application, and the
-// item's own command reaches it at the URL the engine chose. Nothing in the
-// checklist names a port, and nothing had to find the application.
-func TestLoopValidatesAgainstTheApplicationTheEngineStarted(t *testing.T) {
-	requirePython(t)
-	root, workdir := t.TempDir(), t.TempDir()
-	writeFile(t, filepath.Join(workdir, "server.py"), stubServer)
-	writeServiceFileIn(t, workdir, "exec python3 server.py")
-	writeFile(t, filepath.Join(workdir, "sprint.md"), `---
-items:
-  - name: Serves
-    check: The application answers on the port the engine allocated
-    command: python3 -c "import os,urllib.request; assert urllib.request.urlopen(os.environ['TRACTOR_URL']).read() == b'ok'"
----
-Done when the application answers.
-`)
-	pipeline := testGraph(
-		startNode("start", "items"),
-		loopNode("items", "sprint.md", "implement", graph.Success, 4),
-		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
+func TestWorkflowServicePortReachesEveryCommandAndLivesForTheRun(t *testing.T) {
+	manager := &fakeProcessManager{state: ServiceState{Name: "web", Port: 43123, Running: true}}
+	pipeline := serviceTestGraph(
+		&graph.CommandNode{ID: "first", Command: `test "$TRACTOR_SERVICE_PORT" = 43123`, Edges: graph.CommandEdges{Success: "second"}},
+		&graph.CommandNode{ID: "second", Command: `test "$TRACTOR_SERVICE_PORT" = 43123`, Edges: graph.CommandEdges{Success: graph.Success}},
 	)
-	registry := NewRegistry()
-	registry.Register("agent", bodyHandler(t, func(ExecutionScope) {}))
-
-	result, err := newLoopRunner(t, pipeline, registry, root, workdir, nil).Run()
+	logsRoot := t.TempDir()
+	runner, err := NewRunner(pipeline, NewRegistry(), RunnerConfig{
+		LogsRoot: logsRoot, Workdir: t.TempDir(), Validate: validateTestGraph,
+		ProcessManager: manager,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := runner.Run()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.Status != RunCompleted {
-		t.Fatalf("status = %v (%s), want success — the item command should have reached the service", result.Status, result.FailureReason)
+		serviceLog, _ := os.ReadFile(filepath.Join(logsRoot, "services.log"))
+		t.Fatalf("status = %s: %s\n%s", result.Status, result.FailureReason, serviceLog)
 	}
-
-	list, err := checklist.Load(filepath.Join(workdir, "sprint.md"))
+	if manager.ensureCall != 3 {
+		t.Fatalf("Ensure calls = %d, want initial plus one per node", manager.ensureCall)
+	}
+	if manager.downCall != 1 {
+		t.Fatalf("Down calls = %d, want 1", manager.downCall)
+	}
+	state, err := LoadServiceState(logsRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if item, _, ok := list.Find("Serves"); !ok || !item.Done {
-		t.Errorf("item Serves done = %v, want true", ok && item.Done)
+	if state.Name != "web" || state.Port != 43123 || state.Running {
+		t.Fatalf("final service state = %#v", state)
 	}
 }
 
-// An application that never comes up fails the item. The command would have
-// passed on its own; what fails it is that there was nothing to observe.
-func TestLoopFailsEveryItemWhenTheApplicationNeverStarts(t *testing.T) {
-	root, workdir := t.TempDir(), t.TempDir()
-	writeServiceFileIn(t, workdir, "echo 'could not start' >&2; exit 1")
-	writeFile(t, filepath.Join(workdir, "sprint.md"), `---
-items:
-  - name: Would pass alone
-    check: A command that says nothing about the application
-    command: "true"
----
-Done when the application answers.
-`)
-	pipeline := testGraph(
-		startNode("start", "items"),
-		loopNode("items", "sprint.md", "implement", graph.Success, 2),
-		customNode("implement", "task", []graph.Edge{{To: "items"}}, 0),
-	)
-	registry := NewRegistry()
-	registry.Register("agent", bodyHandler(t, func(ExecutionScope) {}))
-
-	result, err := newLoopRunner(t, pipeline, registry, root, workdir, nil).Run()
+func TestServiceFailureStopsBeforeAWorkflowShellRuns(t *testing.T) {
+	manager := &fakeProcessManager{
+		state: ServiceState{Name: "web", Port: 43123}, ensureErr: fmt.Errorf("not healthy"),
+	}
+	workdir := t.TempDir()
+	pipeline := serviceTestGraph(&graph.CommandNode{
+		ID:      "must-not-run",
+		Command: "touch ran",
+		Edges:   graph.CommandEdges{Success: graph.Success},
+	})
+	runner, err := NewRunner(pipeline, NewRegistry(), RunnerConfig{
+		LogsRoot: t.TempDir(), Workdir: workdir, Validate: validateTestGraph,
+		ProcessManager: manager,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status == RunCompleted {
-		t.Fatal("a run whose application never started must not succeed")
-	}
-
-	list, err := checklist.Load(filepath.Join(workdir, "sprint.md"))
+	result, err := runner.Run()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if item, _, ok := list.Find("Would pass alone"); ok && item.Done {
-		t.Error("item was marked done although the application never ran")
+	if result.Status != RunFailed || !strings.Contains(result.FailureReason, "not healthy") {
+		t.Fatalf("result = %#v", result)
 	}
+	if _, err := os.Stat(filepath.Join(workdir, "ran")); !os.IsNotExist(err) {
+		t.Fatalf("workflow shell ran despite service failure: %v", err)
+	}
+	if manager.downCall != 1 {
+		t.Fatalf("Down calls = %d, want cleanup after failed readiness", manager.downCall)
+	}
+}
+
+func TestOvermindRunsNamedProcfileServiceOnWorkflowPort(t *testing.T) {
+	if _, err := exec.LookPath("overmind"); err != nil {
+		t.Skip("overmind is not installed")
+	}
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux is not installed")
+	}
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 is not installed")
+	}
+	workdir := t.TempDir()
+	server := `import os, socket
+s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("127.0.0.1", int(os.environ["PORT"])))
+s.listen(8)
+while True:
+    c, _ = s.accept()
+    c.recv(4096)
+    c.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+    c.close()
+`
+	writeFile(t, filepath.Join(workdir, "server.py"), server)
+	writeFile(t, filepath.Join(workdir, "Procfile.dev"), "worker: sleep 60\nweb: "+python+" server.py\n")
+
+	pipeline := serviceTestGraph(&graph.CommandNode{
+		ID:      "probe",
+		Command: `python3 -c 'import os,urllib.request; p=os.environ["TRACTOR_SERVICE_PORT"]; assert urllib.request.urlopen("http://127.0.0.1:"+p).read() == b"ok"'`,
+		Edges:   graph.CommandEdges{Success: graph.Success},
+	})
+	logsRoot := t.TempDir()
+	runner, err := NewRunner(pipeline, NewRegistry(), RunnerConfig{
+		LogsRoot: logsRoot, Workdir: workdir, Validate: validateTestGraph,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := runner.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != RunCompleted {
+		serviceLog, _ := os.ReadFile(filepath.Join(logsRoot, "services.log"))
+		t.Fatalf("status = %s: %s\n%s", result.Status, result.FailureReason, serviceLog)
+	}
+	state, err := LoadServiceState(logsRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Name != "web" || state.Port == 0 || state.Running {
+		t.Fatalf("final service state = %#v", state)
+	}
+	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(state.Port)))
+	if err != nil {
+		t.Fatalf("Overmind did not release service port %d: %v", state.Port, err)
+	}
+	_ = listener.Close()
+}
+
+func serviceTestGraph(nodes ...graph.Node) graph.Graph {
+	return graph.Graph{
+		SystemFile: jsonschema.Optional[string]{Present: true, Value: "Procfile.dev"},
+		Services:   []string{"web"}, Start: nodes[0].Base().ID, Nodes: nodes,
+	}
+}
+
+func validateTestGraph(candidate graph.Graph) error {
+	_, err := lint.ValidateOrError(candidate)
+	return err
 }

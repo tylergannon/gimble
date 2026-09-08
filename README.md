@@ -57,11 +57,10 @@ They compete, and the document says how.
   judge assesses inferred checks, and the goal evaluator decides whether the
   promised work is satisfied.
 - **The engine starts the software, so nothing else picks the target.** A
-  repository that has a `.tractor/run` gets it started on a port the engine
-  allocated, once per loop arrival, with `PORT` and `TRACTOR_URL` in the
-  environment of every validation command. An application that never accepts
-  fails the whole set without a model being asked — inability to observe is a
-  failure, not an absence of findings.
+  workflow may omit service configuration or name one Procfile and one service.
+  Tractor runs the Procfile through Overmind for the workflow's lifetime and
+  exports the named process's port as `TRACTOR_SERVICE_PORT` to every workflow
+  shell. A service that never accepts connections fails before work begins.
 - **Routing belongs to the agent, not the engine.** Each turn answers a
   schema-enforced choice of offered successors — the engine never parses
   prose, and an agent can't pick a route it wasn't offered.

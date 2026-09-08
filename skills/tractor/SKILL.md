@@ -102,17 +102,15 @@ already.
 
 ## Starting the software under test
 
-If the target repository has a `.tractor/run`, the engine starts it on a port
-it allocates, once per loop arrival, and exports `PORT` and `TRACTOR_URL` into
-every validation command. Point an item's `command` at `$TRACTOR_URL` and it
-is talking to the build, not to whatever was already listening. An application
-that never accepts fails every item in the set with no judge consulted.
-
-Write the file if the repo has none and the work is worth demonstrating: one
-shell command, whatever the project already uses — `exec go run ./cmd/server`,
-`OVERMIND_PORT=$PORT exec overmind start`, `exec docker compose up`. There is
-no readiness URL or port to configure, and a repository without the file
-behaves exactly as before.
+Set `system_file` in the workflow to `Procfile` or a name such as
+`Procfile.dev`, and set `services` to an array containing the one process the
+workflow must reach. Tractor runs the whole Procfile through Overmind for the
+run. Overmind supplies each process with `PORT`; Tractor exports the named
+process's port as `TRACTOR_SERVICE_PORT` to every workflow shell. Construct the
+address in the validation command because the workflow owns its protocol and
+path. Multiple named services and other system-file formats are not supported
+yet. A workflow without `system_file` and `services` behaves exactly as before;
+declaring only one of those fields is invalid.
 
 ## Make "done" honest
 

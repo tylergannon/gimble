@@ -728,8 +728,21 @@
       },
       "type": "array"
     },
+    "services": {
+      "description": "Services names the one externally addressable process from SystemFile. Omit it together with SystemFile when the workflow needs no service.",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "type": "array"
+    },
     "start": {
       "description": "Start names the walk node where execution begins.",
+      "type": "string"
+    },
+    "system_file": {
+      "description": "SystemFile names the one process-manager definition used by this workflow. The first implementation accepts Procfile names only.",
       "type": "string"
     }
   },
