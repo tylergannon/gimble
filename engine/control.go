@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/tractor/harness"
+	"github.com/tylergannon/tractor/internal/hostwake"
 )
 
 type runManifest struct {
@@ -23,6 +24,10 @@ type runManifest struct {
 	Workdir       string    `json:"workdir"`
 	StartedAt     time.Time `json:"started_at"`
 	ControlSocket string    `json:"control_socket"`
+	// HostSession is the agent session that launched the run, when there was
+	// one. It carries no credential, so a manifest stays safe to hand over as
+	// evidence.
+	HostSession *hostwake.Session `json:"host_session,omitempty"`
 }
 
 type activeExecution struct {
@@ -112,6 +117,9 @@ func (r *Runner) loadOrCreateManifest(socketPath string) (runManifest, error) {
 		}
 		manifest.ID = id
 		manifest.StartedAt = time.Now().UTC()
+	}
+	if session, ok := r.captureHostSession(); ok {
+		manifest.HostSession = &session
 	}
 	manifest.Name = r.graph.Name
 	manifest.Goal = r.graph.Goal

@@ -14,6 +14,7 @@ import (
 	"github.com/tylergannon/tractor/checklist"
 	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/harness"
+	"github.com/tylergannon/tractor/internal/hostwake"
 	"github.com/tylergannon/tractor/internal/runlog"
 	"github.com/tylergannon/tractor/lint"
 )
@@ -112,6 +113,9 @@ type RunnerConfig struct {
 	DefaultModel           string
 	DefaultProvider        string
 	DefaultReasoningEffort string
+	// Wake configures whether and how the run wakes the host agent session
+	// that launched it.
+	Wake WakeConfig
 }
 
 // RunStatus is the terminal status of a graph walk.
@@ -156,6 +160,8 @@ type Runner struct {
 	checkpointMu     sync.Mutex
 	lastCheckpoint   Checkpoint
 	supervision      *supervisionService
+	wakes            *wakeService
+	hostSession      hostwake.Session
 	framesMu         sync.Mutex
 	frames           []loopFrame
 }
@@ -330,9 +336,17 @@ func (r *Runner) Run() (RunResult, error) {
 	if err != nil {
 		return RunResult{}, err
 	}
+	r.wakes, err = newWakeService(r, store)
+	if err != nil {
+		return RunResult{}, err
+	}
+	// Drains after the run's own terminal event is on the timeline, so the
+	// session that launched the run hears how it ended.
+	defer r.wakes.stopAndDrain()
 	r.installBindingCallback(store)
 	r.supervision.start()
 	defer r.supervision.stopAndWait()
+	r.wakes.start()
 	result, runErr := r.walk(state, store, currentID)
 	r.supervision.stopAndWait()
 	duration := time.Since(started).String()

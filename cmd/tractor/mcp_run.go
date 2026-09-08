@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/tylergannon/tractor/engine"
 )
 
 const (
@@ -296,7 +297,7 @@ func runDetachedMCPRun(command *cobra.Command, store *mcpRunStore, runID string)
 	pipeline, _, loadErr := loadPipeline([]string{record.Pipeline}, "", false, "", false)
 	runErr := loadErr
 	if runErr == nil {
-		runErr = runPipeline(command, *pipeline, record.Workdir, record.LogsRoot, record.Resume)
+		runErr = runPipeline(command, *pipeline, record.Workdir, record.LogsRoot, record.Resume, engine.WakeConfig{Mode: engine.WakeAuto})
 	}
 
 	_, persistErr := store.update(runID, func(record *mcpRunRecord) error {

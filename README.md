@@ -208,6 +208,30 @@ tractor answer ephemeral/projects/my-build/interview/0001.md "Use the simpler op
 `tractor answer` also accepts the answer on stdin and refuses to replace an
 existing answer file.
 
+## A run that tells you when it has news
+
+Start a run from inside an agent session and the run outlives the turn that
+started it: the session goes idle while the run keeps working. Tractor records
+the launching session in the run manifest and delivers a rollup of what
+happened back into it, which wakes an idle session the way any message does.
+
+```sh
+tractor run sprint-execute --workdir . --logs .tractor/run   # wakes a background session
+tractor run sprint-execute --wake=on --logs .tractor/run     # wakes this session too
+tractor run sprint-execute --wake=off --logs .tractor/run    # never wakes anybody
+```
+
+Waking is on an interval — `--wake-interval`, four minutes by default — and a
+wake happens only when the run has something the session has not been told
+already, so a quiet run never interrupts. The run's ending is always delivered.
+`auto`, the default, wakes a session started in the background and leaves an
+interactive one alone: that session belongs to a human who is using it, so
+waking it is `--wake=on`. Nothing about a run depends on a wake landing; a
+session that is gone is recorded on the timeline and the run carries on.
+
+The manifest records which session launched a run but never the credential to
+reach it, so a run directory stays safe to hand over as evidence.
+
 ## Run one prompt
 
 `tractor run-prompt` runs one coding-agent turn with real tool access. It

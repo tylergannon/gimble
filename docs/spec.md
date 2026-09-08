@@ -1204,6 +1204,57 @@ Section 7.2).
 
 ---
 
+### 3.11 Waking the Launching Session
+
+A run started from inside an agent session outlives the turn that
+started it. The session goes idle, the run keeps working, and nothing
+tells the session when the run has news. Waking closes that gap: the
+engine delivers a rollup of what happened back into the session that
+launched the run, and an idle session picks it up as an ordinary turn.
+
+**Capture.** At run start the engine records the launching session in
+the manifest (Section 5.6) as `host_session`: the host it belongs to,
+its identifier, process id, kind, name, and address. The record
+carries no credential. A manifest is offered as evidence and is
+readable by anything that can read the run directory; the credential
+needed to reach a session is resolved at delivery time from the
+launching process's own environment or from the host's session
+registry, and is never written to the run directory.
+
+**Trigger.** Waking is on an interval. On each tick the engine
+delivers one wake if, and only if, the timeline (Section 10) has
+events the session has not already been sent. A quiet run never
+interrupts. When the run ends, the engine delivers once more so the
+run's own ending reaches the session; that final delivery is the
+interval loop's last pass, not a second kind of trigger.
+
+**Cursor.** Each delivery appends a `HostWake` event, and the last
+delivered one is the cursor: the next wake carries the events after
+it. Wake events are never themselves news. A failed delivery records
+the failure and does not move the cursor, so the news it carried is
+included in the next attempt.
+
+**Policy.** Three modes. `auto` wakes a background session and leaves
+an interactive one alone: an interactive session belongs to a human
+who is using it, and injecting turns into it is opt-in. `on` wakes the
+launching session whatever its kind. `off` records `host_session` and
+never wakes. `auto` is the default.
+
+**Bounds.** The rollup is bounded, and a section that was truncated
+says so and names the artifact holding the rest. Hosts rate-limit,
+deduplicate, and size-cap what they accept; an implementation stays
+inside those limits by construction rather than discovering them at
+the socket, and a wake that cannot be delivered -- limit, unreachable
+session, session gone -- is recorded and never fails the run.
+
+**Hosts.** The rollup and the policy are host-agnostic; only delivery
+differs. A host is reached through three operations: capture the
+launching session, report whether it is still reachable, and deliver a
+rendered rollup to it as a user turn. A second host implements those
+three and changes nothing above them.
+
+---
+
 ## 4. Node Handlers
 
 ### 4.1 Handler Interface
@@ -2289,7 +2340,7 @@ Each pipeline execution produces a directory tree for logging, checkpoints, and 
 ```
 {logs_root}/
     checkpoint.json              -- Serialized checkpoint after each top-level execution (Section 5.3)
-    manifest.json                -- Pipeline metadata (name, goal, start time) and control-surface advertisement (Section 3.9)
+    manifest.json                -- Pipeline metadata (name, goal, start time), control-surface advertisement (Section 3.9), and the launching agent session, credential-free (Section 3.11)
     timeline.jsonl               -- Engine event stream as JSONL (Section 10)
     worktrees.jsonl              -- Append-only worktree inventory, one line per branch worktree created; Finalize's cleanup sweep (Section 4.6)
     frames.json                  -- The current loop frame stack, outermost first; rewritten whenever it changes. An observer cache, never read by the engine (Section 4.8)
@@ -2532,6 +2583,9 @@ The engine emits typed events during execution for UI, logging, and metrics inte
 **Supervision events (Section 3.10):**
 - `SupervisorFlushed(supervisor, batch, count)` -- a patrol found live in-scope activity and started a flush turn (Section 3.10). `batch` names the newly rotated batch file and `count` its digest lines; when the inbox was empty (all activity still mid-turn), `batch` is absent and `count` is `0` -- no rotation happened
 - `SupervisorVerdict(supervisor, verdict, target, delivered)` -- a supervisor turn returned. `verdict` is `ok`, `steer`, or `error`; a turn Error records `error`, and a malformed steer records the `ok` it degraded to (Section 3.10). On `steer`, `target` names the coached node, and `delivered` is true iff the message was injected into the target's live turn (walk target) or appended to its inbox (supervisor target); false records a dropped delivery
+
+**Wake events (Section 3.11):**
+- `HostWake(host, session_id, kind, events, delivered, error)` -- the engine tried to deliver a rollup to the session that launched the run. `events` counts what the rollup carried and `delivered` says whether the host took it; a failed delivery records `error` and leaves the cursor where it was
 
 **timeline.jsonl.** Implementations MUST persist this event stream to
 `{logs_root}/timeline.jsonl`, one JSON event per line, as it is
