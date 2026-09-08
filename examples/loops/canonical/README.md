@@ -1,47 +1,34 @@
-# Canonical loop build proof
+# Canonical loop workflow
 
-This is the baseline example for Tractor's checklist loop. Every new build
-claimed as proved must complete it with real native agents. Run from the
-Tractor checkout:
+This example runs the shipped [sprint-execute workflow](../../../internal/workflows/sprint-execute.yaml)
+against a deliberately broken Go shipping-quote CLI. Real agents implement
+two sprints, independent reviewers operate the CLI, and the engine runs the
+acceptance commands and evidence judges before closing the ledger.
 
-```sh
-python3 scripts/prove-build.py
-```
+The starting CLI charges shipping incorrectly at exactly 50.00 and lacks
+expedited shipping. The first sprint fixes standard shipping; the second adds
+expedited shipping. The goal must remain unfinished after the first sprint,
+and the final validation must recheck both modes.
 
-Start from a clean, committed checkout. The command builds Tractor, creates a
-disposable Git repository from this fixture, and invokes
-**`tractor run sprint-execute` by name**. The workflow is
-the [one embedded in the candidate binary](../../../internal/workflows/sprint-execute.yaml),
-not a separately maintained demonstration graph. Claude, Codex and agy must
-already be installed and authenticated. The run spends real model quota and
-has a 20-minute deadline; a missing harness, timeout or failed proof exits
-nonzero. It does not publish a release.
+## Run the workflow
 
-To prove a specific binary and retain artifacts at a chosen new path outside
-the Tractor checkout:
+From the Tractor checkout, create a disposable application repository and run
+the actual workflow through a freshly built binary:
 
 ```sh
-python3 scripts/prove-build.py --binary /absolute/path/to/tractor --output /absolute/new/proof-directory
+example_dir=$(mktemp -d)
+cp -R examples/loops/canonical "$example_dir/workspace"
+git -C "$example_dir/workspace" init -q
+git -C "$example_dir/workspace" add .
+git -C "$example_dir/workspace" -c user.name='Tractor example' -c user.email=tractor@example.invalid commit -qm 'Seed broken shipping CLI'
+go build -o "$example_dir/tractor" ./cmd/tractor
+"$example_dir/tractor" run sprint-execute --workdir "$example_dir/workspace" --logs "$example_dir/run"
 ```
 
-The candidate must carry Go VCS metadata naming this checkout's commit and
-`vcs.modified=false`. Binaries built from another revision, dirty checkouts or
-without VCS metadata fail before agent work. The fixture is copied from its
-tracked files; local generated evidence and Python caches are excluded.
-
-For this proof only, a local launcher passes `--disable memories` to Codex.
-The installed CLI must report memories disabled, and the proof rejects reviewer
-tool calls that consult the memory paths. Your normal configuration is not
-edited. This removes the prior-fixture memory injection observed in the first
-run; it is not a filesystem sandbox. Review transcripts remain part of the
-human assessment. The setting is documented in the
-[Codex configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference).
-
-## The example
-
-The starting shipping-quote CLI incorrectly charges standard shipping at
-exactly 50.00 and has no expedited mode. The two sprint documents specify
-the complete, small application. Only `quote.py` needs changing.
+Claude, Codex and agy must already be installed and authenticated. This spends
+real model quota. Read the workflow with `tractor workflows show sprint-execute`.
+The Go CLI can be operated directly with `go run ./cmd/quote 50.00 standard`
+from the disposable workspace.
 
 ```mermaid
 flowchart LR
@@ -52,35 +39,42 @@ flowchart LR
     loop -- "goal satisfied" --> success
 ```
 
-The same loop carries both sprints. After the first passes, the goal evaluator
-must still say `not_done`. On the second lap, the engine rechecks standard
-shipping alongside expedited shipping before the goal can finish.
+## Prove a new build with this workflow
 
-## Required evidence
+The Go integration test prepares a fresh copy, builds Tractor, launches that
+same `tractor run sprint-execute` command and inspects the real run. No model,
+workflow step, CLI result or verdict is mocked. From a clean, committed checkout:
 
-`result.json` is written with `passed: false` before the run starts and becomes
-true only after all of these observations:
+```sh
+go test -tags=integration ./internal/workflows -run '^TestCanonicalLoop$' -count=1 -v -timeout=25m
+```
 
-- Public CLI invocations expose the seed's exact boundary bug and missing mode.
-- Both sprint items are dispatched in order, implemented and independently
-  reviewed, with each reviewer returning to engine validation.
-- The final engine validation runs both item commands and their evidence
-  judges successfully, including revalidation of the first completed item.
-- The goal evaluator distinguishes partial work from completion, both ledger
-  items close, and the pipeline completes.
-- The acceptance files are unchanged and a fresh invocation of the original
-  checker, outside the agents' workspace, confirms all six final CLI results.
-- The binary and checkout inputs have the same hashes at start and finish.
+For an existing candidate and a chosen new artifact directory outside the checkout:
 
-The artifact directory contains the exact invocation, binary hash and Go build
-metadata, source revision and input hash, exported embedded workflow, baseline
-and final CLI output, complete run logs, reviewer transcripts, and the repaired
-repository. Read the reviewer transcripts when assessing the proof: a passing
-route alone cannot establish that the review was sound.
+```sh
+go test -tags=integration ./internal/workflows -run '^TestCanonicalLoop$' -count=1 -v -timeout=25m -args -tractor-binary /absolute/path/to/tractor -proof-dir /absolute/new/proof-directory
+```
 
-Do not reuse a receipt after changing the build or its inputs. Passing this
-example is the minimum build proof, alongside ordinary checks and any proof
-needed for changed behavior. It covers a flat checklist loop and a CLI; it does
-not establish service lifecycle, nested loops, fan-out, steering, or recovery.
-The initial negative observation is a real CLI failure before the run, not a
-claim that an engine validation failed during the repair loop.
+The test requires Go build metadata naming this checkout's clean commit. It
+retains the artifact directory, including `result.json`, baseline and final
+CLI observations, the exported workflow, reviewer transcripts and repaired
+repository. Missing harnesses, quota failures and the 20-minute workflow
+deadline fail the test. The default Go test suite does not spend model quota;
+this integration command is separately mandatory for build proof.
+
+The acceptance scenarios in `quote_test.go` compile and invoke the real CLI at
+49.99, 50.00 and 50.01 in each mode. Before the agents run, the integration test
+compiles those scenarios into an executable outside their workspace. It uses
+that unchanged executable to verify the final application independently.
+
+The proof requires both reviewer returns, both item validations, revalidation
+of standard shipping on the final lap, `not_done` followed by `done`, an
+unchanged acceptance contract, and six successful final CLI invocations. It
+also verifies that the source revision and candidate binary did not change.
+For this proof process only, Codex memories are disabled, and reviewer tool
+calls are checked for prior-memory reads. Inspect the actual transcripts too.
+
+This is the flat checklist-loop baseline. Service lifecycle, nested loops and
+failure/retry recovery need separate live scenarios. The initial negative
+observations exercise the broken CLI before the workflow starts; they do not
+claim an engine validation failed during the repair loop.

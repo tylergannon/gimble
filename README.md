@@ -44,11 +44,10 @@ A loop is two nodes pointing at each other:
 The agent works. The command decides. Failure routes back. `max_visits` is
 the budget.
 
-For the canonical checklist loop, run `python3 scripts/prove-build.py` from
-this checkout. It builds Tractor and makes real agents repair a deliberately
-broken CLI across two sprints using the shipped `sprint-execute` workflow.
-The [example and its proof requirements](examples/loops/canonical/README.md)
-are the minimum acceptance case for every new build.
+The [canonical checklist-loop example](examples/loops/canonical/README.md)
+runs the shipped `sprint-execute` workflow against a deliberately broken Go
+CLI. Real agents repair it across two sprints. The same workflow is the live
+acceptance case for every new build, launched by `TestCanonicalLoop`.
 
 ## Why
 

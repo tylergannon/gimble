@@ -16,10 +16,15 @@ state.
 
 ## New-build proof
 
-Before calling any new Tractor build proved, run `python3 scripts/prove-build.py`
-from its checkout, or pass `--binary /absolute/path/to/tractor` for the exact
-candidate. This runs the shipped `sprint-execute` workflow with real native
-agents against the [canonical loop fixture](examples/loops/canonical/README.md).
+Before calling any new Tractor build proved, run:
+
+```sh
+go test -tags=integration ./internal/workflows -run '^TestCanonicalLoop$' -count=1 -v -timeout=25m
+```
+
+This launches the shipped `sprint-execute` workflow through a freshly built
+Tractor binary with real native agents and the [canonical Go example](examples/loops/canonical/README.md).
+To prove a separately built candidate, append `-args -tractor-binary /absolute/path/to/tractor`.
 Require exit zero and the fresh artifact directory's `result.json` with
 `passed: true`; inspect its review transcripts and report its binary hash and
 artifact path. A skipped, failed, interrupted or stale run is not proof.

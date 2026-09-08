@@ -1,6 +1,6 @@
 # Expedited shipping
 
-Make `python3 quote.py SUBTOTAL expedited` charge 1200 cents at every
+Make `go run ./cmd/quote SUBTOTAL expedited` charge 1200 cents at every
 subtotal. Print the same JSON shape as standard shipping, with
 `mode: "expedited"`. Preserve standard shipping's inclusive 50.00 threshold.
 

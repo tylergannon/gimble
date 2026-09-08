@@ -2,14 +2,14 @@
 items:
   - name: Standard shipping
     check: Standard shipping costs 800 cents below 50.00 and zero at or above 50.00; the JSON subtotal, shipping, total and mode are correct.
-    command: python3 check.py standard
+    command: go test -count=1 -run '^TestStandardShipping$' .
     doc: docs/sprints/standard.md
     infer:
       files: evidence-standard.json
       prompt: Do the recorded CLI invocations demonstrate the standard shipping promise at 49.99, 50.00 and 50.01? Judge the actual output and exit codes.
   - name: Expedited shipping
     check: Expedited shipping costs 1200 cents at 49.99, 50.00 and 50.01; the JSON subtotal, shipping, total and mode are correct.
-    command: python3 check.py expedited
+    command: go test -count=1 -run '^TestExpeditedShipping$' .
     doc: docs/sprints/expedited.md
     infer:
       files: evidence-expedited.json
