@@ -6,7 +6,8 @@ import "strings"
 
 // Host names one kind of agent session Tractor can wake.
 const (
-	HostClaudeCode = "claude_code"
+	HostClaudeCode   = "claude_code"
+	HostCodexDesktop = "codex_desktop"
 )
 
 // Session kinds as the host records them. Claude Code writes "bg" for a
@@ -29,6 +30,8 @@ var backgroundKinds = []string{KindBackground, "background"}
 // from the environment or from the host's own session registry.
 type Session struct {
 	Host      string `json:"host"`
+	HostID    string `json:"host_id,omitempty"`
+	ThreadID  string `json:"thread_id,omitempty"`
 	SessionID string `json:"session_id,omitempty"`
 	PID       int    `json:"pid,omitempty"`
 	Kind      string `json:"kind,omitempty"`
@@ -53,9 +56,7 @@ func (s Session) Empty() bool {
 	return strings.TrimSpace(s.Host) == ""
 }
 
-// Channel reaches one kind of host agent session. Claude Code is the
-// reference implementation; a second host implements the same three methods
-// and nothing above this seam changes.
+// Channel reaches one kind of host agent session.
 type Channel interface {
 	// Capture records the coordinates of the host session that launched this
 	// process, reporting false when there is no such session.

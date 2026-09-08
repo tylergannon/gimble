@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-09-08T02:54:42.261783Z",
+  "current_node": "mark",
+  "next_node": "success",
+  "completed_nodes": [
+    "mark"
+  ],
+  "node_visits": {
+    "mark": 1
+  },
+  "node_attempts": {
+    "mark": 1
+  },
+  "seq": 1,
+  "retry_visit": false,
+  "last_stage": "mark",
+  "last_response": "exit 0: codex-queue-live",
+  "sessions": {}
+}

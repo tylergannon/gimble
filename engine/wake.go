@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -41,14 +40,6 @@ const DefaultWakeInterval = 4 * time.Minute
 // concurrent runs far below the ceiling without a rate limiter of our own.
 const MinimumWakeInterval = 30 * time.Second
 
-// Bounds on one wake message. The host caps a message at a megabyte; these
-// are far tighter, because the session being woken spends its own context on
-// whatever arrives.
-const (
-	maxWakeEvents = 40
-	maxWakeBytes  = 32 * 1024
-)
-
 // wakeEventPrefix marks the timeline events this service writes. They are the
 // wake cursor and are never themselves news.
 const wakeEventPrefix = "HostWake"
@@ -57,14 +48,21 @@ const wakeEventPrefix = "HostWake"
 type WakeConfig struct {
 	Mode     WakeMode
 	Interval time.Duration
-	// Channel overrides the host channel. Nil means Claude Code.
+	// Channel overrides the channel selected from Session. Nil with no explicit
+	// session means Claude Code.
 	Channel hostwake.Channel
+	// Session is an explicitly identified launching session. Codex desktop
+	// parents use this because a shared MCP server cannot identify its caller.
+	Session *hostwake.Session
 }
 
 // hostChannel is the channel this run captured its host session through.
 func (r *Runner) hostChannel() hostwake.Channel {
 	if r.config.Wake.Channel != nil {
 		return r.config.Wake.Channel
+	}
+	if r.config.Wake.Session != nil && r.config.Wake.Session.Host == hostwake.HostCodexDesktop {
+		return hostwake.NewCodexQueue()
 	}
 	return hostwake.NewClaudeCode()
 }
@@ -76,6 +74,11 @@ func (r *Runner) hostChannel() hostwake.Channel {
 func (r *Runner) captureHostSession() (hostwake.Session, bool) {
 	if r.config.Wake.Mode == WakeUnset {
 		return hostwake.Session{}, false
+	}
+	if r.config.Wake.Session != nil && !r.config.Wake.Session.Empty() {
+		session := *r.config.Wake.Session
+		r.hostSession = session
+		return session, true
 	}
 	session, ok := r.hostChannel().Capture()
 	if !ok || session.Empty() {
@@ -209,77 +212,10 @@ func (s *wakeService) deliver() {
 // owes both consumers: every section is bounded, and a truncated section says
 // so and names the artifact holding the rest.
 func (s *wakeService) render(events []timelineEvent, total int) string {
-	timeline := filepath.Join(s.store.root, "timeline.jsonl")
-	var message strings.Builder
-	fmt.Fprintf(&message, "Tractor run news: %s\n", s.runner.graph.Name)
-	if goal := strings.TrimSpace(s.runner.graph.Goal); goal != "" {
-		fmt.Fprintf(&message, "Goal: %s\n", goal)
-	}
-	fmt.Fprintf(&message, "Run directory: %s\n", s.store.root)
-	if live := s.runner.liveSnapshot(); len(live) > 0 {
-		names := make([]string, 0, len(live))
-		for _, entry := range live {
-			names = append(names, fmt.Sprintf("%s (attempt %d)", entry.NodeID, entry.Attempt))
-		}
-		fmt.Fprintf(&message, "Running now: %s\n", strings.Join(names, ", "))
-	} else {
-		message.WriteString("Running now: nothing\n")
-	}
-
-	shown := events
-	truncated := len(shown) > maxWakeEvents
-	if truncated {
-		shown = shown[len(shown)-maxWakeEvents:]
-	}
-	fmt.Fprintf(&message, "\n%d event(s) since the last wake:\n", total)
-	for _, event := range shown {
-		line := "  " + summarizeEvent(event) + "\n"
-		if message.Len()+len(line) > maxWakeBytes {
-			truncated = true
-			break
-		}
-		message.WriteString(line)
-	}
-	if truncated {
-		fmt.Fprintf(&message, "\nTruncated. The full timeline is at %s\n", timeline)
-	}
-	return message.String()
-}
-
-// summarizeEvent renders one timeline event as a single line, type first.
-func summarizeEvent(event timelineEvent) string {
-	var line strings.Builder
-	if timestamp, ok := event["ts"].(string); ok {
-		line.WriteString(timestamp)
-		line.WriteString(" ")
-	}
-	if kind, ok := event["type"].(string); ok {
-		line.WriteString(kind)
-	}
-	keys := make([]string, 0, len(event))
-	for key := range event {
-		if key == "ts" || key == "type" {
-			continue
-		}
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		raw, err := json.Marshal(event[key])
-		if err != nil {
-			continue
-		}
-		fmt.Fprintf(&line, " %s=%s", key, truncateValue(string(raw)))
-	}
-	return line.String()
-}
-
-func truncateValue(value string) string {
-	const limit = 200
-	if len(value) <= limit {
-		return value
-	}
-	return value[:limit] + "…"
+	return renderObserverDigest(observerDigestInput{
+		name: s.runner.graph.Name, goal: s.runner.graph.Goal, root: s.store.root,
+		live: s.runner.liveSnapshot(), events: events, total: total,
+	}).Message
 }
 
 // record writes the wake cursor event. Its own failures are dropped: a run
