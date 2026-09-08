@@ -1,0 +1,2 @@
+correction: Tyler requires workflow-owned services to stop before any workflow worktree is deleted; a service can be restarted later, but a run must not leak one against a removed tree.
+decision: Move terminal branch-worktree cleanup from graph walking to the run boundary after successful service teardown. If teardown fails, preserve the worktrees and report failure rather than deleting the service's files out from under it.

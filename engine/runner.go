@@ -365,7 +365,7 @@ func (r *Runner) Run() (RunResult, error) {
 	r.supervision.start()
 	defer r.supervision.stopAndWait()
 	r.wakes.start()
-	result, runErr := r.walk(state, store, currentID)
+	result, cleanupWorktrees, runErr := r.walk(state, store, currentID)
 	r.supervision.stopAndWait()
 	serviceErr := r.downService(store)
 	serviceDown = true
@@ -378,6 +378,11 @@ func (r *Runner) Run() (RunResult, error) {
 			return RunResult{}, errors.Join(serviceErr, err)
 		}
 		return failed(serviceErr.Error()), serviceErr
+	}
+	if cleanupWorktrees {
+		if err := cleanupBranchWorktrees(r.config.Workdir, r.config.LogsRoot); err != nil {
+			return RunResult{}, err
+		}
 	}
 	if runErr != nil {
 		if err := store.appendTimeline(timelineEvent{"type": "PipelineFailed", "error": runErr.Error(), "duration": duration}); err != nil {
@@ -397,42 +402,39 @@ func (r *Runner) Run() (RunResult, error) {
 	return result, nil
 }
 
-func (r *Runner) walk(state *engineState, store *runStore, currentID string) (RunResult, error) {
+func (r *Runner) walk(state *engineState, store *runStore, currentID string) (RunResult, bool, error) {
 	for {
 		node := r.nodes[currentID]
 		if node == nil {
-			return failed(fmt.Sprintf("unknown node: %s", currentID)), nil
+			return failed(fmt.Sprintf("unknown node: %s", currentID)), false, nil
 		}
 		if r.stop.IsSet() {
-			return failed("stopped by operator"), nil
+			return failed("stopped by operator"), false, nil
 		}
 
 		r.beginTopLevel(node.Base().ID, node.NodeType())
 		execution, executeErr := r.executeNode(node, state, store, r.config.Workdir, "")
 		r.clearTopLevel(node.Base().ID)
 		if executeErr != nil {
-			return RunResult{}, executeErr
+			return RunResult{}, false, executeErr
 		}
 		if execution.runErr != nil {
 			if execution.attempted {
 				if err := r.saveCheckpoint(store, state.checkpoint(node.Base().ID, node.Base().ID, true, r.bindings()), node.Base().ID); err != nil {
-					return RunResult{}, err
+					return RunResult{}, false, err
 				}
 			}
-			return failed(execution.runErr.Message), nil
+			return failed(execution.runErr.Message), false, nil
 		}
 		state.complete(node.Base().ID, execution.outcome.Notes)
 		if err := r.saveCheckpoint(store, state.checkpoint(node.Base().ID, execution.nextID, false, r.bindings()), node.Base().ID); err != nil {
-			return RunResult{}, err
+			return RunResult{}, false, err
 		}
 		if graph.IsPseudoTarget(execution.nextID) {
-			if err := cleanupBranchWorktrees(r.config.Workdir, r.config.LogsRoot); err != nil {
-				return RunResult{}, err
-			}
 			if execution.nextID == graph.Failure {
-				return failed(truncate(execution.outcome.Notes, 200)), nil
+				return failed(truncate(execution.outcome.Notes, 200)), true, nil
 			}
-			return RunResult{Status: RunCompleted}, nil
+			return RunResult{Status: RunCompleted}, true, nil
 		}
 		currentID = execution.nextID
 	}
