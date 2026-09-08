@@ -67,8 +67,8 @@ func TestPipelineSourcesHaveUnambiguousProvenance(t *testing.T) {
 		inlineYAML string
 		want       pipelineSource
 	}{
-		{name: "json", jsonSet: true, inlineJSON: linearPipeline, want: pipelineSource{Display: "--json", Provenance: "inline:json"}},
-		{name: "yaml", yamlSet: true, inlineYAML: linearYAML, want: pipelineSource{Display: "--yaml", Provenance: "inline:yaml"}},
+		{name: "json", jsonSet: true, inlineJSON: linearPipeline, want: pipelineSource{Display: "--json", Provenance: "inline"}},
+		{name: "yaml", yamlSet: true, inlineYAML: linearYAML, want: pipelineSource{Display: "--yaml", Provenance: "inline"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			pipeline, source, err := loadPipeline(nil, test.inlineJSON, test.jsonSet, test.inlineYAML, test.yamlSet)

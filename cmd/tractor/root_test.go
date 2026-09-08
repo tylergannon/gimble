@@ -198,9 +198,10 @@ func TestRunFreshThenResumeWithRealBackendWiring(t *testing.T) {
 		t.Fatalf("checkpoint = %#v", checkpoint)
 	}
 	manifest := readCLIRunManifest(t, logsRoot)
-	if len(manifest.Invocations) != 1 || manifest.Invocations[0].PipelineSource != "inline:json" {
-		t.Fatalf("fresh manifest invocations = %#v", manifest.Invocations)
+	if manifest.PipelineSource != "inline" {
+		t.Fatalf("fresh manifest provenance = %#v", manifest)
 	}
+	originalSource := manifest.PipelineSource
 
 	stdout, _, err = executeCommand("run", "--resume", "--json", linearPipeline, "--workdir", workdir, "--logs", logsRoot)
 	if err != nil {
@@ -210,8 +211,8 @@ func TestRunFreshThenResumeWithRealBackendWiring(t *testing.T) {
 		t.Fatalf("resume stdout = %q", stdout)
 	}
 	manifest = readCLIRunManifest(t, logsRoot)
-	if len(manifest.Invocations) != 2 || manifest.Invocations[1].PipelineSource != "inline:json" {
-		t.Fatalf("resumed manifest invocations = %#v", manifest.Invocations)
+	if manifest.PipelineSource != originalSource {
+		t.Fatalf("resume changed manifest provenance = %#v", manifest)
 	}
 }
 
@@ -226,8 +227,8 @@ func TestRunRecordsAnAbsoluteFilePipelineSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	manifest := readCLIRunManifest(t, logsRoot)
-	if len(manifest.Invocations) != 1 || manifest.Invocations[0].PipelineSource != "file:"+pipelinePath {
-		t.Fatalf("manifest invocations = %#v", manifest.Invocations)
+	if manifest.PipelineSource != "file:"+pipelinePath {
+		t.Fatalf("manifest provenance = %#v", manifest)
 	}
 }
 
@@ -318,9 +319,7 @@ func executeCommand(args ...string) (string, string, error) {
 }
 
 type cliRunManifest struct {
-	Invocations []struct {
-		PipelineSource string `json:"pipeline_source"`
-	} `json:"invocations"`
+	PipelineSource string `json:"pipeline_source"`
 }
 
 func readCLIRunManifest(t *testing.T, root string) cliRunManifest {

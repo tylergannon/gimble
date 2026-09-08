@@ -108,7 +108,7 @@ type RunnerConfig struct {
 	LogsRoot string
 	Workdir  string
 	// PipelineSource identifies how the graph entered the process. CLI callers
-	// use builtin:<name>, file:<absolute-path>, inline:json, or inline:yaml.
+	// use builtin:<name>, file:<absolute-path>, or inline.
 	// Direct API callers default to api.
 	PipelineSource         string
 	Validate               ValidateFunc
@@ -281,9 +281,6 @@ func (r *Runner) Run() (RunResult, error) {
 	currentID := r.startID
 	if r.resumeCheckpoint != nil {
 		if graph.IsPseudoTarget(r.resumeCheckpoint.NextNode) {
-			if _, err := r.loadOrCreateManifest(""); err != nil {
-				return RunResult{}, err
-			}
 			if err := cleanupBranchWorktrees(r.config.Workdir, r.config.LogsRoot); err != nil {
 				return RunResult{}, err
 			}

@@ -183,11 +183,11 @@ func loadPipeline(args []string, inlineJSON string, jsonSet bool, inlineYAML str
 	}
 	if jsonSet {
 		pipeline, err := graph.Parse([]byte(inlineJSON))
-		return pipeline, pipelineSource{Display: "--json", Provenance: "inline:json"}, err
+		return pipeline, pipelineSource{Display: "--json", Provenance: "inline"}, err
 	}
 	if yamlSet {
 		pipeline, err := graph.ParseYAML([]byte(inlineYAML))
-		return pipeline, pipelineSource{Display: "--yaml", Provenance: "inline:yaml"}, err
+		return pipeline, pipelineSource{Display: "--yaml", Provenance: "inline"}, err
 	}
 	return loadPipelineSource(args[0])
 }

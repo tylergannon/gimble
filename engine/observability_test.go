@@ -24,7 +24,7 @@ import (
 	"github.com/tylergannon/tractor/harness"
 )
 
-func TestManifestRecordsEveryInvocationAndTheResolvedGraph(t *testing.T) {
+func TestManifestRecordsRunProvenanceOnce(t *testing.T) {
 	root := t.TempDir()
 	pipeline := testGraph(
 		toolNode("true", "done"),
@@ -45,24 +45,21 @@ func TestManifestRecordsEveryInvocationAndTheResolvedGraph(t *testing.T) {
 	}
 
 	manifest := mustManifest(t, root)
-	if len(manifest.Invocations) != 1 {
-		t.Fatalf("invocations = %#v", manifest.Invocations)
-	}
-	invocation := manifest.Invocations[0]
-	if !reflect.DeepEqual(invocation.Argv, firstArgv) || invocation.PipelineSource != "builtin:sprint-execute" {
-		t.Fatalf("first invocation = %#v", invocation)
+	if !reflect.DeepEqual(manifest.Argv, firstArgv) || manifest.PipelineSource != "builtin:sprint-execute" {
+		t.Fatalf("manifest provenance = %#v", manifest)
 	}
 	encoded, err := json.Marshal(pipeline)
 	if err != nil {
 		t.Fatal(err)
 	}
 	wantGraphHash := fmt.Sprintf("%x", sha256.Sum256(encoded))
-	if invocation.GraphSHA256 != wantGraphHash {
-		t.Fatalf("graph hash = %q, want %q", invocation.GraphSHA256, wantGraphHash)
+	if manifest.GraphSHA256 != wantGraphHash {
+		t.Fatalf("graph hash = %q, want %q", manifest.GraphSHA256, wantGraphHash)
 	}
-	if invocation.Executable.Path == "" || len(invocation.Executable.SHA256) != 64 || invocation.Executable.Version == "" {
-		t.Fatalf("executable identity = %#v", invocation.Executable)
+	if manifest.Executable.Path == "" || len(manifest.Executable.SHA256) != 64 || manifest.Executable.Version == "" {
+		t.Fatalf("executable identity = %#v", manifest.Executable)
 	}
+	original := manifest
 
 	resumed, err := ResumeRunner(pipeline, NewRegistry(), RunnerConfig{
 		LogsRoot: root, Workdir: first.config.Workdir,
@@ -76,15 +73,9 @@ func TestManifestRecordsEveryInvocationAndTheResolvedGraph(t *testing.T) {
 		t.Fatalf("resumed run = %#v, %v", result, runErr)
 	}
 	manifest = mustManifest(t, root)
-	if len(manifest.Invocations) != 2 {
-		t.Fatalf("resumed invocations = %#v", manifest.Invocations)
-	}
-	if !reflect.DeepEqual(manifest.Invocations[0].Argv, firstArgv) {
-		t.Fatalf("resume replaced the original invocation: %#v", manifest.Invocations)
-	}
-	second := manifest.Invocations[1]
-	if !reflect.DeepEqual(second.Argv, os.Args) || second.PipelineSource != "file:/tmp/copied.yaml" || second.GraphSHA256 != wantGraphHash {
-		t.Fatalf("second invocation = %#v", second)
+	if !reflect.DeepEqual(manifest.Argv, original.Argv) || manifest.Executable != original.Executable ||
+		manifest.PipelineSource != original.PipelineSource || manifest.GraphSHA256 != original.GraphSHA256 {
+		t.Fatalf("resume changed run provenance: before=%#v after=%#v", original, manifest)
 	}
 }
 

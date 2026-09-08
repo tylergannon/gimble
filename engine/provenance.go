@@ -11,7 +11,6 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/tylergannon/tractor/graph"
 )
@@ -22,36 +21,26 @@ type executableIdentity struct {
 	Version string `json:"version"`
 }
 
-type runInvocation struct {
-	StartedAt      time.Time          `json:"started_at"`
-	Argv           []string           `json:"argv"`
-	Executable     executableIdentity `json:"executable"`
-	PipelineSource string             `json:"pipeline_source"`
-	GraphSHA256    string             `json:"graph_sha256"`
-}
-
 var (
 	executableOnce        sync.Once
 	executableCurrent     executableIdentity
 	executableIdentityErr error
 )
 
-func captureRunInvocation(pipeline graph.Graph, config RunnerConfig) (runInvocation, error) {
+func (r *Runner) setManifestProvenance(manifest *runManifest) error {
 	executable, err := currentExecutableIdentity()
 	if err != nil {
-		return runInvocation{}, err
+		return err
 	}
-	graphHash, err := graphSHA256(pipeline)
+	graphHash, err := graphSHA256(r.graph)
 	if err != nil {
-		return runInvocation{}, err
+		return err
 	}
-	return runInvocation{
-		StartedAt:      time.Now().UTC(),
-		Argv:           append([]string(nil), os.Args...),
-		Executable:     executable,
-		PipelineSource: config.PipelineSource,
-		GraphSHA256:    graphHash,
-	}, nil
+	manifest.Argv = append([]string(nil), os.Args...)
+	manifest.Executable = executable
+	manifest.PipelineSource = r.config.PipelineSource
+	manifest.GraphSHA256 = graphHash
+	return nil
 }
 
 func normalizePipelineSource(source string) (string, error) {
@@ -59,7 +48,7 @@ func normalizePipelineSource(source string) (string, error) {
 		return "api", nil
 	}
 	switch source {
-	case "api", "inline:json", "inline:yaml":
+	case "api", "inline":
 		return source, nil
 	}
 	if name, ok := strings.CutPrefix(source, "builtin:"); ok && strings.TrimSpace(name) != "" {
