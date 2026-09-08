@@ -101,8 +101,9 @@ func TestFreshSessionPromotesOnlyAfterPostInitMessage(t *testing.T) {
 	}
 }
 
-func TestAdapterPassesTractorRunDirToNativeProcess(t *testing.T) {
+func TestAdapterPassesTractorEnvironmentToNativeProcess(t *testing.T) {
 	const runDir = "/tmp/tractor-run-for-claude"
+	const servicePort = "43123"
 	var observed nativeConfig
 	session := newFakeSession(2)
 	session.onSend = func(string) {
@@ -114,12 +115,16 @@ func TestAdapterPassesTractorRunDirToNativeProcess(t *testing.T) {
 		return session, nil
 	})
 	t.Setenv("TRACTOR_RUN_DIR", runDir)
+	t.Setenv("TRACTOR_SERVICE_PORT", servicePort)
 
 	if _, runErr := adapter.RunTurn(validInput("session", t.TempDir()), func(harness.Event) {}); runErr != nil {
 		t.Fatal(runErr)
 	}
 	if got := observed.env["TRACTOR_RUN_DIR"]; got != runDir {
 		t.Fatalf("TRACTOR_RUN_DIR = %q, want %q", got, runDir)
+	}
+	if got := observed.env["TRACTOR_SERVICE_PORT"]; got != servicePort {
+		t.Fatalf("TRACTOR_SERVICE_PORT = %q, want %q", got, servicePort)
 	}
 }
 

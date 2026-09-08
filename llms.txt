@@ -73,16 +73,13 @@ replacing the current item.
 
 ## Starting the software under test
 
-A repository with a `.tractor/run` has it started by the engine on an
-allocated port, once per loop arrival, with `PORT` and `TRACTOR_URL` in the
-environment of every validation command. The contents go to `/bin/sh`, so
-`exec go run ./cmd/server`, `OVERMIND_PORT=$PORT exec overmind start`, and
-`exec docker compose up` are all just commands as far as Tractor is concerned.
-
-The engine picks the port so that nothing else can be mistaken for the build:
-a stale server from the previous lap, a developer's own instance, and a
-staging URL are all somewhere else by construction. An application that never
-accepts fails every item in the set without a model being consulted.
+A workflow may omit service configuration. To run a service, set `system_file`
+to `Procfile` or a name such as `Procfile.dev`, and set `services` to an array
+containing exactly one Procfile process name. Tractor runs the whole Procfile through Overmind for the run.
+Overmind gives each process its own `PORT`; Tractor exports the named process's
+port as `TRACTOR_SERVICE_PORT` to every workflow shell. A declared service that
+never accepts connections fails before work begins. Other system-file formats
+and multiple named services are not supported yet.
 
 ## Requirements
 

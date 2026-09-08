@@ -77,22 +77,23 @@ type runIDInput struct {
 }
 
 type runStatusOutput struct {
-	RunID          string `json:"run_id"`
-	PID            int    `json:"pid"`
-	Status         string `json:"status"`
-	Pipeline       string `json:"pipeline_path"`
-	Workdir        string `json:"workdir"`
-	LogsRoot       string `json:"logs_root"`
-	StartedAt      string `json:"started_at"`
-	FinishedAt     string `json:"finished_at,omitempty"`
-	ExitCode       *int   `json:"exit_code,omitempty"`
-	Failure        string `json:"failure,omitempty"`
-	CurrentNode    string `json:"current_node,omitempty"`
-	NextNode       string `json:"next_node,omitempty"`
-	LastStage      string `json:"last_stage,omitempty"`
-	LastResponse   string `json:"last_response,omitempty"`
-	StderrTail     string `json:"stderr_tail,omitempty"`
-	ParentThreadID string `json:"parent_thread_id,omitempty"`
+	RunID          string               `json:"run_id"`
+	PID            int                  `json:"pid"`
+	Status         string               `json:"status"`
+	Pipeline       string               `json:"pipeline_path"`
+	Workdir        string               `json:"workdir"`
+	LogsRoot       string               `json:"logs_root"`
+	StartedAt      string               `json:"started_at"`
+	FinishedAt     string               `json:"finished_at,omitempty"`
+	ExitCode       *int                 `json:"exit_code,omitempty"`
+	Failure        string               `json:"failure,omitempty"`
+	CurrentNode    string               `json:"current_node,omitempty"`
+	NextNode       string               `json:"next_node,omitempty"`
+	LastStage      string               `json:"last_stage,omitempty"`
+	LastResponse   string               `json:"last_response,omitempty"`
+	StderrTail     string               `json:"stderr_tail,omitempty"`
+	ParentThreadID string               `json:"parent_thread_id,omitempty"`
+	Service        *engine.ServiceState `json:"service,omitempty"`
 }
 
 type steerRunInput struct {
@@ -373,6 +374,9 @@ func snapshotRun(run mcpRunRecord) runStatusOutput {
 		}
 	}
 	result.StderrTail = readTail(run.StderrPath, 4096)
+	if service, err := engine.LoadServiceState(run.LogsRoot); err == nil {
+		result.Service = &service
+	}
 	return result
 }
 

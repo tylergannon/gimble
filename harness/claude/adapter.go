@@ -362,8 +362,13 @@ func (a *Adapter) open(ctx context.Context, config nativeConfig) (nativeSession,
 		return nil, errors.New("claude adapter is closed")
 	}
 	config.stderr = a.stderr
-	if runDir, ok := os.LookupEnv("TRACTOR_RUN_DIR"); ok {
-		config.env = map[string]string{"TRACTOR_RUN_DIR": runDir}
+	for _, name := range []string{"TRACTOR_RUN_DIR", "TRACTOR_SERVICE_PORT"} {
+		if value, ok := os.LookupEnv(name); ok {
+			if config.env == nil {
+				config.env = make(map[string]string)
+			}
+			config.env[name] = value
+		}
 	}
 	factory := a.factory
 	a.mu.Unlock()

@@ -55,6 +55,34 @@ func finishGraph(graph *Graph) error {
 		seen[id] = struct{}{}
 	}
 	graph.applyDefaults()
+	if err := graph.validateServices(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (g *Graph) validateServices() error {
+	if len(g.Services) > 1 {
+		return fmt.Errorf("services admits at most one named service")
+	}
+	if g.SystemFile.Present != (len(g.Services) == 1) {
+		return fmt.Errorf("system_file and one named service must be declared together")
+	}
+	if !g.SystemFile.Present {
+		return nil
+	}
+	path := strings.TrimSpace(g.SystemFile.Value)
+	cleaned := filepath.Clean(path)
+	if path == "" || filepath.IsAbs(path) || cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("system_file %q must be a relative path inside the workdir", g.SystemFile.Value)
+	}
+	base := filepath.Base(cleaned)
+	if base != "Procfile" && !strings.HasPrefix(base, "Procfile.") {
+		return fmt.Errorf("system_file %q is unsupported; only Procfile and Procfile.* are supported", g.SystemFile.Value)
+	}
+	if strings.TrimSpace(g.Services[0]) == "" {
+		return fmt.Errorf("services must contain a non-empty Procfile process name")
+	}
 	return nil
 }
 

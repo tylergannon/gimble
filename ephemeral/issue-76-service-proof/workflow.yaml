@@ -1,0 +1,14 @@
+name: one named Procfile service
+system_file: Procfile.dev
+services:
+  - web
+start: probe
+nodes:
+  - id: probe
+    type: command
+    command: |
+      set -eu
+      mkdir -p proof
+      python3 -c 'import os, pathlib, urllib.request; port=os.environ["TRACTOR_SERVICE_PORT"]; body=urllib.request.urlopen("http://127.0.0.1:"+port).read().decode(); assert body == "ok"; pathlib.Path("proof/evidence.txt").write_text("service=web\nport="+port+"\nbody="+body+"\n")'
+    edges:
+      success: success

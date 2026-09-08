@@ -113,6 +113,8 @@ type RunnerConfig struct {
 	DefaultModel           string
 	DefaultProvider        string
 	DefaultReasoningEffort string
+	// ProcessManager overrides the Procfile-backed manager in tests.
+	ProcessManager ProcessManager
 	// Wake configures whether and how the run wakes the host agent session
 	// that launched it.
 	Wake WakeConfig
@@ -164,6 +166,8 @@ type Runner struct {
 	hostSession      hostwake.Session
 	framesMu         sync.Mutex
 	frames           []loopFrame
+	serviceMu        sync.Mutex
+	processManager   ProcessManager
 }
 
 // NewRunner validates the graph and prepares a runner without creating run files.
@@ -322,6 +326,20 @@ func (r *Runner) Run() (RunResult, error) {
 	}); err != nil {
 		return RunResult{}, err
 	}
+	restoreServiceEnv, err := r.prepareService(store)
+	if err != nil {
+		_ = r.downService(store)
+		duration := time.Since(started).String()
+		_ = store.appendTimeline(timelineEvent{"type": "PipelineFailed", "error": err.Error(), "duration": duration})
+		return failed(err.Error()), nil
+	}
+	defer restoreServiceEnv()
+	serviceDown := false
+	defer func() {
+		if !serviceDown {
+			_ = r.downService(store)
+		}
+	}()
 	r.registry.Register("fan_out", &fanOutHandler{runner: r, state: state, store: store})
 	r.registry.Register("loop", &loopHandler{runner: r, state: state, store: store})
 	if r.resumeCheckpoint == nil {
@@ -349,7 +367,18 @@ func (r *Runner) Run() (RunResult, error) {
 	r.wakes.start()
 	result, runErr := r.walk(state, store, currentID)
 	r.supervision.stopAndWait()
+	serviceErr := r.downService(store)
+	serviceDown = true
 	duration := time.Since(started).String()
+	if serviceErr != nil {
+		if runErr != nil {
+			return result, errors.Join(runErr, serviceErr)
+		}
+		if err := store.appendTimeline(timelineEvent{"type": "PipelineFailed", "error": serviceErr.Error(), "duration": duration}); err != nil {
+			return RunResult{}, errors.Join(serviceErr, err)
+		}
+		return failed(serviceErr.Error()), serviceErr
+	}
 	if runErr != nil {
 		if err := store.appendTimeline(timelineEvent{"type": "PipelineFailed", "error": runErr.Error(), "duration": duration}); err != nil {
 			return RunResult{}, errors.Join(runErr, err)
@@ -513,6 +542,8 @@ func (r *Runner) executeWithRetry(
 		var runErr *harness.Error
 		if allocationErr != nil {
 			runErr = allocationErr
+		} else if serviceErr := r.ensureService(node.Base().ID, stage.Seq, store); serviceErr != nil {
+			runErr = serviceErr
 		} else {
 			liveID := r.beginExecution(node.Base().ID, attempt, runLog)
 			outcome, runErr = callHandler(handler, node, offered, ExecutionScope{

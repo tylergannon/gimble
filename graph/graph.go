@@ -24,6 +24,14 @@ type Graph struct {
 	// Defaults contains file-level defaults for node fields.
 	Defaults Defaults `json:"defaults,omitzero"`
 
+	// SystemFile names the one process-manager definition used by this
+	// workflow. The first implementation accepts Procfile names only.
+	SystemFile jsonschema.Optional[string] `json:"system_file,omitzero"`
+
+	// Services names the one externally addressable process from SystemFile.
+	// Omit it together with SystemFile when the workflow needs no service.
+	Services []string `json:"services,omitzero"`
+
 	// Start names the walk node where execution begins.
 	Start string `json:"start"`
 
