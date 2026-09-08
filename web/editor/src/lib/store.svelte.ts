@@ -62,28 +62,31 @@ export class Editor {
 	needsFit = $state(false);
 
 	private doc: PipelineDoc = PipelineDoc.parse('');
-	private rev = $state(0);
-	graph: Graph = $derived.by(() => {
-		void this.rev;
-		return this.doc.toGraph();
-	});
-	yamlErrors: string[] = $derived.by(() => {
-		void this.rev;
-		return this.doc.errors;
-	});
+	private graphValue = $state<Graph>(this.doc.toGraph());
+	private yamlErrorsValue = $state<string[]>(this.doc.errors);
+	private syntaxErrorValue = $state<SyntaxError | null>(this.doc.syntaxError);
+	get graph(): Graph {
+		return this.graphValue;
+	}
+	get yamlErrors(): string[] {
+		return this.yamlErrorsValue;
+	}
 	// A file with a YAML syntax error cannot be serialized, so every edit is
 	// refused until the next on-disk change reloads it.
-	syntaxError: SyntaxError | null = $derived.by(() => {
-		void this.rev;
-		return this.doc.syntaxError;
-	});
-	readOnly: boolean = $derived(this.syntaxError !== null);
+	get syntaxError(): SyntaxError | null {
+		return this.syntaxErrorValue;
+	}
+	get readOnly(): boolean {
+		return this.syntaxError !== null;
+	}
 
 	// layout
 	savedLayout = $state<Layout>({});
 	private layoutFromDisk = false;
 	private layoutTouched = false;
-	layout: Layout = $derived(autoLayout(this.graph, this.savedLayout));
+	get layout(): Layout {
+		return autoLayout(this.graph, this.savedLayout);
+	}
 
 	// view
 	sel = $state<string | null>(null);
@@ -97,7 +100,9 @@ export class Editor {
 	showInherited = $state(true);
 
 	// diagnostics
-	clientErrors: Record<string, string[]> = $derived(validate(this.graph));
+	get clientErrors(): Record<string, string[]> {
+		return validate(this.graph);
+	}
 	// The page node a server diagnostic belongs to: its node, or the fan_out
 	// that owns the branch it names; null when nothing on the page matches.
 	private diagnosticOwner(d: Diagnostic): string | null {
@@ -110,7 +115,7 @@ export class Editor {
 		);
 		return owner ? owner.id : null;
 	}
-	errors: Record<string, string[]> = $derived.by(() => {
+	get errors(): Record<string, string[]> {
 		const out: Record<string, string[]> = {};
 		for (const [id, list] of Object.entries(this.clientErrors)) out[id] = [...list];
 		for (const d of this.serverDiagnostics) {
@@ -121,8 +126,8 @@ export class Editor {
 			if (!list.includes(msg)) list.push(msg);
 		}
 		return out;
-	});
-	graphIssues: string[] = $derived.by(() => {
+	}
+	get graphIssues(): string[] {
 		const list: string[] = [];
 		if (this.parseError) list.push(this.parseError);
 		for (const e of this.yamlErrors) list.push(e);
@@ -138,14 +143,14 @@ export class Editor {
 			if (!list.includes(msg)) list.push(msg);
 		}
 		return list;
-	});
-	errorCount: number = $derived(
-		Object.values(this.errors).reduce((a, b) => a + b.length, 0) + this.graphIssues.length
-	);
+	}
+	get errorCount(): number {
+		return Object.values(this.errors).reduce((a, b) => a + b.length, 0) + this.graphIssues.length;
+	}
 
-	selNode: GraphNode | null = $derived(
-		this.sel ? (this.graph.nodes.find((n) => n.id === this.sel) ?? null) : null
-	);
+	get selNode(): GraphNode | null {
+		return this.sel ? (this.graph.nodes.find((n) => n.id === this.sel) ?? null) : null;
+	}
 
 	// saving
 	private timer: ReturnType<typeof setTimeout> | null = null;
@@ -161,6 +166,11 @@ export class Editor {
 	private loadInflight = false;
 	private changePending = false;
 
+	constructor(initial: ServerDoc) {
+		this.adopt(initial);
+		this.needsFit = true;
+	}
+
 	get pending(): boolean {
 		return this.timer !== null || this.inflight || this.dirty || this.saveFailed;
 	}
@@ -168,7 +178,6 @@ export class Editor {
 	// ---- lifecycle ----
 
 	start(): () => void {
-		void this.load();
 		const stop = subscribe((version) => this.onChange(version));
 		return () => {
 			stop();
@@ -221,7 +230,7 @@ export class Editor {
 
 	private adopt(d: ServerDoc): void {
 		this.doc = PipelineDoc.parse(d.yaml);
-		this.rev++;
+		this.refreshDocument();
 		this.savedLayout = (d.layout ?? {}) as Layout;
 		this.layoutFromDisk = d.layout !== null;
 		this.layoutTouched = false;
@@ -237,9 +246,15 @@ export class Editor {
 	}
 
 	private touch(): void {
-		this.rev++;
+		this.refreshDocument();
 		this.edits++;
 		this.scheduleSave();
+	}
+
+	private refreshDocument(): void {
+		this.graphValue = this.doc.toGraph();
+		this.yamlErrorsValue = this.doc.errors;
+		this.syntaxErrorValue = this.doc.syntaxError;
 	}
 
 	private scheduleSave(delay = SAVE_DELAY): void {

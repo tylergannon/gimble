@@ -6,8 +6,8 @@
 	"include": [
 		"src/**/*",
 		"vite.config.ts",
-		"skgo-adapter.js",
+		"build/.goja/**/*.js",
 		".svelte-kit/types/**/*"
 	],
-	"exclude": ["build", "node_modules"]
+	"exclude": ["node_modules"]
 }

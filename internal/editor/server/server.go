@@ -31,23 +31,33 @@ func Dist() (fs.FS, error) {
 // NewHandler builds the editor's server for one pipeline over the build in
 // dist. origin is the URL browsers reach the editor at; skgo refuses a
 // command (a POST) from any other origin, which is kit's own cross-site rule.
-// With a non-empty proxy, pages are forwarded to a running `vp dev` server
-// instead of being served from dist; remote functions are answered here in
-// both modes.
+// With a non-empty proxy, Go renders pages from modules supplied by a running
+// `vp dev` server; otherwise it renders from the embedded production bundle.
 //
 // The order is kit's own dispatch order, turned inside out into middleware:
 // the handle hook runs first, on every request, and puts the store where the
-// remote functions can read it; then the remote functions; then pages.
+// loads and remote functions can read it; then loads, remotes and endpoints;
+// then Go-rendered pages and static assets.
 func NewHandler(store *editor.Store, dist fs.FS, proxy, origin string) (http.Handler, error) {
 	manifest, err := skgo.ReadManifest(dist)
 	if err != nil {
 		return nil, err
 	}
+	if proxy != "" {
+		manifest, err = skgo.ReadDevManifest(dist, proxy)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	remoteCfg := manifest.RemoteConfig(origin)
 	loadCfg := manifest.LoadConfig(origin)
+	endpointCfg := manifest.EndpointConfig(origin)
+	handleCfg := manifest.HandleConfig()
 
 	var pages http.Handler
+	var build func(*skgo.Loads, *skgo.Remotes) (http.Handler, error)
+	var endpoints *skgo.Endpoints
 	if proxy != "" {
 		target, err := url.Parse(proxy)
 		if err != nil {
@@ -63,20 +73,34 @@ func NewHandler(store *editor.Store, dist fs.FS, proxy, origin string) (http.Han
 		remoteCfg.CookieOrigin = origin
 		loadCfg.Version = ""
 		loadCfg.Dev = true
-		pages = skgo.NewDevProxy(target, log.Printf)
-	} else {
-		static, err := skgo.NewStaticHandler(dist)
-		if err != nil {
-			return nil, err
+		endpointCfg.Dev = true
+		handleCfg.Version = ""
+		build = func(loads *skgo.Loads, remotes *skgo.Remotes) (http.Handler, error) {
+			ssr, err := skgo.NewDevSSR(dist, manifest, loads, remotes, proxy, skgo.SSROptions{
+				Fetch: endpoints.Intercept(http.NotFoundHandler()),
+			})
+			if err != nil {
+				return nil, err
+			}
+			return skgo.NewDevPages(target, manifest, ssr, log.Printf, endpoints), nil
 		}
-		pages = static
+	} else {
+		build = func(loads *skgo.Loads, remotes *skgo.Remotes) (http.Handler, error) {
+			ssr, err := skgo.NewSSR(dist, manifest, loads, remotes, skgo.SSROptions{
+				Fetch: endpoints.Intercept(http.NotFoundHandler()),
+			})
+			if err != nil {
+				return nil, err
+			}
+			return skgo.NewStaticHandler(dist, skgo.WithSSR(ssr))
+		}
 	}
 
 	// The handle hook is the one place the request learns which file the
 	// editor is open on.
-	loadCfg.Handle = func(ctx context.Context) error {
+	handle := skgo.Handle(func(ctx context.Context) error {
 		return skgo.SetLocal(ctx, store)
-	}
+	})
 
 	remotes, err := skgo.NewRemotes(remoteCfg, generated.Remotes()...)
 	if err != nil {
@@ -86,5 +110,15 @@ func NewHandler(store *editor.Store, dist fs.FS, proxy, origin string) (http.Han
 	if err != nil {
 		return nil, err
 	}
-	return editor.LoopbackOnly(loads.Intercept(remotes.Intercept(pages))), nil
+	endpoints, err = skgo.NewEndpoints(endpointCfg, generated.Endpoints()...)
+	if err != nil {
+		return nil, err
+	}
+	pages, err = build(loads, remotes)
+	if err != nil {
+		return nil, err
+	}
+	app := handle.Intercept(handleCfg,
+		loads.Intercept(remotes.Intercept(endpoints.Intercept(pages))))
+	return editor.LoopbackOnly(app), nil
 }

@@ -18,10 +18,11 @@ tractor edit examples/loops/bake-off.yaml
 ```
 
 The command listens on loopback only, prints the URL, opens your browser, and
-keeps running until you interrupt it. Pass `--addr 127.0.0.1:0` (the default)
-to pick a port, or a fixed one such as `--addr 127.0.0.1:7331`; any address
-that is not loopback is refused. `--no-open` prints the URL without opening a
-browser, which is what you want over SSH.
+keeps running until you interrupt it. The default is `127.0.0.1:7331`, the
+origin the SvelteKit application is built for. Pass `--addr 127.0.0.1:0` to
+pick a port explicitly; any address that is not loopback is refused.
+`--no-open` prints the URL without opening a browser, which is what you want
+over SSH.
 
 Browse the editor at the URL it prints. A save is a cross-site request from
 any other origin, and the server refuses it: opening the same port as
@@ -72,9 +73,11 @@ written the first time you move or resize a node; commit it or ignore it.
 ## How the page talks to the server
 
 The page is a SvelteKit app served by [skgo](https://github.com/tylergannon/skgo):
-Go owns the socket and answers every endpoint the page calls. The three calls
-are SvelteKit remote functions written in Go beside the route, in
-`web/editor/src/routes/editor.remote.go`:
+Go owns the socket, renders the initial page in-process, and answers every
+endpoint the page calls. A Go server load reads the pipeline before rendering,
+so the first HTML response already contains the graph and hydrates without an
+extra fetch. Later changes use three SvelteKit remote functions written in Go
+beside the route, in `web/editor/src/routes/editor.remote.go`:
 
 - `getDoc`, a query: the file, its layout sidecar, the lint diagnostics, and a
   version hash of both files.

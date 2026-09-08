@@ -31,7 +31,7 @@ func newEditCommand() *cobra.Command {
 			return runEditor(command, args[0], addr, proxy, noOpen)
 		},
 	}
-	command.Flags().StringVar(&addr, "addr", "127.0.0.1:0", "listen address (loopback only)")
+	command.Flags().StringVar(&addr, "addr", "127.0.0.1:7331", "listen address (loopback only)")
 	command.Flags().BoolVar(&noOpen, "no-open", false, "print the URL without opening a browser")
 	command.Flags().StringVar(&proxy, "proxy", "", "URL of a `vp dev` server to forward pages to while developing the editor page; empty serves the embedded build")
 	_ = command.Flags().MarkHidden("proxy")

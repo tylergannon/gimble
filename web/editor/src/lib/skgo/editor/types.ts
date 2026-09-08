@@ -11,6 +11,36 @@ export type Change = {
 };
 
 /**
+ * Diagnostic is one lint finding.
+ */
+export type Diagnostic = {
+  /**
+   * Rule names the lint rule that fired.
+   */
+  "rule": string;
+  /**
+   * Severity is error, warning, or info.
+   */
+  "severity": string;
+  /**
+   * Message says what is wrong.
+   */
+  "message": string;
+  /**
+   * NodeID is the node the finding belongs to, or empty.
+   */
+  "node_id": string;
+  /**
+   * Edge is the authored edge the finding belongs to, as from and to, or empty.
+   */
+  "edge": Array<string>;
+  /**
+   * Fix suggests what to change, or is empty.
+   */
+  "fix": string;
+};
+
+/**
  * Document is what the page reads: the pipeline file, its layout sidecar, a version that changes whenever either file does, and what lint makes of it.
  */
 export type Document = {
@@ -72,36 +102,6 @@ export type Placement = {
    * H is the height; zero means the page decides.
    */
   "h": number;
-};
-
-/**
- * Diagnostic is one lint finding.
- */
-export type Diagnostic = {
-  /**
-   * Rule names the lint rule that fired.
-   */
-  "rule": string;
-  /**
-   * Severity is error, warning, or info.
-   */
-  "severity": string;
-  /**
-   * Message says what is wrong.
-   */
-  "message": string;
-  /**
-   * NodeID is the node the finding belongs to, or empty.
-   */
-  "node_id": string;
-  /**
-   * Edge is the authored edge the finding belongs to, as from and to, or empty.
-   */
-  "edge": Array<string>;
-  /**
-   * Fix suggests what to change, or is empty.
-   */
-  "fix": string;
 };
 
 /**
