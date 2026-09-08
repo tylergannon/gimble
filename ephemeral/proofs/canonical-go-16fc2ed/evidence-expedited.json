@@ -1,0 +1,50 @@
+[
+  {
+    "args": [
+      "49.99",
+      "expedited"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"mode\":\"expedited\",\"shipping_cents\":1200,\"subtotal_cents\":4999,\"total_cents\":6199}\n",
+    "stderr": "",
+    "expected": {
+      "subtotal_cents": 4999,
+      "shipping_cents": 1200,
+      "total_cents": 6199,
+      "mode": "expedited"
+    },
+    "passed": true
+  },
+  {
+    "args": [
+      "50.00",
+      "expedited"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"mode\":\"expedited\",\"shipping_cents\":1200,\"subtotal_cents\":5000,\"total_cents\":6200}\n",
+    "stderr": "",
+    "expected": {
+      "subtotal_cents": 5000,
+      "shipping_cents": 1200,
+      "total_cents": 6200,
+      "mode": "expedited"
+    },
+    "passed": true
+  },
+  {
+    "args": [
+      "50.01",
+      "expedited"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"mode\":\"expedited\",\"shipping_cents\":1200,\"subtotal_cents\":5001,\"total_cents\":6201}\n",
+    "stderr": "",
+    "expected": {
+      "subtotal_cents": 5001,
+      "shipping_cents": 1200,
+      "total_cents": 6201,
+      "mode": "expedited"
+    },
+    "passed": true
+  }
+]
