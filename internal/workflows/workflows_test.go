@@ -204,3 +204,64 @@ func TestEveryAgentInALoopBodyIsBounded(t *testing.T) {
 		}
 	}
 }
+
+// A checklist reviewer decides only whether it found a concrete defect. The
+// loop owns the item's command, inference, and done field, so uncertainty must
+// route to that engine check rather than back to another coding turn.
+func TestChecklistReviewersDeferDoneToTheEngine(t *testing.T) {
+	t.Parallel()
+
+	const (
+		readyForCheck = "The work is ready for the engine's check, or that check is needed to settle uncertainty."
+		defectFound   = "You found a specific material defect to fix before the engine's check."
+	)
+	cases := []struct {
+		workflow string
+		reviewer string
+		loop     string
+		coder    string
+	}{
+		{workflow: "sprint-execute", reviewer: "review", loop: "sprints", coder: "implement"},
+		{workflow: "chapter-loop", reviewer: "review", loop: "sprints", coder: "implement"},
+		{workflow: "delivery-loop", reviewer: "review", loop: "work", coder: "coding"},
+	}
+
+	for _, test := range cases {
+		t.Run(test.workflow, func(t *testing.T) {
+			raw, err := workflows.Read(test.workflow)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pipeline, err := graph.ParseYAML(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var reviewer *graph.AgentNode
+			for _, node := range pipeline.Nodes {
+				if node.Base().ID != test.reviewer {
+					continue
+				}
+				reviewer, _ = node.(*graph.AgentNode)
+				break
+			}
+			if reviewer == nil {
+				t.Fatalf("reviewer %q is not an agent", test.reviewer)
+			}
+			if prompt := reviewer.PromptValue(""); !strings.Contains(prompt, "The engine runs the item's check and owns done.") {
+				t.Errorf("reviewer prompt gives no ownership of done to the engine: %q", prompt)
+			}
+
+			conditions := map[string]string{}
+			for _, edge := range reviewer.Edges {
+				conditions[edge.To] = edge.Condition
+			}
+			if got := conditions[test.loop]; got != readyForCheck {
+				t.Errorf("edge to checklist loop %q has condition %q, want %q", test.loop, got, readyForCheck)
+			}
+			if got := conditions[test.coder]; got != defectFound {
+				t.Errorf("edge to coder %q has condition %q, want %q", test.coder, got, defectFound)
+			}
+		})
+	}
+}

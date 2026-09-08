@@ -70,16 +70,16 @@ nodes:
       name: gpt
     prompt: >
       Review the work against the current sprint's document and the chapter
-      it serves. Run the software yourself. Decide whether the sprint's
-      claims are demonstrated.
+      it serves. Run the software yourself. Name any specific material defect
+      that needs repair. The engine runs the item's check and owns done.
 
       The run's goal, which frames the work but never replaces the current
       item: $goal
     edges:
       - to: sprints
-        condition: The sprint is demonstrated and nothing material is missing.
+        condition: The work is ready for the engine's check, or that check is needed to settle uncertainty.
       - to: implement
-        condition: Work remains, or the demonstration does not convince you.
+        condition: You found a specific material defect to fix before the engine's check.
 
   - id: serves_the_requirement
     type: supervisor
