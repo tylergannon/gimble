@@ -1,0 +1,15 @@
+{
+  "id": "d3c507b8afc07cd539cddf5cabf7e7fd",
+  "name": "TRACTOR_CODEX_QUEUE_77_DIRECT_LIVE_1",
+  "goal": "When this digest reaches the parent task, continue issue 77 through merge and cleanup.",
+  "workdir": "/Users/tyler/.codex/worktrees/e123/tractor/ephemeral/issue-77-proof/direct-queue-live-1",
+  "started_at": "2026-09-08T02:54:42.25516Z",
+  "control_socket": "/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/tractor-control-3691131388/control.sock",
+  "host_session": {
+    "host": "codex_desktop",
+    "host_id": "local",
+    "thread_id": "01a07eab-99d5-7923-84ac-f41374506751",
+    "session_id": "01a07eab-99d5-7923-84ac-f41374506751",
+    "kind": "interactive"
+  }
+}

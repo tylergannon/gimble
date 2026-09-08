@@ -167,6 +167,28 @@ func TestRunRecordsHostSessionInTheManifestWithoutACredential(t *testing.T) {
 	}
 }
 
+func TestExplicitCodexParentIsRecordedWithoutProbingSharedMCPEnvironment(t *testing.T) {
+	root := t.TempDir()
+	channel := backgroundChannel()
+	explicit := hostwake.Session{
+		Host: hostwake.HostCodexDesktop, HostID: "local",
+		ThreadID: "01a07eab-99d5-7923-84ac-f41374506751",
+		Kind:     hostwake.KindInteractive,
+	}
+	runWithWake(t, root, channel, WakeConfig{Mode: WakeOff, Session: &explicit})
+
+	manifest := mustManifest(t, root)
+	if manifest.HostSession == nil || manifest.HostSession.Host != hostwake.HostCodexDesktop || manifest.HostSession.ThreadID != explicit.ThreadID {
+		t.Fatalf("manifest host session = %#v", manifest.HostSession)
+	}
+	channel.mu.Lock()
+	captures := channel.captures
+	channel.mu.Unlock()
+	if captures != 0 {
+		t.Fatalf("explicit parent caused %d ambient captures", captures)
+	}
+}
+
 func TestUnsetWakeModeNeverTouchesTheHost(t *testing.T) {
 	root := t.TempDir()
 	channel := backgroundChannel()
@@ -311,7 +333,7 @@ func TestRenderBoundsAndLabelsTruncation(t *testing.T) {
 		runner: newTestRunner(t, testGraph(startNode("start", "done"), exitNode("done")), NewRegistry(), root, nil),
 		store:  store, channel: channel, session: channel.session, done: make(chan struct{}),
 	}
-	events := make([]timelineEvent, 0, maxWakeEvents*3)
+	events := make([]timelineEvent, 0, maxDigestEvents*3)
 	for index := range cap(events) {
 		events = append(events, timelineEvent{
 			"type": "StageCompleted", "node_id": "work", "attempt": index,
@@ -320,13 +342,13 @@ func TestRenderBoundsAndLabelsTruncation(t *testing.T) {
 	}
 
 	message := service.render(events, len(events))
-	if len(message) > maxWakeBytes+1024 {
+	if len(message) > maxDigestBytes+1024 {
 		t.Fatalf("message is %d bytes", len(message))
 	}
-	if !strings.Contains(message, "Truncated") || !strings.Contains(message, filepath.Join(root, "timeline.jsonl")) {
+	if !strings.Contains(message, "truncated") || !strings.Contains(message, filepath.Join(root, "timeline.jsonl")) {
 		t.Fatalf("a truncated message does not say so and name the artifact:\n%s", message)
 	}
-	if !strings.Contains(message, "120 event(s)") {
+	if !strings.Contains(message, "120 total") {
 		t.Fatalf("message does not report the true event count:\n%s", message)
 	}
 }

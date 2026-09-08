@@ -23,6 +23,7 @@ import (
 	"github.com/tylergannon/tractor/engine"
 	"github.com/tylergannon/tractor/graph"
 	"github.com/tylergannon/tractor/harness"
+	"github.com/tylergannon/tractor/internal/hostwake"
 )
 
 const slowPipeline = `{"name":"slow","start":"wait","nodes":[{"id":"wait","type":"command","command":"sleep 30","edges":{"success":"success"}}]}`
@@ -159,6 +160,116 @@ func TestMCPStdioStartsAndObservesRealPipelineRun(t *testing.T) {
 	if checkpoint.CurrentNode != "done" || checkpoint.NextNode != graph.Success {
 		t.Fatalf("checkpoint = %#v", checkpoint)
 	}
+}
+
+func TestCodexParentReceivesRunNewsThroughTheExternalQueue(t *testing.T) {
+	binDir := t.TempDir()
+	capturePath := filepath.Join(t.TempDir(), "codex-queue.txt")
+	fakeCodex := filepath.Join(binDir, "codex")
+	if err := os.WriteFile(fakeCodex, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$CODEX_QUEUE_CAPTURE\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("CODEX_QUEUE_CAPTURE", capturePath)
+
+	session, ctx := connectToTractorMCP(t)
+	workdir := t.TempDir()
+	pipelinePath := filepath.Join(workdir, "pipeline.json")
+	pipeline := `{"name":"codex-parent-wake","start":"mark","nodes":[{"id":"mark","type":"command","command":"printf codex-queue-marker","edges":{"success":"success"}}]}`
+	if err := os.WriteFile(pipelinePath, []byte(pipeline), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	threadID := "01a07eab-99d5-7923-84ac-f41374506751"
+	started, err := callTool(ctx, session, "start_run", map[string]any{
+		"pipeline_path": pipelinePath,
+		"workdir":       workdir,
+		"parent": map[string]any{
+			"thread_id":  threadID,
+			"host_id":    "local",
+			"session_id": threadID,
+		},
+	})
+	if err != nil || started.IsError {
+		t.Fatalf("start_run = %#v, %v", started.Content, err)
+	}
+	run := decodeStructured[startRunOutput](t, started.StructuredContent)
+	if run.ParentThreadID != threadID {
+		t.Fatalf("parent thread = %q", run.ParentThreadID)
+	}
+	waitForRunStatus(t, ctx, session, run.RunID)
+	manifest := mustReadMCPManifest(t, run.LogsRoot)
+	if manifest.HostSession == nil || manifest.HostSession.ThreadID != threadID {
+		t.Fatalf("manifest host session = %#v", manifest.HostSession)
+	}
+	queued, err := os.ReadFile(capturePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"queue", "--thread", threadID, "--message", "PipelineCompleted", run.LogsRoot} {
+		if !strings.Contains(string(queued), want) {
+			t.Fatalf("queued command lacks %q:\n%s", want, queued)
+		}
+	}
+}
+
+func TestLiveCodexParentReceivesQueuedDigest(t *testing.T) {
+	threadID := strings.TrimSpace(os.Getenv("TRACTOR_LIVE_CODEX_THREAD_ID"))
+	if threadID == "" {
+		t.Skip("set TRACTOR_LIVE_CODEX_THREAD_ID to run the live Codex queue proof")
+	}
+	proofRoot := strings.TrimSpace(os.Getenv("TRACTOR_LIVE_CODEX_PROOF_ROOT"))
+	marker := strings.TrimSpace(os.Getenv("TRACTOR_LIVE_CODEX_MARKER"))
+	if proofRoot == "" || marker == "" {
+		t.Fatal("live proof requires TRACTOR_LIVE_CODEX_PROOF_ROOT and TRACTOR_LIVE_CODEX_MARKER")
+	}
+	if err := os.MkdirAll(proofRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pipelinePath := filepath.Join(proofRoot, "pipeline.json")
+	logsRoot := filepath.Join(proofRoot, "run")
+	pipeline, err := json.Marshal(map[string]any{
+		"name":  marker,
+		"goal":  "When this digest reaches the parent task, continue issue 77 through merge and cleanup.",
+		"start": "mark",
+		"nodes": []map[string]any{{
+			"id": "mark", "type": "command", "command": "printf codex-queue-live",
+			"edges": map[string]any{"success": "success"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pipelinePath, pipeline, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	session, ctx := connectToTractorMCP(t)
+	started, err := callTool(ctx, session, "start_run", map[string]any{
+		"pipeline_path": pipelinePath,
+		"workdir":       proofRoot,
+		"logs_root":     logsRoot,
+		"parent": map[string]any{
+			"thread_id": threadID, "host_id": "local", "session_id": threadID,
+		},
+	})
+	if err != nil || started.IsError {
+		t.Fatalf("start_run = %#v, %v", started.Content, err)
+	}
+	run := decodeStructured[startRunOutput](t, started.StructuredContent)
+	status := waitForRunStatus(t, ctx, session, run.RunID)
+	if status.Status != "COMPLETED" {
+		t.Fatalf("run status = %#v", status)
+	}
+	timeline, err := os.ReadFile(filepath.Join(logsRoot, "timeline.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(timeline), `"type":"HostWake"`) ||
+		!strings.Contains(string(timeline), `"host":"codex_desktop"`) ||
+		!strings.Contains(string(timeline), `"delivered":true`) {
+		t.Fatalf("timeline does not prove a successful Codex enqueue:\n%s", timeline)
+	}
+	t.Logf("queued marker %s from run %s; proof at %s", marker, run.RunID, logsRoot)
 }
 
 func TestMCPStdioSteersAndStopsRunningPipeline(t *testing.T) {
@@ -423,6 +534,23 @@ func startMCPRun(t *testing.T, ctx context.Context, session *client.Client, pipe
 		}
 	})
 	return output
+}
+
+type mcpTestManifest struct {
+	HostSession *hostwake.Session `json:"host_session,omitempty"`
+}
+
+func mustReadMCPManifest(t *testing.T, logsRoot string) mcpTestManifest {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(logsRoot, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest mcpTestManifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	return manifest
 }
 
 func waitForRunStatus(t *testing.T, ctx context.Context, session *client.Client, runID string) runStatusOutput {
