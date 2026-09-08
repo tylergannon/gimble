@@ -4,5 +4,6 @@
 /dist
 /.astro
 /.svelte-check
+__pycache__/
 web/editor/node_modules
 web/editor/.svelte-kit

@@ -8,19 +8,34 @@ Tractor checkout:
 python3 scripts/prove-build.py
 ```
 
-The command builds Tractor, creates a disposable Git repository from this
-fixture, and invokes **`tractor run sprint-execute` by name**. The workflow is
+Start from a clean, committed checkout. The command builds Tractor, creates a
+disposable Git repository from this fixture, and invokes
+**`tractor run sprint-execute` by name**. The workflow is
 the [one embedded in the candidate binary](../../../internal/workflows/sprint-execute.yaml),
 not a separately maintained demonstration graph. Claude, Codex and agy must
 already be installed and authenticated. The run spends real model quota and
 has a 20-minute deadline; a missing harness, timeout or failed proof exits
 nonzero. It does not publish a release.
 
-To prove a specific binary and retain artifacts at a chosen new path:
+To prove a specific binary and retain artifacts at a chosen new path outside
+the Tractor checkout:
 
 ```sh
 python3 scripts/prove-build.py --binary /absolute/path/to/tractor --output /absolute/new/proof-directory
 ```
+
+The candidate must carry Go VCS metadata naming this checkout's commit and
+`vcs.modified=false`. Binaries built from another revision, dirty checkouts or
+without VCS metadata fail before agent work. The fixture is copied from its
+tracked files; local generated evidence and Python caches are excluded.
+
+For this proof only, a local launcher passes `--disable memories` to Codex.
+The installed CLI must report memories disabled, and the proof rejects reviewer
+tool calls that consult the memory paths. Your normal configuration is not
+edited. This removes the prior-fixture memory injection observed in the first
+run; it is not a filesystem sandbox. Review transcripts remain part of the
+human assessment. The setting is documented in the
+[Codex configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference).
 
 ## The example
 

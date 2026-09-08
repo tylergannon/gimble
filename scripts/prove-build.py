@@ -47,6 +47,35 @@ def source_hash():
     return digest.hexdigest()
 
 
+def fixture_files():
+    names = run("git", "ls-files", "--", str(FIXTURE.relative_to(REPO))).splitlines()
+    return [REPO / name for name in names if Path(name).name != "README.md"]
+
+
+def verify_build(build_info, revision):
+    recorded = re.search(r"^\s*build\s+vcs.revision=(\S+)$", build_info, re.M)
+    require(recorded is not None and recorded[1] == revision,
+            "candidate Go build metadata does not match this checkout's commit")
+    require(re.search(r"^\s*build\s+vcs.modified=false$", build_info, re.M),
+            "candidate must be built from a clean Git checkout with VCS metadata")
+
+
+def native_environment(root):
+    # This override belongs to this proof process, never the operator's config.
+    native = shutil.which("codex")
+    features = run(native, "--disable", "memories", "features", "list")
+    require(re.search(r"^memories\s+\S+\s+false$", features, re.M),
+            "installed Codex cannot disable memories for the proof reviewer")
+    (root / "codex-features.txt").write_text(features + "\n")
+    bindir = root / "bin"
+    bindir.mkdir()
+    wrapper = bindir / "codex"
+    wrapper.write_text(f"#!{sys.executable}\nimport os, sys\n"
+                       f"os.execv({native!r}, [{native!r}, '--disable', 'memories', *sys.argv[1:]])\n")
+    wrapper.chmod(0o755)
+    return dict(os.environ, PATH=str(bindir) + os.pathsep + os.environ["PATH"])
+
+
 def ledger_contract(path):
     # The fixture uses single-line YAML scalars; the engine may reindent YAML
     # and add done, but may not change the authored acceptance contract.
@@ -64,6 +93,14 @@ def verify_run(root):
     require(sum(e["name"] == "implement" for e in stages) >= 2, "missing implementation laps")
     require(sum(e["name"] == "review" and e["next"] == "sprints" for e in stages) >= 2,
             "review did not return both items to engine validation")
+    reviewed = False
+    for event in events:
+        if event["type"] == "LoopItemSelected":
+            reviewed = False
+        elif event["type"] == "StageCompleted" and event["name"] == "review":
+            reviewed = event["next"] == "sprints"
+        elif event["type"] == "LoopValidated":
+            require(reviewed, "engine validated an item without its reviewer returning to the loop")
     validations = [e for e in events if e["type"] == "LoopValidated"]
     require(len(validations) >= 2, "missing engine validation laps")
     require([v["item"] for v in validations[0]["validations"]] == ITEMS[:1],
@@ -81,12 +118,19 @@ def verify_run(root):
             "the acceptance ledger changed")
     require(len(re.findall(r"^\s+done: true$", ledger.read_text(), re.M)) == 2,
             "both ledger items were not closed")
-    for path in FIXTURE.rglob("*"):
-        if path.is_file() and path.name not in ("quote.py", "README.md", "ledger.md"):
+    for path in fixture_files():
+        if path.name not in ("quote.py", "ledger.md"):
             require(sha(path) == sha(workspace / path.relative_to(FIXTURE)),
                     f"acceptance file changed: {path.relative_to(FIXTURE)}")
     changed = run("git", "diff", "--name-only", "seed", "HEAD", cwd=workspace).splitlines()
     require(changed == ["quote.py"], f"agent commits changed files outside the application: {changed}")
+    for path in (root / "run/events").glob("*.jsonl"):
+        for line in path.read_text().splitlines():
+            event = json.loads(line)
+            if event.get("node_id") == "review" and event.get("type") == "tool_call":
+                require(not re.search(r"\.codex/memories|MEMORY\.md|memory_summary\.md|rollout_summaries",
+                                      json.dumps(event.get("args", {}))),
+                        f"reviewer consulted prior memory; inspect {path}")
     oracle = runpy.run_path(str(FIXTURE / "check.py"))["check"]
     results = [record for mode in ("standard", "expedited") for record in oracle(workspace, mode)]
     save(root / "final-cli.json", results)
@@ -105,6 +149,7 @@ def main():
     args = parser.parse_args()
     require(args.timeout > 0, "timeout must be positive")
     root = args.output.resolve() if args.output else Path(tempfile.mkdtemp(prefix="tractor-build-proof-"))
+    require(not root.is_relative_to(REPO), "proof output must be outside the Tractor checkout")
     if args.output:
         root.mkdir(parents=True, exist_ok=False)
     print(f"Proof artifacts: {root}", flush=True)
@@ -112,6 +157,8 @@ def main():
                "source_sha256": source_hash(), "started_at": time.time()}
     save(root / "result.json", receipt)
     try:
+        require(not run("git", "status", "--porcelain"),
+                "commit or isolate checkout changes before proving a build")
         for name in ("claude", "codex", "agy"):
             require(shutil.which(name), f"native harness missing: {name}")
         binary = args.binary.resolve() if args.binary else root / "tractor"
@@ -119,14 +166,19 @@ def main():
             subprocess.run(["go", "build", "-trimpath", "-o", str(binary), "./cmd/tractor"],
                            cwd=REPO, check=True)
         receipt.update(binary=str(binary), binary_sha256=sha(binary))
-        (root / "binary-build.txt").write_text(run("go", "version", "-m", str(binary)) + "\n")
+        build_info = run("go", "version", "-m", str(binary)) + "\n"
+        (root / "binary-build.txt").write_text(build_info)
+        verify_build(build_info, receipt["source_revision"])
         workflow = run(str(binary), "workflows", "show", "sprint-execute") + "\n"
         require(workflow == (REPO / "internal/workflows/sprint-execute.yaml").read_text(),
                 "candidate's embedded sprint-execute differs from this checkout")
         (root / "workflow.yaml").write_text(workflow)
         receipt["workflow_sha256"] = sha(root / "workflow.yaml")
         workspace = root / "workspace"
-        shutil.copytree(FIXTURE, workspace, ignore=shutil.ignore_patterns("README.md", "__pycache__"))
+        for path in fixture_files():
+            target = workspace / path.relative_to(FIXTURE)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
         run("git", "init", "-q", cwd=workspace)
         run("git", "config", "user.name", "Tractor proof", cwd=workspace)
         run("git", "config", "user.email", "tractor-proof@example.invalid", cwd=workspace)
@@ -142,10 +194,12 @@ def main():
         command = [str(binary), "run", "sprint-execute", "--workdir", str(workspace),
                    "--logs", str(root / "run")]
         receipt["argv"] = command
+        environment = native_environment(root)
+        receipt["codex_overrides"] = ["--disable", "memories"]
         save(root / "result.json", receipt)
         print("Running shipped sprint-execute with real native agents…", flush=True)
         with (root / "stdout.log").open("w") as stdout, (root / "stderr.log").open("w") as stderr:
-            process = subprocess.Popen(command, cwd=workspace, stdout=stdout, stderr=stderr,
+            process = subprocess.Popen(command, cwd=workspace, env=environment, stdout=stdout, stderr=stderr,
                                        start_new_session=True)
             try:
                 code = process.wait(timeout=args.timeout)

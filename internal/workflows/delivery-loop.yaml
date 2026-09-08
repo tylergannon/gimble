@@ -98,14 +98,13 @@ nodes:
       $goal
 
       Review the current item against that specification. Run the software and
-      the repository's test set yourself rather than reading the diff. Name any
-      specific material defect that needs repair. The engine runs the item's
-      check and owns done.
+      the repository's test set yourself rather than reading the diff. Decide
+      whether the item is finished.
     edges:
       - to: work
-        condition: The work is ready for the engine's check, or that check is needed to settle uncertainty.
+        condition: The item is done and the work holds up.
       - to: coding
-        condition: You found a specific material defect to fix before the engine's check.
+        condition: The item is unfinished, or the work does not hold up.
 
   - id: done_is_demonstrable
     type: supervisor
