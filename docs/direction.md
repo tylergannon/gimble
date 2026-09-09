@@ -1,27 +1,27 @@
-# Tractor's direction
+# Gimble's direction
 
 Product and architectural direction from Tyler's September 8–9, 2026
 discussions. This is an edited synthesis, with proposed design consequences
-identified below. [His broader direction statement](../ephemeral/projects/tractor/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md),
-[his follow-up on diagrams, actions, and research/indexing](../ephemeral/projects/tractor/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md),
-and [his clarification of program shape versus input](../ephemeral/projects/tractor/programmatic-workflows/INPUT-SEPARATION-VERBATIM.md)
+identified below. [His broader direction statement](../ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md),
+[his follow-up on diagrams, actions, and research/indexing](../ephemeral/projects/gimble/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md),
+and [his clarification of program shape versus input](../ephemeral/projects/gimble/programmatic-workflows/INPUT-SEPARATION-VERBATIM.md)
 are preserved verbatim. This document guides the work ahead; the
 [specification](spec.md) describes the current graph engine, and the
-[Go POC record](../ephemeral/projects/tractor/programmatic-workflows/POC.md)
+[Go POC record](../ephemeral/projects/gimble/programmatic-workflows/POC.md)
 describes the experimental implementation and its limits. The implementation
 and proof remain in the source experimental branch and local commits; this
-documentation PR does not add its `tractor program` CLI or runtime to `main`.
+documentation PR does not add its `gimble program` CLI or runtime to `main`.
 
 ## Learn from the experience of authoring workflows
 
-Tractor's next direction comes from Tyler's experience adapting and using
+Gimble's next direction comes from Tyler's experience adapting and using
 StrongDM's Attractor pattern: expressing a workflow is difficult, and coding
 agents often lack the judgment needed to design a good one. A workflow can
 be structurally valid and easy to draw while giving an agent an unclear
 objective, too many responsibilities, or poor access to the information it
 needs.
 
-The response is to make Tractor a tool for designing, understanding, and
+The response is to make Gimble a tool for designing, understanding, and
 improving how agents do work. Ordinary Go gives authors freedom to express
 new orchestration tactics. Context engineering guides how those tactics
 arrange objectives, information, responsibility, feedback, and attention.
@@ -91,7 +91,7 @@ and any supervision or parallel work that defines the method.
 
 Function and type names, indirection, composition, and DRYness should be
 judged by their contribution to that understanding. The same standard should
-guide Tractor's library functions, examples, and workflow-authoring skills.
+guide Gimble's library functions, examples, and workflow-authoring skills.
 Derive APIs from clear orchestration pseudocode, then examine whether the
 resulting Go preserves its meaning.
 
@@ -172,7 +172,7 @@ Preparing that information is part of the work's design. Useful prior art,
 project rules, decisions, examples, and known constraints should be available
 so subsequent agents can work from evidence and existing solutions.
 
-The [semantic-index method already explored here](../ephemeral/projects/tractor/programmatic-workflows/index/leaves/method-semantic-index.md)
+The [semantic-index method already explored here](../ephemeral/projects/gimble/programmatic-workflows/index/leaves/method-semantic-index.md)
 uses ordinary local source material and a compact routing tree. An entry
 point routes by likely task questions; narrower routes lead to annotated
 citations and the underlying files. Agents can inspect those files directly

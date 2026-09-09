@@ -1,5 +1,5 @@
 <!--
-  This is the normative and authoritative specification for Tractor's
+  This is the normative and authoritative specification for Gimble's
   Attractor variant.
 
   It is a standalone document: it must be readable and implementable
@@ -9,11 +9,11 @@
   what it is.
 -->
 
-# Attractor Specification
+# Gimble specification
 
 > [!IMPORTANT]
-> This document is the normative and authoritative definition of Tractor's
-> Attractor variant. If Tractor's implementation, generated schemas, examples,
+> This document is the normative and authoritative definition of Gimble's
+> Attractor variant. If Gimble's implementation, generated schemas, examples,
 > or other documentation conflict with this document, this document governs.
 
 A pipeline runner that uses directed graphs (defined in a typed JSON schema) to orchestrate multi-stage AI workflows. Each node in the graph is a task (LLM call, tool check, parallel fan-out, etc.) and each node's routing fields define the flow onward from it.
@@ -44,7 +44,7 @@ A pipeline runner that uses directed graphs (defined in a typed JSON schema) to 
 AI-powered software workflows often chain LLM calls with conditional
 routing, human approvals, and parallel work. Without an orchestration
 layer, developers maintain fragile scripts or ad hoc state machines
-that are hard to visualize, version, and debug. Attractor lets authors
+that are hard to visualize, version, and debug. Gimble lets authors
 define these workflows as version-controllable directed graphs that an
 execution engine walks while recording every step and every choice.
 
@@ -309,7 +309,7 @@ value found:
 2. The same field in `defaults`, if that node's type has the field.
 3. Otherwise the system default from the tables above.
 
-Model selection is atomic. Tractor chooses the first complete `model` object
+Model selection is atomic. Gimble chooses the first complete `model` object
 at the applicable precedence level and resolves it without filling absent
 keys from a lower-precedence object. The item judge is independent of this
 object; the goal evaluator inherits it (Sections 2.5 and 8).
@@ -430,7 +430,7 @@ forever (Section 3.4).
   "start": "review_gate",
   "nodes": [
     { "id": "review_gate", "type": "agent",
-      "prompt": "Ask the caller with tractor ask whether these changes ship. Route on the answer.",
+      "prompt": "Ask the caller with gimble ask whether these changes ship. Route on the answer.",
       "edges": [
         { "to": "ship_it", "condition": "Approved" },
         { "to": "fixes", "condition": "Fixes requested" }
@@ -520,30 +520,30 @@ An agent MAY stop within one node visit to ask its caller a file-shaped
 question. The agent writes one Markdown or HTML file and runs:
 
 ```sh
-tractor ask <path>
+gimble ask <path>
 ```
 
 `ask` resolves the interview directory from `--into <directory>` when that
-flag is present, otherwise from `TRACTOR_INTERVIEW_DIR`. It moves a new
+flag is present, otherwise from `GIMBLE_INTERVIEW_DIR`. It moves a new
 question into that directory as the next numbered `.md` or `.html` file,
 appends `QuestionAsked(question)` to the run timeline, and waits until a
 non-empty `<number>.answer.md` file exists beside it. It then prints that
-file's contents to stdout. The engine sets `TRACTOR_RUN_DIR` to the current
+file's contents to stdout. The engine sets `GIMBLE_RUN_DIR` to the current
 `{logs_root}` for every harness turn and tool command so `ask` can find
-`timeline.jsonl`; callers supply `TRACTOR_INTERVIEW_DIR` through the agent's
+`timeline.jsonl`; callers supply `GIMBLE_INTERVIEW_DIR` through the agent's
 operating instructions or use `--into`.
 
 The caller watches `timeline.jsonl` for `QuestionAsked`, opens the path in its
 `question` field, and answers with:
 
 ```sh
-tractor answer <question-path> [text]
+gimble answer <question-path> [text]
 ```
 
 When `[text]` is absent, `answer` reads the answer from stdin. It writes the
 answer file beside the question and MUST refuse to overwrite an existing
 answer. If the shell running `ask` ends while waiting, the agent resumes by
-running `tractor ask` again with the numbered question path and the same
+running `gimble ask` again with the numbered question path and the same
 interview directory. A resumed ask waits for the same answer without
 renumbering the question or emitting another `QuestionAsked` event. The node
 keeps its context while blocked; the answer does not route the graph, and the
@@ -1520,7 +1520,7 @@ pattern built from the primitives that already exist, chosen by how much
 judgment versus determinism the decision needs:
 
 - **Agent-conducted interview (judgment, N-way).** An agent node whose
-  prompt says to write a Markdown or HTML question and run `tractor ask`
+  prompt says to write a Markdown or HTML question and run `gimble ask`
   (Section 3.1.1), wait for the caller's file-shaped answer, interpret it,
   and route through the ordinary choice schema (Section 4.3). The whole
   wait happens *inside one backend turn*, not engine turns or retry
@@ -1547,7 +1547,7 @@ to be stated rather than discovered:
 
 The caller is the other half of the interview: a person at a frontend or a
 coding agent watches the event stream, opens the numbered question, and runs
-`tractor answer` (Section 3.1.1). An external operator MAY also steer a live
+`gimble answer` (Section 3.1.1). An external operator MAY also steer a live
 turn through the independent control surface (Sections 3.9, 10). Section 6
 summarizes the pattern.
 
@@ -2051,7 +2051,7 @@ indented one level inside their tag; shown flush here for width):
 
 ```
 <system-message>
-This is one step of a Tractor run inside a checklist loop. The iterate
+This is one step of a Gimble run inside a checklist loop. The iterate
 blocks below are the engine's record of where you are: the item selected
 for this lap, the check it must satisfy, the command and judge that will
 validate it when this step ends, and what the previous validation reported.
@@ -2380,7 +2380,7 @@ host session, it records:
 
 - `argv`: the complete argument vector as invoked;
 - `executable.path`, `executable.sha256`, and `executable.version`: the exact
-  Tractor executable, the lowercase SHA-256 of its bytes, and its embedded Go
+  Gimble executable, the lowercase SHA-256 of its bytes, and its embedded Go
   module version (`unknown` only when the build exposes none);
 - `pipeline_source`: exactly one of `builtin:<name>`,
   `file:<absolute-path>`, `inline`, or `api` for a direct
@@ -2388,7 +2388,7 @@ host session, it records:
 - `graph_sha256`: the lowercase SHA-256 of the compact JSON serialization of
   the in-memory Graph after parsing, fan-out expansion, default application,
   and any CLI goal replacement. Serialization retains graph field and node
-  order, so the hash binds the semantics Tractor actually executed rather
+  order, so the hash binds the semantics Gimble actually executed rather
   than a mutable source file or its YAML/JSON formatting.
 
 The CLI derives the source classification while resolving the pipeline, and
@@ -2402,7 +2402,7 @@ binary and graph that started the run. Resume preserves these fields.
 ## 6. Human-in-the-Loop (Authoring Pattern)
 
 A decision that needs a person or calling agent remains inside an ordinary
-node visit. An agent node uses the blocking `tractor ask` transport
+node visit. An agent node uses the blocking `gimble ask` transport
 (Section 3.1.1), keeps its context while the caller writes the answer, and
 then continues its turn. A command node MAY instead block in its own program and
 route on the program's exit code (Section 4.4). Outside the run, an operator
@@ -2487,7 +2487,7 @@ not allowed.
 | `version` | Optional nonblank string | Exact supported release for the named family. It is never a number, range, or fallback request. |
 | `effort` | Optional `low`, `medium`, or `high` | Requested reasoning depth. |
 
-`provider` is not an authored key. Tractor derives the provider and harness
+`provider` is not an authored key. Gimble derives the provider and harness
 from the resolved native model and rejects names it cannot route. Recognized
 provider-native IDs remain escape hatches without a catalog lookup; static
 resolution does not promise remote availability or account access.
@@ -2501,7 +2501,7 @@ Selections resolve as complete objects at these precedence levels:
 | Item judge | `item_judge.model`, then `{name: flash, effort: medium}`. |
 | Goal evaluator | `goal_evaluator.model`, pipeline, system. |
 
-After selecting the object, Tractor resolves an omitted version from the
+After selecting the object, Gimble resolves an omitted version from the
 name's maintained release and an omitted effort from that model's policy.
 Lower-precedence `version` or `effort` values never leak into a replacement.
 The system selection is `gpt-5.6-sol` at high effort.
@@ -2532,9 +2532,9 @@ native ID whose effort is fixed.
 ```
 
 `implement` inherits the complete file selection; `plan` and
-`critical_review` replace it completely. `tractor validate` resolves every
+`critical_review` replace it completely. `gimble validate` resolves every
 declared selection before any harness or run log is created, including unused
-defaults and hidden loop roles. `tractor inspect-models PIPELINE` prints each
+defaults and hidden loop roles. `gimble inspect-models PIPELINE` prints each
 effective node/role selection with its authored name and version, native
 model, effort, provider, harness, and provenance.
 
@@ -2604,7 +2604,7 @@ The engine emits typed events during execution for UI, logging, and metrics inte
 - `LoopCompleted(node, count)` -- the evaluator returned `done` and the loop routed to `edges.exit`
 
 **Interview events (Section 3.1.1):**
-- `QuestionAsked(question)` -- an agent moved a new numbered question into its interview directory and is waiting; `question` is the path the caller opens and passes to `tractor answer`
+- `QuestionAsked(question)` -- an agent moved a new numbered question into its interview directory and is waiting; `question` is the path the caller opens and passes to `gimble answer`
 
 **Supervision events (Section 3.10):**
 - `SupervisorFlushed(supervisor, batch, count)` -- a patrol found live in-scope activity and started a flush turn (Section 3.10). `batch` names the newly rotated batch file and `count` its digest lines; when the inbox was empty (all activity still mid-turn), `batch` is absent and `count` is `0` -- no rotation happened

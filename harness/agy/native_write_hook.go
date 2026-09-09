@@ -13,7 +13,7 @@ import (
 )
 
 // minSupportedAgyVersion is the oldest agy release harness/agy has
-// verified live to honor the tractor-no-native-write PreToolUse hook (see
+// verified live to honor the gimble-no-native-write PreToolUse hook (see
 // verifyAgyHookSupport in adapter.go). Only raise it alongside fresh live
 // evidence; only lower it after re-verifying hook support on the older
 // version.
@@ -90,7 +90,7 @@ func parseDottedVersion(raw string) ([]int, error) {
 // workspace writes (no ArtifactMetadata, any target) and genuine artifact
 // writes (ArtifactMetadata, target inside the artifact directory) are both
 // legal and both let through. A blanket deny, or a path-only deny, would
-// break legitimate native writes for any agy session, Tractor-launched or a
+// break legitimate native writes for any agy session, Gimble-launched or a
 // user's own interactive session, sharing this global hook.
 var nativeWriteTools = []string{
 	"write_to_file",
@@ -98,26 +98,26 @@ var nativeWriteTools = []string{
 	"multi_replace_file_content",
 }
 
-// tractorHookName is the top-level key Tractor owns inside agy's global
+// gimbleHookName is the top-level key Gimble owns inside agy's global
 // hooks.json. ensureNativeWriteHook only ever reads or writes this one
 // key, leaving any other hooks the user or another tool has configured
 // alone.
-const tractorHookName = "tractor-no-native-write"
+const gimbleHookName = "gimble-no-native-write"
 
 // nativeWriteHookMarker is embedded in the hook's deny reason. It lets
-// ensureNativeWriteHook tell a stale/older Tractor-authored entry (safe to
+// ensureNativeWriteHook tell a stale/older Gimble-authored entry (safe to
 // overwrite with the current content) apart from a same-named hook a user
 // configured independently (refuse to clobber), and lets isArtifactPathError
 // in adapter.go recognize the hook's own denial as the same recoverable
 // failure class as agy's native artifact-path error.
-const nativeWriteHookMarker = "[tractor-no-native-write]"
+const nativeWriteHookMarker = "[gimble-no-native-write]"
 
 func hooksConfigPath(homeDir string) string {
 	return filepath.Join(homeDir, ".gemini", "config", "hooks.json")
 }
 
 func hooksLockPath(homeDir string) string {
-	return filepath.Join(homeDir, ".gemini", "config", ".tractor-hooks.lock")
+	return filepath.Join(homeDir, ".gemini", "config", ".gimble-hooks.lock")
 }
 
 type hookHandler struct {
@@ -144,7 +144,7 @@ type hookSpec struct {
 //     targets outside the artifact directory) or when every extracted
 //     TargetFile lies inside the artifact directory (a genuine conversation
 //     artifact write, which agy's own validator accepts anyway);
-//   - deny (with a Tractor-authored, marker-tagged reason), when the call
+//   - deny (with a Gimble-authored, marker-tagged reason), when the call
 //     carries ArtifactMetadata and any target lies outside the artifact
 //     directory, or the payload doesn't parse as expected — the one
 //     combination empirically confirmed to reproduce the bug, plus the
@@ -237,12 +237,12 @@ func nativeWriteHookSpec() hookSpec {
 	}
 }
 
-// ensureNativeWriteHook idempotently provisions Tractor's PreToolUse
+// ensureNativeWriteHook idempotently provisions Gimble's PreToolUse
 // allow/deny hook under homeDir's global agy hooks.json, merging with (not
 // replacing) any other hooks already configured there.
 //
 // Global placement is deliberate, unlike a workspace-local
-// .agents/hooks.json: Tractor's isolated-worktree branches (engine/artifacts.go,
+// .agents/hooks.json: Gimble's isolated-worktree branches (engine/artifacts.go,
 // added in 2485e4c) each get their own workdir, so a workspace-local hook
 // would need provisioning into and cleanup from every branch worktree, and
 // a leftover file would show up in that branch's git status and risk being
@@ -254,7 +254,7 @@ func nativeWriteHookSpec() hookSpec {
 // not break that usage the way an unconditional deny would.
 //
 // The read-modify-write is guarded by an exclusive flock on a sibling lock
-// file, so two concurrent Tractor processes (both of which take this lock)
+// file, so two concurrent Gimble processes (both of which take this lock)
 // cannot lose each other's keys, and the write itself lands via a
 // same-directory temp file plus rename, so no reader ever observes a
 // partially-written file, from any writer, cooperating or not. See
@@ -275,7 +275,7 @@ func ensureNativeWriteHook(homeDir string) error {
 	path := hooksConfigPath(homeDir)
 	canonical, err := json.Marshal(nativeWriteHookSpec())
 	if err != nil {
-		return fmt.Errorf("encode tractor native-write hook: %w", err)
+		return fmt.Errorf("encode gimble native-write hook: %w", err)
 	}
 
 	raw, readErr := os.ReadFile(path)
@@ -283,7 +283,7 @@ func ensureNativeWriteHook(homeDir string) error {
 	switch {
 	case readErr == nil:
 		if err := json.Unmarshal(raw, &doc); err != nil {
-			return fmt.Errorf("parse %s: %w (fix or remove the file so Tractor can add its hook)", path, err)
+			return fmt.Errorf("parse %s: %w (fix or remove the file so Gimble can add its hook)", path, err)
 		}
 	case os.IsNotExist(readErr):
 		// doc stays empty; created below.
@@ -291,29 +291,29 @@ func ensureNativeWriteHook(homeDir string) error {
 		return fmt.Errorf("read %s: %w", path, readErr)
 	}
 
-	if existing, ok := doc[tractorHookName]; ok {
+	if existing, ok := doc[gimbleHookName]; ok {
 		if bytes.Equal(bytes.TrimSpace(existing), canonical) {
 			return nil
 		}
 		if !strings.Contains(string(existing), nativeWriteHookMarker) {
 			return fmt.Errorf(
-				"%s already has a %q hook that is not Tractor-managed (missing marker comment in its reason text); "+
-					"remove it or rename Tractor's hook (harness/agy.tractorHookName) to avoid clobbering it",
-				path, tractorHookName,
+				"%s already has a %q hook that is not Gimble-managed (missing marker comment in its reason text); "+
+					"remove it or rename Gimble's hook (harness/agy.gimbleHookName) to avoid clobbering it",
+				path, gimbleHookName,
 			)
 		}
-		// A stale Tractor-authored entry (e.g. an older reason string);
+		// A stale Gimble-authored entry (e.g. an older reason string);
 		// fall through and overwrite it with current content.
 	}
 
-	doc[tractorHookName] = canonical
+	doc[gimbleHookName] = canonical
 	encoded, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode %s: %w", path, err)
 	}
 	// Preserve an existing file's permission bits rather than forcing 0o644:
 	// a user (or another tool) may have deliberately set hooks.json to a
-	// more restrictive mode (e.g. 0o600), and Tractor merging its own hook
+	// more restrictive mode (e.g. 0o600), and Gimble merging its own hook
 	// into the document is not a reason to widen that. Only a brand-new
 	// file gets the 0o644 default.
 	perm := os.FileMode(0o644)
@@ -324,14 +324,14 @@ func ensureNativeWriteHook(homeDir string) error {
 }
 
 // lockHooksConfig acquires an exclusive interprocess lock over homeDir's
-// hooks.json so two *cooperating* writers — two Tractor runs, or any other
+// hooks.json so two *cooperating* writers — two Gimble runs, or any other
 // tool that takes this same lock file before reading and writing — can't
 // both read the same old document and have the second writer silently
 // discard the first writer's new keys. This is an advisory lock: it only
 // binds callers that choose to take it. It does not, and cannot, stop a
 // person hand-editing hooks.json in a text editor, or another program that
 // writes the file directly without acquiring homeDir's
-// .tractor-hooks.lock — such a writer can still race ensureNativeWriteHook's
+// .gimble-hooks.lock — such a writer can still race ensureNativeWriteHook's
 // read-modify-write and have either side's update silently lost to the
 // other's atomic rename. Returns an unlock function; the caller must always
 // call it (e.g. via defer).

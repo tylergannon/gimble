@@ -1,2 +1,2 @@
-// Package tractor provides the Tractor Go module.
-package tractor
+// Package gimble provides the Gimble Go module.
+package gimble

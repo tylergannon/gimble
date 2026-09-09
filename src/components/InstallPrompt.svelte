@@ -3,7 +3,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
 
   const prompt =
-    "Install Tractor from https://github.com/tylergannon/tractor, then tell me when I should start a new Codex task.";
+    "Install Gimble from https://github.com/tylergannon/gimble, then tell me when I should start a new Codex task.";
   let copied = $state(false);
 
   async function copyPrompt() {

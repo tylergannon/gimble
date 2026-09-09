@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// The tractor skill bundles copies of the loop examples so agents can use
+// The gimble skill bundles copies of the loop examples so agents can use
 // them without the repo checked out. This tripwire keeps the copies from
 // drifting.
 func TestSkillBundleMatchesLoopExamples(t *testing.T) {
@@ -21,7 +21,7 @@ func TestSkillBundleMatchesLoopExamples(t *testing.T) {
 		t.Fatal("no loop examples found")
 	}
 	for _, path := range paths {
-		bundled := filepath.Join("..", "skills", "tractor", "examples", filepath.Base(path))
+		bundled := filepath.Join("..", "skills", "gimble", "examples", filepath.Base(path))
 		want, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)

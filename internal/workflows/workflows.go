@@ -1,5 +1,5 @@
 // Package workflows holds the pipelines that ship inside the binary. Each one
-// is a complete graph an operator can run by name, read with `tractor
+// is a complete graph an operator can run by name, read with `gimble
 // workflows show`, or copy out and edit.
 package workflows
 
@@ -14,7 +14,7 @@ var files embed.FS
 
 // Workflow is one built-in pipeline and the situation it is for.
 type Workflow struct {
-	// Name is the identifier `tractor run` and `tractor workflows show` accept.
+	// Name is the identifier `gimble run` and `gimble workflows show` accept.
 	Name string
 	// When describes the situation that calls for this workflow, in one line.
 	When string

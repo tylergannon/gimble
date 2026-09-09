@@ -1,18 +1,18 @@
 # Built-in workflows
 
 The pipelines that ship inside the binary. They are embedded from this
-directory, so editing one here changes what `tractor run <name>` runs after a
+directory, so editing one here changes what `gimble run <name>` runs after a
 rebuild, and `workflows.go` is the catalogue that gives each one the line
-`tractor workflows` prints. A test holds the catalogue and these files to each
+`gimble workflows` prints. A test holds the catalogue and these files to each
 other, so a workflow cannot ship undocumented or be documented without
 shipping.
 
 ```sh
-tractor workflows                       # the catalogue
-tractor workflows show sprint-execute   # one pipeline, verbatim
-tractor run sprint-execute --workdir . --logs .tractor/run
-tractor run delivery-loop --goal "Build what docs/SPEC.md describes" \
-  --workdir . --logs .tractor/run
+gimble workflows                       # the catalogue
+gimble workflows show sprint-execute   # one pipeline, verbatim
+gimble run sprint-execute --workdir . --logs .gimble/run
+gimble run delivery-loop --goal "Build what docs/SPEC.md describes" \
+  --workdir . --logs .gimble/run
 ```
 
 A workflow either reads its work from the workspace — a ledger, or
@@ -23,8 +23,8 @@ refuses to start without it.
 
 They were ported from the diffusioninc skills mounted at
 `reference/diffusion-skills`. The diagrams in
-`ephemeral/projects/tractor/workflows/diagrams/` were rendered from these
-files with `tractor edit`.
+`ephemeral/projects/gimble/workflows/diagrams/` were rendered from these
+files with `gimble edit`.
 
 None of them has been run end to end yet.
 
@@ -86,7 +86,7 @@ the engine already owns it.
 **`sprint-plan.yaml`** — competitive planning. Three providers draft the same
 intent in isolated worktrees, then each critiques the two drafts it did not
 write. The interview is a real gate: one node writes the questions, a command
-node blocks on `tractor ask` until the answers appear, and the merge reads
+node blocks on `gimble ask` until the answers appear, and the merge reads
 them. Drop those two nodes for an unattended plan.
 
 **`delivery-loop.yaml`** — spec to software. Plan, cross-provider critique,

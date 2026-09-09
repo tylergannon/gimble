@@ -11,12 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/tractor/checklist"
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/harness"
-	"github.com/tylergannon/tractor/internal/hostwake"
-	"github.com/tylergannon/tractor/internal/runlog"
-	"github.com/tylergannon/tractor/lint"
+	"github.com/tylergannon/gimble/checklist"
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/harness"
+	"github.com/tylergannon/gimble/internal/hostwake"
+	"github.com/tylergannon/gimble/internal/runlog"
+	"github.com/tylergannon/gimble/lint"
 )
 
 // ExecutionScope is the engine-owned context for one handler execution.
@@ -265,15 +265,15 @@ func (r *Runner) Run() (RunResult, error) {
 		return RunResult{}, fmt.Errorf("resolve logs root: %w", err)
 	}
 	r.config.LogsRoot = logsRoot
-	previousRunDir, hadRunDir := os.LookupEnv("TRACTOR_RUN_DIR")
-	if err := os.Setenv("TRACTOR_RUN_DIR", logsRoot); err != nil {
-		return RunResult{}, fmt.Errorf("set TRACTOR_RUN_DIR: %w", err)
+	previousRunDir, hadRunDir := os.LookupEnv("GIMBLE_RUN_DIR")
+	if err := os.Setenv("GIMBLE_RUN_DIR", logsRoot); err != nil {
+		return RunResult{}, fmt.Errorf("set GIMBLE_RUN_DIR: %w", err)
 	}
 	defer func() {
 		if hadRunDir {
-			_ = os.Setenv("TRACTOR_RUN_DIR", previousRunDir)
+			_ = os.Setenv("GIMBLE_RUN_DIR", previousRunDir)
 		} else {
-			_ = os.Unsetenv("TRACTOR_RUN_DIR")
+			_ = os.Unsetenv("GIMBLE_RUN_DIR")
 		}
 	}()
 

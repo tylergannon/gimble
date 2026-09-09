@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/tractor/harness"
+	"github.com/tylergannon/gimble/harness"
 )
 
 var testSchema = json.RawMessage(`{
@@ -213,7 +213,7 @@ func TestIsArtifactPathError(t *testing.T) {
 	}{
 		{"nil error", nil, false},
 		{"agy artifact-path error", &harness.Error{Category: harness.ErrorTerminal, Message: agyMessage}, true},
-		{"tractor native-write hook denial", &harness.Error{Category: harness.ErrorTerminal, Message: hookMessage}, true},
+		{"gimble native-write hook denial", &harness.Error{Category: harness.ErrorTerminal, Message: hookMessage}, true},
 		{"unrelated terminal error", &harness.Error{Category: harness.ErrorTerminal, Message: "unknown model x"}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -286,8 +286,8 @@ func TestEnsureNativeWriteHookIdempotentAndContentCorrect(t *testing.T) {
 		t.Fatalf("hooks.json is not valid JSON: %v", err)
 	}
 	var spec hookSpec
-	if err := json.Unmarshal(doc[tractorHookName], &spec); err != nil {
-		t.Fatalf("tractor hook entry is not valid JSON: %v", err)
+	if err := json.Unmarshal(doc[gimbleHookName], &spec); err != nil {
+		t.Fatalf("gimble hook entry is not valid JSON: %v", err)
 	}
 	if len(spec.PreToolUse) != 1 || spec.PreToolUse[0].Matcher != strings.Join(nativeWriteTools, "|") {
 		t.Fatalf("unexpected PreToolUse group: %#v", spec.PreToolUse)
@@ -348,7 +348,7 @@ func TestEnsureNativeWriteHookMergesWithExistingHooks(t *testing.T) {
 	if _, ok := doc["user-lint-hook"]; !ok {
 		t.Fatalf("ensureNativeWriteHook clobbered the user's existing hook: %s", raw)
 	}
-	if _, ok := doc[tractorHookName]; !ok {
+	if _, ok := doc[gimbleHookName]; !ok {
 		t.Fatalf("ensureNativeWriteHook did not add its own hook: %s", raw)
 	}
 }
@@ -359,12 +359,12 @@ func TestEnsureNativeWriteHookRefusesForeignEntry(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	foreign := `{"tractor-no-native-write":{"PreToolUse":[{"matcher":"write_to_file","hooks":[{"command":"echo mine"}]}]}}`
+	foreign := `{"gimble-no-native-write":{"PreToolUse":[{"matcher":"write_to_file","hooks":[{"command":"echo mine"}]}]}}`
 	if err := os.WriteFile(path, []byte(foreign), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := ensureNativeWriteHook(home); err == nil {
-		t.Fatal("expected ensureNativeWriteHook to refuse clobbering a non-Tractor-managed entry")
+		t.Fatal("expected ensureNativeWriteHook to refuse clobbering a non-Gimble-managed entry")
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -438,8 +438,8 @@ func TestAdapterProvisionsHookBeforeFirstInvocation(t *testing.T) {
 	}
 }
 
-func TestAdapterReadsTractorRunDirAtProcessStart(t *testing.T) {
-	const runDir = "/tmp/tractor-run-for-agy"
+func TestAdapterReadsGimbleRunDirAtProcessStart(t *testing.T) {
+	const runDir = "/tmp/gimble-run-for-agy"
 	record := filepath.Join(t.TempDir(), "run-dir")
 	adapter := newAdapter(runnerConfig{
 		binary:   os.Args[0],
@@ -451,7 +451,7 @@ func TestAdapterReadsTractorRunDirAtProcessStart(t *testing.T) {
 	t.Setenv("AGY_HELPER_MODE", "success")
 	t.Setenv("AGY_HELPER_VERSION", minSupportedAgyVersion)
 	t.Setenv("AGY_HELPER_RUN_DIR_RECORD", record)
-	t.Setenv("TRACTOR_RUN_DIR", runDir)
+	t.Setenv("GIMBLE_RUN_DIR", runDir)
 
 	if _, createErr := adapter.CreateSession("gemini-test", t.TempDir()); createErr != nil {
 		t.Fatal(createErr)
@@ -461,7 +461,7 @@ func TestAdapterReadsTractorRunDirAtProcessStart(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(observed) != runDir {
-		t.Fatalf("TRACTOR_RUN_DIR = %q, want %q", observed, runDir)
+		t.Fatalf("GIMBLE_RUN_DIR = %q, want %q", observed, runDir)
 	}
 }
 
@@ -679,7 +679,7 @@ func TestAgyHelperProcess(t *testing.T) {
 		return
 	}
 	if record := os.Getenv("AGY_HELPER_RUN_DIR_RECORD"); record != "" {
-		if err := os.WriteFile(record, []byte(os.Getenv("TRACTOR_RUN_DIR")), 0o600); err != nil {
+		if err := os.WriteFile(record, []byte(os.Getenv("GIMBLE_RUN_DIR")), 0o600); err != nil {
 			os.Exit(2)
 		}
 	}

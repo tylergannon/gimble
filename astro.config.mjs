@@ -8,7 +8,7 @@ import svelte from "@astrojs/svelte";
 // https://astro.build/config
 export default defineConfig({
   site: "https://tylergannon.github.io",
-  base: "/tractor",
+  base: "/gimble",
   integrations: [icon(), svelte()],
   image: {
     layout: "constrained",

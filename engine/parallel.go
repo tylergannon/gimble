@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/harness"
-	"github.com/tylergannon/tractor/lint"
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/harness"
+	"github.com/tylergannon/gimble/lint"
 )
 
 type fanOutHandler struct {

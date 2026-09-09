@@ -1,4 +1,4 @@
-// Package agy implements Tractor's HarnessAdapter using Google Antigravity's
+// Package agy implements Gimble's HarnessAdapter using Google Antigravity's
 // `agy` print-mode CLI.
 package agy
 
@@ -18,8 +18,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tylergannon/tractor/harness"
-	"github.com/tylergannon/tractor/harness/agy/schema"
+	"github.com/tylergannon/gimble/harness"
+	"github.com/tylergannon/gimble/harness/agy/schema"
 )
 
 const (
@@ -51,7 +51,7 @@ type sessionState struct {
 	mu      sync.Mutex
 	workdir string
 	active  *activeTurn
-	// agyConversationID overrides the externally-visible Tractor session ID
+	// agyConversationID overrides the externally-visible Gimble session ID
 	// as the actual `--conversation` argument once a repair has moved this
 	// session onto a fresh agy conversation (see the artifact-path repair
 	// branch in RunTurn). Empty means "use the external session ID
@@ -427,10 +427,10 @@ func (a *Adapter) Close() {
 	}
 }
 
-// ensureHook provisions (once per Adapter) the Tractor-owned PreToolUse
+// ensureHook provisions (once per Adapter) the Gimble-owned PreToolUse
 // allow/deny hook that intercepts agy's native write tools before they
 // execute. See native_write_hook.go for why this — not the documented
-// custom-agent tools: allowlist — is the mechanism Tractor actually uses.
+// custom-agent tools: allowlist — is the mechanism Gimble actually uses.
 //
 // Before writing anything, it checks the installed agy binary's version
 // against minSupportedAgyVersion: PreToolUse hooks.json support was only
@@ -454,7 +454,7 @@ func (a *Adapter) ensureHook() *harness.Error {
 			home = resolved
 		}
 		if err := ensureNativeWriteHook(home); err != nil {
-			a.hookErr = terminal(fmt.Sprintf("provision tractor agy native-write hook: %v", err))
+			a.hookErr = terminal(fmt.Sprintf("provision gimble agy native-write hook: %v", err))
 			return
 		}
 	})
@@ -476,7 +476,7 @@ func verifyAgyHookSupport(config runnerConfig) *harness.Error {
 	out, err := cmd.Output()
 	if err != nil {
 		return terminal(fmt.Sprintf(
-			"verify agy version before provisioning the tractor-no-native-write PreToolUse hook: run %q --version: %v; "+
+			"verify agy version before provisioning the gimble-no-native-write PreToolUse hook: run %q --version: %v; "+
 				"the hook (harness/agy/native_write_hook.go) requires a working agy binary on PATH",
 			config.binary, err,
 		))
@@ -494,7 +494,7 @@ func verifyAgyHookSupport(config runnerConfig) *harness.Error {
 	if !ok {
 		return terminal(fmt.Sprintf(
 			"agy %s is older than %s, the minimum version harness/agy has verified live supports the PreToolUse hooks.json mechanism "+
-				"the tractor-no-native-write hook (harness/agy/native_write_hook.go) depends on; upgrade agy, or re-verify hook support on this "+
+				"the gimble-no-native-write hook (harness/agy/native_write_hook.go) depends on; upgrade agy, or re-verify hook support on this "+
 				"version and lower minSupportedAgyVersion. Without a supported hook, only the reactive artifact-path repair-retry protects turns from the artifact-path bug.",
 			version, minSupportedAgyVersion,
 		))
@@ -781,7 +781,7 @@ func bindWorkdir(state *sessionState, workdir string) *harness.Error {
 }
 
 func writeSchema(raw json.RawMessage) (string, error) {
-	file, err := os.CreateTemp("", "tractor-agy-schema-*.json")
+	file, err := os.CreateTemp("", "gimble-agy-schema-*.json")
 	if err != nil {
 		return "", err
 	}
@@ -911,7 +911,7 @@ const artifactPathErrorMarker = "is not a valid artifact path"
 // isArtifactPathError reports whether err is agy's "declaring permissions"
 // failure for a file-write tool call that carried an ArtifactMetadata
 // argument and targeted a path outside its brain directory (agy's own
-// error text), or Tractor's own PreToolUse hook denial of the same class
+// error text), or Gimble's own PreToolUse hook denial of the same class
 // of call (nativeWriteHookMarker, native_write_hook.go). Either way the fix
 // is identical: redo the failed write(s) via a fresh conversation, omitting
 // ArtifactMetadata this time — see artifactWriteRepairPrompt.

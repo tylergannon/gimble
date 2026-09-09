@@ -4,17 +4,17 @@ description: Open a pipeline file in the browser, edit nodes and edges with inli
 eyebrow: Operator guide
 order: 6
 sourceLabel: Browse the editor source
-sourceUrl: https://github.com/tylergannon/tractor/tree/main/web/editor
+sourceUrl: https://github.com/tylergannon/gimble/tree/main/web/editor
 ---
 
-A pipeline is a YAML file, and the editor is a view of that file. `tractor
+A pipeline is a YAML file, and the editor is a view of that file. `gimble
 edit` serves a page that draws the graph, lets you change it, and writes the
 result straight back to disk. Nothing is stored anywhere else.
 
 ## Start it
 
 ```sh
-tractor edit examples/loops/bake-off.yaml
+gimble edit examples/loops/bake-off.yaml
 ```
 
 The command listens on loopback only, prints the URL, opens your browser, and
@@ -38,7 +38,7 @@ its type: `agent`, `fan_out`, `fan_in`, `command`, `supervisor`, and `loop`
 each get the fields the schema gives them, with inherited defaults shown
 greyed. Selecting nothing shows the graph settings and file-level `defaults`.
 
-Lint is the same validator `tractor validate` runs. Its diagnostics appear on
+Lint is the same validator `gimble validate` runs. Its diagnostics appear on
 the node they belong to, and graph-wide problems appear beside the settings,
 so what the page accepts is what `start_run` will accept.
 
@@ -105,12 +105,12 @@ cd web/editor && mise run build
 ```
 
 which installs the page's dependencies, runs `go generate` for the editor,
-builds the page, and rebuilds `tractor`. The bundle uses a constant version
+builds the page, and rebuilds `gimble`. The bundle uses a constant version
 string instead of a build timestamp, so rebuilding unchanged source produces
 byte-identical files and the committed build shows no spurious diff.
 
 To work on the page with hot reload, run `mise run dev:web` in one terminal
-and `mise run dev:go` in another. The second starts `tractor edit` on port
+and `mise run dev:go` in another. The second starts `gimble edit` on port
 7331 with a hidden `--proxy` flag that forwards page requests to the vite dev
 server; remote functions are still answered by Go, so the page you are
 editing talks to the real server.

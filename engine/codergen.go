@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/harness"
 	jsonschema "github.com/tylergannon/go-gen-jsonschema"
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/harness"
 )
 
 // AgentConfig supplies the backend and implementation-level model defaults.

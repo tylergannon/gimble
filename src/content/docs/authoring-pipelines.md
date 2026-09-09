@@ -1,13 +1,13 @@
 ---
 title: Authoring pipelines
-description: Write a small typed graph, validate it, and let Tractor coordinate the work through the agent harnesses you already use.
+description: Write a small typed graph, validate it, and let Gimble coordinate the work through the agent harnesses you already use.
 eyebrow: Pipeline guide
 order: 3
-sourceLabel: Read the normative Tractor specification
-sourceUrl: https://github.com/tylergannon/tractor/blob/main/docs/spec.md
+sourceLabel: Read the normative Gimble specification
+sourceUrl: https://github.com/tylergannon/gimble/blob/main/docs/spec.md
 ---
 
-Tractor pipelines are closed, typed graphs written as JSON or YAML. Every node declares what kind of work it performs and owns the routes that can follow it. That keeps the decision and its possible next steps together.
+Gimble pipelines are closed, typed graphs written as JSON or YAML. Every node declares what kind of work it performs and owns the routes that can follow it. That keeps the decision and its possible next steps together.
 
 > Start with the smallest graph that can prove the outcome. Add retries, branches, parallel work, or supervision only when the workflow actually needs them.
 
@@ -48,14 +48,14 @@ nodes:
 Ask Codex to use it:
 
 ```text
-Validate pipeline.yaml with Tractor, start it in this repository, and monitor it until it finishes. Tell me if you need a decision.
+Validate pipeline.yaml with Gimble, start it in this repository, and monitor it until it finishes. Tell me if you need a decision.
 ```
 
-Codex will use Tractor's deferred MCP tools to validate the file, start a detached run, and inspect it by run ID. The run survives an MCP or Codex restart. If you prefer the CLI, validate with `tractor validate pipeline.yaml`; direct runs also require explicit workspace and log paths.
+Codex will use Gimble's deferred MCP tools to validate the file, start a detached run, and inspect it by run ID. The run survives an MCP or Codex restart. If you prefer the CLI, validate with `gimble validate pipeline.yaml`; direct runs also require explicit workspace and log paths.
 
 ```sh
-tractor validate pipeline.yaml
-tractor run pipeline.yaml --workdir . --logs .tractor/runs/ship-a-fix
+gimble validate pipeline.yaml
+gimble run pipeline.yaml --workdir . --logs .gimble/runs/ship-a-fix
 ```
 
 ## The document shape
@@ -76,7 +76,7 @@ Node IDs must match `[A-Za-z_][A-Za-z0-9_]*`. `success` and `failure` are reserv
 
 ## Choose the right node
 
-Tractor deliberately has a small, fixed node vocabulary.
+Gimble deliberately has a small, fixed node vocabulary.
 
 | Type         | Use it for                                          | How it routes                                                 |
 | ------------ | --------------------------------------------------- | ------------------------------------------------------------- |
@@ -106,7 +106,7 @@ An `agent` or `fan_in` node carries an `edges` array. If there is one possible s
       condition: The goal cannot be met safely without user input.
 ```
 
-Conditions are instructions to the choosing agent, not a miniature expression language. Tractor constrains the answer to an offered target, records the response, and then follows that target.
+Conditions are instructions to the choosing agent, not a miniature expression language. Gimble constrains the answer to an offered target, records the response, and then follows that target.
 
 Command nodes are different because the shell has already made the decision:
 
@@ -133,9 +133,9 @@ model:
   effort: high
 ```
 
-A node's `model` replaces `defaults.model` as a whole. Missing `version` or `effort` values are resolved from the selected model's policy; they never carry over from the lower-precedence object. Tractor maintains `gpt` release `5.6`, `fable` releases `5.1` and `5`, and `flash` releases `3.8`, `3.7`, and `3.6`. Provider-native IDs such as `claude-sonnet-4-5` and `gpt-5.6-sol` remain usable directly. An already-versioned native name cannot also take `version`.
+A node's `model` replaces `defaults.model` as a whole. Missing `version` or `effort` values are resolved from the selected model's policy; they never carry over from the lower-precedence object. Gimble maintains `gpt` release `5.6`, `fable` releases `5.1` and `5`, and `flash` releases `3.8`, `3.7`, and `3.6`. Provider-native IDs such as `claude-sonnet-4-5` and `gpt-5.6-sol` remain usable directly. An already-versioned native name cannot also take `version`.
 
-Use `tractor inspect-models pipeline.yaml` to see every effective node and role selection, including its native model, effort, provider, harness, and source.
+Use `gimble inspect-models pipeline.yaml` to see every effective node and role selection, including its native model, effort, provider, harness, and source.
 
 - `fidelity: full` reuses the native harness session and preserves its conversation.
 - `fidelity: compacted` reuses the session after native compaction.
@@ -143,13 +143,13 @@ Use `tractor inspect-models pipeline.yaml` to see every effective node and role 
 - `max_retries` counts additional attempts after the first failure. It never retries a routing choice.
 - `max_visits` limits how often the graph may dispatch a node, which is how you bound loops.
 
-Keep prompts responsible for the work, not for re-explaining the entire pipeline. Tractor already supplies the available successors as a strict choice schema.
+Keep prompts responsible for the work, not for re-explaining the entire pipeline. Gimble already supplies the available successors as a strict choice schema.
 
 ## Fan out, then converge
 
 Fan-out nodes support two branch forms. A string names an authored branch root, preserving the original multi-node branch model. A structured branch declares one synthesized agent stage, its required artifacts, and an optional `agent` override. The synthesized stage inherits the fan-out node's prompt, model, retry, fidelity, thread, timeout, label, visit, and `branch_edges`. `branches[].agent.model`, when present, replaces the fan-out template selection as a whole.
 
-The default `workspace` is `isolated`. Tractor freezes the parent Git repository, creates a separate worktree for each branch, and collects every declared regular file or directory into durable fan-out stage evidence before deleting the branch worktrees. `branches.json` records each declared path, collected path, source path, outcome, stage directory, and run-log segment. The fan-in receives those collected paths directly.
+The default `workspace` is `isolated`. Gimble freezes the parent Git repository, creates a separate worktree for each branch, and collects every declared regular file or directory into durable fan-out stage evidence before deleting the branch worktrees. `branches.json` records each declared path, collected path, source path, outcome, stage directory, and run-log segment. The fan-in receives those collected paths directly.
 
 ```yaml
 - id: compare
@@ -182,7 +182,7 @@ The default `workspace` is `isolated`. Tractor freezes the parent Git repository
     - to: success
 ```
 
-Set `workspace: shared` only when branches intentionally coordinate through one directory. Shared branches do not require a Git repository, and `branches.json` exposes each declared artifact at its live workspace path. Tractor provides no write-conflict protection in this mode, so give concurrent branches distinct outputs unless the agents explicitly coordinate a shared edit.
+Set `workspace: shared` only when branches intentionally coordinate through one directory. Shared branches do not require a Git repository, and `branches.json` exposes each declared artifact at its live workspace path. Gimble provides no write-conflict protection in this mode, so give concurrent branches distinct outputs unless the agents explicitly coordinate a shared edit.
 
 Legacy string branches remain useful when each alternative needs several authored nodes:
 
@@ -275,7 +275,7 @@ The selected item reaches the agent as a frame the engine prepends to every agen
 
 ```text
 <system-message>
-This is one step of a Tractor run inside a checklist loop. The iterate
+This is one step of a Gimble run inside a checklist loop. The iterate
 blocks below are the engine's record of where you are: the item selected
 for this lap, the check it must satisfy, the command and judge that will
 validate it when this step ends, and what the previous validation reported.
@@ -300,14 +300,14 @@ last validation: failed -- no evidence files
 
 ## Validate before spending tokens
 
-Validation checks the generated closed schema and Tractor's graph-level lint rules before a run starts. It catches unknown fields, invalid targets, ambiguous branches, unsafe parallel topology, loop bodies that never return, session collisions, supervision cycles, and other structural mistakes.
+Validation checks the generated closed schema and Gimble's graph-level lint rules before a run starts. It catches unknown fields, invalid targets, ambiguous branches, unsafe parallel topology, loop bodies that never return, session collisions, supervision cycles, and other structural mistakes.
 
 ```sh
-tractor validate pipeline.yaml
-tractor print-schema > tractor-pipeline.schema.json
+gimble validate pipeline.yaml
+gimble print-schema > gimble-pipeline.schema.json
 ```
 
-Inside Codex, ask Tractor for the current pipeline schema only when authoring or changing a graph. The plugin defers the large schema so ordinary run-management requests stay small.
+Inside Codex, ask Gimble for the current pipeline schema only when authoring or changing a graph. The plugin defers the large schema so ordinary run-management requests stay small.
 
 ## Authoring checklist
 
@@ -320,4 +320,4 @@ Inside Codex, ask Tractor for the current pipeline schema only when authoring or
 7. Choose isolated or shared branch workspaces deliberately, declare every structured-branch artifact, and converge at one fan-in.
 8. Validate the file before starting the run.
 
-The complete field contract and execution semantics live in the normative [Tractor specification](https://github.com/tylergannon/tractor/blob/main/docs/spec.md). Runnable steering, YAML, parallel, and supervision pipelines live in the repository's [examples](https://github.com/tylergannon/tractor/tree/main/examples).
+The complete field contract and execution semantics live in the normative [Gimble specification](https://github.com/tylergannon/gimble/blob/main/docs/spec.md). Runnable steering, YAML, parallel, and supervision pipelines live in the repository's [examples](https://github.com/tylergannon/gimble/tree/main/examples).

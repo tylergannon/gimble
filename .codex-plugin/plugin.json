@@ -1,26 +1,26 @@
 {
-  "name": "tractor",
+  "name": "gimble",
   "version": "0.9.0",
-  "description": "Run and steer Tractor pipelines from Codex through MCP.",
+  "description": "Run and steer Gimble pipelines from Codex through MCP.",
   "author": {
     "name": "Tyler Gannon",
     "url": "https://github.com/tylergannon"
   },
-  "repository": "https://github.com/tylergannon/tractor",
-  "keywords": ["agents", "mcp", "pipelines", "tractor"],
+  "repository": "https://github.com/tylergannon/gimble",
+  "keywords": ["agents", "mcp", "pipelines", "gimble"],
   "mcpServers": "./.mcp.json",
   "interface": {
-    "displayName": "Tractor",
+    "displayName": "Gimble",
     "shortDescription": "Run multi-agent pipelines from Codex",
-    "longDescription": "Validate, start, monitor, steer, and stop Tractor pipelines through a deferred stdio MCP tool surface.",
+    "longDescription": "Validate, start, monitor, steer, and stop Gimble pipelines through a deferred stdio MCP tool surface.",
     "developerName": "Tyler Gannon",
     "category": "Productivity",
     "capabilities": ["Interactive", "Write"],
-    "websiteURL": "https://github.com/tylergannon/tractor",
+    "websiteURL": "https://github.com/tylergannon/gimble",
     "defaultPrompt": [
-      "Validate this Tractor pipeline.",
-      "Start this Tractor pipeline and monitor it.",
-      "Show me Tractor's current pipeline schema."
+      "Validate this Gimble pipeline.",
+      "Start this Gimble pipeline and monitor it.",
+      "Show me Gimble's current pipeline schema."
     ],
     "brandColor": "#D97706"
   }

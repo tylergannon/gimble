@@ -1,4 +1,4 @@
-module github.com/tylergannon/tractor
+module github.com/tylergannon/gimble
 
 go 1.27.1
 

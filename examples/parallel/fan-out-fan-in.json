@@ -9,7 +9,7 @@
     {
       "id": "prepare",
       "type": "command",
-      "command": "rm -rf tractor-fan-in-proof; rm -f parallel-left.txt parallel-right.txt",
+      "command": "rm -rf gimble-fan-in-proof; rm -f parallel-left.txt parallel-right.txt",
       "edges": { "success": "fan_out" }
     },
     {
@@ -33,7 +33,7 @@
     {
       "id": "combine",
       "type": "fan_in",
-      "prompt": "Use the supplied branch evidence and worktree paths. Inspect both worktrees: the left worktree must contain parallel-left.txt and not parallel-right.txt; the right worktree must contain parallel-right.txt and not parallel-left.txt. In this main workspace create tractor-fan-in-proof, copy those files to tractor-fan-in-proof/left.txt and tractor-fan-in-proof/right.txt, and verify from their started and finished values that the intervals overlap. Only after every check passes, write tractor-fan-in-proof/summary.txt with exactly two lines: isolation=verified and overlap=verified. Do not alter either branch worktree.",
+      "prompt": "Use the supplied branch evidence and worktree paths. Inspect both worktrees: the left worktree must contain parallel-left.txt and not parallel-right.txt; the right worktree must contain parallel-right.txt and not parallel-left.txt. In this main workspace create gimble-fan-in-proof, copy those files to gimble-fan-in-proof/left.txt and gimble-fan-in-proof/right.txt, and verify from their started and finished values that the intervals overlap. Only after every check passes, write gimble-fan-in-proof/summary.txt with exactly two lines: isolation=verified and overlap=verified. Do not alter either branch worktree.",
       "model": { "name": "gpt-5.6-sol", "effort": "low" },
       "fidelity": "none",
       "edges": [{ "to": "verify" }]
@@ -41,7 +41,7 @@
     {
       "id": "verify",
       "type": "command",
-      "command": "set -eu; test ! -e parallel-left.txt; test ! -e parallel-right.txt; left=tractor-fan-in-proof/left.txt; right=tractor-fan-in-proof/right.txt; test -f \"$left\"; test -f \"$right\"; grep -qx 'branch=left' \"$left\"; grep -qx 'marker=LEFT_ONLY' \"$left\"; grep -qx 'branch=right' \"$right\"; grep -qx 'marker=RIGHT_ONLY' \"$right\"; ls=$(sed -n 's/^started=//p' \"$left\"); lf=$(sed -n 's/^finished=//p' \"$left\"); rs=$(sed -n 's/^started=//p' \"$right\"); rf=$(sed -n 's/^finished=//p' \"$right\"); test \"$ls\" -lt \"$rf\"; test \"$rs\" -lt \"$lf\"; grep -qx 'isolation=verified' tractor-fan-in-proof/summary.txt; grep -qx 'overlap=verified' tractor-fan-in-proof/summary.txt; printf 'parallel fan-in verified\n'",
+      "command": "set -eu; test ! -e parallel-left.txt; test ! -e parallel-right.txt; left=gimble-fan-in-proof/left.txt; right=gimble-fan-in-proof/right.txt; test -f \"$left\"; test -f \"$right\"; grep -qx 'branch=left' \"$left\"; grep -qx 'marker=LEFT_ONLY' \"$left\"; grep -qx 'branch=right' \"$right\"; grep -qx 'marker=RIGHT_ONLY' \"$right\"; ls=$(sed -n 's/^started=//p' \"$left\"); lf=$(sed -n 's/^finished=//p' \"$left\"); rs=$(sed -n 's/^started=//p' \"$right\"); rf=$(sed -n 's/^finished=//p' \"$right\"); test \"$ls\" -lt \"$rf\"; test \"$rs\" -lt \"$lf\"; grep -qx 'isolation=verified' gimble-fan-in-proof/summary.txt; grep -qx 'overlap=verified' gimble-fan-in-proof/summary.txt; printf 'parallel fan-in verified\n'",
       "edges": { "success": "success" }
     }
   ]

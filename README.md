@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/assets/tractor.svg" width="640" alt="A cheerful tractor tows three wagons of pipeline nodes — a graph, a loop, and a check — while a small supervisor bird calls down &quot;steer!&quot; from above">
+<img src="docs/assets/gimble-mascot.png" width="480" alt="Gimble, a friendly gyroscopic guide, points along a trail toward a goal">
 
-# Tractor
+# Gimble
 
 **Run coding agents as detached pipelines.**
 An agent does the work, a command decides when it's done, and a
@@ -19,7 +19,7 @@ supervisor keeps watch — long after you close your laptop.
 
 ## What it is
 
-A pipeline is a small typed graph in a YAML or JSON file. Tractor runs it
+A pipeline is a small typed graph in a YAML or JSON file. Gimble runs it
 as a **detached local process** driving the real Claude Code, Codex, and
 Gemini CLIs, so the run survives the session that launched it — reconnect
 any time to inspect, steer, or stop it. Every prompt, response, and routing
@@ -52,7 +52,7 @@ acceptance case for every new build, launched by `TestCanonicalLoop`.
 
 ## Why
 
-Tractor serves [five arts of orchestration](docs/five-arts.md): making an agent
+Gimble serves [five arts of orchestration](docs/five-arts.md): making an agent
 actually do the work, splitting the work so no agent carries too much, helping
 a human define it, showing how it is going, and letting an observer steer it.
 They compete, and the document says how.
@@ -64,8 +64,8 @@ They compete, and the document says how.
   promised work is satisfied.
 - **The engine starts the software, so nothing else picks the target.** A
   workflow may omit service configuration or name one Procfile and one service.
-  Tractor runs the Procfile through Overmind for the workflow's lifetime and
-  exports the named process's port as `TRACTOR_SERVICE_PORT` to every workflow
+  Gimble runs the Procfile through Overmind for the workflow's lifetime and
+  exports the named process's port as `GIMBLE_SERVICE_PORT` to every workflow
   shell. A service that never accepts connections fails before work begins.
 - **Routing belongs to the agent, not the engine.** Each turn answers a
   schema-enforced choice of offered successors — the engine never parses
@@ -115,24 +115,24 @@ sequenceDiagram
 
 ## Install
 
-Tractor is one Go binary plus a plugin that works in both Codex and Claude
+Gimble is one Go binary plus a plugin that works in both Codex and Claude
 Code (shared skills, shared MCP server).
 
 **Codex:**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/tylergannon/tractor/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/tylergannon/gimble/main/scripts/install.sh | sh
 ```
 
 **Claude Code:**
 
 ```sh
-go install github.com/tylergannon/tractor/cmd/tractor@latest
-claude plugin marketplace add tylergannon/tractor
-claude plugin install tractor@tractor
+go install github.com/tylergannon/gimble/cmd/gimble@latest
+claude plugin marketplace add tylergannon/gimble
+claude plugin install gimble@gimble
 ```
 
-Start a new session after installing so the plugin picks up `tractor mcp`.
+Start a new session after installing so the plugin picks up `gimble mcp`.
 Details and caveats: [implementation notes](docs/implementation-notes.md).
 
 ## Start from an example
@@ -154,9 +154,9 @@ The examples above are single shapes to copy and edit. Whole workflows ship
 inside the binary and run by name, with nothing to copy:
 
 ```sh
-tractor workflows                       # what this binary carries
-tractor workflows show sprint-execute   # the pipeline itself
-tractor run sprint-execute --workdir . --logs .tractor/run
+gimble workflows                       # what this binary carries
+gimble workflows show sprint-execute   # the pipeline itself
+gimble run sprint-execute --workdir . --logs .gimble/run
 ```
 
 | The situation | Workflow | What it works on |
@@ -171,13 +171,13 @@ yours. Every workflow carries it into its working prompts, so a goal always
 steers:
 
 ```sh
-tractor run delivery-loop --goal "Build what docs/SPEC.md describes" \
-  --workdir . --logs .tractor/run
+gimble run delivery-loop --goal "Build what docs/SPEC.md describes" \
+  --workdir . --logs .gimble/run
 ```
 
 Two of them are meaningless without it — there is no seed to plan and no
 specification to build — so they refuse to start without one rather than
-running against the generic goal in their file, and `tractor workflows` marks
+running against the generic goal in their file, and `gimble workflows` marks
 them. The other two already know their work: a ledger names every sprint. For
 those a goal is a steer, not the assignment, and the listing names the file
 each one reads so a missing ledger is a known precondition rather than a
@@ -188,42 +188,42 @@ command that item carries, which the engine runs, so these work in a repository
 of any language.
 
 A name resolves to a built-in only when no file of that name exists, so a
-pipeline on disk is never shadowed. `tractor workflows show <name> > mine.yaml`
+pipeline on disk is never shadowed. `gimble workflows show <name> > mine.yaml`
 gives you an ordinary pipeline to edit. The [workflow
 reference](internal/workflows/README.md) says what they have in common and how
 to adapt one.
 
-The [spec](docs/spec.md) is the sole normative definition of Tractor's
+The [spec](docs/spec.md) is the sole normative definition of Gimble's
 Attractor variant; where anything else disagrees with it, the spec governs.
 
 ## Ask and answer inside a run
 
 An agent can leave a Markdown or HTML question in an interview directory and
-block until its caller answers. Inside a run, Tractor sets `TRACTOR_RUN_DIR`
+block until its caller answers. Inside a run, Gimble sets `GIMBLE_RUN_DIR`
 so `ask` also appends a `QuestionAsked` event to the timeline.
 
 ```sh
-TRACTOR_INTERVIEW_DIR=ephemeral/projects/my-build/interview \
-tractor ask question.md
+GIMBLE_INTERVIEW_DIR=ephemeral/projects/my-build/interview \
+gimble ask question.md
 
-tractor answer ephemeral/projects/my-build/interview/0001.md "Use the simpler option."
+gimble answer ephemeral/projects/my-build/interview/0001.md "Use the simpler option."
 ```
 
-`tractor ask --help` documents the polling behavior and the `--into` override.
-`tractor answer` also accepts the answer on stdin and refuses to replace an
+`gimble ask --help` documents the polling behavior and the `--into` override.
+`gimble answer` also accepts the answer on stdin and refuses to replace an
 existing answer file.
 
 ## A run that tells you when it has news
 
 Start a run from inside an agent session and the run outlives the turn that
-started it: the session goes idle while the run keeps working. Tractor records
+started it: the session goes idle while the run keeps working. Gimble records
 the launching session in the run manifest and delivers a rollup of what
 happened back into it, which wakes an idle session the way any message does.
 
 ```sh
-tractor run sprint-execute --workdir . --logs .tractor/run   # wakes a background session
-tractor run sprint-execute --wake=on --logs .tractor/run     # wakes this session too
-tractor run sprint-execute --wake=off --logs .tractor/run    # never wakes anybody
+gimble run sprint-execute --workdir . --logs .gimble/run   # wakes a background session
+gimble run sprint-execute --wake=on --logs .gimble/run     # wakes this session too
+gimble run sprint-execute --wake=off --logs .gimble/run    # never wakes anybody
 ```
 
 Waking is on an interval — `--wake-interval`, four minutes by default — and a
@@ -237,7 +237,7 @@ session that is gone is recorded on the timeline and the run carries on.
 The manifest records which session launched a run but never the credential to
 reach it, so a run directory stays safe to hand over as evidence.
 
-In Codex desktop, Tractor uses the public `codex queue` command as the host
+In Codex desktop, Gimble uses the public `codex queue` command as the host
 channel. The launching task supplies its exact thread ID; whenever the existing
 wake service has bounded run news, the detached runner queues that digest as a
 user message for the parent. A loaded idle task starts the turn immediately,
@@ -247,15 +247,15 @@ the run timeline and never fail the pipeline.
 
 ## Run one prompt
 
-`tractor run-prompt` runs one coding-agent turn with real tool access. It
+`gimble run-prompt` runs one coding-agent turn with real tool access. It
 prints ordinary assistant text by default. When invoked from Codex without an
 explicit model it selects Fable; when invoked from Claude Code it selects GPT.
 Explicit model flags always win.
 
 ```sh
-tractor run-prompt --workdir . "Explain the failing test."
+gimble run-prompt --workdir . "Explain the failing test."
 
-tractor run-prompt --model gpt --model-version 5.6 --effort max \
+gimble run-prompt --model gpt --model-version 5.6 --effort max \
   --output-schema '{"type":"object","properties":{"next":{"type":"string","enum":["fix","done"]}},"required":["next"],"additionalProperties":false}' \
   "Decide whether this change still needs work."
 ```
@@ -265,9 +265,9 @@ JSON. Without it there is no structured result and no `next` field.
 
 ## Edit a pipeline in the browser
 
-`tractor edit <pipeline.yaml>` serves a graph editor for one file on loopback:
+`gimble edit <pipeline.yaml>` serves a graph editor for one file on loopback:
 nodes, edges, an inspector for every node type, and the same lint as
-`tractor validate`, saved back to the YAML with comments and key order intact.
+`gimble validate`, saved back to the YAML with comments and key order intact.
 The page reloads when an agent or another editor writes the file, so both can
 work on it at once. See the [editor guide](src/content/docs/editor.md).
 

@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/tylergannon/tractor/harness"
-	"github.com/tylergannon/tractor/internal/hostwake"
+	"github.com/tylergannon/gimble/harness"
+	"github.com/tylergannon/gimble/internal/hostwake"
 )
 
 type runManifest struct {
@@ -67,7 +67,7 @@ func (r *Runner) startControlServer(store *runStore) (*controlServer, runManifes
 	temporaryRoot := ""
 	if len(socketPath) >= 100 {
 		var err error
-		temporaryRoot, err = os.MkdirTemp("", "tractor-control-")
+		temporaryRoot, err = os.MkdirTemp("", "gimble-control-")
 		if err != nil {
 			return nil, runManifest{}, fmt.Errorf("create control socket directory: %w", err)
 		}

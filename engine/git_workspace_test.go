@@ -156,12 +156,12 @@ func TestGitWorkspaceSnapshotFanoutInventoryAndCleanup(t *testing.T) {
 func TestGitOutputStopCancelsCommand(t *testing.T) {
 	binDir := t.TempDir()
 	marker := filepath.Join(t.TempDir(), "started")
-	script := "#!/bin/sh\n/usr/bin/touch \"$TRACTOR_TEST_MARKER\"\nexec /bin/sleep 30\n"
+	script := "#!/bin/sh\n/usr/bin/touch \"$GIMBLE_TEST_MARKER\"\nexec /bin/sleep 30\n"
 	if err := os.WriteFile(filepath.Join(binDir, "git"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", binDir)
-	t.Setenv("TRACTOR_TEST_MARKER", marker)
+	t.Setenv("GIMBLE_TEST_MARKER", marker)
 	stop := NewStopSignal()
 	commandDir := t.TempDir()
 	finished := make(chan error, 1)
@@ -198,7 +198,7 @@ previous=""
 for argument in "$@"; do
   if [ "$previous" = "--detach" ]; then
     /bin/mkdir -p "$argument"
-    /usr/bin/touch "$TRACTOR_TEST_MARKER"
+    /usr/bin/touch "$GIMBLE_TEST_MARKER"
     exec /bin/sleep 30
   fi
   previous="$argument"
@@ -209,7 +209,7 @@ exit 2
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", binDir)
-	t.Setenv("TRACTOR_TEST_MARKER", marker)
+	t.Setenv("GIMBLE_TEST_MARKER", marker)
 	root := t.TempDir()
 	snapshotRepo := t.TempDir()
 	stop := NewStopSignal()

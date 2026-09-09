@@ -4,7 +4,7 @@ description: Four whole workflows ship inside the binary — sprint execution, a
 eyebrow: Reference
 order: 2
 sourceLabel: Read the pipelines
-sourceUrl: https://github.com/tylergannon/tractor/tree/main/internal/workflows
+sourceUrl: https://github.com/tylergannon/gimble/tree/main/internal/workflows
 ---
 
 The [loop examples](/docs/loops/) are single shapes you copy and edit. The
@@ -12,12 +12,12 @@ built-in workflows are whole pipelines that ship inside the binary and run by
 name, with nothing to copy first:
 
 ```sh
-tractor workflows
-tractor run sprint-execute --workdir . --logs .tractor/run
+gimble workflows
+gimble run sprint-execute --workdir . --logs .gimble/run
 ```
 
-`tractor workflows` lists what this binary carries and the situation each one
-is for. `tractor workflows show <name>` prints the pipeline itself — redirect
+`gimble workflows` lists what this binary carries and the situation each one
+is for. `gimble workflows show <name>` prints the pipeline itself — redirect
 it into a file when you want to adapt one, and the copy is an ordinary
 pipeline with no tie back to the binary.
 
@@ -30,17 +30,17 @@ pipeline on disk is never shadowed by one that ships.
 working prompts, so a goal always steers the run:
 
 ```sh
-tractor run delivery-loop --goal "Build what docs/SPEC.md describes" \
-  --workdir . --logs .tractor/run
+gimble run delivery-loop --goal "Build what docs/SPEC.md describes" \
+  --workdir . --logs .gimble/run
 
-tractor run sprint-plan --goal "Replace polling with server-sent events" \
-  --workdir . --logs .tractor/run
+gimble run sprint-plan --goal "Replace polling with server-sent events" \
+  --workdir . --logs .gimble/run
 ```
 
 What differs is whether a goal is the assignment or a steer. `sprint-plan` has
 nothing to plan and `delivery-loop` has nothing to build without one, so both
 refuse to start rather than running against the generic goal their file
-carries, and `tractor workflows` marks them. `sprint-execute` and
+carries, and `gimble workflows` marks them. `sprint-execute` and
 `chapter-loop` iterate a ledger that already names every sprint; a goal frames
 those without replacing the item in hand. That ledger has to be there — the
 listing names the path each one reads, and a run against a workspace without
@@ -82,8 +82,8 @@ They patrol on their own clock and steer one named target at a time.
 Print it, save it, edit it:
 
 ```sh
-tractor workflows show delivery-loop > delivery.yaml
-tractor edit delivery.yaml
+gimble workflows show delivery-loop > delivery.yaml
+gimble edit delivery.yaml
 ```
 
 The workflows carry their reasoning in comments, so the file you get is also

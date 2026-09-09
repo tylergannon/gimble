@@ -22,8 +22,8 @@ import {
 const SAVE_DELAY = 400;
 const RETRY_DELAY = 3000;
 const PLACE_STEP = 40;
-export const DARK_KEY = 'tractor-editor-dark';
-export const SNAP_KEY = 'tractor-editor-snap';
+export const DARK_KEY = 'gimble-editor-dark';
+export const SNAP_KEY = 'gimble-editor-snap';
 
 export type Drag =
 	| { type: 'pan'; sx: number; sy: number; ox: number; oy: number }

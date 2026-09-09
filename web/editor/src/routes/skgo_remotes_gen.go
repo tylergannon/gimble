@@ -3,7 +3,7 @@
 package routes
 
 import (
-	editor "github.com/tylergannon/tractor/internal/editor"
+	editor "github.com/tylergannon/gimble/internal/editor"
 )
 
 // The functions this package declares, published under names the generated

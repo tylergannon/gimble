@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/tractor/internal/hostwake"
+	"github.com/tylergannon/gimble/internal/hostwake"
 )
 
 // WakeMode selects when a run wakes the host agent session that launched it.
@@ -19,10 +19,10 @@ type WakeMode string
 const (
 	// WakeUnset is the zero value. An embedder that says nothing about waking
 	// gets none of it: no host session is captured and no session is woken.
-	// Tractor's own commands pass WakeAuto.
+	// Gimble's own commands pass WakeAuto.
 	WakeUnset WakeMode = ""
 	// WakeAuto wakes a background host session and leaves an interactive one
-	// alone. It is what `tractor run` uses unless told otherwise.
+	// alone. It is what `gimble run` uses unless told otherwise.
 	WakeAuto WakeMode = "auto"
 	// WakeOn wakes the launching session whatever its kind, including a
 	// session a human is also using.

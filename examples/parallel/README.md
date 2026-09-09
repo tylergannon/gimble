@@ -10,20 +10,20 @@ The workspace must be a disposable Git repository with at least one commit:
 ```sh
 mkdir -p "$WORKSPACE"
 git -C "$WORKSPACE" init
-git -C "$WORKSPACE" -c user.name='Tractor Example' \
-  -c user.email='tractor-example@localhost' commit --allow-empty -m base
+git -C "$WORKSPACE" -c user.name='Gimble Example' \
+  -c user.email='gimble-example@localhost' commit --allow-empty -m base
 ```
 
 Then run:
 
 ```sh
-tractor run examples/parallel/fan-out-fan-in.json \
+gimble run examples/parallel/fan-out-fan-in.json \
   --workdir "$WORKSPACE" --logs "$LOGS"
 ```
 
 The run is successful only when:
 
-- `tractor-fan-in-proof/` in the main workspace contains both branch records
+- `gimble-fan-in-proof/` in the main workspace contains both branch records
   and the fan-in's verification summary;
 - the deterministic `verify` node passes;
 - the parallel stage's `branches.json` records distinct worktrees and run-log

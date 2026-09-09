@@ -1,6 +1,6 @@
-# Tractor examples
+# Gimble examples
 
-These examples exercise Tractor through its real coding-agent harnesses. They
+These examples exercise Gimble through its real coding-agent harnesses. They
 are intentionally small because their purpose is to prove orchestration, not to
 spend tokens on a substantial coding task.
 
@@ -22,6 +22,6 @@ spend tokens on a substantial coding task.
 
 Each directory documents the invocation and the observable success criteria.
 
-Larger workflows do not live here: they ship inside the binary. Run `tractor
+Larger workflows do not live here: they ship inside the binary. Run `gimble
 workflows` to list them, or read them in
 [`internal/workflows/`](../internal/workflows/README.md).

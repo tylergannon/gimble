@@ -21,9 +21,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/tractor/engine"
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/lint"
+	"github.com/tylergannon/gimble/engine"
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/lint"
 )
 
 const defaultPollInterval = 500 * time.Millisecond
@@ -41,7 +41,7 @@ type Document struct {
 	HasLayout bool `json:"has_layout"`
 	// Version identifies this state of the two files. A save must quote it.
 	Version string `json:"version"`
-	// Diagnostics are the lint findings, the same ones `tractor validate` prints.
+	// Diagnostics are the lint findings, the same ones `gimble validate` prints.
 	Diagnostics []Diagnostic `json:"diagnostics"`
 	// ParseError is set when the file does not parse; Diagnostics is empty then.
 	ParseError string `json:"parse_error"`

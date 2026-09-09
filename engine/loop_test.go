@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimble/checklist"
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/harness"
 	jsonschema "github.com/tylergannon/go-gen-jsonschema"
-	"github.com/tylergannon/tractor/checklist"
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/harness"
 )
 
 const threeItemChecklist = `---
@@ -1494,7 +1494,7 @@ func TestFanInPrependsFrame(t *testing.T) {
 	if got := prependFrame("", "prompt"); got != "prompt" {
 		t.Fatalf("empty frame produced %q", got)
 	}
-	if got := prependFrame("<tractor>", "prompt"); got != "<tractor>\n\nprompt" {
+	if got := prependFrame("<gimble>", "prompt"); got != "<gimble>\n\nprompt" {
 		t.Fatalf("frame produced %q", got)
 	}
 }

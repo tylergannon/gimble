@@ -15,8 +15,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/harness"
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/harness"
 )
 
 type liveExecution struct {

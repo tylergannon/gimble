@@ -12,7 +12,7 @@ and the final validation must recheck both modes.
 
 ## Run the workflow
 
-From the Tractor checkout, create a disposable application repository and run
+From the Gimble checkout, create a disposable application repository and run
 the actual workflow through a freshly built binary:
 
 ```sh
@@ -20,13 +20,13 @@ example_dir=$(mktemp -d)
 cp -R examples/loops/canonical "$example_dir/workspace"
 git -C "$example_dir/workspace" init -q
 git -C "$example_dir/workspace" add .
-git -C "$example_dir/workspace" -c user.name='Tractor example' -c user.email=tractor@example.invalid commit -qm 'Seed broken shipping CLI'
-go build -o "$example_dir/tractor" ./cmd/tractor
-"$example_dir/tractor" run sprint-execute --workdir "$example_dir/workspace" --logs "$example_dir/run"
+git -C "$example_dir/workspace" -c user.name='Gimble example' -c user.email=gimble@example.invalid commit -qm 'Seed broken shipping CLI'
+go build -o "$example_dir/gimble" ./cmd/gimble
+"$example_dir/gimble" run sprint-execute --workdir "$example_dir/workspace" --logs "$example_dir/run"
 ```
 
 Claude, Codex and agy must already be installed and authenticated. This spends
-real model quota. Read the workflow with `tractor workflows show sprint-execute`.
+real model quota. Read the workflow with `gimble workflows show sprint-execute`.
 The Go CLI can be operated directly with `go run ./cmd/quote 50.00 standard`
 from the disposable workspace.
 
@@ -41,8 +41,8 @@ flowchart LR
 
 ## Prove a new build with this workflow
 
-The Go integration test prepares a fresh copy, builds Tractor, launches that
-same `tractor run sprint-execute` command and inspects the real run. No model,
+The Go integration test prepares a fresh copy, builds Gimble, launches that
+same `gimble run sprint-execute` command and inspects the real run. No model,
 workflow step, CLI result or verdict is mocked. From a clean, committed checkout:
 
 ```sh
@@ -52,7 +52,7 @@ go test -tags=integration ./internal/workflows -run '^TestCanonicalLoop$' -count
 For an existing candidate and a chosen new artifact directory outside the checkout:
 
 ```sh
-go test -tags=integration ./internal/workflows -run '^TestCanonicalLoop$' -count=1 -v -timeout=25m -args -tractor-binary /absolute/path/to/tractor -proof-dir /absolute/new/proof-directory
+go test -tags=integration ./internal/workflows -run '^TestCanonicalLoop$' -count=1 -v -timeout=25m -args -gimble-binary /absolute/path/to/gimble -proof-dir /absolute/new/proof-directory
 ```
 
 The test requires Go build metadata naming this checkout's clean commit. It

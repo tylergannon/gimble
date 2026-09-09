@@ -1,12 +1,12 @@
-# Tractor
+# Gimble
 
-> Tractor runs and steers Attractor-compatible agent pipelines. This repository is both a Codex plugin and a Claude Code plugin, sharing one set of skills and one MCP server configuration between them, with a deferred stdio MCP tool surface.
+> Gimble runs and steers Attractor-compatible agent pipelines. This repository is both a Codex plugin and a Claude Code plugin, sharing one set of skills and one MCP server configuration between them, with a deferred stdio MCP tool surface.
 
-Repository: https://github.com/tylergannon/tractor
+Repository: https://github.com/tylergannon/gimble
 
-## When to use Tractor
+## When to use Gimble
 
-Use Tractor when work should keep going until a check actually passes or
+Use Gimble when work should keep going until a check actually passes or
 after the current session ends, fan out across several models or approaches
 (Claude Code, Codex, and Gemini through their real CLIs), or be cross-checked
 by another model. Runs are detached processes; every prompt, response,
@@ -15,7 +15,7 @@ routing decision, and collected artifact lands in a browsable run directory.
 ## Start from an example
 
 Copy-and-run loop pipelines live in `examples/loops/` (also bundled with the
-`tractor` skill). Copy one into a git repo, change its goal and its check, start it —
+`gimble` skill). Copy one into a git repo, change its goal and its check, start it —
 `start_run` lints before launching:
 
 - `fix-until-green.yaml` — "don't stop until it actually works": an agent
@@ -35,8 +35,8 @@ Copy-and-run loop pipelines live in `examples/loops/` (also bundled with the
 ## Built-in workflows
 
 Examples are single shapes to copy. Whole workflows ship inside the binary and
-run by name — `tractor run <name>` — with nothing to copy first. `tractor
-workflows` lists them with the situation each is for; `tractor workflows show
+run by name — `gimble run <name>` — with nothing to copy first. `gimble
+workflows` lists them with the situation each is for; `gimble workflows show
 <name>` prints the pipeline, so redirecting it into a file is how you adapt
 one. A name resolves to a built-in only when no file of that name exists.
 
@@ -55,18 +55,18 @@ supervisors that coach without ever routing. None of them hardcodes a test
 command: the mechanical gate is whatever the checklist item names, so a
 workflow does not care what language the repository is written in.
 
-`--goal` on `tractor run` replaces the pipeline's goal, so every `$goal` in a
+`--goal` on `gimble run` replaces the pipeline's goal, so every `$goal` in a
 prompt expands to yours. All four carry it into their working prompts, so a
 goal always steers:
 
 ```
-tractor run delivery-loop --goal "Build what docs/SPEC.md describes" \
-  --workdir . --logs .tractor/run
+gimble run delivery-loop --goal "Build what docs/SPEC.md describes" \
+  --workdir . --logs .gimble/run
 ```
 
 `sprint-plan` and `delivery-loop` are meaningless without one — there is no
 seed to plan and no specification to build — so they refuse to start without
-it, and `tractor workflows` marks them. The other two already know their work:
+it, and `gimble workflows` marks them. The other two already know their work:
 `sprint-execute` and `chapter-loop` each iterate a ledger the workspace must
 already hold, which the listing names. For those a goal frames the run without
 replacing the current item.
@@ -75,9 +75,9 @@ replacing the current item.
 
 A workflow may omit service configuration. To run a service, set `system_file`
 to `Procfile` or a name such as `Procfile.dev`, and set `services` to an array
-containing exactly one Procfile process name. Tractor runs the whole Procfile through Overmind for the run.
-Overmind gives each process its own `PORT`; Tractor exports the named process's
-port as `TRACTOR_SERVICE_PORT` to every workflow shell. A declared service that
+containing exactly one Procfile process name. Gimble runs the whole Procfile through Overmind for the run.
+Overmind gives each process its own `PORT`; Gimble exports the named process's
+port as `GIMBLE_SERVICE_PORT` to every workflow shell. A declared service that
 never accepts connections fails before work begins. Other system-file formats
 and multiple named services are not supported yet.
 
@@ -90,11 +90,11 @@ and multiple named services are not supported yet.
 ## Install in Codex
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/tylergannon/tractor/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/tylergannon/gimble/main/scripts/install.sh | sh
 ```
 
-The script runs `go install github.com/tylergannon/tractor/cmd/tractor@latest`
-and then invokes `tractor plugin install`. The latter refreshes the marketplace,
+The script runs `go install github.com/tylergannon/gimble/cmd/gimble@latest`
+and then invokes `gimble plugin install`. The latter refreshes the marketplace,
 replaces the installed plugin and its cache, retires superseded MCP servers that
 declare detached-run support, and removes the obsolete source-building wrapper
 cache. It does not stop detached runs, and it preserves legacy MCP servers that
@@ -104,21 +104,21 @@ plugin's MCP server is loaded.
 ## Install in Claude Code
 
 ```sh
-go install github.com/tylergannon/tractor/cmd/tractor@latest
-claude plugin marketplace add tylergannon/tractor
-claude plugin install tractor@tractor
+go install github.com/tylergannon/gimble/cmd/gimble@latest
+claude plugin marketplace add tylergannon/gimble
+claude plugin install gimble@gimble
 ```
 
 Or, from inside an interactive session: `/plugin marketplace add
-tylergannon/tractor` then `/plugin install tractor@tractor`. Claude Code
+tylergannon/gimble` then `/plugin install gimble@gimble`. Claude Code
 auto-discovers the plugin's skill from `skills/` and its MCP server from
 `.mcp.json` at the repository root — the same files the Codex plugin uses, not
 a separate copy. Start a new Claude Code session after installation or update,
-and run `claude plugin update tractor@tractor` to pick up a later release.
+and run `claude plugin update gimble@gimble` to pick up a later release.
 
 ## MCP server
 
-The plugin runs the installed binary as `tractor mcp` and speaks MCP over stdin
+The plugin runs the installed binary as `gimble mcp` and speaks MCP over stdin
 and stdout.
 
 The server uses `github.com/mark3labs/mcp-go`. All tools are deferred, so their definitions are loaded only when Codex needs them. Pipeline arguments are file paths rather than embedded graph schemas.
@@ -129,12 +129,12 @@ The server uses `github.com/mark3labs/mcp-go`. All tools are deferred, so their 
 - `get_run_status`: inspect a run by run ID.
 - `steer_run`: send text to the run's active steerable turn; when none is active it returns `accepted: false` and HTTP status 409.
 - `stop_run`: request that a run stop; repeating the call after the graceful window escalates to a forced stop.
-- `get_pipeline_schema`: return Tractor's current graph JSON Schema on demand.
+- `get_pipeline_schema`: return Gimble's current graph JSON Schema on demand.
 
 `start_run` accepts `pipeline_path`, an optional `workdir`, an optional `logs_root`, and `resume`. Validation happens inside the call — the graph parser and lint rules run first, and a failing graph is rejected with diagnostics instead of started. A new run requires an empty or absent `logs_root`; use `resume: true` to continue from an existing run directory. Later operations use the `run_id` returned by `start_run`.
 
-Each run is a detached Tractor process with atomic state under
-`~/.local/state/tractor/mcp-runs`. It survives MCP and Codex restarts. A later
+Each run is a detached Gimble process with atomic state under
+`~/.local/state/gimble/mcp-runs`. It survives MCP and Codex restarts. A later
 MCP session can inspect, steer, or stop it with the original `run_id`.
 
 ## Ask and answer inside a run
@@ -143,31 +143,31 @@ An agent can pause inside one node visit, write a Markdown or HTML question,
 and wait for its caller:
 
 ```sh
-TRACTOR_INTERVIEW_DIR=ephemeral/projects/<build>/interview tractor ask question.md
+GIMBLE_INTERVIEW_DIR=ephemeral/projects/<build>/interview gimble ask question.md
 ```
 
-`tractor ask` moves the file to the next numbered question, uses the
-run-provided `TRACTOR_RUN_DIR` to append `QuestionAsked` to `timeline.jsonl`,
+`gimble ask` moves the file to the next numbered question, uses the
+run-provided `GIMBLE_RUN_DIR` to append `QuestionAsked` to `timeline.jsonl`,
 and prints the answer when it arrives. `--into <directory>` overrides
-`TRACTOR_INTERVIEW_DIR`. If the waiting shell ends, rerun `tractor ask` with
+`GIMBLE_INTERVIEW_DIR`. If the waiting shell ends, rerun `gimble ask` with
 the numbered question path and the same interview directory to resume.
 
 The calling agent watches the run timeline for `QuestionAsked`, opens the
-event's `question` path, and answers with `tractor answer <question-path>
+event's `question` path, and answers with `gimble answer <question-path>
 [text]` (on one command line). With no text argument, `answer` reads stdin. It
 writes a non-empty `<number>.answer.md` beside the question, refuses to
 overwrite an existing answer, and thereby unblocks the original agent turn.
 
 ## Schema synchronization
 
-`get_pipeline_schema` returns `graph.Graph{}.Schema()` directly. Validation and execution call Tractor's existing parser and runtime validator. The plugin does not maintain a second copy of the graph schema.
+`get_pipeline_schema` returns `graph.Graph{}.Schema()` directly. Validation and execution call Gimble's existing parser and runtime validator. The plugin does not maintain a second copy of the graph schema.
 
 ## Direct stdio use
 
-From an installed Tractor binary:
+From an installed Gimble binary:
 
 ```sh
-tractor mcp
+gimble mcp
 ```
 
 The command reserves stdout for MCP protocol messages. Run output and diagnostics are written to the run paths returned by `start_run`.

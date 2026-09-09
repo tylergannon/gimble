@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/lint"
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/lint"
 )
 
 func TestExamplesValidate(t *testing.T) {

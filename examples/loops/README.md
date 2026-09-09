@@ -1,11 +1,11 @@
 # Loops
 
-A loop is a thing that runs iteratively until it's done. In Tractor that is
+A loop is a thing that runs iteratively until it's done. In Gimble that is
 two nodes pointing at each other. Start from whichever example matches your
 moment, change the goal and the check, and run it:
 
 ```sh
-tractor run examples/loops/<file>.yaml
+gimble run examples/loops/<file>.yaml
 ```
 
 - [`fix-until-green.yaml`](fix-until-green.yaml) — the hello world. An

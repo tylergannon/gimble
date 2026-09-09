@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/tractor/lint"
+	"github.com/tylergannon/gimble/lint"
 )
 
 const unreachableYAML = `name: t

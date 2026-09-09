@@ -1,5 +1,5 @@
 // Package server assembles the editor's HTTP stack over skgo. It exists so
-// that there is exactly one composition: `tractor edit` and the tests beside
+// that there is exactly one composition: `gimble edit` and the tests beside
 // this file both call NewHandler, and neither can be green over a stack the
 // other does not use.
 package server
@@ -14,9 +14,9 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/tractor/internal/editor"
-	"github.com/tylergannon/tractor/internal/editor/generated"
-	web "github.com/tylergannon/tractor/web/editor"
+	"github.com/tylergannon/gimble/internal/editor"
+	"github.com/tylergannon/gimble/internal/editor/generated"
+	web "github.com/tylergannon/gimble/web/editor"
 )
 
 // Dist returns the embedded editor build, rooted where the manifest is.

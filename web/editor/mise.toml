@@ -17,7 +17,7 @@ ORIGIN = "http://127.0.0.1:7331"
 _.path = ["./node_modules/.bin"]
 
 [tasks.build]
-description = "The build gesture: install, generate the Go/kit glue, build the page into build/, and rebuild tractor."
+description = "The build gesture: install, generate the Go/kit glue, build the page into build/, and rebuild gimble."
 dir = "{{config_root}}"
 run = [
 	"vp install",
@@ -32,11 +32,11 @@ dir = "{{config_root}}"
 run = "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
 
 [tasks."dev:web"]
-description = "The vite dev server. Run `mise run build` once first: tractor embeds the build."
+description = "The vite dev server. Run `mise run build` once first: gimble embeds the build."
 dir = "{{config_root}}"
 run = "vp dev --host 127.0.0.1 --port 5173 --strictPort"
 
 [tasks."dev:go"]
-description = "tractor edit on a fixed port, proxying pages to `vp dev`. Remote functions are still answered by Go."
+description = "gimble edit on a fixed port, proxying pages to `vp dev`. Remote functions are still answered by Go."
 dir = "{{config_root}}"
-run = "cd ../.. && go run ./cmd/tractor edit --addr 127.0.0.1:7331 --proxy http://127.0.0.1:5173 {{arg(name='pipeline', default='examples/loops/bake-off.yaml')}}"
+run = "cd ../.. && go run ./cmd/gimble edit --addr 127.0.0.1:7331 --proxy http://127.0.0.1:5173 {{arg(name='pipeline', default='examples/loops/bake-off.yaml')}}"

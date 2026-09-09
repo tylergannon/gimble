@@ -191,7 +191,7 @@ type userFrame struct {
 	Message userMessage `json:"message"`
 }
 
-// sessionRecord is the part of ~/.claude/sessions/<pid>.json Tractor reads.
+// sessionRecord is the part of ~/.claude/sessions/<pid>.json Gimble reads.
 type sessionRecord struct {
 	PID       int    `json:"pid"`
 	SessionID string `json:"sessionId"`

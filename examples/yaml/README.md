@@ -3,7 +3,7 @@
 This zero-token workflow demonstrates YAML comments and literal block commands.
 
 ```sh
-go run ../../cmd/tractor run multiline-tool.yaml \
+go run ../../cmd/gimble run multiline-tool.yaml \
   --workdir "$(mktemp -d)" \
   --logs "$(mktemp -d)/run"
 ```

@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { preview } from "astro";
 
-const base = "/tractor";
+const base = "/gimble";
 const server = await preview({
   logLevel: "silent",
   root: fileURLToPath(new URL("../", import.meta.url)),
@@ -23,7 +23,7 @@ try {
       text: ["Your first pipeline", "Choose the right node", "Fan out, then converge"],
     },
     {
-      path: `${base}/docs/tractor-vs-attractor/`,
+      path: `${base}/docs/gimble-vs-attractor/`,
       text: ["The short version", "Typed data replaces DOT", "strongdm/attractor"],
     },
   ];

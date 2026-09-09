@@ -1,4 +1,4 @@
-// Schema tables for the real pipeline schema (see `tractor print-schema`)
+// Schema tables for the real pipeline schema (see `gimble print-schema`)
 // plus the client-side checks the page runs before the server lints.
 
 export const ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;

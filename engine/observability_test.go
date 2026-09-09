@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/harness"
 	jsonschema "github.com/tylergannon/go-gen-jsonschema"
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/harness"
 )
 
 func TestManifestRecordsRunProvenanceOnce(t *testing.T) {

@@ -7,7 +7,7 @@ also exercises durable inbox rotation and tallying. Run it with a fresh
 workspace and logs directory:
 
 ```sh
-tractor run examples/supervisor/live-steering.json \
+gimble run examples/supervisor/live-steering.json \
   --workdir "$WORKSPACE" --logs "$LOGS"
 ```
 

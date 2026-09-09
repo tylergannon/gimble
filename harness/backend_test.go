@@ -12,7 +12,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/tylergannon/tractor/internal/runlog"
+	"github.com/tylergannon/gimble/internal/runlog"
 )
 
 var outcomeSchema = json.RawMessage(`{

@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tylergannon/tractor/graph"
+	"github.com/tylergannon/gimble/graph"
 )
 
 // BranchArtifact is one declared branch output exposed to fan-in and later

@@ -1,7 +1,7 @@
 {
   "mcpServers": {
-    "tractor": {
-      "command": "tractor",
+    "gimble": {
+      "command": "gimble",
       "args": ["mcp"],
       "cwd": "."
     }

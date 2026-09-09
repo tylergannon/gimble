@@ -4,8 +4,8 @@ package routes
 import (
 	"context"
 
+	"github.com/tylergannon/gimble/internal/editor"
 	"github.com/tylergannon/skgo"
-	"github.com/tylergannon/tractor/internal/editor"
 )
 
 // pageLoad puts the pipeline itself in the initial SSR document. The browser

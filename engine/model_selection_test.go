@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/tractor/graph"
+	"github.com/tylergannon/gimble/graph"
 )
 
 func TestResolveGraphModelsUsesAtomicPrecedenceAndNamedLoopRoles(t *testing.T) {

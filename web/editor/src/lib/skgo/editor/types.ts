@@ -65,7 +65,7 @@ export type Document = {
    */
   "version": string;
   /**
-   * Diagnostics are the lint findings, the same ones `tractor validate` prints.
+   * Diagnostics are the lint findings, the same ones `gimble validate` prints.
    */
   "diagnostics": Array<Diagnostic>;
   /**

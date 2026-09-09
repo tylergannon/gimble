@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimble/internal/editor"
+	"github.com/tylergannon/gimble/internal/editor/generated"
+	"github.com/tylergannon/gimble/lint"
 	"github.com/tylergannon/polytype/devalue"
 	"github.com/tylergannon/skgo"
-	"github.com/tylergannon/tractor/internal/editor"
-	"github.com/tylergannon/tractor/internal/editor/generated"
-	"github.com/tylergannon/tractor/lint"
 )
 
 // origin is the URL the handler under test is configured with. Nothing
@@ -24,7 +24,7 @@ import (
 const origin = "http://127.0.0.1:7331"
 
 // newHandler is the production stack over the embedded build, the same
-// function `tractor edit` calls, on a copy of one example pipeline.
+// function `gimble edit` calls, on a copy of one example pipeline.
 func newHandler(t *testing.T) (http.Handler, string) {
 	t.Helper()
 	source, err := os.ReadFile("../../../examples/loops/bake-off.yaml")
@@ -136,7 +136,7 @@ func TestThePipelineIsServerRenderedFromTheEmbeddedBuild(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET / = %d: %s", rec.Code, rec.Body)
 	}
-	if !strings.Contains(rec.Body.String(), "<title>Tractor editor</title>") {
+	if !strings.Contains(rec.Body.String(), "<title>Gimble editor</title>") {
 		t.Fatalf("GET / is not the editor page:\n%s", rec.Body)
 	}
 	if !strings.Contains(rec.Body.String(), ">bake-off</span>") ||

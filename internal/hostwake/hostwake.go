@@ -4,7 +4,7 @@ package hostwake
 
 import "strings"
 
-// Host names one kind of agent session Tractor can wake.
+// Host names one kind of agent session Gimble can wake.
 const (
 	HostClaudeCode   = "claude_code"
 	HostCodexDesktop = "codex_desktop"

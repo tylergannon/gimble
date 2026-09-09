@@ -1,4 +1,4 @@
-// Package schema contains the one Codex app-server request model Tractor
+// Package schema contains the one Codex app-server request model Gimble
 // generates and consumes.
 package schema
 

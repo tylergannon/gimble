@@ -1,14 +1,14 @@
 {
-  "name": "tractor",
+  "name": "gimble",
   "interface": {
-    "displayName": "Tractor"
+    "displayName": "Gimble"
   },
   "plugins": [
     {
-      "name": "tractor",
+      "name": "gimble",
       "source": {
         "source": "url",
-        "url": "https://github.com/tylergannon/tractor.git",
+        "url": "https://github.com/tylergannon/gimble.git",
         "ref": "main"
       },
       "policy": {
