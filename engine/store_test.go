@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/tylergannon/tractor/harness"
+	"github.com/tylergannon/gimble/harness"
 )
 
 func TestRunStorePersistsCheckpointTimelineAndStageArtifacts(t *testing.T) {

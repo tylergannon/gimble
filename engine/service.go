@@ -15,12 +15,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/harness"
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/harness"
 )
 
 const (
-	ServicePortEnv = "TRACTOR_SERVICE_PORT"
+	ServicePortEnv = "GIMBLE_SERVICE_PORT"
 
 	serviceReadyTimeout = 90 * time.Second
 	serviceReadyPoll    = 150 * time.Millisecond
@@ -115,7 +115,7 @@ func newOvermindManager(workdir, logsRoot, configuredPath, service string) (*ove
 		return nil, err
 	}
 	digest := sha256.Sum256([]byte(logsRoot))
-	socket := filepath.Join(os.TempDir(), fmt.Sprintf("tractor-overmind-%x.sock", digest[:8]))
+	socket := filepath.Join(os.TempDir(), fmt.Sprintf("gimble-overmind-%x.sock", digest[:8]))
 	return &overmindManager{
 		workdir: workdir, definition: definition, service: service,
 		basePort: basePort, servicePort: basePort + selected, socket: socket,

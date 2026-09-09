@@ -37,7 +37,7 @@ func renderObserverDigest(input observerDigestInput) observerDigest {
 	}
 
 	var message strings.Builder
-	fmt.Fprintf(&message, "Tractor run news: %s\n", input.name)
+	fmt.Fprintf(&message, "Gimble run news: %s\n", input.name)
 	if goal := strings.TrimSpace(input.goal); goal != "" {
 		fmt.Fprintf(&message, "Goal: %s\n", goal)
 	}

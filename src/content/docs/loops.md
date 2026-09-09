@@ -1,13 +1,13 @@
 ---
 title: Loops
-description: A loop is a thing that runs iteratively until it's done — in Tractor, two nodes pointing at each other. Start from a copy-and-run example and change two strings.
+description: A loop is a thing that runs iteratively until it's done — in Gimble, two nodes pointing at each other. Start from a copy-and-run example and change two strings.
 eyebrow: Pattern guide
 order: 1
 sourceLabel: Browse the runnable examples
-sourceUrl: https://github.com/tylergannon/tractor/tree/main/examples/loops
+sourceUrl: https://github.com/tylergannon/gimble/tree/main/examples/loops
 ---
 
-A loop is a thing that runs iteratively until it's done. In Tractor that is
+A loop is a thing that runs iteratively until it's done. In Gimble that is
 two nodes pointing at each other:
 
 ```yaml
@@ -30,18 +30,18 @@ nodes:
 
 An agent works, a command decides, failure routes back. That's a complete
 pipeline. Everything below is a variation on it, and every one ships as a
-runnable file in [`examples/loops/`](https://github.com/tylergannon/tractor/tree/main/examples/loops):
+runnable file in [`examples/loops/`](https://github.com/tylergannon/gimble/tree/main/examples/loops):
 copy it, change the goal and the check, run it.
 
 ## Pick your moment
 
-| You want                                     | Example                                                                                                        |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| "Don't stop until it actually works"         | [`fix-until-green.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/fix-until-green.yaml) |
-| "Have another model check this"              | [`critique-circle.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/critique-circle.yaml) |
-| "Try a couple of approaches in parallel"     | [`bake-off.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/bake-off.yaml)               |
-| "Keep working on this after I leave"         | [`milestone-loop.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/milestone-loop.yaml)   |
-| "Work through this list and prove each item" | [`checklist-loop.yaml`](https://github.com/tylergannon/tractor/blob/main/examples/loops/checklist-loop.yaml)   |
+| You want                                     | Example                                                                                                       |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| "Don't stop until it actually works"         | [`fix-until-green.yaml`](https://github.com/tylergannon/gimble/blob/main/examples/loops/fix-until-green.yaml) |
+| "Have another model check this"              | [`critique-circle.yaml`](https://github.com/tylergannon/gimble/blob/main/examples/loops/critique-circle.yaml) |
+| "Try a couple of approaches in parallel"     | [`bake-off.yaml`](https://github.com/tylergannon/gimble/blob/main/examples/loops/bake-off.yaml)               |
+| "Keep working on this after I leave"         | [`milestone-loop.yaml`](https://github.com/tylergannon/gimble/blob/main/examples/loops/milestone-loop.yaml)   |
+| "Work through this list and prove each item" | [`checklist-loop.yaml`](https://github.com/tylergannon/gimble/blob/main/examples/loops/checklist-loop.yaml)   |
 
 **Fix-until-green** is the pipeline above.
 
@@ -93,17 +93,17 @@ are rejected. The agent never marks items; the file is the only loop
 state, so a planner (or a person) can append, reorder, or hand-mark items
 between laps; hand-marking requests validation on the next return rather
 than bypassing it. Copy
-[`checklist-loop.md`](https://github.com/tylergannon/tractor/blob/main/examples/loops/checklist-loop.md)
+[`checklist-loop.md`](https://github.com/tylergannon/gimble/blob/main/examples/loops/checklist-loop.md)
 beside it to start.
 
 Visit budgets inside a checklist loop are per selected item. When the loop
-selects a different item, Tractor resets `max_visits` accounting for every
+selects a different item, Gimble resets `max_visits` accounting for every
 node in that loop's body. A nested loop and its body therefore get a fresh
 budget for each enclosing item, while another failed lap of the same item
 keeps consuming the current budget. A top-level loop node itself is outside
 its body and retains one `max_visits` budget for the whole run.
 
-After a restart, Tractor derives the active nesting from the graph and the
+After a restart, Gimble derives the active nesting from the graph and the
 checklist files. It rebuilds the outer frames from their first open items and
 re-enters at the innermost enclosing loop. Planning or setup nodes earlier in
 an outer loop body do not rerun solely to restore the inner loop's frame.

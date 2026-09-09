@@ -1,14 +1,14 @@
 {
-  "name": "tractor",
-  "displayName": "Tractor",
+  "name": "gimble",
+  "displayName": "Gimble",
   "version": "0.7.1",
-  "description": "Run and steer Tractor pipelines from Claude Code through MCP.",
+  "description": "Run and steer Gimble pipelines from Claude Code through MCP.",
   "author": {
     "name": "Tyler Gannon",
     "url": "https://github.com/tylergannon"
   },
-  "homepage": "https://github.com/tylergannon/tractor",
-  "repository": "https://github.com/tylergannon/tractor",
-  "keywords": ["agents", "mcp", "pipelines", "tractor"],
+  "homepage": "https://github.com/tylergannon/gimble",
+  "repository": "https://github.com/tylergannon/gimble",
+  "keywords": ["agents", "mcp", "pipelines", "gimble"],
   "mcpServers": "./.mcp.json"
 }

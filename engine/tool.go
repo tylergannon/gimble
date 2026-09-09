@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/harness"
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/harness"
 )
 
 func commandHandler(node graph.Node, offered []graph.Edge, scope ExecutionScope, _ *graph.Graph) (harness.Outcome, *harness.Error) {

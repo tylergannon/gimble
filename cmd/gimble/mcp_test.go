@@ -1,0 +1,649 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+
+	"github.com/mark3labs/mcp-go/client"
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/spf13/cobra"
+	"github.com/tylergannon/gimble/engine"
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/harness"
+	"github.com/tylergannon/gimble/internal/hostwake"
+)
+
+const slowPipeline = `{"name":"slow","start":"wait","nodes":[{"id":"wait","type":"command","command":"sleep 30","edges":{"success":"success"}}]}`
+
+func TestMCPStdioListsCompactToolsAndServesCurrentGraphSchema(t *testing.T) {
+	session, ctx := connectToGimbleMCP(t)
+	listed, err := session.ListTools(ctx, mcp.ListToolsRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantNames := []string{
+		"get_pipeline_schema",
+		"get_run_status",
+		"start_run",
+		"steer_run",
+		"stop_run",
+	}
+	var gotNames []string
+	wantDestructive := map[string]bool{
+		"get_pipeline_schema": false,
+		"get_run_status":      false,
+		"start_run":           true,
+		"steer_run":           true,
+		"stop_run":            true,
+	}
+	for _, tool := range listed.Tools {
+		gotNames = append(gotNames, tool.Name)
+		if !tool.DeferLoading {
+			t.Errorf("tool %q is not marked for deferred loading", tool.Name)
+		}
+		if tool.Annotations.DestructiveHint == nil || *tool.Annotations.DestructiveHint != wantDestructive[tool.Name] {
+			t.Errorf("tool %q destructive hint = %v, want %t", tool.Name, tool.Annotations.DestructiveHint, wantDestructive[tool.Name])
+		}
+		if tool.Name != "start_run" {
+			continue
+		}
+		raw, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(raw) > 2_000 {
+			t.Fatalf("start_run input schema is unexpectedly large: %d bytes", len(raw))
+		}
+		if bytes.Contains(raw, []byte("fan_in")) {
+			t.Fatal("start_run input schema embeds the graph language")
+		}
+	}
+	slices.Sort(gotNames)
+	if !slices.Equal(gotNames, wantNames) {
+		t.Fatalf("tool names = %v, want %v", gotNames, wantNames)
+	}
+
+	result, err := callTool(ctx, session, "get_pipeline_schema", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("get_pipeline_schema returned an error: %#v", result.Content)
+	}
+	output := decodeStructured[schemaOutput](t, result.StructuredContent)
+	if output.Schema != string(graph.Graph{}.Schema()) {
+		t.Fatal("MCP schema differs from graph.Graph schema")
+	}
+}
+
+func TestMCPStdioStartsAndObservesRealPipelineRun(t *testing.T) {
+	session, ctx := connectToGimbleMCP(t)
+	workdir := t.TempDir()
+	pipelinePath := filepath.Join(workdir, "pipeline.json")
+	if err := os.WriteFile(pipelinePath, []byte(linearPipeline), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	logsRoot := filepath.Join(workdir, "logs")
+
+	brokenPath := filepath.Join(workdir, "broken.json")
+	if err := os.WriteFile(brokenPath, []byte(`{"start":"missing","nodes":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rejected, err := callTool(ctx, session, "start_run",
+		map[string]any{
+			"pipeline_path": brokenPath,
+			"workdir":       workdir,
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rejected.IsError {
+		t.Fatal("start_run launched a pipeline that fails validation")
+	}
+
+	started, err := callTool(ctx, session, "start_run",
+		map[string]any{
+			"pipeline_path": pipelinePath,
+			"workdir":       workdir,
+			"logs_root":     logsRoot,
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if started.IsError {
+		t.Fatalf("start_run returned an error: %#v", started.Content)
+	}
+	start := decodeStructured[startRunOutput](t, started.StructuredContent)
+	if start.RunID == "" || start.PID <= 0 || start.Status != "RUNNING" {
+		t.Fatalf("start_run output = %#v", start)
+	}
+
+	deadline := time.Now().Add(10 * time.Second)
+	var status runStatusOutput
+	for {
+		result, err := callTool(ctx, session, "get_run_status", map[string]any{"run_id": start.RunID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.IsError {
+			t.Fatalf("get_run_status returned an error: %#v", result.Content)
+		}
+		status = decodeStructured[runStatusOutput](t, result.StructuredContent)
+		if status.Status != "RUNNING" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("run did not finish: %#v", status)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if status.Status != "COMPLETED" || status.ExitCode == nil || *status.ExitCode != 0 {
+		t.Fatalf("terminal status = %#v", status)
+	}
+	checkpoint, err := engine.LoadCheckpoint(logsRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checkpoint.CurrentNode != "done" || checkpoint.NextNode != graph.Success {
+		t.Fatalf("checkpoint = %#v", checkpoint)
+	}
+}
+
+func TestCodexParentReceivesRunNewsThroughTheExternalQueue(t *testing.T) {
+	binDir := t.TempDir()
+	capturePath := filepath.Join(t.TempDir(), "codex-queue.txt")
+	fakeCodex := filepath.Join(binDir, "codex")
+	if err := os.WriteFile(fakeCodex, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$CODEX_QUEUE_CAPTURE\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("CODEX_QUEUE_CAPTURE", capturePath)
+
+	session, ctx := connectToGimbleMCP(t)
+	workdir := t.TempDir()
+	pipelinePath := filepath.Join(workdir, "pipeline.json")
+	pipeline := `{"name":"codex-parent-wake","start":"mark","nodes":[{"id":"mark","type":"command","command":"printf codex-queue-marker","edges":{"success":"success"}}]}`
+	if err := os.WriteFile(pipelinePath, []byte(pipeline), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	threadID := "01a07eab-99d5-7923-84ac-f41374506751"
+	started, err := callTool(ctx, session, "start_run", map[string]any{
+		"pipeline_path": pipelinePath,
+		"workdir":       workdir,
+		"parent": map[string]any{
+			"thread_id":  threadID,
+			"host_id":    "local",
+			"session_id": threadID,
+		},
+	})
+	if err != nil || started.IsError {
+		t.Fatalf("start_run = %#v, %v", started.Content, err)
+	}
+	run := decodeStructured[startRunOutput](t, started.StructuredContent)
+	if run.ParentThreadID != threadID {
+		t.Fatalf("parent thread = %q", run.ParentThreadID)
+	}
+	waitForRunStatus(t, ctx, session, run.RunID)
+	manifest := mustReadMCPManifest(t, run.LogsRoot)
+	if manifest.HostSession == nil || manifest.HostSession.ThreadID != threadID {
+		t.Fatalf("manifest host session = %#v", manifest.HostSession)
+	}
+	queued, err := os.ReadFile(capturePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"queue", "--thread", threadID, "--message", "PipelineCompleted", run.LogsRoot} {
+		if !strings.Contains(string(queued), want) {
+			t.Fatalf("queued command lacks %q:\n%s", want, queued)
+		}
+	}
+}
+
+func TestLiveCodexParentReceivesQueuedDigest(t *testing.T) {
+	threadID := strings.TrimSpace(os.Getenv("GIMBLE_LIVE_CODEX_THREAD_ID"))
+	if threadID == "" {
+		t.Skip("set GIMBLE_LIVE_CODEX_THREAD_ID to run the live Codex queue proof")
+	}
+	proofRoot := strings.TrimSpace(os.Getenv("GIMBLE_LIVE_CODEX_PROOF_ROOT"))
+	marker := strings.TrimSpace(os.Getenv("GIMBLE_LIVE_CODEX_MARKER"))
+	if proofRoot == "" || marker == "" {
+		t.Fatal("live proof requires GIMBLE_LIVE_CODEX_PROOF_ROOT and GIMBLE_LIVE_CODEX_MARKER")
+	}
+	if err := os.MkdirAll(proofRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pipelinePath := filepath.Join(proofRoot, "pipeline.json")
+	logsRoot := filepath.Join(proofRoot, "run")
+	pipeline, err := json.Marshal(map[string]any{
+		"name":  marker,
+		"goal":  "When this digest reaches the parent task, continue issue 77 through merge and cleanup.",
+		"start": "mark",
+		"nodes": []map[string]any{{
+			"id": "mark", "type": "command", "command": "printf codex-queue-live",
+			"edges": map[string]any{"success": "success"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pipelinePath, pipeline, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	session, ctx := connectToGimbleMCP(t)
+	started, err := callTool(ctx, session, "start_run", map[string]any{
+		"pipeline_path": pipelinePath,
+		"workdir":       proofRoot,
+		"logs_root":     logsRoot,
+		"parent": map[string]any{
+			"thread_id": threadID, "host_id": "local", "session_id": threadID,
+		},
+	})
+	if err != nil || started.IsError {
+		t.Fatalf("start_run = %#v, %v", started.Content, err)
+	}
+	run := decodeStructured[startRunOutput](t, started.StructuredContent)
+	status := waitForRunStatus(t, ctx, session, run.RunID)
+	if status.Status != "COMPLETED" {
+		t.Fatalf("run status = %#v", status)
+	}
+	timeline, err := os.ReadFile(filepath.Join(logsRoot, "timeline.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(timeline), `"type":"HostWake"`) ||
+		!strings.Contains(string(timeline), `"host":"codex_desktop"`) ||
+		!strings.Contains(string(timeline), `"delivered":true`) {
+		t.Fatalf("timeline does not prove a successful Codex enqueue:\n%s", timeline)
+	}
+	t.Logf("queued marker %s from run %s; proof at %s", marker, run.RunID, logsRoot)
+}
+
+func TestMCPStdioSteersAndStopsRunningPipeline(t *testing.T) {
+	session, ctx := connectToGimbleMCP(t)
+	start := startMCPRun(t, ctx, session, slowPipeline)
+	waitForFile(t, filepath.Join(start.LogsRoot, "manifest.json"))
+
+	steered, err := callTool(ctx, session, "steer_run", map[string]any{
+		"run_id": start.RunID,
+		"text":   "continue carefully",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if steered.IsError {
+		t.Fatalf("steer_run returned an error: %#v", steered.Content)
+	}
+	steer := decodeStructured[steerRunOutput](t, steered.StructuredContent)
+	if steer.Accepted || steer.HTTPStatus != 409 {
+		t.Fatalf("steer_run output = %#v", steer)
+	}
+
+	stopped, err := callTool(ctx, session, "stop_run", map[string]any{"run_id": start.RunID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped.IsError {
+		t.Fatalf("stop_run returned an error: %#v", stopped.Content)
+	}
+	if output := decodeStructured[stopRunOutput](t, stopped.StructuredContent); output.Status != "STOPPING" {
+		t.Fatalf("stop_run output = %#v", output)
+	}
+	status := waitForRunStatus(t, ctx, session, start.RunID)
+	if status.Status != "STOPPED" {
+		t.Fatalf("terminal status = %#v", status)
+	}
+
+	steered, err = callTool(ctx, session, "steer_run", map[string]any{
+		"run_id": start.RunID,
+		"text":   "too late",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if steered.IsError {
+		t.Fatalf("steer_run on stopped run returned an error: %#v", steered.Content)
+	}
+	steer = decodeStructured[steerRunOutput](t, steered.StructuredContent)
+	if steer.Accepted || steer.HTTPStatus != 409 || !strings.Contains(steer.Message, "STOPPED") {
+		t.Fatalf("steer_run on stopped run = %#v", steer)
+	}
+}
+
+func TestMCPRunSurvivesStdioShutdownAndReconnects(t *testing.T) {
+	binary := buildGimble(t)
+	stateDir := t.TempDir()
+	session, ctx := connectToGimbleMCPBinary(t, binary, stateDir)
+	toolPIDPath := filepath.Join(t.TempDir(), "tool.pid")
+	pipeline := strings.Replace(slowPipeline, `"sleep 30"`, strconv.Quote("echo $$ > "+toolPIDPath+"; sleep 30"), 1)
+	start := startMCPRun(t, ctx, session, pipeline)
+	waitForFile(t, filepath.Join(start.LogsRoot, "manifest.json"))
+	waitForFile(t, toolPIDPath)
+	toolPIDBytes, err := os.ReadFile(toolPIDPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	toolPID, err := strconv.Atoi(strings.TrimSpace(string(toolPIDBytes)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := session.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !processExists(start.PID) {
+		t.Fatalf("detached Gimble runner %d exited with its MCP server", start.PID)
+	}
+	if !processExists(toolPID) {
+		t.Fatalf("tool process %d exited with its MCP server", toolPID)
+	}
+
+	reconnected, reconnectedContext := connectToGimbleMCPBinary(t, binary, stateDir)
+	statusResult, err := callTool(reconnectedContext, reconnected, "get_run_status", map[string]any{"run_id": start.RunID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if statusResult.IsError {
+		t.Fatalf("get_run_status after reconnect returned an error: %#v", statusResult.Content)
+	}
+	if status := decodeStructured[runStatusOutput](t, statusResult.StructuredContent); status.Status != "RUNNING" {
+		t.Fatalf("status after reconnect = %#v", status)
+	}
+	stopped, err := callTool(reconnectedContext, reconnected, "stop_run", map[string]any{"run_id": start.RunID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped.IsError {
+		t.Fatalf("stop_run after reconnect returned an error: %#v", stopped.Content)
+	}
+	if status := waitForRunStatus(t, reconnectedContext, reconnected, start.RunID); status.Status != "STOPPED" {
+		t.Fatalf("terminal status after reconnect = %#v", status)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for processExists(toolPID) && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if processExists(toolPID) {
+		t.Fatalf("tool process %d survived explicit stop", toolPID)
+	}
+}
+
+func TestSteerRunForwardsAcceptedInstruction(t *testing.T) {
+	socketRoot, err := os.MkdirTemp("", "gimble-mcp-steer-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(socketRoot) })
+	socketPath := filepath.Join(socketRoot, "control.sock")
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	received := make(chan []harness.ContentPart, 1)
+	httpServer := &http.Server{Handler: http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		defer func() { _ = request.Body.Close() }()
+		if request.Method != http.MethodPost || request.URL.Path != "/steer" || request.Header.Get("Content-Type") != "application/json" {
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		var parts []harness.ContentPart
+		if err := json.NewDecoder(request.Body).Decode(&parts); err != nil {
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		received <- parts
+		response.WriteHeader(http.StatusOK)
+	})}
+	go func() { _ = httpServer.Serve(listener) }()
+	t.Cleanup(func() { _ = httpServer.Close() })
+
+	logsRoot := t.TempDir()
+	manifest, err := json.Marshal(map[string]any{"control_socket": socketPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(logsRoot, "manifest.json"), manifest, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store := &mcpRunStore{dir: t.TempDir()}
+	runID := strings.Repeat("a", 32)
+	if err := store.create(mcpRunRecord{
+		Version: mcpRunStateVersion, ID: runID, PID: os.Getpid(), Status: "RUNNING",
+		LogsRoot: logsRoot, StartedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	state := &gimbleMCPServer{runs: store}
+	output, err := state.steerRun(context.Background(), mcp.CallToolRequest{}, steerRunInput{
+		RunID: runID,
+		Text:  "continue carefully",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !output.Accepted || output.HTTPStatus != http.StatusOK {
+		t.Fatalf("steer output = %#v", output)
+	}
+	parts := <-received
+	if len(parts) != 1 || parts[0].Type != harness.ContentPartText || parts[0].Text != "continue carefully" {
+		t.Fatalf("steering parts = %#v", parts)
+	}
+}
+
+func TestRepeatedStopForceKillsRunProcessGroup(t *testing.T) {
+	runID := strings.Repeat("b", 32)
+	command := exec.Command("/bin/sh", "-c", "trap '' INT TERM; sleep 30 & wait", "mcp-runner", "--run-id", runID)
+	command.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL) })
+	done := make(chan struct{})
+	go func() {
+		_ = command.Wait()
+		close(done)
+	}()
+	store := &mcpRunStore{dir: t.TempDir()}
+	run := mcpRunRecord{
+		Version: mcpRunStateVersion, ID: runID, PID: command.Process.Pid,
+		Status: "RUNNING", StartedAt: time.Now().UTC(),
+	}
+	if err := store.create(run); err != nil {
+		t.Fatal(err)
+	}
+
+	if status, err := requestRunStop(store, run); err != nil || status != "STOPPING" {
+		t.Fatalf("first stop = %q, %v", status, err)
+	}
+	run, err := store.load(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := requestRunStop(store, run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != "STOPPED" {
+		t.Fatalf("second stop status = %q", status)
+	}
+	if err := syscall.Kill(-command.Process.Pid, syscall.Signal(0)); !errors.Is(err, syscall.ESRCH) {
+		t.Fatalf("process group still exists: %v", err)
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("forced runner was not reaped")
+	}
+}
+
+func TestDetachedRunnerHonorsStopRequestedBeforeStartup(t *testing.T) {
+	store := &mcpRunStore{dir: t.TempDir()}
+	runID := strings.Repeat("c", 32)
+	stopAt := time.Now().UTC()
+	if err := store.create(mcpRunRecord{
+		Version: mcpRunStateVersion, ID: runID, PID: os.Getpid(), Status: "STOPPING",
+		Pipeline: filepath.Join(t.TempDir(), "does-not-exist.json"), StartedAt: stopAt, StopAt: &stopAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runDetachedMCPRun(&cobra.Command{}, store, runID); err != nil {
+		t.Fatal(err)
+	}
+	record, err := store.load(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.Status != "STOPPED" || record.ExitCode == nil || *record.ExitCode != 130 {
+		t.Fatalf("record = %#v", record)
+	}
+}
+
+func startMCPRun(t *testing.T, ctx context.Context, session *client.Client, pipeline string) startRunOutput {
+	t.Helper()
+	workdir := t.TempDir()
+	pipelinePath := filepath.Join(workdir, "pipeline.json")
+	if err := os.WriteFile(pipelinePath, []byte(pipeline), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	started, err := callTool(ctx, session, "start_run", map[string]any{
+		"pipeline_path": pipelinePath,
+		"workdir":       workdir,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if started.IsError {
+		t.Fatalf("start_run returned an error: %#v", started.Content)
+	}
+	output := decodeStructured[startRunOutput](t, started.StructuredContent)
+	t.Cleanup(func() {
+		if processOwnsRun(output.PID, output.RunID) == nil {
+			_ = killProcessGroup(output.PID)
+		}
+	})
+	return output
+}
+
+type mcpTestManifest struct {
+	HostSession *hostwake.Session `json:"host_session,omitempty"`
+}
+
+func mustReadMCPManifest(t *testing.T, logsRoot string) mcpTestManifest {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(logsRoot, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest mcpTestManifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	return manifest
+}
+
+func waitForRunStatus(t *testing.T, ctx context.Context, session *client.Client, runID string) runStatusOutput {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		result, err := callTool(ctx, session, "get_run_status", map[string]any{"run_id": runID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.IsError {
+			t.Fatalf("get_run_status returned an error: %#v", result.Content)
+		}
+		status := decodeStructured[runStatusOutput](t, result.StructuredContent)
+		if status.Status != "RUNNING" && status.Status != "STOPPING" {
+			return status
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("run did not finish: %#v", status)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func waitForFile(t *testing.T, path string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("file did not appear: %s", path)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func processExists(pid int) bool {
+	process, err := os.FindProcess(pid)
+	return err == nil && process.Signal(syscall.Signal(0)) == nil
+}
+
+func connectToGimbleMCP(t *testing.T) (*client.Client, context.Context) {
+	t.Helper()
+	return connectToGimbleMCPBinary(t, buildGimble(t), t.TempDir())
+}
+
+func buildGimble(t *testing.T) string {
+	t.Helper()
+	binary := filepath.Join(t.TempDir(), "gimble")
+	build := exec.Command("go", "build", "-o", binary, ".")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build Gimble: %v\n%s", err, output)
+	}
+	return binary
+}
+
+func connectToGimbleMCPBinary(t *testing.T, binary, stateDir string) (*client.Client, context.Context) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+	session, err := client.NewStdioMCPClient(binary, []string{mcpRunStateEnv + "=" + stateDir}, "mcp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := mcp.InitializeRequest{}
+	request.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+	request.Params.ClientInfo = mcp.Implementation{Name: "gimble-test", Version: "1.0.0"}
+	if _, err := session.Initialize(ctx, request); err != nil {
+		_ = session.Close()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+	return session, ctx
+}
+
+func callTool(ctx context.Context, session *client.Client, name string, arguments map[string]any) (*mcp.CallToolResult, error) {
+	request := mcp.CallToolRequest{}
+	request.Params.Name = name
+	request.Params.Arguments = arguments
+	return session.CallTool(ctx, request)
+}
+
+func decodeStructured[T any](t *testing.T, value any) T {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result T
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatal(err)
+	}
+	return result
+}

@@ -72,7 +72,7 @@ func freezeGitWorkspaceWithStop(workdir string, stop *StopSignal) (gitWorkspaceS
 		return gitWorkspaceSnapshot{}, fmt.Errorf("resolve workspace HEAD: %w", err)
 	}
 
-	indexDir, err := os.MkdirTemp("", "tractor-index-")
+	indexDir, err := os.MkdirTemp("", "gimble-index-")
 	if err != nil {
 		return gitWorkspaceSnapshot{}, fmt.Errorf("create temporary git index directory: %w", err)
 	}
@@ -91,14 +91,14 @@ func freezeGitWorkspaceWithStop(workdir string, stop *StopSignal) (gitWorkspaceS
 	}
 
 	identityEnv := []string{
-		"GIT_AUTHOR_NAME=tractor",
-		"GIT_AUTHOR_EMAIL=tractor@localhost",
+		"GIT_AUTHOR_NAME=gimble",
+		"GIT_AUTHOR_EMAIL=gimble@localhost",
 		"GIT_AUTHOR_DATE=2000-01-01T00:00:00Z",
-		"GIT_COMMITTER_NAME=tractor",
-		"GIT_COMMITTER_EMAIL=tractor@localhost",
+		"GIT_COMMITTER_NAME=gimble",
+		"GIT_COMMITTER_EMAIL=gimble@localhost",
 		"GIT_COMMITTER_DATE=2000-01-01T00:00:00Z",
 	}
-	commit, err := gitOutputWithStop(repoRoot, identityEnv, strings.NewReader("tractor parallel workspace snapshot\n"), stop, "commit-tree", tree, "-p", head)
+	commit, err := gitOutputWithStop(repoRoot, identityEnv, strings.NewReader("gimble parallel workspace snapshot\n"), stop, "commit-tree", tree, "-p", head)
 	if err != nil {
 		return gitWorkspaceSnapshot{}, fmt.Errorf("commit workspace snapshot: %w", err)
 	}

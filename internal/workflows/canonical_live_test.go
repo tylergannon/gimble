@@ -20,13 +20,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/tractor/checklist"
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/internal/workflows"
+	"github.com/tylergannon/gimble/checklist"
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/internal/workflows"
 )
 
 var (
-	canonicalBinary = flag.String("tractor-binary", "", "candidate binary (default: build this checkout)")
+	canonicalBinary = flag.String("gimble-binary", "", "candidate binary (default: build this checkout)")
 	canonicalOutput = flag.String("proof-dir", "", "new artifact directory outside the checkout (default: temporary directory, retained)")
 )
 
@@ -34,7 +34,7 @@ var (
 // the proof process's flags, never the operator's configuration or home.
 func TestMain(m *testing.M) {
 	if filepath.Base(os.Args[0]) == "codex" {
-		native := os.Getenv("TRACTOR_PROOF_CODEX_EXECUTABLE")
+		native := os.Getenv("GIMBLE_PROOF_CODEX_EXECUTABLE")
 		args := append([]string{native, "--disable", "memories"}, os.Args[1:]...)
 		if err := syscall.Exec(native, args, os.Environ()); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -62,7 +62,7 @@ func TestCanonicalLoop(t *testing.T) {
 	}
 	root := *canonicalOutput
 	if root == "" {
-		root, err = os.MkdirTemp("", "tractor-canonical-go-")
+		root, err = os.MkdirTemp("", "gimble-canonical-go-")
 	} else {
 		root, err = filepath.Abs(root)
 		if err == nil && (root == repo || strings.HasPrefix(root, repo+string(os.PathSeparator))) {
@@ -85,8 +85,8 @@ func TestCanonicalLoop(t *testing.T) {
 	})
 	binary := *canonicalBinary
 	if binary == "" {
-		binary = filepath.Join(root, "tractor")
-		canonicalRun(t, repo, "go", "build", "-trimpath", "-o", binary, "./cmd/tractor")
+		binary = filepath.Join(root, "gimble")
+		canonicalRun(t, repo, "go", "build", "-trimpath", "-o", binary, "./cmd/gimble")
 	} else {
 		binary, err = filepath.Abs(binary)
 		if err != nil {
@@ -123,8 +123,8 @@ func TestCanonicalLoop(t *testing.T) {
 		canonicalWrite(t, filepath.Join(workspace, rel), canonicalRead(t, filepath.Join(repo, name)))
 	}
 	canonicalRun(t, workspace, "git", "init", "-q")
-	canonicalRun(t, workspace, "git", "config", "user.name", "Tractor proof")
-	canonicalRun(t, workspace, "git", "config", "user.email", "tractor-proof@example.invalid")
+	canonicalRun(t, workspace, "git", "config", "user.name", "Gimble proof")
+	canonicalRun(t, workspace, "git", "config", "user.email", "gimble-proof@example.invalid")
 	canonicalRun(t, workspace, "git", "add", ".")
 	canonicalRun(t, workspace, "git", "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "commit", "-qm", "Seed broken shipping CLI")
 	canonicalRun(t, workspace, "git", "tag", "seed")
@@ -305,7 +305,7 @@ func canonicalEnvironment(t *testing.T, root string) []string {
 	if err := os.Symlink(self, filepath.Join(bin, "codex")); err != nil {
 		t.Fatal(err)
 	}
-	return append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "TRACTOR_PROOF_CODEX_EXECUTABLE="+native)
+	return append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "GIMBLE_PROOF_CODEX_EXECUTABLE="+native)
 }
 
 func canonicalReviewMemory(t *testing.T, root string) {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/tylergannon/tractor/graph"
+	"github.com/tylergannon/gimble/graph"
 )
 
 // LoopBodyNodes returns the derived body node-set for loopID in graph order.

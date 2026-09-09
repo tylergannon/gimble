@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/harness"
 	jsonschema "github.com/tylergannon/go-gen-jsonschema"
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/harness"
 )
 
 func TestRunnerCompletesLinearGraphAndWritesFinalCheckpoint(t *testing.T) {
@@ -72,9 +72,9 @@ func TestRunnerExportsAbsoluteLogsRootToCommandNode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("TRACTOR_RUN_DIR", "outer-run")
+	t.Setenv("GIMBLE_RUN_DIR", "outer-run")
 	pipeline := testGraph(
-		toolNode(`printf '%s' "$TRACTOR_RUN_DIR" > observed-run-dir`, "done"),
+		toolNode(`printf '%s' "$GIMBLE_RUN_DIR" > observed-run-dir`, "done"),
 		exitNode("done"),
 	)
 	runner, err := NewRunner(pipeline, NewRegistry(), RunnerConfig{
@@ -99,10 +99,10 @@ func TestRunnerExportsAbsoluteLogsRootToCommandNode(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(observed) != logsRoot {
-		t.Fatalf("TRACTOR_RUN_DIR = %q, want %q", observed, logsRoot)
+		t.Fatalf("GIMBLE_RUN_DIR = %q, want %q", observed, logsRoot)
 	}
-	if got := os.Getenv("TRACTOR_RUN_DIR"); got != "outer-run" {
-		t.Fatalf("restored TRACTOR_RUN_DIR = %q, want outer-run", got)
+	if got := os.Getenv("GIMBLE_RUN_DIR"); got != "outer-run" {
+		t.Fatalf("restored GIMBLE_RUN_DIR = %q, want outer-run", got)
 	}
 }
 

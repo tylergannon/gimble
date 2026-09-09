@@ -1,4 +1,4 @@
-// Package graph defines and parses Tractor pipeline documents.
+// Package graph defines and parses Gimble pipeline documents.
 package graph
 
 import (

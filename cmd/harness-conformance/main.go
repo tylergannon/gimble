@@ -18,11 +18,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/tractor/harness"
-	"github.com/tylergannon/tractor/harness/agy"
-	"github.com/tylergannon/tractor/harness/claude"
-	"github.com/tylergannon/tractor/harness/codex"
-	"github.com/tylergannon/tractor/internal/runlog"
+	"github.com/tylergannon/gimble/harness"
+	"github.com/tylergannon/gimble/harness/agy"
+	"github.com/tylergannon/gimble/harness/claude"
+	"github.com/tylergannon/gimble/harness/codex"
+	"github.com/tylergannon/gimble/internal/runlog"
 )
 
 const (
@@ -159,7 +159,7 @@ func run(args []string) error {
 		{"compaction", scenarioCompaction},
 		{"backend_supervisor", scenarioBackendSupervisor},
 	}
-	root, err := os.MkdirTemp("", "tractor-harness-conformance-")
+	root, err := os.MkdirTemp("", "gimble-harness-conformance-")
 	if err != nil {
 		return fmt.Errorf("create conformance root: %w", err)
 	}
@@ -425,7 +425,7 @@ func scenarioInvalidInputs(factory *adapterFactory, workdir string) error {
 		return errors.New("unknown session produced assistant/tool events or workspace changes")
 	}
 
-	badModel := "tractor-model-does-not-exist-" + token()
+	badModel := "gimble-model-does-not-exist-" + token()
 	badFile := "bad-model-" + token()
 	id, createErr := a.CreateSession(badModel, workdir)
 	if createErr != nil {

@@ -173,8 +173,8 @@ func (c *connection) dispatch(message rpcMessage) {
 func (c *connection) initialize(ctx context.Context) error {
 	params := map[string]any{
 		"clientInfo": map[string]any{
-			"name":    "tractor",
-			"title":   "Tractor agent",
+			"name":    "gimble",
+			"title":   "Gimble agent",
 			"version": "dev",
 		},
 		"capabilities": map[string]any{},

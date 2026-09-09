@@ -135,7 +135,7 @@ func (r *Runner) renderFrames(workdir string) string {
 // framePreamble tells the agent what the iterate blocks are. It states
 // engine facts only and never restates the node's own prompt.
 const framePreamble = `<system-message>
-This is one step of a Tractor run inside a checklist loop. The iterate
+This is one step of a Gimble run inside a checklist loop. The iterate
 blocks below are the engine's record of where you are: the item selected
 for this lap, the check it must satisfy, the command and judge that will
 validate it when this step ends, and what the previous validation reported.

@@ -2,18 +2,18 @@
 
 Architectural direction stated by Tyler on 2026-09-08 and clarified on
 2026-09-09. This is an edited synthesis of
-[his original statement](../ephemeral/projects/tractor/programmatic-workflows/KEY-CLAIM-VERBATIM.md)
-and [his context-engineering clarification](../ephemeral/projects/tractor/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md),
+[his original statement](../ephemeral/projects/gimble/programmatic-workflows/KEY-CLAIM-VERBATIM.md)
+and [his context-engineering clarification](../ephemeral/projects/gimble/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md),
 each preserved separately and verbatim. It describes the direction of
-Tractor's Go-program work; the context and indexing behavior described here
+Gimble's Go-program work; the context and indexing behavior described here
 is not yet implemented.
 
-The broader [Tractor direction](direction.md) places this work in the
+The broader [Gimble direction](direction.md) places this work in the
 experience of authoring workflows, the legibility worth preserving from
 graphs, and the future ability to examine context choices through run
 telemetry.
 
-**Tractor should organize work and information together, so each agent has
+**Gimble should organize work and information together, so each agent has
 a clear objective, a responsibility it can handle, and a direct path to the
 knowledge it needs. The workflow carries responsibilities we should not ask
 any one agent to carry in its head.**
@@ -36,11 +36,11 @@ need, it tends toward becoming a pseudo-programming language, perhaps
 asymptotically.
 
 Our response is to author workflows directly as programs in a programming
-language. For Tractor, that language is Go. Loops, conditions, functions,
+language. For Gimble, that language is Go. Loops, conditions, functions,
 composition, and concurrency can be expressed using the language itself.
 New orchestration shapes become new programs or ordinary reusable functions.
 
-This frees Tractor from many of the constraints of a graph-definition
+This frees Gimble from many of the constraints of a graph-definition
 language. It also gives us a practical design metaphor: the functions and
 types we build should make orchestration feel natural to program. The
 workflow's algorithm should remain visible in its source, with input
@@ -182,12 +182,12 @@ arrangement against the same task and established validation.
 
 ## Implementation record
 
-The [Go POC guide](../ephemeral/projects/tractor/programmatic-workflows/POC.md)
+The [Go POC guide](../ephemeral/projects/gimble/programmatic-workflows/POC.md)
 records what has been built and demonstrated in the source experimental branch
-and local commits. This documentation PR does not add its `tractor program`
+and local commits. This documentation PR does not add its `gimble program`
 CLI or runtime to `main`. The
-[conversation tie-off](../ephemeral/projects/tractor/programmatic-workflows/TIE-OFF.md)
-and [semantic index](../ephemeral/projects/tractor/programmatic-workflows/index/README.md)
+[conversation tie-off](../ephemeral/projects/gimble/programmatic-workflows/TIE-OFF.md)
+and [semantic index](../ephemeral/projects/gimble/programmatic-workflows/index/README.md)
 preserve the earlier reasoning and source research. The unified context,
 task-oriented index entry point, and scoped assembly of agent requests are
 the direction described here; their exact APIs and presentation policies

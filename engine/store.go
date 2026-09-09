@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/tractor/harness"
+	"github.com/tylergannon/gimble/harness"
 )
 
 type timelineEvent map[string]any

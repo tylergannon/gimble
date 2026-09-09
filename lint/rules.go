@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tylergannon/tractor/graph"
+	"github.com/tylergannon/gimble/graph"
 )
 
 func (a *analysis) startTarget() []Diagnostic {

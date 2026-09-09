@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/internal/workflows"
-	"github.com/tylergannon/tractor/lint"
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/internal/workflows"
+	"github.com/tylergannon/gimble/lint"
 )
 
 // Every built-in parses and lints, so a broken workflow cannot ship.

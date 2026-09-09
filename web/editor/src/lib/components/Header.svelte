@@ -18,7 +18,7 @@
 </script>
 
 <header>
-	<span class="wordmark">tractor</span>
+	<span class="wordmark">gimble</span>
 	<span class="divider"></span>
 	<span class="name" title={editor.path}>{graphName}</span>
 	<span class="count">{nodeCount} nodes</span>

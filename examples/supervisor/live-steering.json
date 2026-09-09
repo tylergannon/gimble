@@ -23,13 +23,13 @@
     {
       "id": "verify",
       "type": "command",
-      "command": "test \"$(cat supervisor-received.txt)\" = TRACTOR_SUPERVISOR_RECEIVED",
+      "command": "test \"$(cat supervisor-received.txt)\" = GIMBLE_SUPERVISOR_RECEIVED",
       "edges": { "success": "success" }
     },
     {
       "id": "coach",
       "type": "supervisor",
-      "prompt": "Whenever work is live, return verdict steer, target work, and message: Create supervisor-received.txt containing exactly TRACTOR_SUPERVISOR_RECEIVED and then finish.",
+      "prompt": "Whenever work is live, return verdict steer, target work, and message: Create supervisor-received.txt containing exactly GIMBLE_SUPERVISOR_RECEIVED and then finish.",
       "supervises": ["prepare", "work"],
       "interval": "2s",
       "timeout": "60s",

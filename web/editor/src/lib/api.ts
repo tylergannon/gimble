@@ -1,5 +1,5 @@
 // The page's contract with Go: three remote functions, declared in
-// src/routes/editor.remote.go and answered by the tractor binary. The
+// src/routes/editor.remote.go and answered by the gimble binary. The
 // editor.remote.ts beside it is generated and every body there throws, so a
 // document on screen is proof that Go answered.
 //

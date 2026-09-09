@@ -10,7 +10,7 @@ export default defineConfig({
 			// byte-identical files, and the tree shows no spurious diff.
 			adapter: skgo({ precompress: false }),
 			paths: { origin: process.env.ORIGIN ?? 'http://127.0.0.1:7331' },
-			version: { name: 'tractor' },
+			version: { name: 'gimble' },
 			experimental: { remoteFunctions: true },
 			compilerOptions: {
 				experimental: { async: true },

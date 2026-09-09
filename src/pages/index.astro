@@ -9,8 +9,8 @@ const base = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/`;
 ---
 
 <Layout
-  title="Tractor · Agent pipelines for Codex"
-  description="Install Tractor in Codex and run typed, steerable multi-agent pipelines."
+  title="Gimble · Agent pipelines for Codex"
+  description="Install Gimble in Codex and run typed, steerable multi-agent pipelines."
 >
   <Header />
   <main>
@@ -27,7 +27,7 @@ const base = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/`;
 
         <div class="mt-12 grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
           <div class="max-w-md space-y-3 text-lg leading-8">
-            <p>Tractor runs typed, steerable agent pipelines inside Codex.</p>
+            <p>Gimble runs typed, steerable agent pipelines inside Codex.</p>
             <p class="text-muted-foreground">Tell your agent to install it. Start a new task. That’s it.</p>
           </div>
           <InstallPrompt client:load />
@@ -46,7 +46,7 @@ const base = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/`;
           </a>
           <a
             class="group hover:bg-muted/40 flex items-center justify-between gap-4 px-1 py-6 transition-colors sm:px-6"
-            href={`${base}docs/tractor-vs-attractor/`}
+            href={`${base}docs/gimble-vs-attractor/`}
           >
             <span>
               <span class="eyebrow block">02 / Understand</span>

@@ -9,8 +9,8 @@ package routes
 import (
 	"context"
 
+	"github.com/tylergannon/gimble/internal/editor"
 	"github.com/tylergannon/skgo"
-	"github.com/tylergannon/tractor/internal/editor"
 )
 
 // store is the file the server was started on. The server's handle hook puts

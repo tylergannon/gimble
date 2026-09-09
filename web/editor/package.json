@@ -1,5 +1,5 @@
 {
-	"name": "tractor-editor",
+	"name": "gimble-editor",
 	"private": true,
 	"type": "module",
 	"imports": {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	skgo0 "github.com/tylergannon/tractor/internal/editor/generated/links/onzggl3sn52xizlt"
+	skgo0 "github.com/tylergannon/gimble/internal/editor/generated/links/onzggl3sn52xizlt"
 )
 
 // remote_getDoc answers src/routes/editor.remote.ts#getDoc, a query.

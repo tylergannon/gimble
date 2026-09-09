@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	pkg_editor "github.com/tylergannon/gimble/internal/editor"
 	devalue "github.com/tylergannon/polytype/devalue"
-	pkg_editor "github.com/tylergannon/tractor/internal/editor"
 )
 
 // dvAt renders a JSON-pointer-style path for a diagnostic. The root value has

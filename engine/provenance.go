@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/tylergannon/tractor/graph"
+	"github.com/tylergannon/gimble/graph"
 )
 
 type executableIdentity struct {

@@ -15,7 +15,7 @@
 },"required":["id","x","y","w","h"],"additionalProperties":false}},
 "has_layout":{"type":"boolean","description":"HasLayout reports whether a layout sidecar exists beside the pipeline."},
 "version":{"type":"string","description":"Version identifies this state of the two files. A save must quote it."},
-"diagnostics":{"type":"array","description":"Diagnostics are the lint findings, the same ones `tractor validate` prints.","items":{"type":"object",
+"diagnostics":{"type":"array","description":"Diagnostics are the lint findings, the same ones `gimble validate` prints.","items":{"type":"object",
 "description":"Diagnostic is one lint finding.","properties":{
 "rule":{"type":"string","description":"Rule names the lint rule that fired."},
 "severity":{"type":"string","description":"Severity is error, warning, or info."},

@@ -4,7 +4,7 @@
 external instruction. Run it with a fresh workspace and logs directory:
 
 ```sh
-tractor run examples/steering/external-steering.json \
+gimble run examples/steering/external-steering.json \
   --workdir "$WORKSPACE" --logs "$LOGS"
 ```
 
@@ -15,7 +15,7 @@ native Codex turn is inside its 15-second foreground command. Then read
 ```sh
 curl --silent --show-error --unix-socket "$SOCKET" \
   -H 'Content-Type: application/json' \
-  --data '[{"type":"text","text":"Create steering-received.txt containing exactly TRACTOR_STEERING_RECEIVED and then finish."}]' \
+  --data '[{"type":"text","text":"Create steering-received.txt containing exactly GIMBLE_STEERING_RECEIVED and then finish."}]' \
   http://localhost/steer
 ```
 

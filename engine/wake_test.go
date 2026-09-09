@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/harness"
-	"github.com/tylergannon/tractor/internal/hostwake"
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/harness"
+	"github.com/tylergannon/gimble/internal/hostwake"
 )
 
 // fakeChannel is a host that records what it was told.

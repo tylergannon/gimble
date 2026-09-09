@@ -17,7 +17,7 @@
     {
       "id": "verify",
       "type": "command",
-      "command": "test \"$(cat steering-received.txt)\" = TRACTOR_STEERING_RECEIVED",
+      "command": "test \"$(cat steering-received.txt)\" = GIMBLE_STEERING_RECEIVED",
       "edges": { "success": "success" }
     }
   ]

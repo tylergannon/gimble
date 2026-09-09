@@ -1,4 +1,4 @@
-// Package codex implements Tractor's HarnessAdapter using Codex app-server.
+// Package codex implements Gimble's HarnessAdapter using Codex app-server.
 package codex
 
 import (
@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tylergannon/tractor/harness"
-	"github.com/tylergannon/tractor/harness/codex/schema"
+	"github.com/tylergannon/gimble/harness"
+	"github.com/tylergannon/gimble/harness/codex/schema"
 )
 
 const (
@@ -90,7 +90,7 @@ func (a *Adapter) CreateSession(model, workdir string) (string, *harness.Error) 
 		"cwd":                workdir,
 		"approvalPolicy":     "never",
 		"sandbox":            "danger-full-access",
-		"serviceName":        "tractor",
+		"serviceName":        "gimble",
 		"sessionStartSource": "startup",
 	})
 	if err != nil {

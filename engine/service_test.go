@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/lint"
 	jsonschema "github.com/tylergannon/go-gen-jsonschema"
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/lint"
 )
 
 func TestReadProcfileSelectsTheNamedProcessByName(t *testing.T) {
@@ -175,8 +175,8 @@ func TestServiceTeardownFailureDoesNotClaimTheServiceStopped(t *testing.T) {
 func TestWorkflowServicePortReachesEveryCommandAndLivesForTheRun(t *testing.T) {
 	manager := &fakeProcessManager{state: ServiceState{Name: "web", Port: 43123, Running: true}}
 	pipeline := serviceTestGraph(
-		&graph.CommandNode{ID: "first", Command: `test "$TRACTOR_SERVICE_PORT" = 43123`, Edges: graph.CommandEdges{Success: "second"}},
-		&graph.CommandNode{ID: "second", Command: `test "$TRACTOR_SERVICE_PORT" = 43123`, Edges: graph.CommandEdges{Success: graph.Success}},
+		&graph.CommandNode{ID: "first", Command: `test "$GIMBLE_SERVICE_PORT" = 43123`, Edges: graph.CommandEdges{Success: "second"}},
+		&graph.CommandNode{ID: "second", Command: `test "$GIMBLE_SERVICE_PORT" = 43123`, Edges: graph.CommandEdges{Success: graph.Success}},
 	)
 	logsRoot := t.TempDir()
 	runner, err := NewRunner(pipeline, NewRegistry(), RunnerConfig{
@@ -269,7 +269,7 @@ while True:
 
 	pipeline := serviceTestGraph(&graph.CommandNode{
 		ID:      "probe",
-		Command: `python3 -c 'import os,urllib.request; p=os.environ["TRACTOR_SERVICE_PORT"]; assert urllib.request.urlopen("http://127.0.0.1:"+p).read() == b"ok"'`,
+		Command: `python3 -c 'import os,urllib.request; p=os.environ["GIMBLE_SERVICE_PORT"]; assert urllib.request.urlopen("http://127.0.0.1:"+p).read() == b"ok"'`,
 		Edges:   graph.CommandEdges{Success: graph.Success},
 	})
 	logsRoot := t.TempDir()

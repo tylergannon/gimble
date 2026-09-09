@@ -1,4 +1,4 @@
-// Package engine executes Tractor graphs and persists their run state.
+// Package engine executes Gimble graphs and persists their run state.
 package engine
 
 import (
@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/tractor/harness"
+	"github.com/tylergannon/gimble/harness"
 )
 
 // Checkpoint is the durable top-level execution state.

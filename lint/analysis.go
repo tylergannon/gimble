@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/internal/modelalias"
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/internal/modelalias"
 )
 
 type edgeRecord struct {

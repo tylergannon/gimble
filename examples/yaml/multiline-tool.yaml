@@ -1,5 +1,5 @@
 name: yaml-multiline-tool
-goal: Prove YAML comments and literal block commands work through Tractor.
+goal: Prove YAML comments and literal block commands work through Gimble.
 start: write
 
 nodes:
@@ -7,14 +7,14 @@ nodes:
   - id: write
     type: command
     command: |
-      mkdir -p tractor-yaml-proof
-      printf '%s\n' YAML_MULTILINE_WORKS > tractor-yaml-proof/result.txt
+      mkdir -p gimble-yaml-proof
+      printf '%s\n' YAML_MULTILINE_WORKS > gimble-yaml-proof/result.txt
     edges:
       success: verify
 
   - id: verify
     type: command
     command: |
-      test "$(cat tractor-yaml-proof/result.txt)" = YAML_MULTILINE_WORKS
+      test "$(cat gimble-yaml-proof/result.txt)" = YAML_MULTILINE_WORKS
     edges:
       success: success

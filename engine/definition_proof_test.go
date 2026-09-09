@@ -11,9 +11,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/harness"
 	jsonschema "github.com/tylergannon/go-gen-jsonschema"
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/harness"
 )
 
 func TestDefinitionProofPipelineWithTenWorkNodesCompletes(t *testing.T) {
@@ -393,7 +393,7 @@ func readProofLines(t *testing.T, path string) []map[string]string {
 
 func shortProofTempDir(t *testing.T) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("/tmp", "tractor-proof-")
+	dir, err := os.MkdirTemp("/tmp", "gimble-proof-")
 	if err != nil {
 		t.Fatal(err)
 	}

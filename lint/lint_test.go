@@ -6,9 +6,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/lint"
 	jsonschema "github.com/tylergannon/go-gen-jsonschema"
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/lint"
 )
 
 func TestEveryBuiltInRule(t *testing.T) {

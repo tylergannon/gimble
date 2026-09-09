@@ -142,7 +142,7 @@ nodes:
     type: command
     command: |
       set -eu
-      tractor ask drafts/questions.md --into interview
+      gimble ask drafts/questions.md --into interview
     edges:
       success: merge
       error: questions

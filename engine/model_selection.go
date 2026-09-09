@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/internal/modelalias"
 	jsonschema "github.com/tylergannon/go-gen-jsonschema"
-	"github.com/tylergannon/tractor/graph"
-	"github.com/tylergannon/tractor/internal/modelalias"
 )
 
 const (
