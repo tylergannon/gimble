@@ -1,0 +1,15 @@
+{
+  "full_name": "golang/tools",
+  "html_url": "https://github.com/golang/tools",
+  "archived": false,
+  "pushed_at": "2026-09-08T16:19:40Z",
+  "updated_at": "2026-09-08T16:23:55Z",
+  "default_branch": "master",
+  "license": {
+    "key": "bsd-3-clause",
+    "name": "BSD 3-Clause \"New\" or \"Revised\" License",
+    "spdx_id": "BSD-3-Clause",
+    "url": "https://api.github.com/licenses/bsd-3-clause",
+    "node_id": "MDc6TGljZW5zZTU="
+  }
+}

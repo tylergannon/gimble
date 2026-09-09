@@ -7,6 +7,10 @@ authoritative definition of Tractor's Attractor variant; where Tractor's
 code, schemas, examples, or other documentation disagree with it, the
 specification governs.
 
+[Tractor's direction](direction.md) records the subsequent product and
+architectural thinking, including the experimental move toward Go-authored
+workflows. It guides future work without changing the current graph contract.
+
 ## Provenance
 
 Tractor is the reference Go implementation of its Attractor variant. The

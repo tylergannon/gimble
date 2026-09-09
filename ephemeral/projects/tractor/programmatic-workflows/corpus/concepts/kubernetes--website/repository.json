@@ -1,0 +1,15 @@
+{
+  "full_name": "kubernetes/website",
+  "html_url": "https://github.com/kubernetes/website",
+  "archived": false,
+  "pushed_at": "2026-09-08T14:46:35Z",
+  "updated_at": "2026-09-08T14:52:07Z",
+  "default_branch": "main",
+  "license": {
+    "key": "cc-by-4.0",
+    "name": "Creative Commons Attribution 4.0 International",
+    "spdx_id": "CC-BY-4.0",
+    "url": "https://api.github.com/licenses/cc-by-4.0",
+    "node_id": "MDc6TGljZW5zZTI1"
+  }
+}

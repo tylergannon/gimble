@@ -1,0 +1,13 @@
+{
+  "retrieved_at": "2026-09-08T16:42:56.538635+00:00",
+  "files": [
+    {
+      "repository": "diffusioninc/skills",
+      "commit": "2830b0024265d16fcb9fa6fe003b69ea685cc57d",
+      "upstream_path": ".agents/skills/df-semantic-index/SKILL.md",
+      "local_path": "method/df-semantic-index-SKILL.md",
+      "sha256": "0963bc9a2c7928f8e27ffc78c594f9cd24923028b9202ea4270be3a8ae25a314",
+      "url": "https://github.com/diffusioninc/skills/blob/2830b0024265d16fcb9fa6fe003b69ea685cc57d/.agents/skills/df-semantic-index/SKILL.md"
+    }
+  ]
+}

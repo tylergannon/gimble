@@ -1,0 +1,50 @@
+{
+  "collected_at": "2026-09-08",
+  "method": "GitHub REST API, authenticated gh client; current default-branch commit and latest release queried separately",
+  "repositories": [
+    {
+      "repository": "temporalio/sdk-go",
+      "default_branch": "main",
+      "commit": "9aae5eec926f359f1fb986b7d3125bd968d1067a",
+      "commit_author_date": "2026-09-08T16:11:19Z",
+      "latest_release": "v1.48.0",
+      "latest_release_published_at": "2026-08-18T20:34:38Z",
+      "pushed_at": "2026-09-08T16:11:23Z",
+      "archived": false,
+      "license": "MIT"
+    },
+    {
+      "repository": "restatedev/sdk-go",
+      "default_branch": "main",
+      "commit": "3f7852328e1fc1f5b0716d8a1e556a614d83dc97",
+      "commit_author_date": "2026-08-21T07:48:40Z",
+      "latest_release": "v1.0.4",
+      "latest_release_published_at": "2026-08-21T07:53:36Z",
+      "pushed_at": "2026-08-21T07:53:06Z",
+      "archived": false,
+      "license": "MIT"
+    },
+    {
+      "repository": "dbos-inc/dbos-transact-golang",
+      "default_branch": "main",
+      "commit": "ab56911fdd78552e1e7fe648cff7c831a1e760c8",
+      "commit_author_date": "2026-09-01T23:27:51Z",
+      "latest_release": "v1.3.0",
+      "latest_release_published_at": "2026-09-02T20:31:36Z",
+      "pushed_at": "2026-09-02T20:31:35Z",
+      "archived": false,
+      "license": "MIT"
+    },
+    {
+      "repository": "PrefectHQ/prefect",
+      "default_branch": "main",
+      "commit": "34ee7056b2b83cb0eaaa80378c5202d6c0b5eeef",
+      "commit_author_date": "2026-09-08T14:17:03Z",
+      "latest_release": "3.8.5",
+      "latest_release_published_at": "2026-09-03T21:25:46Z",
+      "pushed_at": "2026-09-08T16:27:27Z",
+      "archived": false,
+      "license": "Apache-2.0"
+    }
+  ]
+}
