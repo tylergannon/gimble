@@ -25,11 +25,20 @@ const base = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/`;
           Put your agents<br /><em class="text-primary font-normal">in motion.</em>
         </h1>
 
-        <div class="mt-12 grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
+        <div class="mt-12 grid gap-8 lg:grid-cols-[0.8fr_0.7fr_1.2fr] lg:items-end">
           <div class="max-w-md space-y-3 text-lg leading-8">
             <p>Gimble runs typed, steerable agent pipelines inside Codex.</p>
             <p class="text-muted-foreground">Tell your agent to install it. Start a new task. That’s it.</p>
           </div>
+          <figure class="surface overflow-hidden rounded-2xl p-3" aria-label="Gimble mascot">
+            <img
+              src={`${base}gimble-mascot.png`}
+              alt="Gimble, a friendly gyroscopic guide, points along a trail toward a goal"
+              class="aspect-square w-full rounded-xl object-cover"
+              width="768"
+              height="768"
+            />
+          </figure>
           <InstallPrompt client:load />
         </div>
 
