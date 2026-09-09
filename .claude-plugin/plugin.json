@@ -1,7 +1,7 @@
 {
   "name": "gimble",
   "displayName": "Gimble",
-  "version": "0.7.1",
+  "version": "0.10.0",
   "description": "Run and steer Gimble pipelines from Claude Code through MCP.",
   "author": {
     "name": "Tyler Gannon",

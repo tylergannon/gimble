@@ -29,7 +29,7 @@ import (
 	"github.com/tylergannon/gimble/lint"
 )
 
-const gimbleMCPVersion = "0.9.0"
+const gimbleMCPVersion = "0.10.0"
 
 const (
 	gracefulRunStopTimeout = 500 * time.Millisecond
