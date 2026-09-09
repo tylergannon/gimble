@@ -5,8 +5,8 @@ Architectural direction stated by Tyler on 2026-09-08 and clarified on
 [his original statement](../ephemeral/projects/gimble/programmatic-workflows/KEY-CLAIM-VERBATIM.md)
 and [his context-engineering clarification](../ephemeral/projects/gimble/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md),
 each preserved separately with only the retired project name normalized.
-It describes the direction of Gimble's Go-program work; the context and indexing behavior described here
-is not yet implemented.
+It describes the direction of Gimble's Go-program work; the context and
+indexing behavior described here is not yet implemented.
 
 The broader [Gimble direction](direction.md) places this work in the
 experience of authoring workflows, the legibility worth preserving from
@@ -25,11 +25,12 @@ participant needs to understand and discover along the way.
 
 ## Why author workflows as programs?
 
-DAG-style workflow definitions work well for very simple workflows. Modeling
-workflow in general is harder. The art of agentic orchestration is changing
+DAG-style workflow definitions work well for very simple workflows. In
+practice, authoring Gimble's graph language proved genuinely difficult rather
+than easy as intended. Modeling workflow in general requires authors to
+reconstruct ordinary program structure through nodes, edges, routing fields,
+and graph-specific scoping rules. The art of agentic orchestration is changing
 rapidly, and its tactics and useful primitives need to evolve just as quickly.
-An author should be able to express a new tactic without first extending a
-workflow language with another node shape or edge type.
 
 **Postulate:** as a workflow shorthand grows to express more of what authors
 need, it tends toward becoming a pseudo-programming language, perhaps
@@ -39,6 +40,11 @@ Our response is to author workflows directly as programs in a programming
 language. For Gimble, that language is Go. Loops, conditions, functions,
 composition, and concurrency can be expressed using the language itself.
 New orchestration shapes become new programs or ordinary reusable functions.
+
+That is a substantive reason for Go, not merely familiarity or nicer syntax.
+Go already provides goroutines, channels, selection, cancellation patterns,
+and ordinary lexical scope, making concurrent and asynchronous orchestration
+natural to express directly.
 
 This frees Gimble from many of the constraints of a graph-definition
 language. It also gives us a practical design metaphor: the functions and
@@ -186,3 +192,7 @@ The Go-program runtime is not present on `main`. The unified context,
 task-oriented index entry point, and scoped assembly of agent requests
 described here remain direction; their exact APIs and presentation policies
 remain to be developed.
+
+Until that refactor lands, the root README should continue to describe the
+graph engine that Gimble actually ships. Rewrite it when the implementation
+changes rather than presenting this direction as current behavior.

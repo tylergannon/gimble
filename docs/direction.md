@@ -4,7 +4,8 @@ Product and architectural direction from Tyler's September 8–9, 2026
 discussions. This is an edited synthesis, with proposed design consequences
 identified below. [His broader direction statement](../ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md),
 [his follow-up on diagrams, actions, and research/indexing](../ephemeral/projects/gimble/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md),
-and [his clarification of program shape versus input](../ephemeral/projects/gimble/programmatic-workflows/INPUT-SEPARATION-VERBATIM.md)
+his [clarification of program shape versus input](../ephemeral/projects/gimble/programmatic-workflows/INPUT-SEPARATION-VERBATIM.md),
+and his [corrections to the first synthesis](../ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CORRECTIONS-VERBATIM.md)
 are preserved separately, with only the retired project name normalized.
 This document guides the work ahead; the [specification](spec.md) describes
 the current graph engine. The Go-program runtime described here has not been
@@ -81,11 +82,17 @@ proceeds. A graph can remain a useful derived view.
 
 ## Workflow code should read like pseudocode
 
-Tyler's standard is that roughly a page of workflow code should give a reader
-an excellent sense of the workflow. This is a comprehension target, not a
-line-count limit. At the intended level of detail, the reader should see the
-major stages, enclosing loops, continuation and exit conditions, validation,
-and any supervision or parallel work that defines the method.
+Tyler's standard is that a workflow definition should ideally fit into a page
+or two of Go that resembles pseudocode and gives a reader an excellent sense
+of the workflow. This is a comprehension target, not a line-count limit. At
+the intended level of detail, the reader should see the major stages,
+enclosing loops, continuation and exit conditions, validation, and any
+supervision or parallel work that defines the method.
+
+This is first an API-design ideal, not a claim about diagrams. Gimble's API
+should be developed by asking whether it lets authors state an orchestration
+method this clearly. A derived diagram can help explain the result, but it is
+secondary to source that already reads as an intelligible workflow.
 
 Function and type names, indirection, composition, and DRYness should be
 judged by their contribution to that understanding. The same standard should
@@ -203,12 +210,25 @@ to a concrete repair in collection or navigation. This provides a practical
 way to assess the pair without making exhaustive research or a large
 index-maintenance system a prerequisite for every task.
 
-## Learn from runs through useful telemetry
+## Recovery from wayward execution remains an open problem
 
-Tyler's longer-term aim is to investigate runs that failed, took too long,
-used too many tokens, or repeated too many steps by examining their context
-engineering. The following is a proposed information set for that purpose,
-not a first-version event schema:
+Gimble should eventually help a workflow recognize that it has lost the point
+and steer back toward its declared goal. That is a desired capability, not a
+designed mechanism. There is no established "compass" abstraction or general
+self-correction method today.
+
+Good supervisor steering is the only concrete approach currently identified:
+an observer with the right perspective notices drift and corrects the active
+work. Future designs may discover other mechanisms, but documentation and APIs
+must not imply that one has already been selected.
+
+## Learn from bad runs through useful telemetry
+
+Tyler's longer-term priority is diagnostic: investigate why a workflow
+wandered, failed, cost too much, or needed unwanted steering. Analysis of
+successful runs may also help, but it is not the center of this requirement.
+The following is a proposed information set for examining the context
+engineering of those bad runs, not a first-version event schema:
 
 | Information to inspect | What it helps investigate |
 | --- | --- |

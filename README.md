@@ -8,7 +8,8 @@
 An agent does the work, a command decides when it's done, and a
 supervisor keeps watch — long after you close your laptop.
 
-[Specification](docs/spec.md) · [Examples](examples/README.md) ·
+[Documentation](docs/README.md) · [Specification](docs/spec.md) ·
+[Examples](examples/README.md) ·
 [Implementation notes](docs/implementation-notes.md) ·
 [Direction](docs/direction.md) · [Go workflows](docs/workflows-as-programs.md) ·
 [Agent reference](llms.txt)
