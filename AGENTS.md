@@ -40,3 +40,21 @@ records the rules, each marked as decided by Tyler or proposed by an agent.
 
 `reference/` holds upstream projects mounted as submodules for reading only.
 Never commit inside one and never push from one. See `reference/README.md`.
+
+## Repository size and generated artifacts
+
+- Never commit Gimble run directories, event streams, stage transcripts,
+  prompts, responses, checkpoints, or raw tool logs. Keep them local. Commit a
+  small human-authored summary only when the result is worth preserving.
+- Do not vendor large third-party source trees, research corpora, binaries,
+  archives, nested repositories, or generated dependency caches. Record our
+  findings and cite the upstream source. If the repository genuinely needs to
+  attach a substantial external codebase, use a submodule pinned to a reviewed
+  upstream commit.
+- Exercise judgment before staging broad changes. Review the staged diff and
+  investigate unexpected file counts, added lines, or bytes. Do not split
+  unwanted material across commits merely to evade the limits.
+- `scripts/check-staged-content.sh` enforces the mechanical floor. Its large
+  commit bypass is for an explicitly human-approved exception; agents must not
+  set `GIMBLE_ALLOW_LARGE_COMMIT=1` on their own. The run-log prohibition is
+  not bypassable.

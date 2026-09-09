@@ -6,7 +6,9 @@
 /.svelte-check
 web/editor/node_modules
 web/editor/.svelte-kit
-.gimble/
+.gimble/run/
+.gimble/runs/
+ephemeral/**/run/
 ephemeral/**/runs/
 ephemeral/**/logs/
 ephemeral/**/*-logs/

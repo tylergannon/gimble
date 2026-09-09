@@ -6,6 +6,9 @@
 
 pre-commit:
   jobs:
+    - name: staged-content-policy
+      run: bash scripts/check-staged-content.sh
+
     - name: formatters
       group:
         parallel: true
