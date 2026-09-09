@@ -1,6 +1,6 @@
 {
   "name": "gimble",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Run and steer Gimble pipelines from Codex through MCP.",
   "author": {
     "name": "Tyler Gannon",
