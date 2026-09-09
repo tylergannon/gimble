@@ -1,0 +1,23 @@
+# Pydantic Graph: explicit typed graph and honest pre-execution visualization
+
+Purpose: Pydantic Graph is a maintained, Python-only comparison point for the things an explicit graph buys: topology validation, typed node transitions, and faithful Mermaid rendering. Snapshot: MIT, commit `edcb123c1dd085129c0db1b40904b374da04b663`; GitHub API reported non-archived on 2026-09-08, release `v2.41.0` published that day. Corpus and hashes: `imperative/manifest.json`.
+
+## Findings
+
+- It is not ordinary Pydantic AI agent code: its own docs call it an async graph/state-machine library with no dependency on `pydantic-ai`, aimed at advanced Python users. Treat it as a graph-runtime comparator, not a candidate embedding dependency. `imperative/pydantic-ai/graph.md:15-21` ([pinned docs](https://github.com/pydantic/pydantic-ai/blob/edcb123c1dd085129c0db1b40904b374da04b663/docs/graph.md#L15-L21)).
+- Nodes supply business logic, while `run` return annotations determine outgoing edges. A `GraphBuilder` explicitly registers nodes/edges and then builds an executable graph. This makes complete pre-run topology knowable, but imposes graph authoring and type/edge bookkeeping. `imperative/pydantic-ai/graph.md:47-61`, `imperative/pydantic-ai/graph.md:113-186` ([pinned docs](https://github.com/pydantic/pydantic-ai/blob/edcb123c1dd085129c0db1b40904b374da04b663/docs/graph.md#L47-L186)).
+- The preview is honest because it renders a materialized graph's `nodes` and `edges_by_source`; `render()` has no claim to discover arbitrary Python control flow. `imperative/pydantic-ai/pydantic_graph/graph_builder.py:363-386`, `imperative/pydantic-ai/graph.md:591-593` ([pinned source](https://github.com/pydantic/pydantic-ai/blob/edcb123c1dd085129c0db1b40904b374da04b663/pydantic_graph/pydantic_graph/graph_builder.py#L363-L386)).
+
+## Consequence for a Go-program preview
+
+Pydantic Graph demonstrates a useful boundary, not a reason to retain Tractor graph authoring: an accurate diagram comes from *declared edges*. A source-derived Go preview can show syntactic `if`/`for`/`switch` structure, source condition text, both lexical branch bodies, and statically resolved calls or closures. It must mark unresolved dynamic dispatch, reflection, and runtime-computed fan-out cardinality as uncertain. It cannot promise the graph-runtime guarantee that its selected abstraction covers every semantic route unless analysis or selective declarations establish that claim.
+
+Strongest counterargument: keeping a small explicit graph IR for preview/validation makes routing, joins, and visualization unambiguous, whereas a source extractor will be conservative and can drift from runtime wrappers. This is a product trade: avoid an authoring graph only if the preview contract says "structural aid, not executable plan" and tests pin that scope.
+
+## Pydantic AI agent outputs (separate from Pydantic Graph)
+
+The adjacent Pydantic AI API supplies a stronger model-output comparison than its graph package. Its documented `Agent(output_type=CityLocation)` returns an `AgentRunResult` generic in the selected output type, preserving the domain type alongside usage and message history. `imperative/pydantic-ai/output.md:1-27` ([pinned docs](https://github.com/pydantic/pydantic-ai/blob/edcb123c1dd085129c0db1b40904b374da04b663/docs/output.md#L1-L27)). For ordinary structured outputs it builds a JSON schema with Pydantic, uses tool calling by default, validates returned data with Pydantic, and carries that type through the result; unions become separate output tools. `imperative/pydantic-ai/output.md:32-46` ([pinned docs](https://github.com/pydantic/pydantic-ai/blob/edcb123c1dd085129c0db1b40904b374da04b663/docs/output.md#L32-L46)).
+
+Its useful extension is an output function/validator: model-provided arguments are validated and an `ModelRetry` can return a correction request to the model; each output-validator retry consumes a bounded output-retry budget. `imperative/pydantic-ai/output.md:118-126`, `imperative/pydantic-ai/output.md:569-575` ([pinned docs](https://github.com/pydantic/pydantic-ai/blob/edcb123c1dd085129c0db1b40904b374da04b663/docs/output.md#L569-L575)). The caveat is material: custom `StructuredDict` schemas are passed to the model but are not locally validated, requiring defensive reads or an output validator. `imperative/pydantic-ai/output.md:482-488`. Copy the typed-call/validation/retry boundary, not the Python API; this documentation was inspected, not executed against Tractor adapters.
+
+Retrieval recipe: use `imperative/pydantic-ai/graph.md:124` for the smallest typed-loop example and `imperative/pydantic-ai/pydantic_graph/graph_builder.py:363` for the actual renderer.

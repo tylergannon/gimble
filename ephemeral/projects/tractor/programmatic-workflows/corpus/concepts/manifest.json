@@ -1,0 +1,61 @@
+{
+  "retrieved_at": "2026-09-08T16:42:16.130738+00:00",
+  "files": [
+    {
+      "repository": "kubernetes-sigs/controller-runtime",
+      "commit": "91e819d2dbfe0f8c6e37cacec3b04c3004afc97a",
+      "upstream_path": "pkg/reconcile/reconcile.go",
+      "local_path": "concepts/kubernetes-sigs--controller-runtime/pkg/reconcile/reconcile.go.txt",
+      "sha256": "53513474e78cc57961b5131d79bddef1a24f9ec243c9b155af7d6a98ec05be40",
+      "url": "https://github.com/kubernetes-sigs/controller-runtime/blob/91e819d2dbfe0f8c6e37cacec3b04c3004afc97a/pkg/reconcile/reconcile.go"
+    },
+    {
+      "repository": "kubernetes-sigs/controller-runtime",
+      "commit": "91e819d2dbfe0f8c6e37cacec3b04c3004afc97a",
+      "upstream_path": "LICENSE",
+      "local_path": "concepts/kubernetes-sigs--controller-runtime/LICENSE",
+      "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+      "url": "https://github.com/kubernetes-sigs/controller-runtime/blob/91e819d2dbfe0f8c6e37cacec3b04c3004afc97a/LICENSE"
+    },
+    {
+      "repository": "kubernetes/website",
+      "commit": "8ddcb47f4571c91c0d0544eae477c1efdfdeefe5",
+      "upstream_path": "content/en/docs/concepts/architecture/controller.md",
+      "local_path": "concepts/kubernetes--website/content/en/docs/concepts/architecture/controller.md",
+      "sha256": "dc74e2d9f6debb9e903bed3041b132534ed757fff0fd54677f502c80a987f323",
+      "url": "https://github.com/kubernetes/website/blob/8ddcb47f4571c91c0d0544eae477c1efdfdeefe5/content/en/docs/concepts/architecture/controller.md"
+    },
+    {
+      "repository": "kubernetes/website",
+      "commit": "8ddcb47f4571c91c0d0544eae477c1efdfdeefe5",
+      "upstream_path": "LICENSE",
+      "local_path": "concepts/kubernetes--website/LICENSE",
+      "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411",
+      "url": "https://github.com/kubernetes/website/blob/8ddcb47f4571c91c0d0544eae477c1efdfdeefe5/LICENSE"
+    },
+    {
+      "repository": "golang/tools",
+      "commit": "2af88d6fb782ffc8a0f607598345de595cd60c27",
+      "upstream_path": "go/cfg/cfg.go",
+      "local_path": "concepts/golang--tools/go/cfg/cfg.go.txt",
+      "sha256": "ba0132ea1839cb6fa4cc868c792db6f0233022b7626a6f39d28db57190ce3529",
+      "url": "https://github.com/golang/tools/blob/2af88d6fb782ffc8a0f607598345de595cd60c27/go/cfg/cfg.go"
+    },
+    {
+      "repository": "golang/tools",
+      "commit": "2af88d6fb782ffc8a0f607598345de595cd60c27",
+      "upstream_path": "go/cfg/builder.go",
+      "local_path": "concepts/golang--tools/go/cfg/builder.go.txt",
+      "sha256": "9aa7a6cbdfdaed21f16f9ce7815d7ad082126daa9cf9cf31564a5d4734a34826",
+      "url": "https://github.com/golang/tools/blob/2af88d6fb782ffc8a0f607598345de595cd60c27/go/cfg/builder.go"
+    },
+    {
+      "repository": "golang/tools",
+      "commit": "2af88d6fb782ffc8a0f607598345de595cd60c27",
+      "upstream_path": "LICENSE",
+      "local_path": "concepts/golang--tools/LICENSE",
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+      "url": "https://github.com/golang/tools/blob/2af88d6fb782ffc8a0f607598345de595cd60c27/LICENSE"
+    }
+  ]
+}

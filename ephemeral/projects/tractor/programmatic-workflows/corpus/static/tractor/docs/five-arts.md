@@ -9,10 +9,6 @@ These are the things Tractor is for. They are **competing** priorities, not a
 checklist — progress on one can cost another, and noticing that trade is part
 of the work.
 
-The later [Tractor direction](direction.md) applies these aims to ordinary
-Go workflow authoring, legibility, context engineering, and learning from
-actual runs. It preserves the tensions below.
-
 ## 1. Ensure the agent actually does the work
 
 An agent will report success it did not earn. Everything that makes completion

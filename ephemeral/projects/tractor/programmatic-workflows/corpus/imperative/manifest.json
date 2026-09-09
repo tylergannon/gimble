@@ -1,0 +1,66 @@
+{
+  "collected_at": "2026-09-08",
+  "method": "Shallow clones used only to copy the listed text sources; no fetched code was executed. SHA-256 values identify the local copies.",
+  "sources": [
+    {
+      "repository": "https://github.com/VirtusLab/orca",
+      "commit": "76e46122add1fd781432f8e6281728a55fc938f8",
+      "status_checked_at": "2026-09-08",
+      "status": {"archived": false, "latest_release": "v0.1.6", "published_at": "2026-08-28T10:30:01Z", "license": "Apache-2.0"},
+      "files": [
+        {"path": "orca/LICENSE", "original_path": "LICENSE", "sha256": "ff61ba56c8de972bd5a31f1c5ee531e2d1817c10a164829d2dadad7025a56005"},
+        {"path": "orca/README.md", "original_path": "README.md", "sha256": "27e56431d52a5161e6171dbc16ca297e53d3ea7d9dc033a6d93ca23f66b7f913"},
+        {"path": "orca/adr/0005-flow-dsl-reshape.md", "original_path": "adr/0005-flow-dsl-reshape.md", "sha256": "92d0ea330bbddb0de50a920d93f709d1eb4cdd0c6c9a5d3cd65ffe91ece9514c"},
+        {"path": "orca/adr/0018-stage-bound-flow-runtime.md", "original_path": "adr/0018-stage-bound-flow-runtime.md", "sha256": "5d027928322efe9fbc364a4799c49b2ee42c2d5faea947c4ef13e3c772e1e184"},
+        {"path": "orca/flow/Flow.scala", "original_path": "flow/src/main/scala/orca/Flow.scala", "sha256": "03376328e8c7be51b6114054418bc9a4cb811ad80bf9cf5bc6e7ac16511e0b66"},
+        {"path": "orca/flow/FlowContext.scala", "original_path": "flow/src/main/scala/orca/FlowContext.scala", "sha256": "f9effada647b71396d39377d5c89cde849a89bbee916a3e556e9354e80307bf0"},
+        {"path": "orca/flow/ProgressLog.scala", "original_path": "flow/src/main/scala/orca/progress/ProgressLog.scala", "sha256": "372a84252ce64d52d29e332bed4b851ffc196eddb8cfd85a1b18ce552d447c99"},
+        {"path": "orca/flow/ProgressStore.scala", "original_path": "flow/src/main/scala/orca/progress/ProgressStore.scala", "sha256": "fea19e8cbed1e36e83592ed850bc86f0c275b15eda7a55394e7cd3422459b835"},
+        {"path": "orca/tools/Agent.scala", "original_path": "tools/src/main/scala/orca/agents/Agent.scala", "sha256": "7315d7155a2cb89efe6d6d9378c90141ba5afe1097f0d61a2d10f35bdcbe46c4"},
+        {"path": "orca/tools/AgentCall.scala", "original_path": "tools/src/main/scala/orca/agents/AgentCall.scala", "sha256": "ce03edc98bb8616945b8d13af06c2aa1c64ba23a5407f6ab050321edae8b98e2"},
+        {"path": "orca/tools/JsonData.scala", "original_path": "tools/src/main/scala/orca/agents/JsonData.scala", "sha256": "a628f94ef0ab013b6b04afd781f033bbe2f759a49c033f67830b0aa21d5657e7"}
+      ]
+    },
+    {
+      "repository": "https://github.com/pydantic/pydantic-ai",
+      "commit": "edcb123c1dd085129c0db1b40904b374da04b663",
+      "status_checked_at": "2026-09-08",
+      "status": {"archived": false, "latest_release": "v2.41.0", "published_at": "2026-09-08T04:15:21Z", "license": "MIT"},
+      "files": [
+        {"path": "pydantic-ai/LICENSE", "original_path": "LICENSE", "sha256": "bc0e89738f36944c8106e1947c3d69631f9c33b8f1bcb60ec4f89d677d2dfcf4"},
+        {"path": "pydantic-ai/graph.md", "original_path": "docs/graph.md", "sha256": "6fee70609a760bbb5f2a61d3c3e4ce516e04aac57e4125a5bcfc2c37c8881e57"},
+        {"path": "pydantic-ai/output.md", "original_path": "docs/output.md", "sha256": "73302ba2808e665ef0904345f8b82d0cc07e79bd94a376f0c26e33ad9399abcc"},
+        {"path": "pydantic-ai/pydantic_graph/LICENSE", "original_path": "pydantic_graph/LICENSE", "sha256": "bc0e89738f36944c8106e1947c3d69631f9c33b8f1bcb60ec4f89d677d2dfcf4"},
+        {"path": "pydantic-ai/pydantic_graph/README.md", "original_path": "pydantic_graph/README.md", "sha256": "bcdf034b7d95f94bd82b8da1ce9aa6aefb0dd7905c6ff7442ceef93e50742ae2"},
+        {"path": "pydantic-ai/pydantic_graph/basenode.py", "original_path": "pydantic_graph/pydantic_graph/basenode.py", "sha256": "35298634b6e83a64eb479cc4a3f2b54495b72284350a99754b44a66a723bf52e"},
+        {"path": "pydantic-ai/pydantic_graph/graph_builder.py", "original_path": "pydantic_graph/pydantic_graph/graph_builder.py", "sha256": "330454e15f85e4b70e25b576a42bf6bd4383ae12f19651e52eb26b7293934d45"}
+      ]
+    },
+    {
+      "repository": "https://github.com/genkit-ai/genkit",
+      "commit": "192f84a4b7532d815fd0bc37b8dc845d7296f420",
+      "status_checked_at": "2026-09-08",
+      "status": {"archived": false, "latest_repository_release": "py/v0.11.0", "latest_repository_release_published_at": "2026-09-03T22:54:24Z", "latest_go_release": "go/v1.13.1", "latest_go_release_published_at": "2026-09-03T16:55:57Z", "license": "Apache-2.0"},
+      "files": [
+        {"path": "genkit/LICENSE", "original_path": "LICENSE", "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"},
+        {"path": "genkit/go/core/flow.go.txt", "original_path": "go/core/flow.go", "sha256": "f85e6c90fd6fac8b42526e774eb079b4a469ed3101d23613f418a04592473d49"},
+        {"path": "genkit/go/core/action.go.txt", "original_path": "go/core/action.go", "sha256": "3adea40d0556dd2052789a18faa2635c0c7f951998c3b53819c66198b9803b80"},
+        {"path": "genkit/go/genkit/genkit.go.txt", "original_path": "go/genkit/genkit.go", "sha256": "e1128b8f2881718c5863c1c9ed9b0e65e32d21440c6890c66f6602bc8c23a7d0"},
+        {"path": "genkit/go/genkit/reflection.go.txt", "original_path": "go/genkit/reflection.go", "sha256": "8feb2e276dae8a1ceab2ae484ec078c7434fe9c4dfebb88171eb0e5c2c179a1f"}
+      ]
+    },
+    {
+      "repository": "https://github.com/google/adk-go",
+      "commit": "b52d1fbeaa3b457bc739269a79846b569bc12c55",
+      "status_checked_at": "2026-09-08",
+      "status": {"archived": false, "latest_release": "v2.3.0", "published_at": "2026-08-31T14:44:57Z", "license": "Apache-2.0"},
+      "files": [
+        {"path": "adk-go/LICENSE", "original_path": "LICENSE", "sha256": "a3a9561796a2be6b18c2bd90272a776e8d060a8ace80a5bc0aa6fe93b5750515"},
+        {"path": "adk-go/README.md", "original_path": "README.md", "sha256": "ab4fa889002e320bb5a6aa1ec7931b8e8ca0d7d313eea4c2bed8d77e60347832"},
+        {"path": "adk-go/agent/workflowagents/loopagent/agent.go.txt", "original_path": "agent/workflowagents/loopagent/agent.go", "sha256": "3f2e02bffcd48fb66cce0604fd4d2be0e2cd6542581b1d3fbb6976835ab8052c"},
+        {"path": "adk-go/agent/llmagent/llmagent.go.txt", "original_path": "agent/llmagent/llmagent.go", "sha256": "07d53cba0a117c9c57d7086c4c018f38dc21de3308dbe48bc039c49b4a076ac1"},
+        {"path": "adk-go/server/adkrest/internal/services/agentgraphgenerator.go.txt", "original_path": "server/adkrest/internal/services/agentgraphgenerator.go", "sha256": "0dfaadaf4d715f70b9887eea2df34982f1f2b4bbfa03318c9f2af2b83f956268"}
+      ]
+    }
+  ]
+}

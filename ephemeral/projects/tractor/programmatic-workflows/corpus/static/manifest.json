@@ -1,0 +1,66 @@
+{
+  "retrieved_at": "2026-09-08",
+  "scope": "Selective, immutable source snapshots for Tractor and two comparison implementations; no fetched code was executed.",
+  "tractor": {
+    "repository": "github.com/tylergannon/tractor",
+    "commit": "07c04ff4c62ff91c625d2e27b6427cd594f67f39",
+    "source_url": "https://github.com/tylergannon/tractor/tree/07c04ff4c62ff91c625d2e27b6427cd594f67f39"
+  },
+  "alternatives": {
+    "dagger": {
+      "repository": "github.com/dagger/dagger",
+      "commit": "d8811256e5e901e6760f7011431080fedd61fc47",
+      "source_url": "https://github.com/dagger/dagger/tree/d8811256e5e901e6760f7011431080fedd61fc47",
+      "license": "Apache-2.0"
+    },
+    "langgraph": {
+      "repository": "github.com/langchain-ai/langgraph",
+      "commit": "81bf17b23123e4ef8b9d5f49fa09a0122fc2edd1",
+      "source_url": "https://github.com/langchain-ai/langgraph/tree/81bf17b23123e4ef8b9d5f49fa09a0122fc2edd1",
+      "license": "MIT"
+    },
+    "langgraphjs_docs": {
+      "repository": "github.com/langchain-ai/langgraphjs",
+      "commit": "bbbdb5aa8a50f7115bdfbb6e3cf020ee239e1842",
+      "source_url": "https://github.com/langchain-ai/langgraphjs/tree/bbbdb5aa8a50f7115bdfbb6e3cf020ee239e1842",
+      "license": "MIT"
+    }
+  },
+  "files": [
+    {"local_path":"static/dagger/LICENSE","upstream_path":"LICENSE","sha256":"4442a42853bd02d190ce5f06f76ba62f1a0ff803e8cc1a524dcaa7085a0b100b"},
+    {"local_path":"static/dagger/clients-sdk.mdx","upstream_path":"docs/current_docs/getting-started/api/clients-sdk.mdx","sha256":"3eaf3defabbf0cf41397d47ace56d2a6c6b8684fced6301de4943366cfd13735"},
+    {"local_path":"static/dagger/functions.mdx","upstream_path":"docs/current_docs/introduction/core-concepts/functions.mdx","sha256":"527b56117369d3d5bcf5670367da3e9ffb0da297b69c496261da2036af21ecec"},
+    {"local_path":"static/dagger/operator_manual.md","upstream_path":"core/docs/d7yxc-operator_manual.md","sha256":"482cff58c14ab3d8a4e3386a94471e6d8018612b91a4b090750ee193640f74f0"},
+    {"local_path":"static/dagger/querybuilder.go.txt","upstream_path":"sdk/go/querybuilder/querybuilder.go","sha256":"ab5aa5b4a906207cb66cda33dbc629ef4e3aed310d3a50f51268500556b72278"},
+    {"local_path":"static/dagger/sdk-go-README.md","upstream_path":"sdk/go/README.md","sha256":"f93eb599733fff8149dab283d8b2bb9ef141dbd6a6859e271c3289b66990888f"},
+    {"local_path":"static/langgraph/LICENSE","upstream_path":"LICENSE","sha256":"d9bb52f2e3540d60ff50d8f0f5b6ba649b7fd346948c4c3d086c8afb120763c7"},
+    {"local_path":"static/langgraph/draw.py","upstream_path":"libs/langgraph/langgraph/pregel/_draw.py","sha256":"4039bab2d51151dbb1d32d07c33caa2720b5fdafd948ac0674b6fb7ec3c68028"},
+    {"local_path":"static/langgraph/functional.py","upstream_path":"libs/langgraph/langgraph/func/__init__.py","sha256":"f07e4a9f9bac75e2b48ac987fb91ca8c13a0a3d40723aa1997840bcde56732b7"},
+    {"local_path":"static/langgraphjs-functional_api.md","upstream_path":"docs/docs/concepts/functional_api.md","sha256":"05e04112f14959346b3781b80ef5e63102d0e95f8ccd8f605d027079a44260e0"}
+  ],
+  "tractor_files": [
+    {"local_path":"static/tractor/LICENSE","upstream_path":"LICENSE","sha256":"fa983b5f452fde13fcffd9d9a78dd5b42255fab5de9a4aec579744df11e55885"},
+    {"local_path":"static/tractor/docs/five-arts.md","upstream_path":"docs/five-arts.md","sha256":"ae925212e1a41d75ae860b5572d1b71bb3e483cb5593a39aa025269bd5618777"},
+    {"local_path":"static/tractor/engine/codergen.go.txt","upstream_path":"engine/codergen.go","sha256":"6096f1856d20f692c6c7738999bf4a1a12c2ed80d00be0a3504ce64d027b751f"},
+    {"local_path":"static/tractor/engine/control.go.txt","upstream_path":"engine/control.go","sha256":"23ade188e6fb22773b793dec401649eecef7d3e7aa2d3eaa2eeb95631b028a28"},
+    {"local_path":"static/tractor/engine/runner.go.txt","upstream_path":"engine/runner.go","sha256":"f23136fd86d64f6976be6965b213f49c1b163bda11efc1de72ef3941eca69df4"},
+    {"local_path":"static/tractor/engine/state.go.txt","upstream_path":"engine/state.go","sha256":"dc4620e18376d908fd2c8eb7bd2de7d752eac34fd272d743eb24d1ab3b30f901"},
+    {"local_path":"static/tractor/engine/store.go.txt","upstream_path":"engine/store.go","sha256":"479873b9e3ab298f649b37305f08f97fb1194202027919df9b89428feeafa02b"},
+    {"local_path":"static/tractor/graph/graph.go.txt","upstream_path":"graph/graph.go","sha256":"bd8c74d6e6b5076ae5acd128313a1dae6e98f8adf292eb4efc78a2ce3d14514b"},
+    {"local_path":"static/tractor/graph/parse.go.txt","upstream_path":"graph/parse.go","sha256":"bed132e8f638dd7fa9d330df57c95fef2138a1ef67c387ffc960695a512eed51"},
+    {"local_path":"static/tractor/harness/contract.go.txt","upstream_path":"harness/contract.go","sha256":"ac66de329cfd30a89df266cfffa62f0323701bad9b5a804e5b3122762bfe8ae1"},
+    {"local_path":"static/tractor/harness/result.go.txt","upstream_path":"harness/result.go","sha256":"04be370eb4cbd9c87df985bceb67d4f3b94200ecfa5c2af2c1cedf4a6cf653a4"},
+    {"local_path":"static/tractor/harness/backend.go.txt","upstream_path":"harness/backend.go","sha256":"aa710b9b88b93c638e08aab6bbcbda267247dd9bf7bc22bd23981413977ff5e0"},
+    {"local_path":"static/tractor/harness/backend_test.go.txt","upstream_path":"harness/backend_test.go","sha256":"0c6aea9ca8b40d01b297e8210e19760992c38641b7616f04ab8fa5508d4e717a"},
+    {"local_path":"static/tractor/cmd-run_prompt.go.txt","upstream_path":"cmd/tractor/run_prompt.go","sha256":"9580ac779bf150a4538adac34162d31d6f59b8cd29ecf448725a65eb6ec5830c"},
+    {"local_path":"static/tractor/lint/analysis.go.txt","upstream_path":"lint/analysis.go","sha256":"65dbd6a47eab620ae13738872f07ea18bc706618b48c9d3d47fb4a78ffda8c83"},
+    {"local_path":"static/tractor/lint/lint.go.txt","upstream_path":"lint/lint.go","sha256":"9a0beb38e11b691ff20e14f61191a7d8417eee58912c4297ac1b3385e97608d7"},
+    {"local_path":"static/tractor/lint/rules.go.txt","upstream_path":"lint/rules.go","sha256":"269990e7d5e718ce8b0575a33812be4d65d91478ab498d4c8615df8ec80fbece"},
+    {"local_path":"static/tractor/lint/topology.go.txt","upstream_path":"lint/topology.go","sha256":"8bd680f98c0986132db815cb485a71513fc7521e0eb4095dd9348c9f804c00ee"},
+    {"local_path":"static/tractor/internal/workflows/workflows.go.txt","upstream_path":"internal/workflows/workflows.go","sha256":"9000ecd84e7c2a4e3260b98ff82ce75c5d3d84e1c3f2687e062e0d31685da38c"},
+    {"local_path":"static/tractor/internal/workflows/sprint-execute.yaml","upstream_path":"internal/workflows/sprint-execute.yaml","sha256":"1e57a79e6b0e3e950d88485bb2883fd34f9515e2ff8f7a4d51dba4f5753d11f3"},
+    {"local_path":"static/tractor/internal/workflows/chapter-loop.yaml","upstream_path":"internal/workflows/chapter-loop.yaml","sha256":"97ef2e60ee95158778897470c189fc8d7bd8d59ca300472e3ad9b6655e332daa"},
+    {"local_path":"static/tractor/internal/workflows/delivery-loop.yaml","upstream_path":"internal/workflows/delivery-loop.yaml","sha256":"3a53d94dc6146d53f87ea85079263f888f7a9b3b68d5e348877114ec5236440c"},
+    {"local_path":"static/tractor/workflow-designer/rules.md","upstream_path":"ephemeral/projects/tractor/workflow-designer/rules.md","sha256":"faf9135f5d72f85635e1ba56a1dafcc30316a0b21836ecab040fa5241525bb84"}
+  ]
+}

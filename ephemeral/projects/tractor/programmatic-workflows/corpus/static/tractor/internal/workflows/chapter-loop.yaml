@@ -1,0 +1,128 @@
+name: chapter-loop
+goal: >
+  Advance the chapter ledger: each chapter runs its own sprint ledger, each
+  sprint runs the coding and validation loop, all in one run.
+start: chapters
+
+defaults:
+  timeout: 3600s
+  fidelity: none
+  max_retries: 1
+  model:
+    name: claude-sonnet-5
+
+# One loop shape at every level, one run, no child runs per chapter. The
+# chapter ledger's items each carry a `checklist:` field naming that
+# chapter's sprint ledger; the inner loop node omits `checklist` and iterates
+# whatever the enclosing chapter item points at.
+#
+# A chapter is proven, not demonstrated: its ledger item carries the command
+# and the infer judge that constitute the proof, and the engine flips done
+# only when both pass. That is the chapter exit gate, expressed where the
+# engine already owns it.
+#
+# max_visits counts per activation, so the sprint loop's budget is per
+# chapter rather than across the whole run.
+#
+# There is no test node. The mechanical gate is each ledger item's own command,
+# which the loop node runs on arrival, so nothing here assumes a language or a
+# build system.
+nodes:
+  - id: chapters
+    type: loop
+    checklist: docs/chapters/ledger.md
+    max_visits: 12
+    edges:
+      loop: sprints
+      exit: success
+    goal_evaluator:
+      model:
+        name: fable
+
+  - id: sprints
+    type: loop
+    max_visits: 40
+    edges:
+      loop: implement
+      exit: chapters
+    goal_evaluator:
+      model:
+        name: fable
+
+  - id: implement
+    type: agent
+    max_visits: 12
+    model:
+      name: claude-opus-5
+    prompt: >
+      Execute the current sprint, keeping the work aligned with the chapter
+      it belongs to and inside that chapter's non-goals.
+
+      The run's goal, which frames the work but never replaces the current
+      item: $goal
+    edges:
+      - to: review
+
+  - id: review
+    type: agent
+    max_visits: 12
+    model:
+      name: gpt
+    prompt: >
+      Review the work against the current sprint's document and the chapter
+      it serves. Run the software yourself. Name any specific material defect
+      that needs repair. The engine runs the item's check and owns done.
+
+      The run's goal, which frames the work but never replaces the current
+      item: $goal
+    edges:
+      - to: sprints
+        condition: The work is ready for the engine's check, or that check is needed to settle uncertainty.
+      - to: implement
+        condition: You found a specific material defect to fix before the engine's check.
+
+  - id: serves_the_requirement
+    type: supervisor
+    supervises: [implement, review]
+    interval: 180s
+    timeout: 180s
+    model:
+      name: claude-sonnet-5
+    prompt: >
+      You watch for work nobody asked for.
+
+      Steer when an agent is fixing something speculative, hardening against a
+      condition the requirement never mentions, handling edge cases that are
+      not part of the stated outcome, or adding a second mechanism where one
+      already works. Belt and suspenders is the failure, not the safeguard.
+
+      Say ok on every patrol where the work in flight is the work that was
+      asked for. Most patrols should be ok; a supervisor that steers
+      constantly is noise. When you do steer, name the specific thing to drop
+      and say why it is not part of the outcome.
+
+  - id: proof_is_evidence
+    type: supervisor
+    supervises: [review]
+    interval: 180s
+    timeout: 180s
+    model:
+      name: claude-sonnet-5
+    prompt: >
+      You watch for proof becoming a project of its own.
+
+      Proof here means running the software and recording what happened. It is
+      not an ideal to be approached and never reached: not exhaustive
+      coverage, not a harness that anticipates every input, not a suite that
+      outlives the requirement it was written for. Steer when an agent starts
+      building validation machinery instead of exercising the thing that was
+      built, when it invents requirements the work never promised so it can
+      test them, or when it treats a check it cannot construct as evidence
+      that the work is unfinished.
+
+      Steer toward the concrete: run the software the way someone would
+      actually use it, capture the output, the screenshot, or the recording,
+      and say plainly whether it worked.
+
+      Say ok whenever the agent is running the real thing and collecting
+      evidence of what it did.

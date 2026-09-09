@@ -1,0 +1,181 @@
+name: delivery-loop
+goal: >
+  Turn a specification into working software: plan, critique the plan, then
+  loop coding and validation until the plan's items are demonstrated.
+start: plan
+
+defaults:
+  timeout: 1800s
+  fidelity: none
+  max_retries: 1
+  model:
+    name: claude-sonnet-5
+
+# The delivery loop, with the plan as a checklist the engine owns.
+#
+# plan_update writes plan.md as a checklist file: YAML frontmatter items,
+# each with the command that demonstrates it, and the definition of done in
+# the prose below. From there the loop node validates every item itself. The
+# coding agent cannot check a box, the reviewer cannot check a box, and no
+# protocol is needed to stop them trying.
+#
+# The coding node keeps its native session across laps (fidelity: full), so
+# it resumes rather than re-reading the workspace from scratch. Review runs
+# on the other provider with fresh context.
+nodes:
+  - id: plan
+    type: agent
+    model:
+      name: fable
+    prompt: >
+      $goal
+
+      Read the specification named above, do focused recon of this workspace,
+      and write
+      plan.md as a checklist: YAML frontmatter with one item per unit of
+      work, each with a name, the check that proves it, and the command that
+      runs the check. Put the definition of done in the prose below the
+      frontmatter. Do not write a done field on any item.
+    edges:
+      - to: plan_critique
+
+  - id: plan_critique
+    type: agent
+    model:
+      name: gpt
+    prompt: >
+      $goal
+
+      Read that specification and plan.md. Write plan-critique.md: where the
+      plan is wrong, where it is missing work, where an item's check would
+      pass while the item is false, and where it is stricter than the
+      specification requires.
+    edges:
+      - to: plan_update
+
+  - id: plan_update
+    type: agent
+    model:
+      name: fable
+    prompt: >
+      $goal
+
+      Read that specification, plan.md, and plan-critique.md. Rewrite plan.md,
+      taking only the changes that reduce risk or make the work provable.
+      Keep the checklist shape and write no done fields.
+    edges:
+      - to: work
+
+  - id: work
+    type: loop
+    checklist: plan.md
+    max_visits: 40
+    edges:
+      loop: coding
+      exit: success
+    goal_evaluator:
+      model:
+        name: fable
+
+  - id: coding
+    type: agent
+    max_visits: 12
+    model:
+      name: gpt
+    fidelity: full
+    prompt: >
+      Do the current plan item. Test what you write, run the repository's
+      standard test set, and commit with specific paths.
+    edges:
+      - to: review
+
+  - id: review
+    type: agent
+    max_visits: 12
+    model:
+      name: claude-opus-5
+    prompt: >
+      $goal
+
+      Review the current item against that specification. Run the software and
+      the repository's test set yourself rather than reading the diff. Name any
+      specific material defect that needs repair. The engine runs the item's
+      check and owns done.
+    edges:
+      - to: work
+        condition: The work is ready for the engine's check, or that check is needed to settle uncertainty.
+      - to: coding
+        condition: You found a specific material defect to fix before the engine's check.
+
+  - id: done_is_demonstrable
+    type: supervisor
+    supervises: [plan, plan_critique, plan_update]
+    interval: 180s
+    timeout: 180s
+    model:
+      name: claude-sonnet-5
+    prompt: >
+      You watch how the plan says what done means.
+
+      A definition of done names the behavior someone can watch and the
+      evidence that will show it. It does not enumerate the commands a
+      developer would run. Steer when a definition of done is a list of
+      tooling invocations — run the test suite, run the linter, run the
+      pre-commit hook — because none of those say whether the thing exists.
+      Steer when the plan breaks the work into pedantic ordered steps that
+      presume how the implementer will think.
+
+      Steer toward the shape that works: say what to build, how it will be
+      demonstrated, and what evidence to keep. For a user-facing change that
+      reads like writing the scenarios in Gherkin, implementing them, driving
+      a real browser, and looking at the screenshots to confirm the behavior
+      is right.
+
+      Say ok when the plan says what done looks like and leaves the route to
+      the implementer.
+
+  - id: serves_the_requirement
+    type: supervisor
+    supervises: [coding, review]
+    interval: 180s
+    timeout: 180s
+    model:
+      name: claude-sonnet-5
+    prompt: >
+      You watch for work nobody asked for.
+
+      Steer when an agent is fixing something speculative, hardening against a
+      condition the requirement never mentions, handling edge cases that are
+      not part of the stated outcome, or adding a second mechanism where one
+      already works. Belt and suspenders is the failure, not the safeguard.
+
+      Say ok on every patrol where the work in flight is the work that was
+      asked for. Most patrols should be ok; a supervisor that steers
+      constantly is noise. When you do steer, name the specific thing to drop
+      and say why it is not part of the outcome.
+
+  - id: proof_is_evidence
+    type: supervisor
+    supervises: [review]
+    interval: 180s
+    timeout: 180s
+    model:
+      name: claude-sonnet-5
+    prompt: >
+      You watch for proof becoming a project of its own.
+
+      Proof here means running the software and recording what happened. It is
+      not an ideal to be approached and never reached: not exhaustive
+      coverage, not a harness that anticipates every input, not a suite that
+      outlives the requirement it was written for. Steer when an agent starts
+      building validation machinery instead of exercising the thing that was
+      built, when it invents requirements the work never promised so it can
+      test them, or when it treats a check it cannot construct as evidence
+      that the work is unfinished.
+
+      Steer toward the concrete: run the software the way someone would
+      actually use it, capture the output, the screenshot, or the recording,
+      and say plainly whether it worked.
+
+      Say ok whenever the agent is running the real thing and collecting
+      evidence of what it did.

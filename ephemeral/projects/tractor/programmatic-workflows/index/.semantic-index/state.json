@@ -1,0 +1,77 @@
+{
+  "built_at": "2026-09-08T17:04:00.358389+00:00",
+  "mode": "scratch-build",
+  "corpus": "../corpus",
+  "corpus_file_count": 90,
+  "corpus_bytes": 1362259,
+  "corpus_sha256": "1c9377f43d396924ffe56d4f63bdb7e0fb535f5b185a66dff3605f085267c4da",
+  "leaf_count": 14,
+  "route_count": 6,
+  "citation_count": 165,
+  "orphan_leaf_count": 0,
+  "index_leaf_depth": 2,
+  "structural_evals": [
+    {
+      "id": "q01",
+      "reachable": true,
+      "missing": []
+    },
+    {
+      "id": "q02",
+      "reachable": true,
+      "missing": []
+    },
+    {
+      "id": "q03",
+      "reachable": true,
+      "missing": []
+    },
+    {
+      "id": "q04",
+      "reachable": true,
+      "missing": []
+    },
+    {
+      "id": "q05",
+      "reachable": true,
+      "missing": []
+    },
+    {
+      "id": "q06",
+      "reachable": true,
+      "missing": []
+    },
+    {
+      "id": "q07",
+      "reachable": true,
+      "missing": []
+    },
+    {
+      "id": "q08",
+      "reachable": true,
+      "missing": []
+    },
+    {
+      "id": "q09",
+      "reachable": true,
+      "missing": []
+    },
+    {
+      "id": "q10",
+      "reachable": true,
+      "missing": []
+    },
+    {
+      "id": "q11",
+      "reachable": true,
+      "missing": []
+    },
+    {
+      "id": "q12",
+      "reachable": true,
+      "missing": []
+    }
+  ],
+  "semantic_benchmark": "See retrieval-review.md; reachability here is not relevance or a latency benchmark.",
+  "issues": []
+}

@@ -1,0 +1,15 @@
+{
+  "full_name": "kubernetes-sigs/controller-runtime",
+  "html_url": "https://github.com/kubernetes-sigs/controller-runtime",
+  "archived": false,
+  "pushed_at": "2026-09-08T09:40:39Z",
+  "updated_at": "2026-09-08T09:43:08Z",
+  "default_branch": "main",
+  "license": {
+    "key": "apache-2.0",
+    "name": "Apache License 2.0",
+    "spdx_id": "Apache-2.0",
+    "url": "https://api.github.com/licenses/apache-2.0",
+    "node_id": "MDc6TGljZW5zZTI="
+  }
+}
