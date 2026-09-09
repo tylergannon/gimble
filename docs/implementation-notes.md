@@ -1,0 +1,107 @@
+# Implementation notes
+
+This page carries the provenance record and the detailed implementation
+choices that used to live in the README. The
+[Gimble specification](spec.md) remains the sole normative and
+authoritative definition of Gimble's Attractor variant; where Gimble's
+code, schemas, examples, or other documentation disagree with it, the
+specification governs.
+
+[Gimble's direction](direction.md) records the subsequent product and
+architectural thinking, including the experimental move toward Go-authored
+workflows. It guides future work without changing the current graph contract.
+
+## Provenance
+
+Gimble is the reference Go implementation of its Attractor variant. The
+substantive specification moved here from the now-archived
+`tylergannon/attractor` repository at revision
+`0aca8b748e6ecc23446fc690d2b66690b77fe0d3`. Before Gimble added its explicit
+authority notice, the imported document matched that source byte-for-byte.
+
+The archived project's [north star](https://github.com/tylergannon/attractor/blob/0aca8b748e6ecc23446fc690d2b66690b77fe0d3/ephemeral/projects/spec-rebuild/north-star.md)
+captures the thrust of this variant: replace DOT with a closed typed JSON
+graph, put routing on the node whose occupant makes the choice, run work
+through existing Codex, Claude, and Antigravity harnesses, and make steering,
+context fidelity, uniform checkpointing, isolated parallel worktrees, and live
+advisory supervision first-class. It also applies a strict cost razor to new
+language and protocol surface, keeps human interaction and extensions in
+ordinary authored nodes or build-time code, and reserves usage-aware routing
+as future work.
+
+The archived implementation also contains ideas that are intentionally not
+part of Gimble today. See the
+[Attractor archive inventory](attractor-archive-inventory.md) for a
+source-backed account of the useful gaps, deliberate exclusions, and their
+tradeoffs.
+
+## Documented implementation choices
+
+Gimble has five documented implementation choices around the spec's
+contract:
+
+- Pipeline files may be JSON, YAML, or YML; inline documents use `--json` or
+  `--yaml`. YAML is a Gimble authoring extension decoded through the same
+  generated, closed schema as JSON. JSON field names and semantics remain
+  canonical.
+- Gimble's backend interface includes a synchronous binding-open callback.
+  The engine uses it to save a newly opened supervisor session before its turn
+  is dispatched, implementing the checkpoint guarantee without polling backend
+  state.
+- A supervisor briefing is idempotent, at-least-once input across a crash. A
+  successful supervisor turn records its exact session binding in
+  `briefed.json`; the same binding suppresses a resend. Missing, changed, or
+  inconclusive completion evidence resends the briefing. This accepts the
+  unavoidable duplicate-delivery window rather than risking a silently
+  unbriefed resumed session. Advisory file/render failures are recorded in the
+  supervisor's `errors.jsonl` because the upstream spec requires them to be
+  recorded but does not assign a wire artifact.
+- Codex's native strict-output API requires every declared root property to be
+  structurally required. The Codex adapter therefore presents optional root
+  properties as required nullable fields, removes returned nulls for fields
+  that were optional, and validates the result against the caller's unchanged
+  schema. Claude receives the caller schema unchanged.
+- Gemini models route through the authenticated `agy` CLI. Gimble validates
+  agy's structured output locally and allows one repair turn. Steering
+  interrupts the active print process and resumes the same native conversation
+  with the steering prompt; compaction sends agy's `/compact` command.
+
+## Plugin installer behavior
+
+The installer script resolves `GOBIN` or `GOPATH/bin` itself. For the
+explicit `go install` + `gimble plugin install` form, that directory must
+already be on `PATH`. `gimble plugin install` refreshes the marketplace,
+removes the old plugin and its Codex cache, installs the current plugin,
+retires MCP servers registered by versions with detached-run support, and
+removes the obsolete source-building wrapper cache. It never stops detached
+Gimble runs. Idle MCP servers from older versions are stopped by PID only; a
+legacy MCP server with a child run is preserved so that run keeps both its
+process and its existing control owner.
+
+The Go binary directory must be on the `PATH` inherited by the agent host
+(Codex or Claude Code). Start a new task or session after installation or
+update so the plugin launches the installed binary with `gimble mcp`, and
+refresh with `claude plugin update gimble@gimble` after a new Gimble
+release. See [`llms.txt`](../llms.txt) for the agent-oriented installation
+and MCP usage reference.
+
+## MCP server
+
+The server exposes deferred tools to validate, start, monitor, steer, and
+stop pipeline runs. Their input schemas contain only operational arguments
+such as pipeline and workspace paths; they do not embed Gimble's graph
+language. `get_pipeline_schema` returns `graph.Graph{}.Schema()` only when
+called, while validation and execution use Gimble's existing parser and
+runtime validator. Consequently the MCP surface and graph language are
+compiled into the same Gimble binary and cannot acquire a separately
+maintained schema.
+
+Run the server directly with `gimble mcp`. MCP clients should communicate
+over stdin and stdout; diagnostics and run output are written elsewhere so
+they cannot corrupt the protocol stream. Each `start_run` call launches a new
+detached Gimble runner and atomically records its state under
+`~/.local/state/gimble/mcp-runs`. Closing or replacing the MCP server does
+not stop the run. A later MCP server can use the same `run_id` to inspect,
+steer, or stop it. `stop_run` signals only the process group whose persisted
+command identity matches that run; repeating the call after the graceful
+window escalates to a forced stop.

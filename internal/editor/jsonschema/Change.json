@@ -1,0 +1,4 @@
+{"type":"object",
+"description":"Change announces a new version of the files on disk.","properties":{
+"version":{"type":"string","description":"Version is Document.Version for the state now on disk."}
+},"required":["version"],"additionalProperties":false}

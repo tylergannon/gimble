@@ -1,0 +1,173 @@
+# Gimble
+
+> Gimble runs and steers Attractor-compatible agent pipelines. This repository is both a Codex plugin and a Claude Code plugin, sharing one set of skills and one MCP server configuration between them, with a deferred stdio MCP tool surface.
+
+Repository: https://github.com/tylergannon/gimble
+
+## When to use Gimble
+
+Use Gimble when work should keep going until a check actually passes or
+after the current session ends, fan out across several models or approaches
+(Claude Code, Codex, and Gemini through their real CLIs), or be cross-checked
+by another model. Runs are detached processes; every prompt, response,
+routing decision, and collected artifact lands in a browsable run directory.
+
+## Start from an example
+
+Copy-and-run loop pipelines live in `examples/loops/` (also bundled with the
+`gimble` skill). Copy one into a git repo, change its goal and its check, start it —
+`start_run` lints before launching:
+
+- `fix-until-green.yaml` — "don't stop until it actually works": an agent
+  works, a command decides, failure routes back, `max_visits` bounds it.
+- `critique-circle.yaml` — "have another model check this": three providers
+  write proposals on one topic, then each critiques the other two.
+- `bake-off.yaml` — "try a couple of approaches in parallel": three attempts
+  in isolated worktrees; a judge runs each and merges the winner.
+- `milestone-loop.yaml` — "keep working after I leave": a chooser picks the
+  next runnable step, an implementer does it, a command checks, repeat.
+- `checklist-loop.yaml` — "work through this list and prove each item": a
+  `loop` node iterates a checklist file, validates each item by its command
+  and judge, marks it done itself, and injects the next item as a frame.
+
+`examples/loops/README.md` carries a symptom→fix table for misbehaving loops.
+
+## Built-in workflows
+
+Examples are single shapes to copy. Whole workflows ship inside the binary and
+run by name — `gimble run <name>` — with nothing to copy first. `gimble
+workflows` lists them with the situation each is for; `gimble workflows show
+<name>` prints the pipeline, so redirecting it into a file is how you adapt
+one. A name resolves to a built-in only when no file of that name exists.
+
+- `sprint-execute` — a planned sprint ledger worked to done, one sprint per
+  lap, each demonstrated before the engine closes it.
+- `chapter-loop` — the same shape nested: chapters holding sprints holding
+  coding and validation, all in one run.
+- `sprint-plan` — three independent drafts of the next sprint, mutual
+  critique, one round of questions to the human, one merge.
+- `delivery-loop` — a written specification to working software: plan,
+  cross-provider critique, then a loop the engine validates item by item.
+
+All four mark work done in the engine rather than trusting an agent to, run
+validation on a different provider from whoever wrote the code, and carry
+supervisors that coach without ever routing. None of them hardcodes a test
+command: the mechanical gate is whatever the checklist item names, so a
+workflow does not care what language the repository is written in.
+
+`--goal` on `gimble run` replaces the pipeline's goal, so every `$goal` in a
+prompt expands to yours. All four carry it into their working prompts, so a
+goal always steers:
+
+```
+gimble run delivery-loop --goal "Build what docs/SPEC.md describes" \
+  --workdir . --logs .gimble/run
+```
+
+`sprint-plan` and `delivery-loop` are meaningless without one — there is no
+seed to plan and no specification to build — so they refuse to start without
+it, and `gimble workflows` marks them. The other two already know their work:
+`sprint-execute` and `chapter-loop` each iterate a ledger the workspace must
+already hold, which the listing names. For those a goal frames the run without
+replacing the current item.
+
+## Starting the software under test
+
+A workflow may omit service configuration. To run a service, set `system_file`
+to `Procfile` or a name such as `Procfile.dev`, and set `services` to an array
+containing exactly one Procfile process name. Gimble runs the whole Procfile through Overmind for the run.
+Overmind gives each process its own `PORT`; Gimble exports the named process's
+port as `GIMBLE_SERVICE_PORT` to every workflow shell. A declared service that
+never accepts connections fails before work begins. Other system-file formats
+and multiple named services are not supported yet.
+
+## Requirements
+
+- Codex with plugin marketplace support, or Claude Code with plugin support.
+- Go 1.26 or newer on the machine running the plugin.
+- The Go binary install directory on the `PATH` inherited by the agent host.
+
+## Install in Codex
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/tylergannon/gimble/main/scripts/install.sh | sh
+```
+
+The script runs `go install github.com/tylergannon/gimble/cmd/gimble@latest`
+and then invokes `gimble plugin install`. The latter refreshes the marketplace,
+replaces the installed plugin and its cache, retires superseded MCP servers that
+declare detached-run support, and removes the obsolete source-building wrapper
+cache. It does not stop detached runs, and it preserves legacy MCP servers that
+still own child runs. Start a new Codex task after installation or update so the
+plugin's MCP server is loaded.
+
+## Install in Claude Code
+
+```sh
+go install github.com/tylergannon/gimble/cmd/gimble@latest
+claude plugin marketplace add tylergannon/gimble
+claude plugin install gimble@gimble
+```
+
+Or, from inside an interactive session: `/plugin marketplace add
+tylergannon/gimble` then `/plugin install gimble@gimble`. Claude Code
+auto-discovers the plugin's skill from `skills/` and its MCP server from
+`.mcp.json` at the repository root — the same files the Codex plugin uses, not
+a separate copy. Start a new Claude Code session after installation or update,
+and run `claude plugin update gimble@gimble` to pick up a later release.
+
+## MCP server
+
+The plugin runs the installed binary as `gimble mcp` and speaks MCP over stdin
+and stdout.
+
+The server uses `github.com/mark3labs/mcp-go`. All tools are deferred, so their definitions are loaded only when Codex needs them. Pipeline arguments are file paths rather than embedded graph schemas.
+
+## Tools
+
+- `start_run`: lint and start (or resume) a pipeline in one call, returning its run ID, process ID, and log paths; a graph that fails validation is rejected instead of started.
+- `get_run_status`: inspect a run by run ID.
+- `steer_run`: send text to the run's active steerable turn; when none is active it returns `accepted: false` and HTTP status 409.
+- `stop_run`: request that a run stop; repeating the call after the graceful window escalates to a forced stop.
+- `get_pipeline_schema`: return Gimble's current graph JSON Schema on demand.
+
+`start_run` accepts `pipeline_path`, an optional `workdir`, an optional `logs_root`, and `resume`. Validation happens inside the call — the graph parser and lint rules run first, and a failing graph is rejected with diagnostics instead of started. A new run requires an empty or absent `logs_root`; use `resume: true` to continue from an existing run directory. Later operations use the `run_id` returned by `start_run`.
+
+Each run is a detached Gimble process with atomic state under
+`~/.local/state/gimble/mcp-runs`. It survives MCP and Codex restarts. A later
+MCP session can inspect, steer, or stop it with the original `run_id`.
+
+## Ask and answer inside a run
+
+An agent can pause inside one node visit, write a Markdown or HTML question,
+and wait for its caller:
+
+```sh
+GIMBLE_INTERVIEW_DIR=ephemeral/projects/<build>/interview gimble ask question.md
+```
+
+`gimble ask` moves the file to the next numbered question, uses the
+run-provided `GIMBLE_RUN_DIR` to append `QuestionAsked` to `timeline.jsonl`,
+and prints the answer when it arrives. `--into <directory>` overrides
+`GIMBLE_INTERVIEW_DIR`. If the waiting shell ends, rerun `gimble ask` with
+the numbered question path and the same interview directory to resume.
+
+The calling agent watches the run timeline for `QuestionAsked`, opens the
+event's `question` path, and answers with `gimble answer <question-path>
+[text]` (on one command line). With no text argument, `answer` reads stdin. It
+writes a non-empty `<number>.answer.md` beside the question, refuses to
+overwrite an existing answer, and thereby unblocks the original agent turn.
+
+## Schema synchronization
+
+`get_pipeline_schema` returns `graph.Graph{}.Schema()` directly. Validation and execution call Gimble's existing parser and runtime validator. The plugin does not maintain a second copy of the graph schema.
+
+## Direct stdio use
+
+From an installed Gimble binary:
+
+```sh
+gimble mcp
+```
+
+The command reserves stdout for MCP protocol messages. Run output and diagnostics are written to the run paths returned by `start_run`.

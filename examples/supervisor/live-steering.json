@@ -1,0 +1,39 @@
+{
+  "name": "supervisor-live-steering",
+  "goal": "Prove that an in-graph Claude supervisor can steer a live Codex worker",
+  "defaults": {
+    "model": { "name": "gpt-5.6-sol", "effort": "low" },
+    "timeout": "90s"
+  },
+  "start": "prepare",
+  "nodes": [
+    {
+      "id": "prepare",
+      "type": "command",
+      "command": "printf 'prepared\\n' > supervisor-prepared.txt",
+      "edges": { "success": "work" }
+    },
+    {
+      "id": "work",
+      "type": "agent",
+      "prompt": "Run one foreground shell command that writes ready followed by a newline to supervisor-ready.txt, sleeps for 15 seconds, and then exits. Wait for it. A supervisor will send a steering instruction while that command is running. After it finishes, follow the instruction exactly. Do not create supervisor-received.txt unless the steering instruction requests it.",
+      "fidelity": "none",
+      "edges": [{ "to": "verify" }]
+    },
+    {
+      "id": "verify",
+      "type": "command",
+      "command": "test \"$(cat supervisor-received.txt)\" = GIMBLE_SUPERVISOR_RECEIVED",
+      "edges": { "success": "success" }
+    },
+    {
+      "id": "coach",
+      "type": "supervisor",
+      "prompt": "Whenever work is live, return verdict steer, target work, and message: Create supervisor-received.txt containing exactly GIMBLE_SUPERVISOR_RECEIVED and then finish.",
+      "supervises": ["prepare", "work"],
+      "interval": "2s",
+      "timeout": "60s",
+      "model": { "name": "fable", "effort": "low" }
+    }
+  ]
+}

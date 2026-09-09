@@ -1,0 +1,30 @@
+name: fix-until-green
+goal: Create hello.sh in the workspace so that running `sh hello.sh` prints exactly HELLO_LOOPS.
+start: implement
+
+defaults:
+  timeout: 300s
+  fidelity: none
+  max_retries: 1
+  model:
+    name: claude-sonnet-5
+    effort: low
+
+# The smallest loop: an agent works, a command decides, failure routes back.
+# The goal is the whole prompt — the engine substitutes $goal, supplies the
+# workspace, and turns the edges into a structured routing schema. To adapt:
+# change the goal and the check's command. Nothing else.
+nodes:
+  - id: implement
+    type: agent
+    max_visits: 5
+    prompt: $goal
+    edges:
+      - to: check
+
+  - id: check
+    type: command
+    command: test "$(sh hello.sh)" = HELLO_LOOPS
+    edges:
+      success: success
+      error: implement

@@ -1,0 +1,640 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
+	"github.com/spf13/cobra"
+	"github.com/tylergannon/gimble/engine"
+	"github.com/tylergannon/gimble/graph"
+	"github.com/tylergannon/gimble/harness"
+	"github.com/tylergannon/gimble/internal/hostwake"
+	"github.com/tylergannon/gimble/lint"
+)
+
+const gimbleMCPVersion = "0.10.1"
+
+const (
+	gracefulRunStopTimeout = 500 * time.Millisecond
+)
+
+type gimbleMCPServer struct {
+	runs *mcpRunStore
+}
+
+type emptyInput struct{}
+
+type schemaOutput struct {
+	Schema string `json:"schema" jsonschema:"Current Gimble pipeline JSON Schema."`
+}
+
+type startRunInput struct {
+	PipelinePath string            `json:"pipeline_path" jsonschema:"Pipeline JSON, YAML, or YML file. Relative paths resolve from workdir."`
+	Workdir      string            `json:"workdir,omitempty" jsonschema:"Pipeline workspace. Defaults to the MCP server working directory."`
+	LogsRoot     string            `json:"logs_root,omitempty" jsonschema:"Run log directory. Relative paths resolve from workdir. Defaults to .gimble/runs/<run-id>."`
+	Resume       bool              `json:"resume,omitempty" jsonschema:"Resume from the checkpoint in logs_root."`
+	Parent       *codexParentInput `json:"parent,omitempty" jsonschema:"Explicit Codex desktop parent identity for direct run-news delivery. Omit outside a local Codex desktop task."`
+}
+
+type codexParentInput struct {
+	ThreadID  string `json:"thread_id" jsonschema:"Current Codex thread UUID, supplied explicitly by the launching task."`
+	HostID    string `json:"host_id" jsonschema:"Codex desktop host identity. Use local for the local desktop host."`
+	SessionID string `json:"session_id,omitempty" jsonschema:"Current Codex session identity when available."`
+}
+
+type startRunOutput struct {
+	RunID          string   `json:"run_id"`
+	PID            int      `json:"pid"`
+	Status         string   `json:"status"`
+	Pipeline       string   `json:"pipeline_path"`
+	Workdir        string   `json:"workdir"`
+	LogsRoot       string   `json:"logs_root"`
+	Warnings       []string `json:"warnings"`
+	StdoutPath     string   `json:"stdout_path"`
+	StderrPath     string   `json:"stderr_path"`
+	ParentThreadID string   `json:"parent_thread_id,omitempty"`
+}
+
+type runIDInput struct {
+	RunID string `json:"run_id" jsonschema:"Run identifier returned by start_run."`
+}
+
+type runStatusOutput struct {
+	RunID          string               `json:"run_id"`
+	PID            int                  `json:"pid"`
+	Status         string               `json:"status"`
+	Pipeline       string               `json:"pipeline_path"`
+	Workdir        string               `json:"workdir"`
+	LogsRoot       string               `json:"logs_root"`
+	StartedAt      string               `json:"started_at"`
+	FinishedAt     string               `json:"finished_at,omitempty"`
+	ExitCode       *int                 `json:"exit_code,omitempty"`
+	Failure        string               `json:"failure,omitempty"`
+	CurrentNode    string               `json:"current_node,omitempty"`
+	NextNode       string               `json:"next_node,omitempty"`
+	LastStage      string               `json:"last_stage,omitempty"`
+	LastResponse   string               `json:"last_response,omitempty"`
+	StderrTail     string               `json:"stderr_tail,omitempty"`
+	ParentThreadID string               `json:"parent_thread_id,omitempty"`
+	Service        *engine.ServiceState `json:"service,omitempty"`
+}
+
+type steerRunInput struct {
+	RunID string `json:"run_id" jsonschema:"Run identifier returned by start_run."`
+	Text  string `json:"text" jsonschema:"Instruction to deliver to the currently active steerable agent turn."`
+}
+
+type steerRunOutput struct {
+	Accepted   bool   `json:"accepted"`
+	HTTPStatus int    `json:"http_status"`
+	Message    string `json:"message"`
+}
+
+type stopRunOutput struct {
+	RunID  string `json:"run_id"`
+	Status string `json:"status"`
+}
+
+func newMCPCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "mcp",
+		Short: "Serve Gimble tools over MCP stdio",
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			ctx, stopSignals := signal.NotifyContext(command.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stopSignals()
+			return runGimbleMCP(ctx)
+		},
+	}
+}
+
+func runGimbleMCP(ctx context.Context) error {
+	mcpServer, state, err := newGimbleMCPServer()
+	if err != nil {
+		return err
+	}
+	instance, err := registerMCPInstance(state.runs)
+	if err != nil {
+		return err
+	}
+	defer instance.remove()
+	return server.NewStdioServer(mcpServer).Listen(ctx, os.Stdin, os.Stdout)
+}
+
+func newGimbleMCPServer() (*server.MCPServer, *gimbleMCPServer, error) {
+	runs, err := defaultMCPRunStore()
+	if err != nil {
+		return nil, nil, err
+	}
+	state := &gimbleMCPServer{runs: runs}
+	mcpServer := server.NewMCPServer(
+		"gimble",
+		gimbleMCPVersion,
+		server.WithInstructions("Use Gimble when work should fan out across several models or approaches, be cross-checked by another model, pass a deterministic verification gate, or keep running after this session ends. Start from a copy-and-run example (examples/loops/ in the Gimble repo; also bundled with the gimble skill) — no pipeline authoring needed. Pipeline definitions are files: start_run lints the graph first and refuses to launch a broken one, and the returned run_id drives later operations. Runs are detached processes that survive this stdio session and can be inspected, steered, or stopped after reconnecting. In local Codex desktop, pass the launching task's explicit parent identity to start_run so Gimble can queue bounded run news directly back to that thread."),
+		server.WithToolCapabilities(false),
+		server.WithInputSchemaValidation(),
+		server.WithOutputSchemaValidation(),
+	)
+
+	mcpServer.AddTool(mcp.NewTool("get_pipeline_schema",
+		mcp.WithDescription("Return the current pipeline JSON Schema generated by Gimble's graph type. Fetch only when authoring or changing a graph; the examples need no schema work."),
+		mcp.WithInputSchema[emptyInput](), mcp.WithOutputSchema[schemaOutput](),
+		mcp.WithDeferLoading(true), mcp.WithTitleAnnotation("Get pipeline schema"),
+		mcp.WithReadOnlyHintAnnotation(true), mcp.WithDestructiveHintAnnotation(false), mcp.WithOpenWorldHintAnnotation(false),
+	), mcp.NewStructuredToolHandler(func(context.Context, mcp.CallToolRequest, emptyInput) (schemaOutput, error) {
+		return schemaOutput{Schema: string(graph.Graph{}.Schema())}, nil
+	}))
+
+	mcpServer.AddTool(mcp.NewTool("start_run",
+		mcp.WithDescription("Lint and start (or resume) a Gimble pipeline asynchronously and return a run ID immediately; a graph that fails validation is rejected instead of started, with teaching diagnostics. Make sure the graph ends in a check that fails when the goal is not demonstrated. The run outlives this session; report the run_id to the user."),
+		mcp.WithInputSchema[startRunInput](), mcp.WithOutputSchema[startRunOutput](),
+		mcp.WithDeferLoading(true), mcp.WithTitleAnnotation("Start Gimble run"),
+		mcp.WithDestructiveHintAnnotation(true), mcp.WithOpenWorldHintAnnotation(false),
+	), mcp.NewStructuredToolHandler(state.startRun))
+
+	mcpServer.AddTool(mcp.NewTool("get_run_status",
+		mcp.WithDescription("Read process and checkpoint status for an MCP-started Gimble run, including after reconnecting. current_node, last_stage, and last_response read as a progress update you can relay to the user verbatim."),
+		mcp.WithInputSchema[runIDInput](), mcp.WithOutputSchema[runStatusOutput](),
+		mcp.WithDeferLoading(true), mcp.WithTitleAnnotation("Get Gimble run status"),
+		mcp.WithReadOnlyHintAnnotation(true), mcp.WithDestructiveHintAnnotation(false), mcp.WithOpenWorldHintAnnotation(false),
+	), mcp.NewStructuredToolHandler(state.getRunStatus))
+
+	mcpServer.AddTool(mcp.NewTool("steer_run",
+		mcp.WithDescription("Send one text instruction to the active steerable agent turn in a Gimble run; when none is active it returns accepted: false. Steer only when new authoritative information appears or the run is leaving scope — a complete goal up front beats frequent correction."),
+		mcp.WithInputSchema[steerRunInput](), mcp.WithOutputSchema[steerRunOutput](),
+		mcp.WithDeferLoading(true), mcp.WithTitleAnnotation("Steer Gimble run"),
+		mcp.WithDestructiveHintAnnotation(true), mcp.WithOpenWorldHintAnnotation(false),
+	), mcp.NewStructuredToolHandler(state.steerRun))
+
+	mcpServer.AddTool(mcp.NewTool("stop_run",
+		mcp.WithDescription("Request interruption of an MCP-started Gimble run. Repeating the call after the graceful window escalates to a forced stop."),
+		mcp.WithInputSchema[runIDInput](), mcp.WithOutputSchema[stopRunOutput](),
+		mcp.WithDeferLoading(true), mcp.WithTitleAnnotation("Stop Gimble run"),
+		mcp.WithDestructiveHintAnnotation(true), mcp.WithOpenWorldHintAnnotation(false),
+	), mcp.NewStructuredToolHandler(state.stopRun))
+
+	return mcpServer, state, nil
+}
+
+func (s *gimbleMCPServer) startRun(_ context.Context, _ mcp.CallToolRequest, input startRunInput) (startRunOutput, error) {
+	hostSession, err := codexParentSession(input.Parent)
+	if err != nil {
+		return startRunOutput{}, err
+	}
+	pipelinePath, warnings, err := loadAndValidatePipeline(input.PipelinePath, input.Workdir)
+	if err != nil {
+		return startRunOutput{}, err
+	}
+	workdir, err := resolveWorkdir(input.Workdir)
+	if err != nil {
+		return startRunOutput{}, err
+	}
+	runID, err := newMCPRunID()
+	if err != nil {
+		return startRunOutput{}, err
+	}
+	logsRoot, err := resolveLogsRoot(input.LogsRoot, workdir, runID)
+	if err != nil {
+		return startRunOutput{}, err
+	}
+	if input.Resume {
+		if _, err := engine.LoadCheckpoint(logsRoot); err != nil {
+			return startRunOutput{}, err
+		}
+	} else if err := requireFreshLogsRoot(logsRoot); err != nil {
+		return startRunOutput{}, err
+	}
+	if err := os.MkdirAll(logsRoot, 0o755); err != nil {
+		return startRunOutput{}, fmt.Errorf("create logs root: %w", err)
+	}
+
+	stdoutPath := filepath.Join(logsRoot, "mcp-stdout.log")
+	stderrPath := filepath.Join(logsRoot, "mcp-stderr.log")
+	logFlags := os.O_CREATE | os.O_WRONLY | os.O_TRUNC
+	if input.Resume {
+		logFlags = os.O_CREATE | os.O_WRONLY | os.O_APPEND
+	}
+	stdout, err := os.OpenFile(stdoutPath, logFlags, 0o644)
+	if err != nil {
+		return startRunOutput{}, fmt.Errorf("open run stdout: %w", err)
+	}
+	stderr, err := os.OpenFile(stderrPath, logFlags, 0o644)
+	if err != nil {
+		_ = stdout.Close()
+		return startRunOutput{}, fmt.Errorf("open run stderr: %w", err)
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		_ = stdout.Close()
+		_ = stderr.Close()
+		return startRunOutput{}, fmt.Errorf("resolve Gimble executable: %w", err)
+	}
+	startedAt := time.Now().UTC()
+	record := mcpRunRecord{
+		Version: mcpRunStateVersion, ID: runID, Status: "STARTING",
+		Pipeline: pipelinePath, Workdir: workdir, LogsRoot: logsRoot,
+		StdoutPath: stdoutPath, StderrPath: stderrPath, Resume: input.Resume,
+		StartedAt: startedAt, HostSession: hostSession,
+	}
+	if err := s.runs.create(record); err != nil {
+		_ = stdout.Close()
+		_ = stderr.Close()
+		return startRunOutput{}, err
+	}
+	args := []string{"mcp-runner", "--state-dir", s.runs.dir, "--run-id", runID}
+	command := exec.Command(executable, args...)
+	command.Dir = workdir
+	command.Stdout = stdout
+	command.Stderr = stderr
+	command.Stdin = nil
+	command.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := command.Start(); err != nil {
+		_ = stdout.Close()
+		_ = stderr.Close()
+		_, _ = s.runs.update(runID, func(record *mcpRunRecord) error {
+			finishedAt := time.Now().UTC()
+			record.Status = "FAILED"
+			record.FinishedAt = &finishedAt
+			exitCode := -1
+			record.ExitCode = &exitCode
+			record.Failure = err.Error()
+			return nil
+		})
+		return startRunOutput{}, fmt.Errorf("start Gimble run: %w", err)
+	}
+	go func() { _ = command.Wait() }()
+	_ = stdout.Close()
+	_ = stderr.Close()
+	record, err = s.runs.update(runID, func(record *mcpRunRecord) error {
+		if record.PID != 0 && record.PID != command.Process.Pid {
+			return fmt.Errorf("run %s belongs to process %d", record.ID, record.PID)
+		}
+		record.PID = command.Process.Pid
+		if record.Status == "STARTING" {
+			record.Status = "RUNNING"
+		}
+		return nil
+	})
+	if err != nil {
+		_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+		return startRunOutput{}, fmt.Errorf("record Gimble runner process: %w", err)
+	}
+
+	return startRunOutput{
+		RunID: runID, PID: record.PID, Status: record.Status,
+		Pipeline: pipelinePath, Workdir: workdir, LogsRoot: logsRoot,
+		Warnings: warnings, StdoutPath: stdoutPath, StderrPath: stderrPath,
+		ParentThreadID: hostThreadID(record.HostSession),
+	}, nil
+}
+
+func codexParentSession(parent *codexParentInput) (*hostwake.Session, error) {
+	if parent == nil {
+		return nil, nil
+	}
+	threadID := strings.TrimSpace(parent.ThreadID)
+	if !looksLikeUUID(threadID) {
+		return nil, fmt.Errorf("parent thread_id %q is not a UUID", parent.ThreadID)
+	}
+	hostID := strings.TrimSpace(parent.HostID)
+	if hostID == "" {
+		return nil, errors.New("parent host_id must not be empty")
+	}
+	return &hostwake.Session{
+		Host: hostwake.HostCodexDesktop, HostID: hostID, ThreadID: threadID,
+		SessionID: strings.TrimSpace(parent.SessionID), Kind: hostwake.KindInteractive,
+	}, nil
+}
+
+func looksLikeUUID(value string) bool {
+	if len(value) != 36 {
+		return false
+	}
+	for index, character := range value {
+		if index == 8 || index == 13 || index == 18 || index == 23 {
+			if character != '-' {
+				return false
+			}
+			continue
+		}
+		if !strings.ContainsRune("0123456789abcdefABCDEF", character) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *gimbleMCPServer) getRunStatus(_ context.Context, _ mcp.CallToolRequest, input runIDInput) (runStatusOutput, error) {
+	record, err := s.runs.load(input.RunID)
+	if err != nil {
+		return runStatusOutput{}, err
+	}
+	record, err = s.runs.refresh(record)
+	if err != nil {
+		return runStatusOutput{}, err
+	}
+	return snapshotRun(record), nil
+}
+
+func snapshotRun(run mcpRunRecord) runStatusOutput {
+	result := runStatusOutput{
+		RunID: run.ID, PID: run.PID, Status: run.Status,
+		Pipeline: run.Pipeline, Workdir: run.Workdir, LogsRoot: run.LogsRoot,
+		StartedAt: run.StartedAt.Format(time.RFC3339Nano), ExitCode: run.ExitCode,
+		Failure: run.Failure, ParentThreadID: hostThreadID(run.HostSession),
+	}
+	if run.FinishedAt != nil {
+		result.FinishedAt = run.FinishedAt.Format(time.RFC3339Nano)
+	}
+
+	if _, err := os.Stat(filepath.Join(run.LogsRoot, "checkpoint.json")); err == nil {
+		if checkpoint, err := engine.LoadCheckpoint(run.LogsRoot); err == nil {
+			result.CurrentNode = checkpoint.CurrentNode
+			result.NextNode = checkpoint.NextNode
+			result.LastStage = checkpoint.LastStage
+			result.LastResponse = checkpoint.LastResponse
+		}
+	}
+	result.StderrTail = readTail(run.StderrPath, 4096)
+	if service, err := engine.LoadServiceState(run.LogsRoot); err == nil {
+		result.Service = &service
+	}
+	return result
+}
+
+func hostThreadID(session *hostwake.Session) string {
+	if session == nil {
+		return ""
+	}
+	return session.ThreadID
+}
+
+func (s *gimbleMCPServer) steerRun(ctx context.Context, _ mcp.CallToolRequest, input steerRunInput) (steerRunOutput, error) {
+	run, err := s.runs.load(input.RunID)
+	if err != nil {
+		return steerRunOutput{}, err
+	}
+	if strings.TrimSpace(input.Text) == "" {
+		return steerRunOutput{}, errors.New("steering text must not be empty")
+	}
+	run, err = s.runs.refresh(run)
+	if err != nil {
+		return steerRunOutput{}, err
+	}
+	if run.Status != "RUNNING" {
+		return steerRunOutput{
+			Accepted: false, HTTPStatus: http.StatusConflict,
+			Message: "run is " + run.Status + "; there is no active steerable turn",
+		}, nil
+	}
+
+	controlSocket, err := engine.LoadControlSocket(run.LogsRoot)
+	if err != nil {
+		return steerRunOutput{}, err
+	}
+	body, err := json.Marshal([]harness.ContentPart{{Type: harness.ContentPartText, Text: input.Text}})
+	if err != nil {
+		return steerRunOutput{}, err
+	}
+	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", controlSocket)
+	}}
+	defer transport.CloseIdleConnections()
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://gimble/steer", bytes.NewReader(body))
+	if err != nil {
+		return steerRunOutput{}, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := (&http.Client{Transport: transport}).Do(request)
+	if err != nil {
+		return steerRunOutput{}, fmt.Errorf("send steering instruction: %w", err)
+	}
+	_, _ = io.Copy(io.Discard, response.Body)
+	_ = response.Body.Close()
+	switch response.StatusCode {
+	case http.StatusOK:
+		return steerRunOutput{Accepted: true, HTTPStatus: response.StatusCode, Message: "steering accepted"}, nil
+	case http.StatusConflict:
+		return steerRunOutput{Accepted: false, HTTPStatus: response.StatusCode, Message: "run has no active steerable turn"}, nil
+	default:
+		return steerRunOutput{}, fmt.Errorf("steering endpoint returned HTTP %d", response.StatusCode)
+	}
+}
+
+func (s *gimbleMCPServer) stopRun(_ context.Context, _ mcp.CallToolRequest, input runIDInput) (stopRunOutput, error) {
+	run, err := s.runs.load(input.RunID)
+	if err != nil {
+		return stopRunOutput{}, err
+	}
+	status, err := requestRunStop(s.runs, run)
+	if err != nil {
+		return stopRunOutput{}, err
+	}
+	return stopRunOutput{RunID: run.ID, Status: status}, nil
+}
+
+func requestRunStop(store *mcpRunStore, run mcpRunRecord) (string, error) {
+	var err error
+	run, err = store.refresh(run)
+	if err != nil {
+		return "", err
+	}
+	switch run.Status {
+	case "STOPPING":
+		if run.StopAt != nil {
+			remaining := time.Until(run.StopAt.Add(gracefulRunStopTimeout))
+			if remaining > 0 {
+				time.Sleep(remaining)
+			}
+		}
+		run, err = store.refresh(run)
+		if err != nil || run.Status != "STOPPING" {
+			return run.Status, err
+		}
+		if err := forceRunStop(run); err != nil {
+			return "", err
+		}
+		finishedAt := time.Now().UTC()
+		exitCode := -1
+		run, err = store.update(run.ID, func(current *mcpRunRecord) error {
+			if current.Status == "STOPPING" {
+				current.Status = "STOPPED"
+				current.FinishedAt = &finishedAt
+				current.ExitCode = &exitCode
+			}
+			return nil
+		})
+		return run.Status, err
+	case "STARTING", "RUNNING":
+	case "COMPLETED", "FAILED", "STOPPED":
+		return run.Status, nil
+	default:
+		return "", fmt.Errorf("run has unknown status %q", run.Status)
+	}
+	if err := processOwnsRun(run.PID, run.ID); err != nil {
+		return "", err
+	}
+	stopAt := time.Now().UTC()
+	shouldSignal := false
+	run, err = store.update(run.ID, func(current *mcpRunRecord) error {
+		if current.Status == "STARTING" || current.Status == "RUNNING" {
+			current.Status = "STOPPING"
+			current.StopAt = &stopAt
+			shouldSignal = true
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if !shouldSignal {
+		return run.Status, nil
+	}
+	if err := syscall.Kill(-run.PID, syscall.SIGINT); err != nil {
+		return "", fmt.Errorf("interrupt Gimble run %s: %w", run.ID, err)
+	}
+	return "STOPPING", nil
+}
+
+func forceRunStop(run mcpRunRecord) error {
+	if err := processOwnsRun(run.PID, run.ID); err != nil {
+		if !isProcessAlive(run.PID) {
+			return nil
+		}
+		return err
+	}
+	if err := syscall.Kill(run.PID, syscall.SIGSTOP); err != nil {
+		if errors.Is(err, syscall.ESRCH) {
+			return nil
+		}
+		return fmt.Errorf("freeze Gimble run %s before forced stop: %w", run.ID, err)
+	}
+	if err := killProcessGroup(run.PID); err != nil {
+		return fmt.Errorf("kill Gimble run %s process group: %w", run.ID, err)
+	}
+	return nil
+}
+
+func killProcessGroup(processGroup int) error {
+	err := syscall.Kill(-processGroup, syscall.SIGKILL)
+	if errors.Is(err, syscall.ESRCH) {
+		return nil
+	}
+	return err
+}
+
+func loadAndValidatePipeline(path, workdir string) (string, []string, error) {
+	resolvedWorkdir, err := resolveWorkdir(workdir)
+	if err != nil {
+		return "", nil, err
+	}
+	if strings.TrimSpace(path) == "" {
+		return "", nil, errors.New("pipeline_path must not be empty")
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(resolvedWorkdir, path)
+	}
+	path, err = filepath.Abs(path)
+	if err != nil {
+		return "", nil, fmt.Errorf("resolve pipeline path: %w", err)
+	}
+	pipeline, _, err := loadPipeline([]string{path}, "", false, "", false)
+	if err != nil {
+		return "", nil, err
+	}
+	diagnostics, err := cliValidator().ValidateOrError(*pipeline)
+	if err != nil {
+		return "", nil, err
+	}
+	if _, err := engine.ResolveGraphModels(*pipeline, systemModelSelection()); err != nil {
+		return "", nil, err
+	}
+	warnings := make([]string, 0)
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Severity != lint.SeverityError {
+			warnings = append(warnings, fmt.Sprintf("%s %s: %s", diagnostic.Severity, diagnostic.Rule, diagnostic.Message))
+		}
+	}
+	return path, warnings, nil
+}
+
+func resolveWorkdir(path string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		path = "."
+	}
+	return absoluteDirectory(path)
+}
+
+func resolveLogsRoot(path, workdir, runID string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		path = filepath.Join(workdir, ".gimble", "runs", runID)
+	} else if !filepath.IsAbs(path) {
+		path = filepath.Join(workdir, path)
+	}
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("resolve logs root: %w", err)
+	}
+	return path, nil
+}
+
+func requireFreshLogsRoot(path string) error {
+	entries, err := os.ReadDir(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect logs root: %w", err)
+	}
+	if len(entries) != 0 {
+		return fmt.Errorf("logs root %q is not empty; set resume to continue it", path)
+	}
+	return nil
+}
+
+func newMCPRunID() (string, error) {
+	var value [16]byte
+	if _, err := rand.Read(value[:]); err != nil {
+		return "", fmt.Errorf("generate run ID: %w", err)
+	}
+	return hex.EncodeToString(value[:]), nil
+}
+
+func readTail(path string, limit int) string {
+	file, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
+	if err != nil {
+		return ""
+	}
+	offset := max(info.Size()-int64(limit), 0)
+	if _, err := file.Seek(offset, io.SeekStart); err != nil {
+		return ""
+	}
+	raw, err := io.ReadAll(io.LimitReader(file, int64(limit)))
+	if err != nil {
+		return ""
+	}
+	return string(raw)
+}

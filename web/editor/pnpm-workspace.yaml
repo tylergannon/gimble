@@ -1,0 +1,8 @@
+# esbuild's install script only fetches or checks the platform binary, which
+# pnpm has already installed as an optional dependency. Nothing here needs it to
+# run, and a build step that runs no install scripts is one less thing between a
+# checkout and a binary.
+allowBuilds:
+  esbuild: false
+minimumReleaseAgeExclude:
+  - '@types/node@26.4.1'

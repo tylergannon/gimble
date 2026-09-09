@@ -1,0 +1,754 @@
+{
+  "additionalProperties": false,
+  "description": "Graph is a complete pipeline definition.",
+  "properties": {
+    "defaults": {
+      "additionalProperties": false,
+      "description": "Defaults contains file-level defaults for node fields.",
+      "properties": {
+        "fidelity": {
+          "type": "string"
+        },
+        "max_retries": {
+          "type": "integer"
+        },
+        "model": {
+          "additionalProperties": false,
+          "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+          "properties": {
+            "effort": {
+              "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
+            },
+            "name": {
+              "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "version": {
+              "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
+        "timeout": {
+          "description": "Duration is an integer followed by ms, s, m, h, or d.",
+          "pattern": "^[0-9]+(ms|s|m|h|d)$",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "goal": {
+      "description": "Goal is the pipeline objective exposed to prompt expansion.",
+      "type": "string"
+    },
+    "name": {
+      "description": "Name is the pipeline's display name.",
+      "type": "string"
+    },
+    "nodes": {
+      "description": "Nodes is the graph. Each node carries its outgoing edges.",
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "AgentNode runs an LLM task.",
+            "properties": {
+              "edges": {
+                "items": {
+                  "additionalProperties": false,
+                  "description": "Edge is an outgoing transition owned by its origin node.",
+                  "properties": {
+                    "condition": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "to"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "fidelity": {
+                "type": "string"
+              },
+              "id": {
+                "not": {
+                  "enum": [
+                    "success",
+                    "failure"
+                  ]
+                },
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "max_retries": {
+                "type": "integer"
+              },
+              "max_visits": {
+                "type": "integer"
+              },
+              "model": {
+                "additionalProperties": false,
+                "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+                "properties": {
+                  "effort": {
+                    "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "prompt": {
+                "type": "string"
+              },
+              "thread_id": {
+                "type": "string"
+              },
+              "timeout": {
+                "description": "Duration is an integer followed by ms, s, m, h, or d.",
+                "pattern": "^[0-9]+(ms|s|m|h|d)$",
+                "type": "string"
+              },
+              "type": {
+                "const": "agent",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "FanOutNode concurrently walks each outgoing branch.",
+            "properties": {
+              "branch_edges": {
+                "items": {
+                  "additionalProperties": false,
+                  "description": "Edge is an outgoing transition owned by its origin node.",
+                  "properties": {
+                    "condition": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "to"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "branches": {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "FanOutBranch is either a legacy branch-root reference or a synthesized agent branch with declared output artifacts.",
+                      "properties": {
+                        "agent": {
+                          "additionalProperties": false,
+                          "description": "AgentOverride selectively replaces fields inherited from a fan-out node's agent configuration. Every field is optional by design.",
+                          "properties": {
+                            "fidelity": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "max_retries": {
+                              "type": "integer"
+                            },
+                            "max_visits": {
+                              "type": "integer"
+                            },
+                            "model": {
+                              "additionalProperties": false,
+                              "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+                              "properties": {
+                                "effort": {
+                                  "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+                                  "enum": [
+                                    "low",
+                                    "medium",
+                                    "high"
+                                  ],
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "version": {
+                                  "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "name"
+                              ],
+                              "type": "object"
+                            },
+                            "prompt": {
+                              "type": "string"
+                            },
+                            "thread_id": {
+                              "type": "string"
+                            },
+                            "timeout": {
+                              "description": "Duration is an integer followed by ms, s, m, h, or d.",
+                              "pattern": "^[0-9]+(ms|s|m|h|d)$",
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "artifacts": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        },
+                        "id": {
+                          "not": {
+                            "enum": [
+                              "success",
+                              "failure"
+                            ]
+                          },
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "artifacts"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              "fidelity": {
+                "type": "string"
+              },
+              "id": {
+                "not": {
+                  "enum": [
+                    "success",
+                    "failure"
+                  ]
+                },
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "max_parallel": {
+                "type": "integer"
+              },
+              "max_retries": {
+                "type": "integer"
+              },
+              "max_visits": {
+                "type": "integer"
+              },
+              "model": {
+                "additionalProperties": false,
+                "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+                "properties": {
+                  "effort": {
+                    "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "prompt": {
+                "type": "string"
+              },
+              "thread_id": {
+                "type": "string"
+              },
+              "timeout": {
+                "description": "Duration is an integer followed by ms, s, m, h, or d.",
+                "pattern": "^[0-9]+(ms|s|m|h|d)$",
+                "type": "string"
+              },
+              "type": {
+                "const": "fan_out",
+                "type": "string"
+              },
+              "workspace": {
+                "description": "WorkspacePolicy controls whether parallel branches receive separate Git worktrees or run together in the caller's workspace.",
+                "enum": [
+                  "isolated",
+                  "shared"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "branches"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "FanInNode evaluates parallel branch evidence with an LLM turn.",
+            "properties": {
+              "edges": {
+                "items": {
+                  "additionalProperties": false,
+                  "description": "Edge is an outgoing transition owned by its origin node.",
+                  "properties": {
+                    "condition": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "to"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "fidelity": {
+                "type": "string"
+              },
+              "id": {
+                "not": {
+                  "enum": [
+                    "success",
+                    "failure"
+                  ]
+                },
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "max_retries": {
+                "type": "integer"
+              },
+              "max_visits": {
+                "type": "integer"
+              },
+              "model": {
+                "additionalProperties": false,
+                "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+                "properties": {
+                  "effort": {
+                    "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "prompt": {
+                "type": "string"
+              },
+              "thread_id": {
+                "type": "string"
+              },
+              "timeout": {
+                "description": "Duration is an integer followed by ms, s, m, h, or d.",
+                "pattern": "^[0-9]+(ms|s|m|h|d)$",
+                "type": "string"
+              },
+              "type": {
+                "const": "fan_in",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "CommandNode executes one shell command.",
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "edges": {
+                "additionalProperties": false,
+                "description": "CommandEdges are the engine-known routes out of a command node.",
+                "properties": {
+                  "error": {
+                    "type": "string"
+                  },
+                  "success": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "success"
+                ],
+                "type": "object"
+              },
+              "id": {
+                "not": {
+                  "enum": [
+                    "success",
+                    "failure"
+                  ]
+                },
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "max_visits": {
+                "type": "integer"
+              },
+              "timeout": {
+                "description": "Duration is an integer followed by ms, s, m, h, or d.",
+                "pattern": "^[0-9]+(ms|s|m|h|d)$",
+                "type": "string"
+              },
+              "type": {
+                "const": "command",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "command",
+              "edges"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "SupervisorNode observes declared nodes and coaches them outside the walk.",
+            "properties": {
+              "id": {
+                "not": {
+                  "enum": [
+                    "success",
+                    "failure"
+                  ]
+                },
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "interval": {
+                "description": "Duration is an integer followed by ms, s, m, h, or d.",
+                "pattern": "^[0-9]+(ms|s|m|h|d)$",
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "model": {
+                "additionalProperties": false,
+                "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+                "properties": {
+                  "effort": {
+                    "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "prompt": {
+                "type": "string"
+              },
+              "supervises": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "timeout": {
+                "description": "Duration is an integer followed by ms, s, m, h, or d.",
+                "pattern": "^[0-9]+(ms|s|m|h|d)$",
+                "type": "string"
+              },
+              "type": {
+                "const": "supervisor",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "prompt",
+              "supervises"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "LoopNode iterates a checklist file: on every arrival it validates the previous lap's item, then an evaluator decides whether the definition of done is met or another open item should be dispatched.",
+            "properties": {
+              "checklist": {
+                "description": "Checklist is the checklist path, relative to the workdir. Optional only when this loop node lies inside another loop's body, in which case it iterates the enclosing item's checklist field.",
+                "type": "string"
+              },
+              "edges": {
+                "additionalProperties": false,
+                "description": "Edges are the engine-known routes for another lap and for leaving the loop.",
+                "properties": {
+                  "exit": {
+                    "type": "string"
+                  },
+                  "loop": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "loop",
+                  "exit"
+                ],
+                "type": "object"
+              },
+              "goal_evaluator": {
+                "additionalProperties": false,
+                "description": "GoalEvaluator configures the role that evaluates the overall definition of done and replans open work when necessary.",
+                "properties": {
+                  "model": {
+                    "additionalProperties": false,
+                    "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+                    "properties": {
+                      "effort": {
+                        "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high"
+                        ],
+                        "type": "string"
+                      },
+                      "name": {
+                        "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "version": {
+                        "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              },
+              "id": {
+                "not": {
+                  "enum": [
+                    "success",
+                    "failure"
+                  ]
+                },
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "item_judge": {
+                "additionalProperties": false,
+                "description": "ItemJudge configures the role that assesses one checklist item's evidence.",
+                "properties": {
+                  "model": {
+                    "additionalProperties": false,
+                    "description": "ModelSelection is the one authored model-selection contract. Provider and harness are derived from Name; omitted Version and Effort use model policy.",
+                    "properties": {
+                      "effort": {
+                        "description": "Effort explicitly selects low, medium, or high reasoning effort. Omit to use the selected model's documented policy.",
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high"
+                        ],
+                        "type": "string"
+                      },
+                      "name": {
+                        "description": "Name is a maintained alias/family or a recognizable provider-native ID.",
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "version": {
+                        "description": "Version pins an exact supported release for Name. Omit to use the maintained default release. A provider-native, versioned Name cannot also declare Version.",
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              },
+              "label": {
+                "type": "string"
+              },
+              "max_visits": {
+                "description": "MaxVisits bounds arrivals at the loop node, laps plus one.",
+                "type": "integer"
+              },
+              "timeout": {
+                "description": "Timeout bounds one item's validation command, the infer judge turn, and the evaluator turn.",
+                "pattern": "^[0-9]+(ms|s|m|h|d)$",
+                "type": "string"
+              },
+              "type": {
+                "const": "loop",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "edges"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "type": "array"
+    },
+    "services": {
+      "description": "Services names the one externally addressable process from SystemFile. Omit it together with SystemFile when the workflow needs no service.",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "type": "array"
+    },
+    "start": {
+      "description": "Start names the walk node where execution begins.",
+      "type": "string"
+    },
+    "system_file": {
+      "description": "SystemFile names the one process-manager definition used by this workflow. The first implementation accepts Procfile names only.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "start",
+    "nodes"
+  ],
+  "type": "object"
+}

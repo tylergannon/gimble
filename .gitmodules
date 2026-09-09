@@ -1,0 +1,6 @@
+[submodule "reference/diffusion-skills"]
+	path = reference/diffusion-skills
+	url = https://github.com/diffusioninc/skills.git
+	branch = main
+	shallow = true
+	ignore = dirty
