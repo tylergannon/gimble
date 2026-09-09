@@ -1,0 +1,190 @@
+{
+  "aggregate": {
+    "eval_count": 10,
+    "mean_citation_precision": 1.0,
+    "mean_path_length": 0.1,
+    "mean_tool_call_estimate": 16.5,
+    "misses": [],
+    "route_hit_rate": 1.0,
+    "success_at_1": 1.0,
+    "success_at_3": 1.0
+  },
+  "evals_path": "/Users/tyler/.codex/worktrees/acfe/gimble/docs/semantic-index/programmatic-workflows/.semantic-index/evals.jsonl",
+  "index": "/Users/tyler/.codex/worktrees/acfe/gimble/docs/semantic-index/programmatic-workflows",
+  "results": [
+    {
+      "citation_precision": 1.0,
+      "citations_matched": 2,
+      "expected_citations": [
+        "sources/workflows-as-programs.md",
+        "sources/key-claim-verbatim.md"
+      ],
+      "files_read": 20,
+      "id": "q001",
+      "notes": "Core architectural rationale.",
+      "path_length_to_first_hit": 0,
+      "query": "Why replace the general JSON or DAG workflow language with Go?",
+      "route_found": true,
+      "success_at_1": true,
+      "success_at_3": true,
+      "tool_call_estimate": 19
+    },
+    {
+      "citation_precision": 1.0,
+      "citations_matched": 2,
+      "expected_citations": [
+        "sources/workflows-as-programs.md",
+        "sources/key-claim-verbatim.md"
+      ],
+      "files_read": 20,
+      "id": "q002",
+      "notes": "Use edited and original claims.",
+      "path_length_to_first_hit": 0,
+      "query": "What is the postulate about workflow shorthands becoming programming languages?",
+      "route_found": true,
+      "success_at_1": true,
+      "success_at_3": true,
+      "tool_call_estimate": 18
+    },
+    {
+      "citation_precision": 1.0,
+      "citations_matched": 2,
+      "expected_citations": [
+        "sources/direction.md",
+        "sources/direction-clarification-verbatim.md"
+      ],
+      "files_read": 20,
+      "id": "q003",
+      "notes": "Legibility and progression.",
+      "path_length_to_first_hit": 0,
+      "query": "What should be preserved from good DAG diagrams?",
+      "route_found": true,
+      "success_at_1": true,
+      "success_at_3": true,
+      "tool_call_estimate": 14
+    },
+    {
+      "citation_precision": 1.0,
+      "citations_matched": 2,
+      "expected_citations": [
+        "sources/workflows-as-programs.md",
+        "sources/direction-corrections-verbatim.md"
+      ],
+      "files_read": 20,
+      "id": "q004",
+      "notes": "API-design ideal, not line-count law.",
+      "path_length_to_first_hit": 0,
+      "query": "What does it mean for workflow code to read like pseudocode?",
+      "route_found": true,
+      "success_at_1": true,
+      "success_at_3": true,
+      "tool_call_estimate": 18
+    },
+    {
+      "citation_precision": 1.0,
+      "citations_matched": 2,
+      "expected_citations": [
+        "sources/workflows-as-programs.md",
+        "sources/context-reframing-verbatim.md"
+      ],
+      "files_read": 20,
+      "id": "q005",
+      "notes": "One context and entry-point routing.",
+      "path_length_to_first_hit": 0,
+      "query": "How should the semantic index relate to an agent's context?",
+      "route_found": true,
+      "success_at_1": true,
+      "success_at_3": true,
+      "tool_call_estimate": 17
+    },
+    {
+      "citation_precision": 1.0,
+      "citations_matched": 2,
+      "expected_citations": [
+        "sources/actions-and-knowledge-verbatim.md",
+        "sources/direction.md"
+      ],
+      "files_read": 20,
+      "id": "q006",
+      "notes": "Information preparation.",
+      "path_length_to_first_hit": 1,
+      "query": "Why are research and indexing companions to coding and validation?",
+      "route_found": true,
+      "success_at_1": true,
+      "success_at_3": true,
+      "tool_call_estimate": 9
+    },
+    {
+      "citation_precision": 1.0,
+      "citations_matched": 2,
+      "expected_citations": [
+        "sources/input-separation-verbatim.md",
+        "sources/workflows-as-programs.md"
+      ],
+      "files_read": 20,
+      "id": "q007",
+      "notes": "Reusable method versus evolving information.",
+      "path_length_to_first_hit": 0,
+      "query": "How are program shape and input data separated?",
+      "route_found": true,
+      "success_at_1": true,
+      "success_at_3": true,
+      "tool_call_estimate": 19
+    },
+    {
+      "citation_precision": 1.0,
+      "citations_matched": 3,
+      "expected_citations": [
+        "sources/direction.md",
+        "sources/context-reframing-verbatim.md",
+        "sources/five-arts.md"
+      ],
+      "files_read": 20,
+      "id": "q008",
+      "notes": "Space/time division and tradeoffs.",
+      "path_length_to_first_hit": 0,
+      "query": "How should builder, supervisor, and checker responsibilities be divided?",
+      "route_found": true,
+      "success_at_1": true,
+      "success_at_3": true,
+      "tool_call_estimate": 12
+    },
+    {
+      "citation_precision": 1.0,
+      "citations_matched": 3,
+      "expected_citations": [
+        "sources/direction.md",
+        "sources/direction-clarification-verbatim.md",
+        "sources/direction-corrections-verbatim.md"
+      ],
+      "files_read": 20,
+      "id": "q009",
+      "notes": "Prioritize diagnostic evidence over aggregate scores.",
+      "path_length_to_first_hit": 0,
+      "query": "What telemetry is proposed for understanding bad workflow runs?",
+      "route_found": true,
+      "success_at_1": true,
+      "success_at_3": true,
+      "tool_call_estimate": 20
+    },
+    {
+      "citation_precision": 1.0,
+      "citations_matched": 3,
+      "expected_citations": [
+        "sources/direction.md",
+        "sources/workflows-as-programs.md",
+        "sources/spec.md"
+      ],
+      "files_read": 20,
+      "id": "q010",
+      "notes": "Important status boundary and current contract.",
+      "path_length_to_first_hit": 0,
+      "query": "Which parts are direction rather than shipped Gimble behavior?",
+      "route_found": true,
+      "success_at_1": true,
+      "success_at_3": true,
+      "tool_call_estimate": 19
+    }
+  ],
+  "run_at": "2026-09-09T23:24:41+00:00"
+}

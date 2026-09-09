@@ -36,6 +36,16 @@ Before planning, designing, or running an interview, loop, or workflow for
 this repo, read `ephemeral/projects/gimble/workflow-designer/rules.md`. It
 records the rules, each marked as decided by Tyler or proposed by an agent.
 
+## Semantic index
+
+The writings on the proposed move from JSON/DAG workflow definitions to
+Go-authored programs are routed through
+`docs/semantic-index/programmatic-workflows/README.md`. Read its entrypoint
+before searching that topic broadly; follow its task routes to the edited
+syntheses, preserved verbatim notes, and the current shipped specification.
+The Go-program runtime and unified context/index behavior described there are
+direction, not current implementation.
+
 ## Reference submodules
 
 `reference/` holds upstream projects mounted as submodules for reading only.
