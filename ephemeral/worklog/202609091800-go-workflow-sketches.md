@@ -1,0 +1,6 @@
+decision: Tyler proposes additive Go workflows while retaining the DAG language, workflow-specific Polytype argument schemas, and workflow-defined role names instead of model settings at call sites.
+decision: Tyler prioritizes a small curated builtin catalog with discoverable and dependable invocation contracts for long-term scheduled calls; public library authorship is secondary.
+finding: graph defines representations; reusable execution is in engine and harness, with loop/fanout/control/lifecycle still coupled to Runner. Extract operations incrementally rather than wrapping graph construction as the new language.
+finding: Readable translations must preserve isolated bake-off worktrees, runtime-owned checklist validation/done, scoped advisory supervisors, and per-activation limits. Existing graph checkpoints do not imply arbitrary Go-stack resumption.
+proposal: Keep contract versions distinct from implementation revisions so maintained methods can improve without silently changing old input semantics, outputs, or allowed effects. API sketches and the proposed CLI are hypothetical, not accepted or implemented.
+correction: Translation review caught a local retry counter that would reset after failed runtime validation. Bind named implementation/review limits to the shared item scope so repeated helper calls preserve the existing per-item ceilings.
