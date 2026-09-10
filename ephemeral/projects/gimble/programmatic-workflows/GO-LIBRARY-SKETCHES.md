@@ -5,6 +5,16 @@ below are agent proposals, not accepted contracts or implemented APIs. These
 are hypothetical Go programs, with prompt construction and registration
 boilerplate separated from their control flow.
 
+**Correction after Tyler's review:** this proposal missed the already-built
+Go POC and the subsequent concurrency design. Its API sketches need revision
+against that work before further design. The preserved
+`codex/programmatic-workflow-research` branch at `4906a98` contains
+`program/workflows/workflows.go`, `POC.md`, and `CONCURRENCY-SHAPES.md`.
+The original implementation uses `Loop(...) iter.Seq2[Iteration, error]`;
+the subsequent design explicitly favors ordinary goroutines/errgroup and
+scoped context. The branch survives in the pre-rename history bundle at
+`/Users/tyler/src/gimble-history-backup-20260909.bundle`.
+
 ## Direction
 
 Tyler proposes adding the Go library while retaining the existing workflow
