@@ -26,11 +26,11 @@ generator, builtin catalog, Polytype schemas, or runtime-parity claim.
   `examples/go-workflows/critique/input.go:8-17`, and
   `examples/go-workflows/sprints/input.go:10-38`.
 - Effects are synchronous stub callbacks; orchestration belongs to callers:
-  `examples/go-workflows/internal/program/runtime.go:1-35`.
+  `examples/go-workflows/internal/program/runtime.go:1-36`.
 - The example iterator updates `Done` only through its validation callback and
   returns `iter.Seq2[Iteration, error]`; it has no persistent ledger:
-  `examples/go-workflows/internal/program/loop.go:37-124`.
-- [Filesystem-backed context](context-files.md) supplies the `SetContext`
+  `examples/go-workflows/internal/program/loop.go:39-131`.
+- [Filesystem-backed context](context-files.md) supplies `DeclareContext`/`SetContext`
   design, coherent snapshot boundary, inline/spill demo, and status limits.
 - [Context scopes](context-scopes.md) supplies the nested chapter/sprint and
   arbitrary `errgroup` branches with private physical write layers.

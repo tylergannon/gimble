@@ -50,6 +50,7 @@ func Loop(ctx context.Context, items []Item, options LoopOptions) iter.Seq2[Iter
 		}
 		attempts := make([]int, len(items))
 		contexts := make([]context.Context, len(items))
+		keys := make([]Key, len(items))
 		for completed := 0; ; completed++ {
 			if err := ctx.Err(); err != nil {
 				yield(Iteration{}, err)
@@ -70,12 +71,17 @@ func Loop(ctx context.Context, items []Item, options LoopOptions) iter.Seq2[Iter
 							yield(Iteration{}, err)
 							return
 						}
+						keys[index], err = DeclareContext(itemContext, options.Scope)
+						if err != nil {
+							yield(Iteration{}, err)
+							return
+						}
 					}
 					contexts[index] = itemContext
 				}
 				itemContext := contexts[index]
 				if options.Scope != "" {
-					if err := SetContext(itemContext, options.Scope, itemState{items[index], attempts[index]}); err != nil {
+					if err := SetContext(itemContext, keys[index], itemState{items[index], attempts[index]}); err != nil {
 						yield(Iteration{}, err)
 						return
 					}
@@ -92,7 +98,7 @@ func Loop(ctx context.Context, items []Item, options LoopOptions) iter.Seq2[Iter
 				changed := items[index].Done != passed
 				items[index].Done = passed
 				if changed && options.Scope != "" {
-					if err := SetContext(itemContext, options.Scope, itemState{items[index], attempts[index]}); err != nil {
+					if err := SetContext(itemContext, keys[index], itemState{items[index], attempts[index]}); err != nil {
 						yield(Iteration{}, err)
 						return
 					}
@@ -111,7 +117,7 @@ func Loop(ctx context.Context, items []Item, options LoopOptions) iter.Seq2[Iter
 			attempts[firstFailed]++
 			itemContext := contexts[firstFailed]
 			if options.Scope != "" {
-				if err := SetContext(itemContext, options.Scope, itemState{items[firstFailed], attempts[firstFailed]}); err != nil {
+				if err := SetContext(itemContext, keys[firstFailed], itemState{items[firstFailed], attempts[firstFailed]}); err != nil {
 					yield(Iteration{}, err)
 					return
 				}

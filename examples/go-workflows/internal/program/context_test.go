@@ -12,6 +12,19 @@ import (
 	"testing"
 )
 
+// putContext keeps routine fixtures short; ownership tests declare handles explicitly.
+func putContext(t *testing.T, ctx context.Context, name string, value any) Key {
+	t.Helper()
+	key, err := DeclareContext(ctx, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := SetContext(ctx, key, value); err != nil {
+		t.Fatal(err)
+	}
+	return key
+}
+
 type contextIndex struct {
 	Revision int `json:"revision"`
 	Entries  []struct {
@@ -44,9 +57,7 @@ func TestContextIndividualSpillPreservesCompleteJSON(t *testing.T) {
 	}
 	large := map[string]any{"note": strings.Repeat("é\n", 50), "tags": []string{"first", "last"}}
 	for key, value := range map[string]any{"research": large, "goal": "Ship it"} {
-		if err := SetContext(ctx, key, value); err != nil {
-			t.Fatal(err)
-		}
+		putContext(t, ctx, key, value)
 	}
 	store := ctx.Value(contextKey{}).(*contextStore)
 	indexes, err := filepath.Glob(filepath.Join(store.dir, "index-*.json"))
@@ -88,9 +99,7 @@ func TestContextAggregateSpillAndCompactRouting(t *testing.T) {
 		key  string
 		size int
 	}{{"large", 500}, {"medium", 400}, {"small", 20}} {
-		if err := SetContext(ctx, pair.key, strings.Repeat("x", pair.size)); err != nil {
-			t.Fatal(err)
-		}
+		putContext(t, ctx, pair.key, strings.Repeat("x", pair.size))
 	}
 	snapshot, err := SnapshotContext(ctx)
 	if err != nil {
@@ -101,9 +110,7 @@ func TestContextAggregateSpillAndCompactRouting(t *testing.T) {
 	}
 	// Enough independently short keys force routing through just the index.
 	for i := range 40 {
-		if err := SetContext(ctx, strings.Repeat("a", i+1), "tiny"); err != nil {
-			t.Fatal(err)
-		}
+		putContext(t, ctx, strings.Repeat("a", i+1), "tiny")
 	}
 	snapshot, err = SnapshotContext(ctx)
 	if err != nil {
@@ -122,9 +129,7 @@ func TestContextReplacementKeepsOldSnapshotCoherent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(ctx, "goal", "before"); err != nil {
-		t.Fatal(err)
-	}
+	goal := putContext(t, ctx, "goal", "before")
 	old, err := SnapshotContext(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -134,7 +139,7 @@ func TestContextReplacementKeepsOldSnapshotCoherent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(ctx, "goal", "after"); err != nil {
+	if err := SetContext(ctx, goal, "after"); err != nil {
 		t.Fatal(err)
 	}
 	current, err := SnapshotContext(ctx)
@@ -161,7 +166,7 @@ func TestContextRejectsMissingInvalidAndUnencodableInputs(t *testing.T) {
 	if snapshot, err := SnapshotContext(context.Background()); err != nil || snapshot.Index != "" {
 		t.Fatalf("unattached context: %#v, %v", snapshot, err)
 	}
-	if err := SetContext(context.Background(), "goal", "work"); err == nil {
+	if err := SetContext(context.Background(), Key{}, "work"); err == nil {
 		t.Fatal("accepted Set without a store")
 	}
 	for _, limits := range []ContextLimits{{}, {ValueBytes: 1, PromptBytes: 1}} {
@@ -174,14 +179,18 @@ func TestContextRejectsMissingInvalidAndUnencodableInputs(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, key := range []string{"", "../../outside", "heading\n# injected"} {
-		if err := SetContext(ctx, key, "data"); err == nil {
+		if _, err := DeclareContext(ctx, key); err == nil {
 			t.Fatalf("accepted unsafe key %q", key)
 		}
 	}
-	if err := SetContext(ctx, "unsupported", make(chan int)); err == nil {
+	unsupported, err := DeclareContext(ctx, "unsupported")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := SetContext(ctx, unsupported, make(chan int)); err == nil {
 		t.Fatal("accepted non-JSON data")
 	}
-	if ctx.Value(contextKey{}).(*contextStore).revision != 0 {
+	if ctx.Value(contextKey{}).(*contextStore).tree.revision != 0 {
 		t.Fatal("failed setters advanced the revision")
 	}
 }
@@ -191,15 +200,13 @@ func TestContextCancellationAndIndexFailureStopSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(ctx, "goal", "work"); err != nil {
-		t.Fatal(err)
-	}
+	goal := putContext(t, ctx, "goal", "work")
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
 	if _, err := SnapshotContext(canceled); !errors.Is(err, context.Canceled) {
 		t.Fatalf("snapshot ignored cancellation: %v", err)
 	}
-	if err := SetContext(canceled, "goal", "replacement"); !errors.Is(err, context.Canceled) {
+	if err := SetContext(canceled, goal, "replacement"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("setter ignored cancellation: %v", err)
 	}
 	store := ctx.Value(contextKey{}).(*contextStore)

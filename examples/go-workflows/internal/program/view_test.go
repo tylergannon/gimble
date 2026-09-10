@@ -35,9 +35,7 @@ func readViewValue(t *testing.T, snapshot ContextSnapshot, key string) (string, 
 func TestViewMaterializesCompleteNativeDirectory(t *testing.T) {
 	ctx := viewContext(t)
 	for key, value := range map[string]any{"goal": "deliver", "index": "ordinary key", "research": strings.Repeat("x", 500)} {
-		if err := SetContext(ctx, key, value); err != nil {
-			t.Fatal(err)
-		}
+		putContext(t, ctx, key, value)
 	}
 	snapshot := scopedSnapshot(t, ctx)
 	entries, err := os.ReadDir(filepath.Join(snapshot.View, "values"))
@@ -67,13 +65,9 @@ func TestViewMaterializesCompleteNativeDirectory(t *testing.T) {
 
 func TestViewReplacementPreservesEarlierLinks(t *testing.T) {
 	ctx := viewContext(t)
-	if err := SetContext(ctx, "focus", "before"); err != nil {
-		t.Fatal(err)
-	}
+	putContext(t, ctx, "focus", "before")
 	before := scopedSnapshot(t, ctx)
-	if err := SetContext(ctx, "focus", "after"); err != nil {
-		t.Fatal(err)
-	}
+	putContext(t, ctx, "focus", "after")
 	after := scopedSnapshot(t, ctx)
 	oldValue, oldTarget := readViewValue(t, before, "focus")
 	newValue, newTarget := readViewValue(t, after, "focus")
@@ -87,26 +81,22 @@ func TestViewReplacementPreservesEarlierLinks(t *testing.T) {
 
 func TestViewRejectsCaseCollidingKeysWithoutInvalidation(t *testing.T) {
 	ctx := viewContext(t)
-	if err := SetContext(ctx, "goal", "original"); err != nil {
-		t.Fatal(err)
-	}
+	goal := putContext(t, ctx, "goal", "original")
 	before := scopedSnapshot(t, ctx)
-	if err := SetContext(ctx, "Goal", "collision"); err == nil {
+	if _, err := DeclareContext(ctx, "Goal"); err == nil {
 		t.Fatal("accepted keys that collide on case-insensitive filesystems")
 	}
 	if after := scopedSnapshot(t, ctx); !reflect.DeepEqual(before, after) {
-		t.Fatalf("rejected setter invalidated the published snapshot: before=%#v after=%#v", before, after)
+		t.Fatalf("rejected declaration invalidated the published snapshot: before=%#v after=%#v", before, after)
 	}
 	files, err := filepath.Glob(filepath.Join(filepath.Dir(before.Index), "value-*.json"))
 	if err != nil || len(files) != 1 {
-		t.Fatalf("rejected setter wrote another value file: %v, %v", files, err)
+		t.Fatalf("rejected declaration wrote another value file: %v, %v", files, err)
 	}
-	if err := SetContext(ctx, "research", "new data"); err != nil {
-		t.Fatal(err)
-	}
+	putContext(t, ctx, "research", "new data")
 	after := scopedSnapshot(t, ctx)
 	if after.Revision != before.Revision+1 {
-		t.Fatalf("rejected setter advanced revision: before=%d after=%d", before.Revision, after.Revision)
+		t.Fatalf("rejected declaration advanced revision: before=%d after=%d", before.Revision, after.Revision)
 	}
 	if value, _ := readViewValue(t, after, "goal"); value != `"original"` {
 		t.Fatalf("original data changed: %s", value)
@@ -114,7 +104,7 @@ func TestViewRejectsCaseCollidingKeysWithoutInvalidation(t *testing.T) {
 	if value, _ := readViewValue(t, after, "research"); value != `"new data"` {
 		t.Fatalf("subsequent write failed to publish: %s", value)
 	}
-	if err := SetContext(ctx, "goal", "replacement"); err != nil {
+	if err := SetContext(ctx, goal, "replacement"); err != nil {
 		t.Fatalf("same-key replacement rejected: %v", err)
 	}
 	if value, _ := readViewValue(t, scopedSnapshot(t, ctx), "goal"); value != `"replacement"` {
@@ -124,17 +114,13 @@ func TestViewRejectsCaseCollidingKeysWithoutInvalidation(t *testing.T) {
 
 func TestViewNestedScopeReusesInheritedValueFiles(t *testing.T) {
 	parent := viewContext(t)
-	if err := SetContext(parent, "goal", "shared"); err != nil {
-		t.Fatal(err)
-	}
+	putContext(t, parent, "goal", "shared")
 	root := scopedSnapshot(t, parent)
 	child, err := Scope(parent, "chapter")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(child, "focus", "child only"); err != nil {
-		t.Fatal(err)
-	}
+	putContext(t, child, "focus", "child only")
 	nested := scopedSnapshot(t, child)
 	_, parentTarget := readViewValue(t, root, "goal")
 	_, childTarget := readViewValue(t, nested, "goal")
@@ -151,9 +137,7 @@ func TestViewNestedScopeReusesInheritedValueFiles(t *testing.T) {
 
 func TestViewPublicationFailureRemovesUnpublishedFiles(t *testing.T) {
 	ctx := viewContext(t)
-	if err := SetContext(ctx, "goal", "data to preserve"); err != nil {
-		t.Fatal(err)
-	}
+	putContext(t, ctx, "goal", "data to preserve")
 	store := ctx.Value(contextKey{}).(*contextStore)
 	// Force projection to fail after the index and complete view were built.
 	store.limits.PromptBytes = 1

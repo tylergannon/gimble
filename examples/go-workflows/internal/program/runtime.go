@@ -18,6 +18,7 @@ type Call struct {
 	Role      Role
 	Prompt    string
 	Workspace string
+	Context   ContextSnapshot
 }
 
 type Check struct {
@@ -53,7 +54,7 @@ func Codergen[T any](ctx context.Context, rt *Runtime, name string, role Role, p
 		prompt = snapshot.Prompt + "\n\n## Task\n" + prompt
 	}
 	rt.trace("agent %s role=%s workspace=%s", name, role, Workspace(ctx))
-	value, err := rt.Agent(ctx, Call{name, role, prompt, Workspace(ctx)})
+	value, err := rt.Agent(ctx, Call{name, role, prompt, Workspace(ctx), snapshot})
 	if err != nil {
 		return zero, err
 	}

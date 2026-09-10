@@ -21,7 +21,8 @@ express concurrency with ordinary `errgroup`, [filesystem context](sources/conte
 and [automatic item/arbitrary scopes](sources/context-scopes.md) in nested
 directories with real value files and complete symlink views per snapshot.
 Native tools can read each view without FUSE. The index is a deterministic
-placeholder; values can be edited only by their owning scope, and agent/command
+placeholder; declared keys bind values to one writing scope, and each agent
+call receives current ancestor values in a fixed view. Agent/command
 replies and workspaces remain stubs. Static ownership validation is deferred;
 the retained local-only analyzer experiment is unadopted. The newer
 Go-library API sketches need revision after Tyler's indirection correction.

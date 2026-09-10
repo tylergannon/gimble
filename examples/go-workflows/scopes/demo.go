@@ -58,11 +58,8 @@ func demoRuntime(input Input, report *Report) *program.Runtime {
 	}
 	return &program.Runtime{
 		Output: os.Stderr,
-		Agent: func(ctx context.Context, call program.Call) (any, error) {
-			snapshot, err := program.SnapshotContext(ctx)
-			if err != nil {
-				return nil, err
-			}
+		Agent: func(_ context.Context, call program.Call) (any, error) {
+			snapshot := call.Context
 			if !strings.HasPrefix(call.Prompt, snapshot.Prompt) {
 				return nil, fmt.Errorf("%s did not receive its captured context", call.Name)
 			}

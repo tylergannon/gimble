@@ -27,7 +27,11 @@ func main() {
 		if err != nil {
 			return err
 		}
-		if err := program.SetContext(ctx, "goal", input.Goal); err != nil {
+		goal, err := program.DeclareContext(ctx, "goal")
+		if err != nil {
+			return err
+		}
+		if err := program.SetContext(ctx, goal, input.Goal); err != nil {
 			return err
 		}
 		fmt.Fprintf(os.Stderr, "Context files retained under %s\n", directory)

@@ -26,19 +26,23 @@ type Report struct {
 var stageDescriptions = map[string]struct{ name, code string }{
 	"plan": {
 		"Small goal and constraints",
-		`program.SetContext(ctx, "goal", input.Goal)
-program.SetContext(ctx, "constraints", pricingConstraints())
+		`goal, err := program.DeclareContext(ctx, "goal")
+constraints, err := program.DeclareContext(ctx, "constraints")
+research, err := program.DeclareContext(ctx, "research")
+program.SetContext(ctx, goal, input.Goal)
+program.SetContext(ctx, constraints, pricingConstraints())
 program.Codergen[string](ctx, runtime, "plan", engMgr, "Outline the implementation and its proof.")`,
 	},
 	"build": {
 		"Oversized research moves to the index",
-		`program.SetContext(ctx, "research", researchNotes())
+		`program.SetContext(ctx, research, researchNotes())
 program.Codergen[string](ctx, runtime, "build", sswe, "Implement the quote command.")`,
 	},
 	"verify": {
 		"Small values together exceed the budget",
 		`for _, note := range acceptanceNotes() {
-    program.SetContext(ctx, note.Key, note.Value)
+    key, err := program.DeclareContext(ctx, note.Key)
+    program.SetContext(ctx, key, note.Value)
 }
 program.Codergen[string](ctx, runtime, "verify", tester, "Exercise the boundary cases and judge the recorded evidence.")`,
 	},
@@ -47,13 +51,10 @@ program.Codergen[string](ctx, runtime, "verify", tester, "Exercise the boundary 
 func captureRuntime(report *Report) *program.Runtime {
 	return &program.Runtime{
 		Output: os.Stderr,
-		Agent: func(ctx context.Context, call program.Call) (any, error) {
+		Agent: func(_ context.Context, call program.Call) (any, error) {
 			// Codergen must have built this projection before invoking the agent.
-			// No SetContext occurs in this callback, so the revision stays fixed.
-			snapshot, err := program.SnapshotContext(ctx)
-			if err != nil {
-				return nil, err
-			}
+			// This is the fixed view supplied to this call, even if a parent changes.
+			snapshot := call.Context
 			if snapshot.Prompt == "" || !strings.HasPrefix(call.Prompt, snapshot.Prompt) {
 				return nil, fmt.Errorf("%s: agent did not receive the ready context projection", call.Name)
 			}

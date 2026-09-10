@@ -17,18 +17,22 @@ the immediate concern is clear context and write ownership.
 ## Prototype contract
 
 The root starts with `NewContext` and workflow-supplied goal data.
-`Scope(ctx, name)` copies the parent's effective values and revision under
-the parent lock, reuses their immutable file paths, and creates a private
-mutable map and a new directory physically inside its parent directory.
-The name is recorded in the snapshot/index scope path; generated directory
-names identify the physical layers.
+`Scope(ctx, name)` retains a parent relationship and creates its own values
+and directory physically inside its parent directory. Sanitized scope names
+prefix the generated directory names; the full names appear in the index.
 
-`SetContext(child, key, value)` creates or updates a child-owned value file.
-Writing an ancestor-owned key fails; local values cannot shadow inherited
-bindings. Inherited keys still point to ancestor files.
-Later parent updates do not change an existing child; child writes do not
-change siblings or automatically promote results to a parent. Files are
-immutable by API convention, not protected from direct filesystem edits.
+`DeclareContext(ctx, name)` binds a key to its scope before any value is set.
+`SetContext(ctx, key, value)` writes only from that owner. A same-named value in
+another scope is a distinct binding; any collision qualifies ALL effective
+keys with scope IDs, avoiding generated-name aliases. Child writes do not change
+siblings or automatically promote results to a parent. Files are immutable by
+API convention, not protected from direct filesystem edits.
+
+Each agent entry resolves the latest ancestor values, then publishes one
+fixed prompt/index view supplied as `Call.Context`. A later parent write
+reaches the child's next call; an already-running call keeps its original
+view. Tyler accepted these ownership and read rules with "Fix" after review;
+they supersede the first-writer and frozen-at-scope-creation rules.
 
 `Chapters` and `Sprints` wrap the same Go iterator. Each yielded
 `Iteration.Context` belongs to that item; its validation callbacks receive
@@ -39,10 +43,11 @@ activation. A typed agent reply enters later context only when the workflow
 explicitly calls `SetContext` with it.
 
 The initial validation sweep creates every item's scope, including siblings
-not yet selected for work. This freezes their inherited values at that time.
-Updating the parent afterward will not reach those already-created siblings.
-Starting a new iterator activation creates new item scopes; retry reuse does
-not extend across separate iterator invocations.
+not yet selected for work. Their next agent calls still refresh inherited
+values, so a chapter can pass its new findings to later sprints. Starting a
+new iterator activation creates new item scopes; retry reuse does not extend
+across separate iterator invocations. Same-kind nested loops work because
+their metadata keys belong to different scopes.
 
 Arbitrary scopes use the same `Scope` function and ordinary `errgroup` for
 parallel work. Cancellation follows the supplied Go context. Returning to a
@@ -115,14 +120,14 @@ names `view-<revision>-<id>/`, containing `values/<key>.json` symlinks for every
 effective key and an `index.json` symlink to the authoritative `ContextSnapshot.Index`.
 Inherited and local values are both visible through meaningful filenames;
 the view adds directories and links without copying the original value bytes.
-Native tools can read `values/goal.json` or list `values/` directly.
+Native tools can list `values/`; the current index names its effective keys.
 
 `SnapshotContext` prepares every link before publishing the snapshot, and
 `Codergen` waits for that snapshot before invoking the agent callback. The
 context prompt points at `View/index.json`. Explicit revision paths keep scope
 identity stable across tools and subprocesses, while earlier views remain
-readable. Parent snapshots and private scope writes retain their existing
-semantics; this adds a filesystem view to the manifest rather than a mount.
+readable. Each call receives current inherited values through a fixed view;
+this adds a filesystem view to the manifest rather than a mount.
 
 Context is read-only by convention. Writes go through `SetContext`, which
 writes a new immutable value file; the next snapshot creates a new view whose
@@ -160,18 +165,15 @@ or transparent filesystem behavior becomes worth that runtime commitment.
 ## Parent changes after a child override (earlier discussion)
 
 Before the [ownership rule](CONTEXT-OWNERSHIP.md), Tyler asked what happens when
-a parent changes after a child override. The prototype froze inheritance
-when `Scope` is created. Later parent writes do not reach that child, even for
-keys it had never overridden. Child overrides were local, and each
-published revision view remains stable under writes made through the API.
+a parent changes after a child override. The earlier prototype froze
+inheritance when `Scope` was created. That read policy is now superseded by
+refreshing inherited values at each agent entry.
 
-**Agent proposal, not accepted or implemented:** live lexical inheritance
-could resolve each key from the nearest scope that defines it. A local value
-wins; otherwise the next agent call resolves the latest applicable parent
-value. That call would still receive one frozen effective snapshot, rather
-than having its context change during execution. This would change when
-inheritance is resolved; it must not be introduced silently into the current
-scope API.
+The agent also proposed live lexical inheritance with local overrides. The
+accepted rule instead gives each declared binding one owner: descendants
+cannot override that binding. Same-named declarations denote distinct values
+and both remain visible. The accepted live-read behavior still freezes each
+individual call's prompt and files while the call runs.
 
 Precedence does not settle freshness. An intentional override should survive
 an unrelated parent edit. A value derived from an older parent may instead
@@ -187,8 +189,8 @@ This assessment pins `a4b6592d31aacb4d2f94d0c80f43d47d38063fa9`; it is source
 inspection, not a FUSE runtime test. BranchFS is a Rust FUSE filesystem under
 the [MIT license](https://github.com/multikernel/branchfs/blob/a4b6592d31aacb4d2f94d0c80f43d47d38063fa9/LICENSE#L1-L9).
 It exposes `@branch` paths, nested branches, frozen inherited snapshots, and
-leaf commits into the immediate parent. This is snapshot isolation, not the
-proposed live lexical inheritance above.
+leaf commits into the immediate parent. This differs from the current example's
+refreshed inheritance and scope-owned writes.
 [Snapshot/commit model](https://github.com/multikernel/branchfs/blob/a4b6592d31aacb4d2f94d0c80f43d47d38063fa9/README.md#L17-L19),
 [@branch paths](https://github.com/multikernel/branchfs/blob/a4b6592d31aacb4d2f94d0c80f43d47d38063fa9/README.md#L135-L168).
 
@@ -219,5 +221,5 @@ proposed live lexical inheritance above.
 BranchFS is a concrete comparison for writable filesystem branches and
 explicit commits. It does not decide when a workflow should promote results,
 invalidate derived context, or resolve conflicting intent. No dependency was
-adopted, and this research changes neither the symlink-view example nor its
-frozen inheritance contract.
+adopted. This is preserved research, not a dependency or requirement of the
+current symlink-view example.

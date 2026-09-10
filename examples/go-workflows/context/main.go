@@ -17,17 +17,29 @@ func ContextWalkthrough(ctx context.Context, runtime *program.Runtime, input Inp
 	if err := input.validate(); err != nil {
 		return err
 	}
-	if err := program.SetContext(ctx, "goal", input.Goal); err != nil {
+	goal, err := program.DeclareContext(ctx, "goal")
+	if err != nil {
 		return err
 	}
-	if err := program.SetContext(ctx, "constraints", pricingConstraints()); err != nil {
+	constraints, err := program.DeclareContext(ctx, "constraints")
+	if err != nil {
+		return err
+	}
+	research, err := program.DeclareContext(ctx, "research")
+	if err != nil {
+		return err
+	}
+	if err := program.SetContext(ctx, goal, input.Goal); err != nil {
+		return err
+	}
+	if err := program.SetContext(ctx, constraints, pricingConstraints()); err != nil {
 		return err
 	}
 	if _, err := program.Codergen[string](ctx, runtime, "plan", engMgr, "Outline the implementation and its proof."); err != nil {
 		return err
 	}
 
-	if err := program.SetContext(ctx, "research", researchNotes()); err != nil {
+	if err := program.SetContext(ctx, research, researchNotes()); err != nil {
 		return err
 	}
 	if _, err := program.Codergen[string](ctx, runtime, "build", sswe, "Implement the quote command."); err != nil {
@@ -35,10 +47,14 @@ func ContextWalkthrough(ctx context.Context, runtime *program.Runtime, input Inp
 	}
 
 	for _, note := range acceptanceNotes() {
-		if err := program.SetContext(ctx, note.Key, note.Value); err != nil {
+		key, err := program.DeclareContext(ctx, note.Key)
+		if err != nil {
+			return err
+		}
+		if err := program.SetContext(ctx, key, note.Value); err != nil {
 			return err
 		}
 	}
-	_, err := program.Codergen[string](ctx, runtime, "verify", tester, "Exercise the boundary cases and judge the recorded evidence.")
+	_, err = program.Codergen[string](ctx, runtime, "verify", tester, "Exercise the boundary cases and judge the recorded evidence.")
 	return err
 }

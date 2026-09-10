@@ -33,28 +33,29 @@ For named scopes and physical branches, continue to [context scopes](context-sco
 ## Implementation entrypoints
 
 - Context demo with short step instructions and three data-growth stages:
-  `examples/go-workflows/context/main.go:15-44`.
-- Store creation, scope ownership, and immutable-value setter:
-  `examples/go-workflows/internal/program/context.go:38-162`.
-- Snapshot publication, complete view, and bounded context projection:
-  `examples/go-workflows/internal/program/context.go:164-289`.
+  `examples/go-workflows/context/main.go:15-60`.
+- Store creation, declared keys, and immutable-value setter:
+  `examples/go-workflows/internal/program/context.go:38-164`.
+- Current ancestor resolution, snapshot publication, and bounded projection:
+  `examples/go-workflows/internal/program/context.go:166-317`.
 - Native-tool view with `values/<key>.json` and `index.json` symlinks:
   `examples/go-workflows/internal/program/view.go:10-47`.
 - Automatic snapshot before invoking an agent callback:
-  `examples/go-workflows/internal/program/runtime.go:37-68`.
+  `examples/go-workflows/internal/program/runtime.go:37-70`.
 
 ## Retrieval recipes
 
 - For "what happens after SetContext?", read the timing proposal and the
   `Codergen` entrypoint. The setter persists data; indexing waits until a
-  snapshot is requested, automatically at the next agent call.
+  snapshot is requested, automatically at the next agent call. That snapshot
+  also refreshes inherited values and is delivered as `Call.Context`.
 - For "why did a small value leave the prompt?", inspect aggregate spilling
   and run `go run ./examples/go-workflows/context` from the repository root.
   The demo prints the delivered prompts and retains its context files.
 - For "what semantic-index dependency do we use?", read the limitations and
   research leads. This example uses a deterministic JSON route index only.
 - For "how can shell tools read inherited values?", inspect `ContextSnapshot.View`
-  and its `values/` directory. Symlinks expose effective data without a mount;
+  and its `values/` directory. Any name collision qualifies ALL effective keys;
   `SetContext` creates replacements without changing earlier snapshots.
 
 ## Themes

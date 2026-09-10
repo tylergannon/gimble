@@ -4,7 +4,8 @@
 go run ./examples/go-workflows/context
 ```
 
-The workflow sets a small goal and constraints, adds oversized research, then
+The workflow declares scope-owned keys, sets a small goal and constraints,
+adds oversized research, then
 adds individually small acceptance notes that together exceed the context
 budget. Its three agent instructions stay short. `Codergen` obtains a ready
 context projection before handing each assembled prompt to the canned agent.
@@ -27,8 +28,9 @@ Each snapshot's `view` is an ordinary revision directory. `values/<key>.json`
 symlinks expose every effective value, and `index.json` links to the authoritative
 `index` file. The context prompt points at `view/index.json`; native tools can
 also list and read `view/values/`. No original value bytes are copied and no
-FUSE mount is needed. Context is read-only by convention: use `SetContext` for
-updates, which writes a new file and produces a new view at the next snapshot.
+FUSE mount is needed. Context is read-only by convention: declare a key with
+`DeclareContext`, then use `SetContext` from its owning scope for updates.
+Each update writes a new file and produces a new view at the next snapshot.
 Writing through a symlink changes its target; it is not automatic copy-on-write.
 
 Read `main.go` for the sequence, `input.go` for the argument shape, and

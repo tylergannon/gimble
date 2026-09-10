@@ -13,17 +13,10 @@ func TestCodergenMaterializesContextBeforeCallingAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(ctx, "goal", "Demonstrate the quote command."); err != nil {
-		t.Fatal(err)
-	}
-	if err := SetContext(ctx, "research", strings.Repeat("Boundary observations. ", 100)); err != nil {
-		t.Fatal(err)
-	}
-	rt := &Runtime{Agent: func(callCtx context.Context, call Call) (any, error) {
-		snapshot, err := SnapshotContext(callCtx)
-		if err != nil {
-			return nil, err
-		}
+	putContext(t, ctx, "goal", "Demonstrate the quote command.")
+	putContext(t, ctx, "research", strings.Repeat("Boundary observations. ", 100))
+	rt := &Runtime{Agent: func(_ context.Context, call Call) (any, error) {
+		snapshot := call.Context
 		if snapshot.Revision != 2 || len(snapshot.External) == 0 {
 			t.Errorf("agent did not receive both updates with spilled research: %+v", snapshot)
 		}
@@ -49,9 +42,7 @@ func TestContextPublicationFailurePreventsAgentCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(ctx, "goal", "Demonstrate the quote command."); err != nil {
-		t.Fatal(err)
-	}
+	putContext(t, ctx, "goal", "Demonstrate the quote command.")
 	// Make the storage directory unavailable before pending indexing occurs.
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatal(err)
@@ -69,5 +60,34 @@ func TestContextPublicationFailurePreventsAgentCall(t *testing.T) {
 	}
 	if called {
 		t.Fatal("agent ran without its pending context index")
+	}
+}
+
+func TestCodergenKeepsReceivedViewWhileNextCallRefreshesParent(t *testing.T) {
+	parent := viewContext(t)
+	goal := putContext(t, parent, "goal", "before")
+	child := ownershipChild(t, parent, "sprint")
+	calls := 0
+	rt := &Runtime{Agent: func(_ context.Context, call Call) (any, error) {
+		calls++
+		want := `"after"`
+		if calls == 1 {
+			if err := SetContext(parent, goal, "after"); err != nil {
+				return nil, err
+			}
+			want = `"before"`
+		}
+		if value, _ := readViewValue(t, call.Context, "goal"); value != want {
+			t.Fatalf("call %d context changed or was stale: got %s, want %s", calls, value, want)
+		}
+		if !strings.Contains(call.Prompt, "goal = "+want) {
+			t.Fatalf("call %d prompt and view disagree", calls)
+		}
+		return "scripted result", nil
+	}}
+	for range 2 {
+		if _, err := Codergen[string](child, rt, "implement", "sswe", "Implement."); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

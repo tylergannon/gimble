@@ -12,12 +12,8 @@ func TestSprintsShareItemScopeWithValidationAndRetries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(root, "goal", "original"); err != nil {
-		t.Fatal(err)
-	}
-	if err := SetContext(root, "attempt", 99); err != nil {
-		t.Fatal(err)
-	}
+	goal := putContext(t, root, "goal", "original")
+	putContext(t, root, "attempt", 99)
 	items := []Item{{Name: "first", Done: true}, {Name: "second"}}
 	worked := map[string]int{}
 	scopes := map[string]context.Context{}
@@ -55,14 +51,16 @@ func TestSprintsShareItemScopeWithValidationAndRetries(t *testing.T) {
 		if err := json.Unmarshal([]byte(metadata), &state); err != nil || state.Item != sprint.Item || state.Attempt != sprint.Attempt {
 			t.Fatalf("scope kept stale checklist state: %s, %v", metadata, err)
 		}
-		if value, _ := scopedValue(t, snapshot, "goal"); value != `"original"` {
-			t.Fatalf("item scope changed after its first validation: %s", value)
+		wantGoal := `"original"`
+		if worked["first"] > 0 {
+			wantGoal = `"later parent update"`
+		}
+		if value, _ := scopedValue(t, snapshot, "goal"); value != wantGoal {
+			t.Fatalf("retry or later sprint missed inherited update: got %s, want %s", value, wantGoal)
 		}
 		if sprint.Item.Name == "first" && sprint.Attempt == 1 {
-			if err := SetContext(sprint.Context, "feedback", "repair this item"); err != nil {
-				t.Fatal(err)
-			}
-			if err := SetContext(root, "goal", "later parent update"); err != nil {
+			putContext(t, sprint.Context, "feedback", "repair this item")
+			if err := SetContext(root, goal, "later parent update"); err != nil {
 				t.Fatal(err)
 			}
 		} else if sprint.Item.Name == "first" {
@@ -83,5 +81,36 @@ func TestSprintsShareItemScopeWithValidationAndRetries(t *testing.T) {
 	}
 	if value, _ := scopedValue(t, scopedSnapshot(t, root), "attempt"); value != "99" {
 		t.Fatal("iterator wrote attempt state into its parent")
+	}
+}
+
+func TestSprintsCanNestWithoutSharingMetadataBindings(t *testing.T) {
+	root := viewContext(t)
+	outerDone, innerDone := false, false
+	outerOptions := LoopOptions{MaxIterations: 1, Validate: func(context.Context, Item) (bool, error) { return outerDone, nil }}
+	for outer, err := range Sprints(root, []Item{{Name: "outer"}}, outerOptions) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		innerOptions := LoopOptions{MaxIterations: 1, Validate: func(context.Context, Item) (bool, error) { return innerDone, nil }}
+		for inner, err := range Sprints(outer.Context, []Item{{Name: "inner"}}, innerOptions) {
+			if err != nil {
+				t.Fatal(err)
+			}
+			names := map[string]bool{}
+			for _, entry := range readContextIndex(t, scopedSnapshot(t, inner.Context)).Entries {
+				value, _ := readViewValue(t, scopedSnapshot(t, inner.Context), entry.Key)
+				var state itemState
+				if err := json.Unmarshal([]byte(value), &state); err != nil {
+					t.Fatal(err)
+				}
+				names[state.Name] = true
+			}
+			if len(names) != 2 || !names["outer"] || !names["inner"] {
+				t.Fatalf("nested sprint metadata lost an owning scope: %v", names)
+			}
+			innerDone = true
+		}
+		outerDone = true
 	}
 }

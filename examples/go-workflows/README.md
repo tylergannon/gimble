@@ -56,7 +56,8 @@ generation, schema-complete validation, or the proposed builtin catalog.
 ## Filesystem context and the agent boundary
 
 The [context example](context/main.go) adds a small filesystem-backed prototype
-to the stubs. `SetContext(ctx, key, value)` writes the entire JSON value and marks
+to the stubs. `DeclareContext(ctx, name)` returns a key owned by that scope.
+`SetContext(ctx, key, value)` writes the entire JSON value and marks
 the prompt view stale. The next `Codergen` call automatically materializes a
 coherent index and prompt before entering the agent callback. Multiple setters
 can be combined; ordinary Go work between setting data and calling the agent
@@ -67,8 +68,8 @@ values behind short key-based routes to an index containing their full paths.
 Values and indexes use immutable files, so an older prompt's links remain valid
 after replacement. Each snapshot also publishes a `View` directory with
 `index.json` and `values/<key>.json` symlinks for ordinary file tools. The prompt
-points to that view's index. Keys cannot differ only by letter case, so the view
-works on case-insensitive filesystems. A failed index/view update prevents the
+points to that view's index. Same-scope names cannot differ only by letter case;
+any cross-scope collision qualifies ALL effective keys with scope IDs to avoid aliases. A failed index/view update prevents the
 agent call. The limits count bytes in the context contribution, excluding the separate task instruction;
 token accounting and the real semantic placement policy remain to be designed.
 
@@ -86,9 +87,10 @@ for the proposed waiting contract and open-source research leads.
 
 `Chapters` and `Sprints` create item scopes automatically and yield their
 `Context`; validation receives that same context. An arbitrary
-`Scope(ctx, "research")` uses the same primitive. Each child inherits a snapshot
-of the parent's effective values, writes owned values in its own nested directory,
-and references the original ancestor files for inherited values. An effective
+`Scope(ctx, "research")` uses the same primitive. Each child retains its parent,
+writes owned values in its own named, nested directory, and resolves current
+ancestor values at each agent call. `Call.Context` is the fixed snapshot received
+by that call; an already-running call keeps its original files and prompt. An effective
 index tells the agent what applies in that scope. Its published `View/values`
 directory lists all effective keys as symlinks, including inherited ones.
 Each view creates directory entries and links rather than copying unchanged
@@ -96,9 +98,11 @@ payloads. `SetContext` writes a fresh value file; the next view links to it.
 Directly editing a symlink would edit its target, so context updates stay behind
 `SetContext`. There is no FUSE mount or identity-dependent filesystem view.
 
-Each value has one owning scope. `SetContext` rejects ancestor/descendant
-writes to the same binding; an owner may update its own value. Chapter and
-sprint attempts live inside their respective metadata objects. See the
+Each value has one declaring scope. `SetContext` rejects any other scope
+writing that key, regardless of assignment order. Same-named declarations in
+different scopes are distinct values and both remain visible. Chapter and
+sprint attempts live inside their respective metadata objects; same-kind
+nested loops have distinct metadata bindings. See the
 [ownership rule](../../ephemeral/projects/gimble/programmatic-workflows/CONTEXT-OWNERSHIP.md).
 
 Sibling writes stay separate. Passing the parent context again restores its
@@ -107,9 +111,10 @@ are trusted to follow the supplied index and write to their assigned layer;
 these paths do not enforce read access restrictions. Ordinary `errgroup`
 joining still owns the lifetime of parallel work.
 
-An item scope is retained across retries in one loop activation. Because the
-iterator checks every item before choosing work, those first checks create the
-scopes; later parent updates do not change already-created sibling views.
+An item scope is retained across retries in one loop activation. The iterator's
+initial checks create all scopes, but their next agent calls resolve current
+parent data. The nested example updates chapter context after each sprint,
+and the following sprint receives that update through its filesystem context.
 See [the scoping design and filesystem comparison](../../ephemeral/projects/gimble/programmatic-workflows/CONTEXT-SCOPES.md).
 
 ## The small primitives

@@ -10,24 +10,28 @@ scheduler, filesystem, or agent-role permission system.
 
 ## Runtime rule in the examples
 
-The first successful `SetContext` establishes the binding's owner. Subsequent
-writes from that scope replace its value. Ordinary Go contexts derived with
-cancellation or deadlines still refer to the same scope.
+Tyler's "Fix" accepted declared ownership and refreshed inheritance after
+review exposed first-writer ownership and frozen child scopes as mistakes.
+The earlier first-writer rule is superseded.
 
-- Ancestors and descendants cannot own the same key. The check applies in
-  either write order, including when the child was created before the ancestor
-  first wrote the key. A stale inherited snapshot cannot bypass ownership.
-- Siblings may each own a local binding with the same name. Those bindings are
-  different values; neither sibling can edit the other's binding through its
-  own context.
+`DeclareContext(ctx, name)` returns an opaque `Key` bound to that scope before
+it has a value. `SetContext(ctx, key, value)` accepts writes only from the
+declaring scope; it never acquires ownership. Ordinary Go contexts derived
+with cancellation or deadlines still refer to the same scope.
+
+- A descendant cannot write an ancestor's key, even before its first value is
+  assigned. An ancestor likewise cannot write a child's key.
+- Repeating a declaration in one scope returns the same key. The same display
+  name in another scope denotes a different binding, not an override. Both
+  remain visible; any name collision qualifies ALL effective keys with scope
+  IDs, avoiding generated-name aliases. Nested loops can both be named `sprint`.
 - Rejected writes do not change files, revisions, or the last published view.
 - This is a scope rule, not a goroutine rule. Goroutines sharing the same scope
   can still write that scope's values; the library serializes writes, but the
   workflow must choose meaningful ordering if they target the same value.
 
-The ancestry rule in both write orders and independent sibling bindings are
-implementation choices consistent with Tyler's restriction. Keys differing
-only in case are also checked to preserve portable filesystem views.
+Names differing only in case are rejected within one scope. A cross-scope
+collision qualifies every effective key; use the current index for filenames.
 
 The filesystem remains managed through `SetContext`. Directly editing a
 symlink target bypasses the API, so agent tools continue to treat context files
@@ -42,10 +46,15 @@ scopes independently own `review_focus`. They add information without hiding
 inherited values. The loop's attempt number lives inside its chapter or sprint
 JSON object, so nested loops do not shadow a shared `attempt` key.
 
-The parent may continue updating its own values. The examples still freeze
-inherited data at scope creation and publish immutable prompt/index revisions
-before agent calls. Ownership and freshness are separate policies; this change
-does not implement live inheritance or automatic result promotion.
+The parent may continue updating its own values. Scopes retain their parent
+relationship; each agent entry resolves current inherited values and publishes
+one fixed prompt/index view. The received `Call.Context` records that exact
+snapshot. Already-running calls keep their earlier view. The scopes example
+updates chapter context after sprint 1, and sprint 2 receives the update even
+though its scope was created during initial validation.
+
+There is no automatic result promotion or invalidation of derived findings.
+Those remain ordinary decisions in the workflow, not new backend machinery.
 
 ## Static checking
 
@@ -59,3 +68,4 @@ corrected the scope. At his instruction to preserve written software, its code
 and tests remain under `examples/go-workflows/`. It is unadopted reference work,
 not an ownership validator or an enabled workflow check. Its successful exit
 must not be interpreted as evidence that a workflow obeys scope ownership.
+It describes the superseded string-key API, not the current declared-key API.

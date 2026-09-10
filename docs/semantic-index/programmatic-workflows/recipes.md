@@ -55,10 +55,11 @@ node to its source leaves.
 ## Follow nested scopes or compare branching filesystems
 
 - Start with the current ownership rule in [context scopes](sources/context-scopes.md):
-  inherited values cannot be overwritten. Agent/backend operations stay stubbed;
+  ownership is declared before assignment, and each agent call refreshes
+  inherited values. Agent/backend operations stay stubbed;
   the retained intraprocedural analyzer is unadopted, with call-graph work deferred.
 - Follow [context scopes](sources/context-scopes.md) for chapter/sprint
-  iterators, arbitrary `Scope` branches, inherited snapshots, explicit local
+  iterators, arbitrary `Scope` branches, fixed per-call snapshots, explicit local
   writes, and the scope directory tree.
 - The same route compares Afero, Dagger, and Linux OverlayFS. The prototype
   uses manifest layers that agents navigate with ordinary file tools; it

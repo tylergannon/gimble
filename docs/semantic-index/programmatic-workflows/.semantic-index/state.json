@@ -25,7 +25,7 @@
       "variance": 75.11
     },
     "file_count": 31,
-    "last_benchmark_at": "2026-09-10T01:58:53+00:00",
+    "last_benchmark_at": "2026-09-10T02:38:41+00:00",
     "likely_leaf_count": 18,
     "max_file_depth": 3,
     "mean_leaf_depth": 1.94,
@@ -71,7 +71,7 @@
     ],
     "state": null
   },
-  "last_housekeeping_at": "2026-09-10T01:59:45+00:00",
+  "last_housekeeping_at": "2026-09-10T02:40:06+00:00",
   "last_mode": "incremental-update",
   "source": {
     "exists": true,
@@ -84,7 +84,7 @@
       ".js": 14,
       ".json": 27,
       ".jsonl": 1,
-      ".md": 85,
+      ".md": 86,
       ".mjs": 1,
       ".mod": 3,
       ".png": 6,
@@ -99,7 +99,7 @@
       ".yml": 2,
       "[none]": 6
     },
-    "file_count": 391,
+    "file_count": 392,
     "path": "/Users/tyler/.codex/worktrees/a5b1/gimble"
   }
 }

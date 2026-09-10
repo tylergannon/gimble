@@ -18,10 +18,18 @@ func NestedScopes(ctx context.Context, runtime *program.Runtime, input Input) ([
 	if err != nil {
 		return nil, err
 	}
-	if err := program.SetContext(ctx, "goal", input.Goal); err != nil {
+	goal, err := program.DeclareContext(ctx, "goal")
+	if err != nil {
 		return nil, err
 	}
-	if err := program.SetContext(ctx, "focus", "Deliver the declared quote behavior."); err != nil {
+	focus, err := program.DeclareContext(ctx, "focus")
+	if err != nil {
+		return nil, err
+	}
+	if err := program.SetContext(ctx, goal, input.Goal); err != nil {
+		return nil, err
+	}
+	if err := program.SetContext(ctx, focus, "Deliver the declared quote behavior."); err != nil {
 		return nil, err
 	}
 	if _, err := program.Codergen[string](ctx, runtime, "start", engMgr, "Frame the work."); err != nil {
@@ -33,7 +41,11 @@ func NestedScopes(ctx context.Context, runtime *program.Runtime, input Input) ([
 		if err != nil {
 			return nil, err
 		}
-		if err := program.SetContext(chapter.Context, "chapter_focus", "Complete "+chapter.Item.Name+" without expanding scope."); err != nil {
+		chapterFocus, err := program.DeclareContext(chapter.Context, "chapter_focus")
+		if err != nil {
+			return nil, err
+		}
+		if err := program.SetContext(chapter.Context, chapterFocus, "Complete "+chapter.Item.Name+" without expanding scope."); err != nil {
 			return nil, err
 		}
 		for sprint, err := range program.Sprints(chapter.Context, sprints[chapter.Item.Name], loopOptions(runtime)) {
@@ -52,6 +64,9 @@ func NestedScopes(ctx context.Context, runtime *program.Runtime, input Input) ([
 				}
 				reviewed = true
 			}
+			if err := program.SetContext(chapter.Context, chapterFocus, "Build on the completed sprint: "+sprint.Item.Name); err != nil {
+				return nil, err
+			}
 		}
 		if _, err := program.Codergen[string](chapter.Context, runtime, "chapter-restored", engMgr, "Summarize the chapter's progress."); err != nil {
 			return nil, err
@@ -69,7 +84,11 @@ func parallelReviews(ctx context.Context, runtime *program.Runtime) error {
 			if err != nil {
 				return err
 			}
-			if err := program.SetContext(child, "review_focus", review.Focus); err != nil {
+			focus, err := program.DeclareContext(child, "review_focus")
+			if err != nil {
+				return err
+			}
+			if err := program.SetContext(child, focus, review.Focus); err != nil {
 				return err
 			}
 			_, err = program.Codergen[string](child, runtime, "review", review.Role, "Review the current sprint.")

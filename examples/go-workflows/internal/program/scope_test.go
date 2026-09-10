@@ -45,24 +45,18 @@ func TestScopeNestedValuesRestoreParent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(root, "goal", "deliver"); err != nil {
-		t.Fatal(err)
-	}
+	putContext(t, root, "goal", "deliver")
 	original := scopedSnapshot(t, root)
 	chapter, err := Scope(root, "chapter")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(chapter, "chapter_focus", "chapter work"); err != nil {
-		t.Fatal(err)
-	}
+	putContext(t, chapter, "chapter_focus", "chapter work")
 	sprint, err := Scope(chapter, "sprint")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(sprint, "sprint_focus", "sprint work"); err != nil {
-		t.Fatal(err)
-	}
+	putContext(t, sprint, "sprint_focus", "sprint work")
 	current := scopedSnapshot(t, sprint)
 	if !reflect.DeepEqual(current.Scope, []string{"chapter", "sprint"}) || !strings.HasPrefix(current.Prompt, "Scope: [\"chapter\",\"sprint\"]\n") {
 		t.Fatalf("scope ancestry is missing: %#v", current)
@@ -81,8 +75,9 @@ func TestScopeNestedValuesRestoreParent(t *testing.T) {
 	if value, _ := scopedValue(t, parent, "chapter_focus"); value != `"chapter work"` {
 		t.Fatalf("child write leaked to parent: %s", value)
 	}
-	if restored := scopedSnapshot(t, root); !reflect.DeepEqual(restored, original) {
-		t.Fatalf("root context changed: %#v", restored)
+	restored := scopedSnapshot(t, root)
+	if entries := readContextIndex(t, restored).Entries; len(entries) != 1 || entries[0].Key != "goal" {
+		t.Fatalf("child bindings leaked into root: %#v", entries)
 	}
 	_, rootPath := scopedValue(t, original, "goal")
 	_, inheritedPath := scopedValue(t, current, "goal")
@@ -103,33 +98,27 @@ func TestScopeNestedValuesRestoreParent(t *testing.T) {
 	}
 }
 
-func TestScopeFreezesParentValuesAtCreation(t *testing.T) {
-	parent, err := NewContext(t.Context(), t.TempDir(), ContextLimits{ValueBytes: 256, PromptBytes: 2000})
-	if err != nil {
+func TestScopeRefreshesParentValuesAndPreservesPublishedSnapshots(t *testing.T) {
+	parent := viewContext(t)
+	goal := putContext(t, parent, "goal", "first")
+	child := ownershipChild(t, parent, "research")
+	before := scopedSnapshot(t, child)
+	if err := SetContext(parent, goal, "second"); err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(parent, "goal", "first"); err != nil {
-		t.Fatal(err)
+	putContext(t, parent, "new_key", "learned after child creation")
+	after := scopedSnapshot(t, child)
+	if value, _ := scopedValue(t, after, "goal"); value != `"second"` {
+		t.Fatalf("child missed later parent update: %s", value)
 	}
-	child, err := Scope(parent, "research")
-	if err != nil {
-		t.Fatal(err)
+	if value, _ := scopedValue(t, after, "new_key"); value != `"learned after child creation"` {
+		t.Fatalf("child missed new parent binding: %s", value)
 	}
-	if err := SetContext(parent, "goal", "second"); err != nil {
-		t.Fatal(err)
+	if value, _ := readViewValue(t, before, "goal"); value != `"first"` {
+		t.Fatalf("parent update changed a published child view: %s", value)
 	}
-	if err := SetContext(parent, "new_key", "parent only"); err != nil {
-		t.Fatal(err)
-	}
-	snapshot := scopedSnapshot(t, child)
-	if snapshot.Revision != 1 || len(readContextIndex(t, snapshot).Entries) != 1 {
-		t.Fatalf("child did not freeze the creation revision: %#v", snapshot)
-	}
-	if value, _ := scopedValue(t, snapshot, "goal"); value != `"first"` {
-		t.Fatalf("later parent update leaked to child: %s", value)
-	}
-	if value, _ := scopedValue(t, scopedSnapshot(t, parent), "goal"); value != `"second"` {
-		t.Fatalf("parent update was lost: %s", value)
+	if before.View == after.View || len(readContextIndex(t, before).Entries) != 1 {
+		t.Fatal("parent update mutated the earlier snapshot")
 	}
 }
 
@@ -138,9 +127,7 @@ func TestScopeParallelSiblingWritesAreIsolated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(parent, "goal", "parent"); err != nil {
-		t.Fatal(err)
-	}
+	putContext(t, parent, "goal", "parent")
 	group, ctx := errgroup.WithContext(parent)
 	results := make([]ContextSnapshot, 3)
 	for i := range results {
@@ -149,7 +136,11 @@ func TestScopeParallelSiblingWritesAreIsolated(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if err := SetContext(child, "choice", fmt.Sprintf("child-%d", i)); err != nil {
+			choice, err := DeclareContext(child, "choice")
+			if err != nil {
+				return err
+			}
+			if err := SetContext(child, choice, fmt.Sprintf("child-%d", i)); err != nil {
 				return err
 			}
 			results[i], err = SnapshotContext(child)

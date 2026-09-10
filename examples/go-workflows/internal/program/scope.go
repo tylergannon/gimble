@@ -3,18 +3,15 @@ package program
 import (
 	"context"
 	"errors"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 )
 
-// Scope freezes the parent's effective values into a named child scope. Child
-// local writes, sibling writes, and later parent writes remain isolated.
-// Inherited keys are read-only; new keys belong exclusively to the child along
-// its ancestor/descendant chain. Immutable value files are shared; the child
-// publishes its own index when next used.
+// Scope creates a child with its own declared values. It retains its parent;
+// each SnapshotContext sees current ancestor values, while earlier snapshots
+// remain immutable. A child cannot edit a Key declared by its parent.
 // Files are immutable by API convention. Scope routes are not access controls:
 // agent tools can read neighboring layers and otherwise use the filesystem.
 //
@@ -32,14 +29,14 @@ func Scope(ctx context.Context, name string) (context.Context, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	parent.mu.Lock()
-	defer parent.mu.Unlock()
+	parent.tree.mu.Lock()
+	defer parent.tree.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	// Each child has its own physical layer inside its parent directory.
 	// Its index refers back to inherited immutable files without copying them.
-	dir, err := os.MkdirTemp(parent.dir, "scope-")
+	dir, err := os.MkdirTemp(parent.dir, scopePrefix(name))
 	if err != nil {
 		return nil, err
 	}
@@ -54,8 +51,28 @@ func Scope(ctx context.Context, name string) (context.Context, error) {
 	}
 	child := &contextStore{
 		dir: dir, limits: parent.limits, scope: path,
-		tree: parent.tree, parent: parent,
-		values: maps.Clone(parent.values), revision: parent.revision,
+		tree: parent.tree, parent: parent, id: parent.tree.nextID,
+		keys: make(map[string]Key), values: make(map[string]contextValue),
 	}
+	parent.tree.nextID++
 	return context.WithValue(ctx, contextKey{}, child), nil
+}
+
+func scopePrefix(name string) string {
+	var prefix strings.Builder
+	for _, char := range strings.ToLower(name) {
+		if prefix.Len() == 32 {
+			break
+		}
+		if char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || char == '_' {
+			prefix.WriteRune(char)
+		} else {
+			prefix.WriteByte('-')
+		}
+	}
+	result := strings.Trim(prefix.String(), "-")
+	if result == "" {
+		result = "scope"
+	}
+	return result + "-"
 }

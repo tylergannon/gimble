@@ -9,14 +9,14 @@ import (
 
 // materializeView gives native tools meaningful filenames for a revision.
 // Only directories and symlinks are new; inherited JSON bytes are not copied.
-// The caller holds the store lock and publishes the view after it is complete.
+// The caller holds the tree lock and publishes the view after it is complete.
 // Writing directly through a symlink is not copy-on-write: callers must use
 // SetContext to replace an owned value without changing earlier revisions.
-func (store *contextStore) materializeView(ctx context.Context, index string, keys []string) (view string, err error) {
+func (store *contextStore) materializeView(ctx context.Context, index string, keys []string, values map[string]contextValue) (view string, err error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	view, err = os.MkdirTemp(store.dir, fmt.Sprintf("view-%06d-", store.revision))
+	view, err = os.MkdirTemp(store.dir, fmt.Sprintf("view-%06d-", store.tree.revision))
 	if err != nil {
 		return "", err
 	}
@@ -33,7 +33,7 @@ func (store *contextStore) materializeView(ctx context.Context, index string, ke
 		if err = ctx.Err(); err != nil {
 			return "", err
 		}
-		if err = os.Symlink(store.values[key].path, filepath.Join(view, "values", key+".json")); err != nil {
+		if err = os.Symlink(values[key].path, filepath.Join(view, "values", key+".json")); err != nil {
 			return "", err
 		}
 	}
