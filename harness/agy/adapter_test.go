@@ -1,7 +1,9 @@
 package agy
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -37,14 +39,14 @@ func TestCreateSessionAndRunTurn(t *testing.T) {
 	}
 
 	var events []harness.Event
-	result, runErr := adapter.RunTurn(validInput(sessionID, workdir, 5*time.Second), func(event harness.Event) {
+	result, runErr := adapter.RunTurn(context.Background(), validInput(sessionID, workdir), func(event harness.Event) {
 		events = append(events, event)
 	})
 	if runErr != nil {
 		t.Fatal(runErr)
 	}
-	if result["answer"] != "valid" {
-		t.Fatalf("result = %#v", result)
+	if object := decodeObject(t, result); object["answer"] != "valid" {
+		t.Fatalf("result = %#v", object)
 	}
 	if len(events) < 5 || events[0]["type"] != harness.EventUser {
 		t.Fatalf("events = %#v", events)
@@ -68,7 +70,7 @@ func TestRunTurnPromptIncludesArtifactMetadataPreamble(t *testing.T) {
 	record := filepath.Join(t.TempDir(), "args.jsonl")
 	adapter := testAdapter(t, "success", record)
 	defer adapter.Close()
-	if _, runErr := adapter.RunTurn(validInput("conversation-test", workdir, 5*time.Second), func(harness.Event) {}); runErr != nil {
+	if _, runErr := adapter.RunTurn(context.Background(), validInput("conversation-test", workdir), func(harness.Event) {}); runErr != nil {
 		t.Fatal(runErr)
 	}
 	invocations := readInvocations(t, record)
@@ -84,16 +86,16 @@ func TestRunTurnPromptIncludesArtifactMetadataPreamble(t *testing.T) {
 func TestRunTurnReconstructsAndRejectsConversationMismatch(t *testing.T) {
 	workdir := t.TempDir()
 	adapter := testAdapter(t, "success", "")
-	result, runErr := adapter.RunTurn(validInput("conversation-test", workdir, 5*time.Second), func(harness.Event) {})
-	if runErr != nil || result["answer"] != "valid" {
+	result, runErr := adapter.RunTurn(context.Background(), validInput("conversation-test", workdir), func(harness.Event) {})
+	if runErr != nil || decodeObject(t, result)["answer"] != "valid" {
 		t.Fatalf("reconstructed result=%#v err=%v", result, runErr)
 	}
 	adapter.Close()
 
 	mismatched := testAdapter(t, "mismatch", "")
 	defer mismatched.Close()
-	_, runErr = mismatched.RunTurn(validInput("conversation-test", workdir, 5*time.Second), func(harness.Event) {})
-	if runErr == nil || runErr.Category != harness.ErrorTerminal || !strings.Contains(strings.ToLower(runErr.Message), "different conversation") {
+	_, runErr = mismatched.RunTurn(context.Background(), validInput("conversation-test", workdir), func(harness.Event) {})
+	if runErr == nil || !strings.Contains(strings.ToLower(runErr.Error()), "different conversation") {
 		t.Fatalf("mismatch error = %#v", runErr)
 	}
 }
@@ -104,12 +106,12 @@ func TestRunTurnRepairsAtMostOnce(t *testing.T) {
 	adapter := testAdapter(t, "repair", record)
 	defer adapter.Close()
 	var users int
-	result, runErr := adapter.RunTurn(validInput("conversation-test", workdir, 5*time.Second), func(event harness.Event) {
+	result, runErr := adapter.RunTurn(context.Background(), validInput("conversation-test", workdir), func(event harness.Event) {
 		if event["type"] == harness.EventUser {
 			users++
 		}
 	})
-	if runErr != nil || result["answer"] != "valid" {
+	if runErr != nil || decodeObject(t, result)["answer"] != "valid" {
 		t.Fatalf("repair result=%#v err=%v", result, runErr)
 	}
 	if users != 2 {
@@ -126,12 +128,12 @@ func TestRunTurnRecoversFromArtifactPathError(t *testing.T) {
 	adapter := testAdapter(t, "artifact_recover", record)
 	defer adapter.Close()
 	var users []harness.Event
-	result, runErr := adapter.RunTurn(validInput("conversation-test", workdir, 5*time.Second), func(event harness.Event) {
+	result, runErr := adapter.RunTurn(context.Background(), validInput("conversation-test", workdir), func(event harness.Event) {
 		if event["type"] == harness.EventUser {
 			users = append(users, event)
 		}
 	})
-	if runErr != nil || result["answer"] != "valid" {
+	if runErr != nil || decodeObject(t, result)["answer"] != "valid" {
 		t.Fatalf("artifact-path recovery result=%#v err=%v", result, runErr)
 	}
 	if len(users) != 2 {
@@ -176,7 +178,7 @@ func TestRunTurnArtifactRepairAdoptsFreshConversationForFutureTurns(t *testing.T
 	record := filepath.Join(t.TempDir(), "args.jsonl")
 	adapter := testAdapter(t, "artifact_recover", record)
 	defer adapter.Close()
-	if _, runErr := adapter.RunTurn(validInput("conversation-test", workdir, 5*time.Second), func(harness.Event) {}); runErr != nil {
+	if _, runErr := adapter.RunTurn(context.Background(), validInput("conversation-test", workdir), func(harness.Event) {}); runErr != nil {
 		t.Fatal(runErr)
 	}
 	if compactErr := adapter.Compact("conversation-test", workdir); compactErr != nil {
@@ -194,8 +196,8 @@ func TestRunTurnArtifactPathErrorRepairsAtMostOnce(t *testing.T) {
 	record := filepath.Join(t.TempDir(), "args.jsonl")
 	adapter := testAdapter(t, "artifact_persist", record)
 	defer adapter.Close()
-	_, runErr := adapter.RunTurn(validInput("conversation-test", workdir, 5*time.Second), func(harness.Event) {})
-	if runErr == nil || runErr.Category != harness.ErrorTerminal || !strings.Contains(runErr.Message, "is not a valid artifact path") {
+	_, runErr := adapter.RunTurn(context.Background(), validInput("conversation-test", workdir), func(harness.Event) {})
+	if runErr == nil || !strings.Contains(runErr.Error(), "is not a valid artifact path") {
 		t.Fatalf("persistent artifact-path error = %#v", runErr)
 	}
 	if invocations := readInvocations(t, record); len(invocations) != 2 {
@@ -208,13 +210,13 @@ func TestIsArtifactPathError(t *testing.T) {
 	hookMessage := "tool call denied by pre-tool hook: " + nativeWriteHookMarker + " Native write_to_file, replace_file_content, and multi_replace_file_content are disabled: ..."
 	for _, tc := range []struct {
 		name string
-		err  *harness.Error
+		err  error
 		want bool
 	}{
 		{"nil error", nil, false},
-		{"agy artifact-path error", &harness.Error{Category: harness.ErrorTerminal, Message: agyMessage}, true},
-		{"gimble native-write hook denial", &harness.Error{Category: harness.ErrorTerminal, Message: hookMessage}, true},
-		{"unrelated terminal error", &harness.Error{Category: harness.ErrorTerminal, Message: "unknown model x"}, false},
+		{"agy artifact-path error", errors.New(agyMessage), true},
+		{"gimble native-write hook denial", errors.New(hookMessage), true},
+		{"unrelated terminal error", errors.New("unknown model x"), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := isArtifactPathError(tc.err); got != tc.want {
@@ -230,12 +232,12 @@ func TestRunTurnRecoversFromNativeWriteHookDenial(t *testing.T) {
 	adapter := testAdapter(t, "hook_deny_recover", record)
 	defer adapter.Close()
 	var users []harness.Event
-	result, runErr := adapter.RunTurn(validInput("conversation-test", workdir, 5*time.Second), func(event harness.Event) {
+	result, runErr := adapter.RunTurn(context.Background(), validInput("conversation-test", workdir), func(event harness.Event) {
 		if event["type"] == harness.EventUser {
 			users = append(users, event)
 		}
 	})
-	if runErr != nil || result["answer"] != "valid" {
+	if runErr != nil || decodeObject(t, result)["answer"] != "valid" {
 		t.Fatalf("hook-denial recovery result=%#v err=%v", result, runErr)
 	}
 	if len(users) != 2 {
@@ -263,8 +265,8 @@ func TestRunTurnNativeWriteHookDenialRepairsAtMostOnce(t *testing.T) {
 	record := filepath.Join(t.TempDir(), "args.jsonl")
 	adapter := testAdapter(t, "hook_deny_persist", record)
 	defer adapter.Close()
-	_, runErr := adapter.RunTurn(validInput("conversation-test", workdir, 5*time.Second), func(harness.Event) {})
-	if runErr == nil || runErr.Category != harness.ErrorTerminal || !strings.Contains(runErr.Message, nativeWriteHookMarker) {
+	_, runErr := adapter.RunTurn(context.Background(), validInput("conversation-test", workdir), func(harness.Event) {})
+	if runErr == nil || !strings.Contains(runErr.Error(), nativeWriteHookMarker) {
 		t.Fatalf("persistent hook-denial error = %#v", runErr)
 	}
 	if invocations := readInvocations(t, record); len(invocations) != 2 {
@@ -386,11 +388,11 @@ func TestEnsureHookFailsFastOnOldAgyVersion(t *testing.T) {
 	})
 	defer adapter.Close()
 	_, createErr := adapter.CreateSession("gemini-test", t.TempDir())
-	if createErr == nil || createErr.Category != harness.ErrorTerminal {
+	if createErr == nil {
 		t.Fatalf("create error = %#v, want terminal version-gate failure", createErr)
 	}
-	if !strings.Contains(createErr.Message, "1.1.14") || !strings.Contains(createErr.Message, minSupportedAgyVersion) {
-		t.Fatalf("error message = %q, want it to name both the reported and minimum supported versions", createErr.Message)
+	if !strings.Contains(createErr.Error(), "1.1.14") || !strings.Contains(createErr.Error(), minSupportedAgyVersion) {
+		t.Fatalf("error message = %q, want it to name both the reported and minimum supported versions", createErr.Error())
 	}
 	if _, err := os.Stat(hooksConfigPath(home)); !os.IsNotExist(err) {
 		t.Fatalf("hook should not be provisioned when the agy version check fails: err=%v", err)
@@ -408,7 +410,7 @@ func TestEnsureHookFailsFastOnUnparseableAgyVersion(t *testing.T) {
 	})
 	defer adapter.Close()
 	_, createErr := adapter.CreateSession("gemini-test", t.TempDir())
-	if createErr == nil || createErr.Category != harness.ErrorTerminal || !strings.Contains(createErr.Message, "unknown-build") {
+	if createErr == nil || !strings.Contains(createErr.Error(), "unknown-build") {
 		t.Fatalf("create error = %#v, want terminal failure naming the unparseable version", createErr)
 	}
 	if _, err := os.Stat(hooksConfigPath(home)); !os.IsNotExist(err) {
@@ -465,12 +467,14 @@ func TestAdapterReadsGimbleRunDirAtProcessStart(t *testing.T) {
 	}
 }
 
-func TestRunTurnTimeoutInterruptsProcess(t *testing.T) {
+func TestRunTurnCancellationInterruptsProcess(t *testing.T) {
 	adapter := testAdapter(t, "sleep", "")
 	defer adapter.Close()
 	started := time.Now()
-	_, runErr := adapter.RunTurn(validInput("conversation-test", t.TempDir(), 50*time.Millisecond), func(harness.Event) {})
-	if runErr == nil || runErr.Category != harness.ErrorInterrupted {
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_, runErr := adapter.RunTurn(ctx, validInput("conversation-test", t.TempDir()), func(harness.Event) {})
+	if !errors.Is(runErr, context.DeadlineExceeded) {
 		t.Fatalf("timeout error = %#v", runErr)
 	}
 	if elapsed := time.Since(started); elapsed > 2*time.Second {
@@ -487,12 +491,12 @@ func TestSteerInterruptsAndResumesSameRunTurn(t *testing.T) {
 	var mu sync.Mutex
 	var events []harness.Event
 	type outcome struct {
-		result harness.Result
-		err    *harness.Error
+		result json.RawMessage
+		err    error
 	}
 	done := make(chan outcome, 1)
 	go func() {
-		result, runErr := adapter.RunTurn(validInput("conversation-test", workdir, 5*time.Second), func(event harness.Event) {
+		result, runErr := adapter.RunTurn(context.Background(), validInput("conversation-test", workdir), func(event harness.Event) {
 			mu.Lock()
 			events = append(events, event)
 			mu.Unlock()
@@ -504,7 +508,7 @@ func TestSteerInterruptsAndResumesSameRunTurn(t *testing.T) {
 	adapter.Steer("conversation-test", steerParts)
 
 	got := <-done
-	if got.err != nil || got.result["answer"] != "valid" {
+	if got.err != nil || decodeObject(t, got.result)["answer"] != "valid" {
 		t.Fatalf("steered result=%#v err=%v", got.result, got.err)
 	}
 	invocations := readInvocations(t, record)
@@ -539,7 +543,7 @@ func TestSteerInactiveSessionDoesNotQueue(t *testing.T) {
 	adapter.Steer("conversation-test", []harness.ContentPart{{Type: harness.ContentPartText, Text: "do not queue me"}})
 
 	var users int
-	_, runErr := adapter.RunTurn(validInput("conversation-test", workdir, 5*time.Second), func(event harness.Event) {
+	_, runErr := adapter.RunTurn(context.Background(), validInput("conversation-test", workdir), func(event harness.Event) {
 		if event["type"] == harness.EventUser {
 			users++
 		}
@@ -569,25 +573,12 @@ func TestCompactSendsNativeCommand(t *testing.T) {
 	assertFlagValue(t, invocations[0], "--conversation", "conversation-test")
 }
 
-func TestCreateSessionClassifiesIDLessServiceFailure(t *testing.T) {
+func TestCreateSessionReturnsIDLessServiceFailure(t *testing.T) {
 	adapter := testAdapter(t, "internal", "")
 	defer adapter.Close()
 	_, createErr := adapter.CreateSession("gemini-test", t.TempDir())
-	if createErr == nil || createErr.Category != harness.ErrorRetryable {
+	if createErr == nil {
 		t.Fatalf("create error = %#v", createErr)
-	}
-}
-
-func TestCategorize(t *testing.T) {
-	for message, want := range map[string]harness.ErrorCategory{
-		"quota exhausted": harness.ErrorRetryable,
-		"Eligibility check failed: INTERNAL (code 500): We can't connect to Gemini Code Assist": harness.ErrorRetryable,
-		"unknown model x":        harness.ErrorTerminal,
-		"unexpected local fault": harness.ErrorRetryable,
-	} {
-		if got := categorize(fmt.Errorf("%s", message), false); got.Category != want {
-			t.Errorf("categorize(%q) = %q, want %q", message, got.Category, want)
-		}
 	}
 }
 
@@ -617,10 +608,10 @@ func TestRunTurnUsesEffortBearingModelOrEffortFlagExactlyOnce(t *testing.T) {
 			record := filepath.Join(t.TempDir(), "args.jsonl")
 			adapter := testAdapter(t, "success", record)
 			defer adapter.Close()
-			input := validInput("conversation-test", t.TempDir(), 5*time.Second)
+			input := validInput("conversation-test", t.TempDir())
 			input.Model = test.model
 			input.ReasoningEffort = test.effort
-			if _, runErr := adapter.RunTurn(input, func(harness.Event) {}); runErr != nil {
+			if _, runErr := adapter.RunTurn(context.Background(), input, func(harness.Event) {}); runErr != nil {
 				t.Fatal(runErr)
 			}
 			args := readInvocations(t, record)[0]
@@ -632,7 +623,7 @@ func TestRunTurnUsesEffortBearingModelOrEffortFlagExactlyOnce(t *testing.T) {
 	}
 }
 
-func validInput(sessionID, workdir string, timeout time.Duration) harness.RunTurnInput {
+func validInput(sessionID, workdir string) harness.RunTurnInput {
 	return harness.RunTurnInput{
 		SessionID:       sessionID,
 		Model:           "gemini-test",
@@ -640,18 +631,19 @@ func validInput(sessionID, workdir string, timeout time.Duration) harness.RunTur
 		OutputSchema:    testSchema,
 		Workdir:         workdir,
 		Parts:           []harness.ContentPart{{Type: harness.ContentPartText, Text: "do the task"}},
-		Timeout:         timeout,
 	}
 }
 
 func TestRunTextTurnOmitsSchemaAndReturnsResponse(t *testing.T) {
 	record := filepath.Join(t.TempDir(), "invocations.jsonl")
 	adapter := testAdapter(t, "success", record)
-	text, runErr := adapter.RunTextTurn(validInput("conversation-test", t.TempDir(), 5*time.Second), func(harness.Event) {})
+	input := validInput("conversation-test", t.TempDir())
+	input.OutputSchema = nil
+	raw, runErr := adapter.RunTurn(context.Background(), input, func(harness.Event) {})
 	if runErr != nil {
 		t.Fatal(runErr)
 	}
-	if text != "plain response" {
+	if text := decodeText(t, raw); text != "plain response" {
 		t.Fatalf("text = %q", text)
 	}
 	args := readInvocations(t, record)[0]
@@ -830,4 +822,22 @@ func waitForInvocations(t *testing.T, path string, want int) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("timed out waiting for %d invocation(s)", want)
+}
+
+func decodeObject(t *testing.T, raw json.RawMessage) map[string]any {
+	t.Helper()
+	var object map[string]any
+	if err := json.Unmarshal(raw, &object); err != nil {
+		t.Fatalf("decode result %s: %v", raw, err)
+	}
+	return object
+}
+
+func decodeText(t *testing.T, raw json.RawMessage) string {
+	t.Helper()
+	var text string
+	if err := json.Unmarshal(raw, &text); err != nil {
+		t.Fatalf("decode text result %s: %v", raw, err)
+	}
+	return text
 }

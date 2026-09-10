@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -293,11 +292,6 @@ func parseID(raw json.RawMessage) (int64, bool) {
 	}
 	number, err := strconv.ParseInt(text, 10, 64)
 	return number, err == nil
-}
-
-func isRPCError(err error) bool {
-	var rpcErr *rpcError
-	return errors.As(err, &rpcErr)
 }
 
 type rpcRequest struct {

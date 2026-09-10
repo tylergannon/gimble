@@ -21,8 +21,12 @@ const (
 	controlTimeout = 5 * time.Second
 )
 
+var errInterrupted = errors.New("turn was interrupted")
+
 // Adapter translates the neutral harness contract to Codex app-server's v2
-// stdio protocol.
+// stdio protocol. Each turn runs in its own app-server process that resumes
+// the durable thread; the process from CreateSession is retained until the
+// first turn because a thread with no turn is not yet resumable.
 type Adapter struct {
 	config processConfig
 	mu     sync.Mutex
@@ -31,8 +35,8 @@ type Adapter struct {
 }
 
 type sessionState struct {
-	opMu    sync.Mutex
-	mu      sync.Mutex
+	ops     sync.Mutex // serializes turns and compaction on this session
+	mu      sync.Mutex // guards the fields below
 	workdir string
 	fresh   *connection
 	active  *activeTurn
@@ -43,7 +47,6 @@ type activeTurn struct {
 	turnID      string
 	projector   *eventProjector
 	interrupted atomic.Bool
-	controls    sync.WaitGroup
 }
 
 // New constructs an adapter that launches `codex app-server --stdio`.
@@ -55,35 +58,27 @@ func newAdapter(config processConfig) *Adapter {
 	return &Adapter{config: config, states: make(map[string]*sessionState)}
 }
 
-// SetStderr forwards app-server stderr while retaining it for diagnostics.
-// It must be called before the adapter is used.
+// SetStderr forwards app-server stderr. It must be called before use.
 func (a *Adapter) SetStderr(stderr io.Writer) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.config.stderr = stderr
 }
 
-// CreateSession starts a durable Codex thread. Its app-server process is kept
-// through the first turn because a thread with no turn is not yet resumable.
-func (a *Adapter) CreateSession(model, workdir string) (string, *harness.Error) {
+// CreateSession starts a durable Codex thread.
+func (a *Adapter) CreateSession(model, workdir string) (string, error) {
 	if err := harness.ValidateCreateSessionInput(model, workdir); err != nil {
 		return "", err
 	}
 	connection, err := a.start()
 	if err != nil {
-		return "", categorize(err, false)
+		return "", err
 	}
-	keep := false
-	defer func() {
-		if !keep {
-			connection.close()
-		}
-	}()
-
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 	if err := connection.initialize(ctx); err != nil {
-		return "", categorize(err, false)
+		connection.close()
+		return "", err
 	}
 	result, err := connection.call(ctx, "thread/start", map[string]any{
 		"model":              model,
@@ -94,135 +89,102 @@ func (a *Adapter) CreateSession(model, workdir string) (string, *harness.Error) 
 		"sessionStartSource": "startup",
 	})
 	if err != nil {
-		return "", categorize(err, false)
+		connection.close()
+		return "", err
 	}
 	threadID, err := decodeThreadID(result)
 	if err != nil {
-		return "", categorize(err, false)
+		connection.close()
+		return "", err
 	}
 
 	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.closed {
-		a.mu.Unlock()
-		return "", terminal("Codex adapter is closed")
+		connection.close()
+		return "", errors.New("codex adapter is closed")
 	}
 	a.states[threadID] = &sessionState{workdir: workdir, fresh: connection}
-	a.mu.Unlock()
-	keep = true
 	return threadID, nil
 }
 
-// RunTurn resumes or uses the retained fresh process, runs one structured
-// turn, emits completed logical events, and validates the exact result schema.
-func (a *Adapter) RunTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (harness.Result, *harness.Error) {
+// RunTurn runs one turn on the session and blocks until it ends. With an
+// output schema the result is validated against it exactly; without one the
+// assistant's final text is returned. Cancelling ctx interrupts the turn.
+func (a *Adapter) RunTurn(ctx context.Context, input harness.RunTurnInput, onEvent harness.OnEvent) (json.RawMessage, error) {
 	if err := harness.ValidateRunTurnInput(input, onEvent); err != nil {
 		return nil, err
 	}
-	validator, validationErr := harness.NewResultValidator(input.OutputSchema)
-	if validationErr != nil {
-		return nil, validationErr
+	var validator *harness.ResultValidator
+	if len(input.OutputSchema) > 0 {
+		var err error
+		if validator, err = harness.NewResultValidator(input.OutputSchema); err != nil {
+			return nil, err
+		}
 	}
-	raw, optionalProperties, runErr := a.runNativeTurn(input, onEvent)
-	if runErr != nil {
-		return nil, runErr
-	}
-	var err error
-	raw, err = omitOptionalNulls(raw, optionalProperties)
+	state, err := a.state(input.SessionID)
 	if err != nil {
-		return nil, terminal(fmt.Sprintf("normalize Codex result: %v", err))
+		return nil, err
+	}
+	state.ops.Lock()
+	defer state.ops.Unlock()
+
+	connection, err := a.open(state, input.SessionID, input.Workdir)
+	if err != nil {
+		return nil, err
+	}
+	defer connection.close()
+
+	params, optionalProperties, err := turnStartParams(input)
+	if err != nil {
+		return nil, err
+	}
+	startCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+	result, err := connection.call(startCtx, "turn/start", params)
+	cancel()
+	if err != nil {
+		return nil, err
+	}
+	turnID, err := decodeTurnID(result)
+	if err != nil {
+		return nil, err
+	}
+
+	active := &activeTurn{connection: connection, turnID: turnID, projector: newEventProjector(onEvent)}
+	state.setActive(active)
+	defer state.clearActive(active)
+	active.projector.user(input.Parts)
+
+	text, err := readTurn(ctx, connection, input.SessionID, turnID, active)
+	if ctx.Err() != nil {
+		interruptTurn(connection, input.SessionID, turnID)
+		drainCtx, drainCancel := context.WithTimeout(context.Background(), controlTimeout)
+		_, _ = readTurn(drainCtx, connection, input.SessionID, turnID, active)
+		drainCancel()
+		return nil, ctx.Err()
+	}
+	if err != nil {
+		return nil, err
+	}
+	if validator == nil {
+		return harness.TextResult(text)
+	}
+	raw, err := omitOptionalNulls([]byte(text), optionalProperties)
+	if err != nil {
+		return nil, fmt.Errorf("normalize Codex result: %w", err)
 	}
 	return validator.Validate(raw)
 }
 
-// RunTextTurn runs a native Codex turn without an output schema.
-func (a *Adapter) RunTextTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (string, *harness.Error) {
-	if err := harness.ValidateRunTurnInput(input, onEvent); err != nil {
-		return "", err
-	}
-	input.OutputSchema = nil
-	raw, _, runErr := a.runNativeTurn(input, onEvent)
-	if runErr != nil {
-		return "", runErr
-	}
-	return string(raw), nil
-}
-
-func (a *Adapter) runNativeTurn(input harness.RunTurnInput, onEvent harness.OnEvent) ([]byte, map[string]struct{}, *harness.Error) {
-	state, stateErr := a.state(input.SessionID)
-	if stateErr != nil {
-		return nil, nil, stateErr
-	}
-
-	state.opMu.Lock()
-	defer state.opMu.Unlock()
-	connection, fresh, openErr := a.openSession(state, input.SessionID, input.Workdir)
-	if openErr != nil {
-		return nil, nil, openErr
-	}
-	defer func() {
-		state.mu.Lock()
-		if state.fresh == connection {
-			state.fresh = nil
-		}
-		state.mu.Unlock()
-		connection.close()
-	}()
-
-	params, optionalProperties, err := turnStartParams(input)
-	if err != nil {
-		return nil, nil, terminal(err.Error())
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-	result, err := connection.call(ctx, "turn/start", params)
-	cancel()
-	if err != nil {
-		return nil, nil, categorize(err, false)
-	}
-	turnID, err := decodeTurnID(result)
-	if err != nil {
-		return nil, nil, terminal(err.Error())
-	}
-	projector := newEventProjector(onEvent)
-	active := &activeTurn{connection: connection, turnID: turnID, projector: projector}
-	state.mu.Lock()
-	state.active = active
-	if fresh && state.fresh == connection {
-		state.fresh = nil
-	}
-	if state.workdir == "" {
-		state.workdir = input.Workdir
-	}
-	state.mu.Unlock()
-	projector.user(input.Parts)
-	defer finishActive(state, active)
-
-	raw, runErr := waitTurn(connection, input, turnID, active)
-	if runErr != nil {
-		return nil, nil, runErr
-	}
-	return raw, optionalProperties, nil
-}
-
-// Steer best-effort delivers ordered text parts to a currently active turn.
+// Steer delivers ordered text parts to the session's live turn, if any.
 func (a *Adapter) Steer(sessionID string, parts []harness.ContentPart) {
 	if harness.ValidateContentParts(parts) != nil {
 		return
 	}
-	state := a.lookup(sessionID)
-	if state == nil {
-		return
-	}
-	state.mu.Lock()
-	active := state.active
-	if active != nil {
-		active.controls.Add(1)
-	}
-	state.mu.Unlock()
+	active := a.activeTurn(sessionID)
 	if active == nil {
 		return
 	}
-	defer active.controls.Done()
-
 	ctx, cancel := context.WithTimeout(context.Background(), controlTimeout)
 	defer cancel()
 	_, err := active.connection.call(ctx, "turn/steer", map[string]any{
@@ -230,93 +192,49 @@ func (a *Adapter) Steer(sessionID string, parts []harness.ContentPart) {
 		"expectedTurnId": active.turnID,
 		"input":          nativeInput(parts),
 	})
-	if err != nil {
-		return
-	}
-	state.mu.Lock()
-	stillActive := state.active == active
-	state.mu.Unlock()
-	if stillActive {
+	if err == nil {
 		active.projector.user(parts)
 	}
 }
 
-// Interrupt requests the native turn stop and returns immediately.
+// Interrupt asks the session's live turn to stop and returns immediately.
 func (a *Adapter) Interrupt(sessionID string) {
-	state := a.lookup(sessionID)
-	if state == nil {
-		return
-	}
-	state.mu.Lock()
-	active := state.active
-	if active != nil {
-		active.controls.Add(1)
-	}
-	state.mu.Unlock()
+	active := a.activeTurn(sessionID)
 	if active == nil {
 		return
 	}
 	active.interrupted.Store(true)
-	go func() {
-		defer active.controls.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), controlTimeout)
-		defer cancel()
-		_, _ = active.connection.call(ctx, "turn/interrupt", map[string]any{
-			"threadId": sessionID,
-			"turnId":   active.turnID,
-		})
-	}()
+	go interruptTurn(active.connection, sessionID, active.turnID)
 }
 
-// Compact blocks until Codex reports completion of the matching
-// contextCompaction item.
-func (a *Adapter) Compact(sessionID, workdir string) *harness.Error {
+// Compact blocks until Codex reports completion of the context compaction.
+func (a *Adapter) Compact(sessionID, workdir string) error {
 	if err := harness.ValidateSessionInput(sessionID, workdir); err != nil {
 		return err
 	}
-	state, stateErr := a.state(sessionID)
-	if stateErr != nil {
-		return stateErr
-	}
-	if !state.opMu.TryLock() {
-		return terminal("cannot compact a session with an active operation")
-	}
-	defer state.opMu.Unlock()
-	state.mu.Lock()
-	if state.active != nil {
-		state.mu.Unlock()
-		return terminal("cannot compact an active session")
-	}
-	state.mu.Unlock()
-
-	connection, fresh, openErr := a.openSession(state, sessionID, workdir)
-	if openErr != nil {
-		return openErr
-	}
-	if !fresh {
-		defer connection.close()
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-	_, err := connection.call(ctx, "thread/compact/start", map[string]any{"threadId": sessionID})
-	cancel()
+	state, err := a.state(sessionID)
 	if err != nil {
-		if fresh && !isRPCError(err) {
-			a.dropFresh(state, connection)
-			connection.close()
-		}
-		return categorize(err, false)
-	}
-	if err := waitCompaction(connection, sessionID); err != nil {
-		if fresh && err.Category == harness.ErrorRetryable {
-			a.dropFresh(state, connection)
-			connection.close()
-		}
 		return err
 	}
-	return nil
+	if !state.ops.TryLock() {
+		return errors.New("cannot compact a session with an active turn")
+	}
+	defer state.ops.Unlock()
+
+	connection, err := a.open(state, sessionID, workdir)
+	if err != nil {
+		return err
+	}
+	defer connection.close()
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+	if _, err := connection.call(ctx, "thread/compact/start", map[string]any{"threadId": sessionID}); err != nil {
+		return err
+	}
+	return waitCompaction(ctx, connection, sessionID)
 }
 
-// Close releases retained fresh-session and live app-server processes.
+// Close releases every retained and live app-server process.
 func (a *Adapter) Close() {
 	a.mu.Lock()
 	if a.closed {
@@ -330,19 +248,17 @@ func (a *Adapter) Close() {
 	}
 	a.mu.Unlock()
 
-	connections := make(map[*connection]struct{})
 	for _, state := range states {
 		state.mu.Lock()
-		if state.fresh != nil {
-			connections[state.fresh] = struct{}{}
-		}
-		if state.active != nil {
-			connections[state.active.connection] = struct{}{}
-		}
+		fresh, active := state.fresh, state.active
+		state.fresh = nil
 		state.mu.Unlock()
-	}
-	for connection := range connections {
-		connection.close()
+		if fresh != nil {
+			fresh.close()
+		}
+		if active != nil {
+			active.connection.close()
+		}
 	}
 }
 
@@ -358,11 +274,11 @@ func (a *Adapter) start() (*connection, error) {
 	return startConnection(config)
 }
 
-func (a *Adapter) state(sessionID string) (*sessionState, *harness.Error) {
+func (a *Adapter) state(sessionID string) (*sessionState, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.closed {
-		return nil, terminal("Codex adapter is closed")
+		return nil, errors.New("codex adapter is closed")
 	}
 	state := a.states[sessionID]
 	if state == nil {
@@ -372,38 +288,44 @@ func (a *Adapter) state(sessionID string) (*sessionState, *harness.Error) {
 	return state, nil
 }
 
-func (a *Adapter) lookup(sessionID string) *sessionState {
+func (a *Adapter) activeTurn(sessionID string) *activeTurn {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.states[sessionID]
+	state := a.states[sessionID]
+	a.mu.Unlock()
+	if state == nil {
+		return nil
+	}
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return state.active
 }
 
-func (a *Adapter) openSession(state *sessionState, sessionID, workdir string) (*connection, bool, *harness.Error) {
+// open returns a process attached to the session's thread: the one retained
+// from CreateSession if it is still unused, otherwise a fresh process that
+// resumes the thread. The caller closes it.
+func (a *Adapter) open(state *sessionState, sessionID, workdir string) (*connection, error) {
 	state.mu.Lock()
 	if state.workdir != "" && state.workdir != workdir {
 		state.mu.Unlock()
-		return nil, false, terminal("session working directory cannot change")
+		return nil, errors.New("session working directory cannot change")
 	}
-	connection := state.fresh
+	state.workdir = workdir
+	fresh := state.fresh
+	state.fresh = nil
 	state.mu.Unlock()
-	if connection != nil {
-		return connection, true, nil
+	if fresh != nil {
+		return fresh, nil
 	}
 
 	connection, err := a.start()
 	if err != nil {
-		return nil, false, categorize(err, false)
+		return nil, err
 	}
-	keep := false
-	defer func() {
-		if !keep {
-			connection.close()
-		}
-	}()
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 	if err := connection.initialize(ctx); err != nil {
-		return nil, false, categorize(err, false)
+		connection.close()
+		return nil, err
 	}
 	result, err := connection.call(ctx, "thread/resume", map[string]any{
 		"threadId":       sessionID,
@@ -412,39 +334,39 @@ func (a *Adapter) openSession(state *sessionState, sessionID, workdir string) (*
 		"sandbox":        "danger-full-access",
 	})
 	if err != nil {
-		return nil, false, categorize(err, false)
+		connection.close()
+		return nil, err
 	}
 	resumedID, err := decodeThreadID(result)
 	if err != nil {
-		return nil, false, terminal(err.Error())
+		connection.close()
+		return nil, err
 	}
 	if resumedID != sessionID {
-		return nil, false, terminal("thread/resume returned a different session ID")
+		connection.close()
+		return nil, errors.New("thread/resume returned a different session ID")
 	}
-	state.mu.Lock()
-	if state.workdir == "" {
-		state.workdir = workdir
-	}
-	state.mu.Unlock()
-	keep = true
-	return connection, false, nil
+	return connection, nil
 }
 
-func (a *Adapter) dropFresh(state *sessionState, connection *connection) {
-	state.mu.Lock()
-	if state.fresh == connection {
-		state.fresh = nil
-	}
-	state.mu.Unlock()
+func (s *sessionState) setActive(active *activeTurn) {
+	s.mu.Lock()
+	s.active = active
+	s.mu.Unlock()
 }
 
-func finishActive(state *sessionState, active *activeTurn) {
-	state.mu.Lock()
-	if state.active == active {
-		state.active = nil
+func (s *sessionState) clearActive(active *activeTurn) {
+	s.mu.Lock()
+	if s.active == active {
+		s.active = nil
 	}
-	state.mu.Unlock()
-	active.controls.Wait()
+	s.mu.Unlock()
+}
+
+func interruptTurn(connection *connection, threadID, turnID string) {
+	ctx, cancel := context.WithTimeout(context.Background(), controlTimeout)
+	defer cancel()
+	_, _ = connection.call(ctx, "turn/interrupt", map[string]any{"threadId": threadID, "turnId": turnID})
 }
 
 func turnStartParams(input harness.RunTurnInput) (schema.TurnStartParams, map[string]struct{}, error) {
@@ -483,40 +405,17 @@ func nativeInput(parts []harness.ContentPart) []schema.UserInput {
 	return result
 }
 
-func waitTurn(connection *connection, input harness.RunTurnInput, turnID string, active *activeTurn) ([]byte, *harness.Error) {
-	ctx := context.Background()
-	var cancel context.CancelFunc
-	if input.Timeout > 0 {
-		ctx, cancel = context.WithTimeout(ctx, input.Timeout)
-		defer cancel()
-	}
-	result, err := readTurn(ctx, connection, input.SessionID, turnID, active)
-	if !errors.Is(err, context.DeadlineExceeded) {
-		return result, categorizeTurnError(err, active.interrupted.Load())
-	}
-
-	active.interrupted.Store(true)
-	interruptCtx, interruptCancel := context.WithTimeout(context.Background(), controlTimeout)
-	_, _ = connection.call(interruptCtx, "turn/interrupt", map[string]any{
-		"threadId": input.SessionID,
-		"turnId":   turnID,
-	})
-	interruptCancel()
-	drainCtx, drainCancel := context.WithTimeout(context.Background(), controlTimeout)
-	_, _ = readTurn(drainCtx, connection, input.SessionID, turnID, active)
-	drainCancel()
-	return nil, interrupted("turn timed out and was interrupted")
-}
-
-func readTurn(ctx context.Context, connection *connection, threadID, turnID string, active *activeTurn) ([]byte, error) {
+// readTurn consumes notifications until the turn completes and returns the
+// assistant's final text.
+func readTurn(ctx context.Context, connection *connection, threadID, turnID string, active *activeTurn) (string, error) {
 	var assistantText string
 	for {
 		message, err := connection.next(ctx)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		if len(message.ID) > 0 && message.Method != "" {
-			return nil, refuseServerRequest(connection, message)
+			return "", refuseServerRequest(connection, message)
 		}
 		if !messageMatches(message.Params, threadID, turnID) {
 			continue
@@ -538,39 +437,37 @@ func readTurn(ctx context.Context, connection *connection, threadID, turnID stri
 			switch status {
 			case "completed":
 				if active.interrupted.Load() {
-					return nil, context.Canceled
+					return "", errInterrupted
 				}
 				if strings.TrimSpace(assistantText) == "" {
-					return nil, errors.New("codex completed without an assistant result")
+					return "", errors.New("codex completed without an assistant result")
 				}
-				return []byte(assistantText), nil
+				return assistantText, nil
 			case "interrupted":
-				return nil, context.Canceled
+				return "", errInterrupted
 			case "failed":
 				if failure == "" {
 					failure = "Codex turn failed"
 				}
-				return nil, errors.New(failure)
+				return "", errors.New(failure)
 			default:
-				return nil, fmt.Errorf("codex turn ended with status %q", status)
+				return "", fmt.Errorf("codex turn ended with status %q", status)
 			}
 		case "error":
-			return nil, decodeErrorNotification(message.Params)
+			return "", decodeErrorNotification(message.Params)
 		}
 	}
 }
 
-func waitCompaction(connection *connection, threadID string) *harness.Error {
-	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-	defer cancel()
+func waitCompaction(ctx context.Context, connection *connection, threadID string) error {
 	var compactTurnID string
 	for {
 		message, err := connection.next(ctx)
 		if err != nil {
-			return categorize(err, false)
+			return err
 		}
 		if len(message.ID) > 0 && message.Method != "" {
-			return categorize(refuseServerRequest(connection, message), false)
+			return refuseServerRequest(connection, message)
 		}
 		if !messageMatchesThread(message.Params, threadID) {
 			continue
@@ -592,14 +489,16 @@ func waitCompaction(connection *connection, threadID string) *harness.Error {
 				if failure == "" {
 					failure = "Codex compaction failed"
 				}
-				return categorize(errors.New(failure), false)
+				return errors.New(failure)
 			}
 		case "error":
-			return categorize(decodeErrorNotification(message.Params), false)
+			return decodeErrorNotification(message.Params)
 		}
 	}
 }
 
+// refuseServerRequest declines any interactive request; Gimble turns run
+// with approvals disabled and never answer prompts.
 func refuseServerRequest(connection *connection, message rpcMessage) error {
 	result := map[string]any{"decision": "decline"}
 	switch message.Method {
@@ -728,52 +627,6 @@ func notificationTurnID(raw json.RawMessage) string {
 		return envelope.TurnID
 	}
 	return envelope.Turn.ID
-}
-
-func categorizeTurnError(err error, wasInterrupted bool) *harness.Error {
-	if err == nil {
-		return nil
-	}
-	if wasInterrupted || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return interrupted("turn was interrupted")
-	}
-	return categorize(err, false)
-}
-
-func categorize(err error, wasInterrupted bool) *harness.Error {
-	if err == nil {
-		return nil
-	}
-	if wasInterrupted || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return interrupted(err.Error())
-	}
-	message := strings.TrimSpace(err.Error())
-	if message == "" {
-		message = "Codex operation failed"
-	}
-	lower := strings.ToLower(message)
-	for _, marker := range []string{"rate limit", "temporarily unavailable", "service unavailable", "overloaded", "connection reset", "broken pipe", "unexpected eof"} {
-		if strings.Contains(lower, marker) {
-			return &harness.Error{Category: harness.ErrorRetryable, Message: message}
-		}
-	}
-	for _, marker := range []string{"invalid_request", "invalid json schema", "invalid_json_schema", "not found", "unknown thread", "model", "interactive"} {
-		if strings.Contains(lower, marker) {
-			return terminal(message)
-		}
-	}
-	if isRPCError(err) {
-		return terminal(message)
-	}
-	return &harness.Error{Category: harness.ErrorRetryable, Message: message}
-}
-
-func terminal(message string) *harness.Error {
-	return &harness.Error{Category: harness.ErrorTerminal, Message: message}
-}
-
-func interrupted(message string) *harness.Error {
-	return &harness.Error{Category: harness.ErrorInterrupted, Message: message}
 }
 
 var _ harness.HarnessAdapter = (*Adapter)(nil)

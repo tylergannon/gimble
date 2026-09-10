@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"iter"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -90,7 +91,7 @@ func TestFreshSessionPromotesOnlyAfterPostInitMessage(t *testing.T) {
 	}
 	input := validInput(sessionID, adapter.states[sessionID].workdir)
 	for range 2 {
-		if _, runErr := adapter.RunTurn(input, func(harness.Event) {}); runErr != nil {
+		if _, runErr := adapter.RunTurn(context.Background(), input, func(harness.Event) {}); runErr != nil {
 			t.Fatal(runErr)
 		}
 	}
@@ -117,7 +118,7 @@ func TestAdapterPassesGimbleEnvironmentToNativeProcess(t *testing.T) {
 	t.Setenv("GIMBLE_RUN_DIR", runDir)
 	t.Setenv("GIMBLE_SERVICE_PORT", servicePort)
 
-	if _, runErr := adapter.RunTurn(validInput("session", t.TempDir()), func(harness.Event) {}); runErr != nil {
+	if _, runErr := adapter.RunTurn(context.Background(), validInput("session", t.TempDir()), func(harness.Event) {}); runErr != nil {
 		t.Fatal(runErr)
 	}
 	if got := observed.env["GIMBLE_RUN_DIR"]; got != runDir {
@@ -148,13 +149,13 @@ func TestRunTurnProjectsCompleteEventsAndValidatesResult(t *testing.T) {
 	}
 	adapter := newAdapter(func(context.Context, nativeConfig) (nativeSession, error) { return session, nil })
 	var events []harness.Event
-	result, runErr := adapter.RunTurn(validInput(sessionID, t.TempDir()), func(event harness.Event) {
+	result, runErr := adapter.RunTurn(context.Background(), validInput(sessionID, t.TempDir()), func(event harness.Event) {
 		events = append(events, event)
 	})
 	if runErr != nil {
 		t.Fatal(runErr)
 	}
-	if result["next"] != "done" || result["notes"] != "proved" {
+	if object := decodeObject(t, result); object["next"] != "done" || object["notes"] != "proved" {
 		t.Fatalf("result = %#v", result)
 	}
 	wantTypes := []string{"user", "thinking", "tool_call", "assistant", "tool_result"}
@@ -183,11 +184,13 @@ func TestRunTextTurnReturnsNativeResultWithoutSchema(t *testing.T) {
 		observed = config
 		return session, nil
 	})
-	text, runErr := adapter.RunTextTurn(validInput(sessionID, t.TempDir()), func(harness.Event) {})
+	input := validInput(sessionID, t.TempDir())
+	input.OutputSchema = nil
+	raw, runErr := adapter.RunTurn(context.Background(), input, func(harness.Event) {})
 	if runErr != nil {
 		t.Fatal(runErr)
 	}
-	if text != "plain response" || observed.outputSchema != nil {
+	if text := decodeText(t, raw); text != "plain response" || observed.outputSchema != nil {
 		t.Fatalf("text = %q, output schema = %#v", text, observed.outputSchema)
 	}
 }
@@ -203,11 +206,11 @@ func TestAssistantAPIErrorReturnsBeforeAssistantEvent(t *testing.T) {
 	}
 	adapter := newAdapter(func(context.Context, nativeConfig) (nativeSession, error) { return session, nil })
 	var events []harness.Event
-	_, runErr := adapter.RunTurn(validInput(sessionID, t.TempDir()), func(event harness.Event) {
+	_, runErr := adapter.RunTurn(context.Background(), validInput(sessionID, t.TempDir()), func(event harness.Event) {
 		events = append(events, event)
 	})
-	if runErr == nil || runErr.Category != harness.ErrorTerminal {
-		t.Fatalf("run error = %#v, want terminal", runErr)
+	if runErr == nil || !strings.Contains(runErr.Error(), "model_not_found") {
+		t.Fatalf("run error = %#v, want assistant model error", runErr)
 	}
 	if len(events) != 1 || events[0]["type"] != harness.EventUser {
 		t.Fatalf("events = %#v, want only initial user event", events)
@@ -220,9 +223,9 @@ func TestInitSessionMismatchIsTerminal(t *testing.T) {
 		session.messages <- claudeagent.SystemMessage{Type: "system", Subtype: "init", SessionID: "different"}
 	}
 	adapter := newAdapter(func(context.Context, nativeConfig) (nativeSession, error) { return session, nil })
-	_, runErr := adapter.RunTurn(validInput("expected", t.TempDir()), func(harness.Event) {})
-	if runErr == nil || runErr.Category != harness.ErrorTerminal {
-		t.Fatalf("run error = %#v, want terminal", runErr)
+	_, runErr := adapter.RunTurn(context.Background(), validInput("expected", t.TempDir()), func(harness.Event) {})
+	if runErr == nil || !strings.Contains(runErr.Error(), "different session ID") {
+		t.Fatalf("run error = %#v, want session mismatch", runErr)
 	}
 }
 
@@ -234,9 +237,9 @@ func TestSteerEmitsOneUserEventAfterNativeAcceptance(t *testing.T) {
 	adapter := newAdapter(func(context.Context, nativeConfig) (nativeSession, error) { return session, nil })
 	var mu sync.Mutex
 	var events []harness.Event
-	done := make(chan *harness.Error, 1)
+	done := make(chan error, 1)
 	go func() {
-		_, err := adapter.RunTurn(validInput(sessionID, t.TempDir()), func(event harness.Event) {
+		_, err := adapter.RunTurn(context.Background(), validInput(sessionID, t.TempDir()), func(event harness.Event) {
 			mu.Lock()
 			events = append(events, event)
 			mu.Unlock()
@@ -266,14 +269,15 @@ func TestSteerEmitsOneUserEventAfterNativeAcceptance(t *testing.T) {
 	}
 }
 
-func TestInterruptAndTimeoutReturnInterrupted(t *testing.T) {
+func TestInterruptAndCancellationStopTheTurn(t *testing.T) {
 	for _, test := range []struct {
 		name      string
 		timeout   time.Duration
 		interrupt bool
+		want      error
 	}{
-		{name: "interrupt", interrupt: true},
-		{name: "timeout", timeout: 10 * time.Millisecond},
+		{name: "interrupt", interrupt: true, want: errInterrupted},
+		{name: "cancellation", timeout: 10 * time.Millisecond, want: context.DeadlineExceeded},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			const sessionID = "interrupt-session"
@@ -291,10 +295,15 @@ func TestInterruptAndTimeoutReturnInterrupted(t *testing.T) {
 			}
 			adapter := newAdapter(func(context.Context, nativeConfig) (nativeSession, error) { return session, nil })
 			input := validInput(sessionID, t.TempDir())
-			input.Timeout = test.timeout
-			done := make(chan *harness.Error, 1)
+			ctx := context.Background()
+			if test.timeout > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, test.timeout)
+				defer cancel()
+			}
+			done := make(chan error, 1)
 			go func() {
-				_, err := adapter.RunTurn(input, func(harness.Event) {})
+				_, err := adapter.RunTurn(ctx, input, func(harness.Event) {})
 				done <- err
 			}()
 			<-started
@@ -303,8 +312,8 @@ func TestInterruptAndTimeoutReturnInterrupted(t *testing.T) {
 			}
 			select {
 			case runErr := <-done:
-				if runErr == nil || runErr.Category != harness.ErrorInterrupted {
-					t.Fatalf("run error = %#v, want interrupted", runErr)
+				if !errors.Is(runErr, test.want) {
+					t.Fatalf("run error = %#v, want %v", runErr, test.want)
 				}
 			case <-time.After(time.Second):
 				t.Fatal("turn did not stop promptly")
@@ -337,13 +346,13 @@ func TestCompactUsesTerminalNativeStatus(t *testing.T) {
 	}
 }
 
-func TestUnknownSessionFailureIsTerminal(t *testing.T) {
+func TestUnknownSessionFailureIsReturned(t *testing.T) {
 	adapter := newAdapter(func(context.Context, nativeConfig) (nativeSession, error) {
 		return nil, errors.New("No conversation found with session ID")
 	})
-	_, runErr := adapter.RunTurn(validInput("unknown", t.TempDir()), func(harness.Event) {})
-	if runErr == nil || runErr.Category != harness.ErrorTerminal {
-		t.Fatalf("run error = %#v, want terminal", runErr)
+	_, runErr := adapter.RunTurn(context.Background(), validInput("unknown", t.TempDir()), func(harness.Event) {})
+	if runErr == nil || !strings.Contains(runErr.Error(), "No conversation found") {
+		t.Fatalf("run error = %#v, want native failure", runErr)
 	}
 }
 
@@ -361,4 +370,22 @@ func successResult(sessionID string) claudeagent.ResultMessage {
 		Result:           "plain response",
 		StructuredOutput: map[string]any{"next": "done", "notes": "proved"},
 	}
+}
+
+func decodeObject(t *testing.T, raw json.RawMessage) map[string]any {
+	t.Helper()
+	var object map[string]any
+	if err := json.Unmarshal(raw, &object); err != nil {
+		t.Fatalf("decode result %s: %v", raw, err)
+	}
+	return object
+}
+
+func decodeText(t *testing.T, raw json.RawMessage) string {
+	t.Helper()
+	var text string
+	if err := json.Unmarshal(raw, &text); err != nil {
+		t.Fatalf("decode text result %s: %v", raw, err)
+	}
+	return text
 }

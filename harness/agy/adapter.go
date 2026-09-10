@@ -25,8 +25,12 @@ import (
 const (
 	controlTimeout = 5 * time.Second
 	createTimeout  = 2 * time.Minute
-	defaultTimeout = 24 * time.Hour
+	// printBackstop bounds a native process when the caller's ctx has no
+	// deadline; agy insists on a --print-timeout.
+	printBackstop = 24 * time.Hour
 )
+
+var errInterrupted = errors.New("turn was interrupted")
 
 type runnerConfig struct {
 	binary   string
@@ -36,6 +40,7 @@ type runnerConfig struct {
 }
 
 // Adapter translates the neutral harness contract to agy's stream-json CLI.
+// Every turn is one `agy -p` process that resumes the native conversation.
 type Adapter struct {
 	mu       sync.Mutex
 	closed   bool
@@ -43,46 +48,19 @@ type Adapter struct {
 	states   map[string]*sessionState
 	config   runnerConfig
 	hookOnce sync.Once
-	hookErr  *harness.Error
+	hookErr  error
 }
 
 type sessionState struct {
-	opMu    sync.Mutex
-	mu      sync.Mutex
+	ops     sync.Mutex // serializes turns and compaction on this session
+	mu      sync.Mutex // guards the fields below
 	workdir string
 	active  *activeTurn
-	// agyConversationID overrides the externally-visible Gimble session ID
-	// as the actual `--conversation` argument once a repair has moved this
-	// session onto a fresh agy conversation (see the artifact-path repair
-	// branch in RunTurn). Empty means "use the external session ID
-	// unchanged" — the common case, true for every session that has never
-	// needed a repair.
+	// agyConversationID overrides the external session ID as the actual
+	// --conversation argument once an artifact-path repair has moved this
+	// session onto a fresh agy conversation. Empty means unchanged.
 	agyConversationID string
 	pendingSteer      [][]harness.ContentPart
-}
-
-// resolveConversationID returns the agy conversation external callers
-// should currently resume for this session: the repaired conversation ID
-// if a prior artifact-path repair adopted one, otherwise external
-// unchanged.
-func (s *sessionState) resolveConversationID(external string) string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.agyConversationID != "" {
-		return s.agyConversationID
-	}
-	return external
-}
-
-// adoptConversationID records the agy conversation ID a fresh-conversation
-// artifact-path repair actually landed on, so every later turn or Compact
-// call against this session's external ID resumes it instead of the
-// original (possibly status-poisoned — see the worklog's "sticky
-// conversation-status defect") conversation.
-func (s *sessionState) adoptConversationID(id string) {
-	s.mu.Lock()
-	s.agyConversationID = id
-	s.mu.Unlock()
 }
 
 type activeTurn struct {
@@ -100,7 +78,6 @@ type runRequest struct {
 	sessionID       string
 	newProject      bool
 	outputSchema    string
-	timeout         time.Duration
 	projector       *eventProjector
 	requireResultID bool
 }
@@ -116,14 +93,14 @@ type nativeResult struct {
 
 // New constructs an adapter that launches `agy` from PATH.
 func New() *Adapter {
-	return newAdapter(runnerConfig{binary: "agy"})
+	return newAdapter(runnerConfig{binary: "agy", env: os.Environ()})
 }
 
 func newAdapter(config runnerConfig) *Adapter {
-	return &Adapter{config: config, states: make(map[string]*sessionState)}
+	return &Adapter{states: make(map[string]*sessionState), config: config}
 }
 
-// SetStderr forwards agy stderr while retaining a copy for error reporting.
+// SetStderr forwards agy stderr. It must be called before use.
 func (a *Adapter) SetStderr(stderr io.Writer) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -132,222 +109,157 @@ func (a *Adapter) SetStderr(stderr io.Writer) {
 
 // CreateSession performs a short native turn so agy mints and persists a real
 // conversation bound to workdir.
-func (a *Adapter) CreateSession(model, workdir string) (string, *harness.Error) {
+func (a *Adapter) CreateSession(model, workdir string) (string, error) {
 	if err := harness.ValidateCreateSessionInput(model, workdir); err != nil {
 		return "", err
 	}
 	absolute, err := filepath.Abs(workdir)
 	if err != nil {
-		return "", terminal(fmt.Sprintf("resolve working directory: %v", err))
+		return "", fmt.Errorf("resolve working directory: %w", err)
 	}
-	result, _, runErr := a.runOnce(runRequest{
+	ctx, cancel := context.WithTimeout(context.Background(), createTimeout)
+	defer cancel()
+	result, _, err := a.runOnce(ctx, nil, runRequest{
 		prompt:          "Reply with the single word OK. Do not use any tools.",
 		model:           model,
 		workdir:         absolute,
 		newProject:      true,
-		timeout:         createTimeout,
 		requireResultID: true,
 	})
-	if runErr != nil {
-		return "", runErr
+	if err != nil {
+		return "", err
 	}
 	if strings.TrimSpace(result.conversationID) == "" {
-		return "", terminal("agy create result omitted conversation_id")
+		return "", errors.New("agy create result omitted conversation_id")
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.closed {
-		return "", terminal("agy adapter is closed")
+		return "", errors.New("agy adapter is closed")
 	}
 	a.states[result.conversationID] = &sessionState{workdir: absolute}
 	return result.conversationID, nil
 }
 
-// RunTurn runs one resumed structured-output turn and validates the exact
-// caller schema. One bounded repair turn is attempted for invalid output.
-func (a *Adapter) RunTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (harness.Result, *harness.Error) {
+// RunTurn runs one turn on the session and blocks until it ends. With an
+// output schema the structured result is validated against it exactly, with
+// one repair turn for nonconforming output; without one the assistant's
+// response text is returned. Cancelling ctx interrupts the native process.
+func (a *Adapter) RunTurn(ctx context.Context, input harness.RunTurnInput, onEvent harness.OnEvent) (json.RawMessage, error) {
 	if err := harness.ValidateRunTurnInput(input, onEvent); err != nil {
 		return nil, err
 	}
-	validator, validationErr := harness.NewResultValidator(input.OutputSchema)
-	if validationErr != nil {
-		return nil, validationErr
+	var validator *harness.ResultValidator
+	if len(input.OutputSchema) > 0 {
+		var err error
+		if validator, err = harness.NewResultValidator(input.OutputSchema); err != nil {
+			return nil, err
+		}
 	}
-	absolute, pathErr := filepath.Abs(input.Workdir)
-	if pathErr != nil {
-		return nil, terminal(fmt.Sprintf("resolve working directory: %v", pathErr))
+	absolute, err := filepath.Abs(input.Workdir)
+	if err != nil {
+		return nil, fmt.Errorf("resolve working directory: %w", err)
 	}
-	state, stateErr := a.state(input.SessionID)
-	if stateErr != nil {
-		return nil, stateErr
+	state, err := a.state(input.SessionID)
+	if err != nil {
+		return nil, err
 	}
-	state.opMu.Lock()
-	defer state.opMu.Unlock()
-	if err := bindWorkdir(state, absolute); err != nil {
+	state.ops.Lock()
+	defer state.ops.Unlock()
+	if err := state.bind(absolute); err != nil {
 		return nil, err
 	}
 
-	schemaFile, err := writeSchema(input.OutputSchema)
-	if err != nil {
-		return nil, terminal(fmt.Sprintf("write agy output schema: %v", err))
-	}
-	defer func() { _ = os.Remove(schemaFile) }()
-	projector := newEventProjector(onEvent)
-	projector.user(input.Parts)
-	deadline := time.Time{}
-	if input.Timeout > 0 {
-		deadline = time.Now().Add(input.Timeout)
-	}
-	originalPrompt := artifactMetadataPromptPreamble + joinParts(input.Parts)
 	request := runRequest{
-		prompt:          originalPrompt,
 		model:           input.Model,
 		effort:          input.ReasoningEffort,
 		workdir:         absolute,
-		sessionID:       state.resolveConversationID(input.SessionID),
-		outputSchema:    schemaFile,
-		timeout:         remaining(deadline, input.Timeout),
-		projector:       projector,
+		sessionID:       state.conversationID(input.SessionID),
+		projector:       newEventProjector(onEvent),
 		requireResultID: true,
 	}
-	if request.timeout <= 0 && input.Timeout > 0 {
-		return nil, interrupted("turn timed out and was interrupted")
-	}
-	result, active, runErr := a.runWithSteering(state, request, deadline, input.Timeout)
-	if runErr != nil {
-		if !isArtifactPathError(runErr) {
-			return nil, runErr
+	if validator != nil {
+		schemaFile, err := writeSchema(input.OutputSchema)
+		if err != nil {
+			return nil, fmt.Errorf("write agy output schema: %w", err)
 		}
-		// Do not resume the conversation that just failed: the worklog's
-		// "sticky conversation-status defect" found that once a
-		// conversation has taken one artifact-path/hook-denial failure,
-		// resumed turns keep reporting that stale error at the top level
-		// even when their own actions succeed or use no tools at all — so
-		// resuming here would very likely make this repair unrecoverable
-		// by construction, independent of what the model actually does.
-		// Start a fresh conversation instead, carrying the original prompt
-		// plus a corrective instruction, and (on success) adopt it as this
-		// session's live conversation below so later turns/Compact calls
-		// against the same external session ID resume the repaired
-		// conversation, not the abandoned one.
-		repairPrompt := artifactWriteRepairPrompt(originalPrompt, runErr.Message)
-		repairParts := []harness.ContentPart{{Type: harness.ContentPartText, Text: repairPrompt}}
-		projector.user(repairParts)
-		request.prompt = repairPrompt
-		request.sessionID = ""
-		request.newProject = true
-		request.timeout = remaining(deadline, input.Timeout)
-		if request.timeout <= 0 && input.Timeout > 0 {
-			return nil, interrupted("turn timed out and was interrupted")
-		}
-		result, active, runErr = a.runWithSteering(state, request, deadline, input.Timeout)
-		if runErr != nil {
-			return nil, runErr
-		}
-		state.adoptConversationID(result.conversationID)
-		request.sessionID = result.conversationID
-		request.newProject = false
+		defer func() { _ = os.Remove(schemaFile) }()
+		request.outputSchema = schemaFile
 	}
-	validated, invalid := validateStructured(validator, result.structured)
-	if mismatch := compareEchoedSchema(input.OutputSchema, result.echoedSchema); mismatch != nil {
-		return nil, mismatch
-	}
-	if invalid == nil {
-		return validated, nil
-	}
-	repairPrompt := fmt.Sprintf("Your previous structured output did not conform to the required JSON schema: %s. Respond again. Output only a JSON object conforming exactly to the schema. Do not run any tools.", invalid.Message)
-	repairParts := []harness.ContentPart{{Type: harness.ContentPartText, Text: repairPrompt}}
-	projector.user(repairParts)
-	request.prompt = repairPrompt
-	request.timeout = remaining(deadline, input.Timeout)
-	if request.timeout <= 0 && input.Timeout > 0 {
-		active.interrupted.Store(true)
-		return nil, interrupted("turn timed out and was interrupted")
-	}
-	result, _, runErr = a.runWithSteering(state, request, deadline, input.Timeout)
-	if runErr != nil {
-		return nil, runErr
-	}
-	validated, invalid = validateStructured(validator, result.structured)
-	if mismatch := compareEchoedSchema(input.OutputSchema, result.echoedSchema); mismatch != nil {
-		return nil, mismatch
-	}
-	if invalid != nil {
-		return nil, terminal("agy result does not conform to the supplied schema: " + invalid.Message)
-	}
-	return validated, nil
-}
-
-// RunTextTurn runs one ordinary agy turn without a JSON schema.
-func (a *Adapter) RunTextTurn(input harness.RunTurnInput, onEvent harness.OnEvent) (string, *harness.Error) {
-	if err := harness.ValidateRunTurnInput(input, onEvent); err != nil {
-		return "", err
-	}
-	absolute, pathErr := filepath.Abs(input.Workdir)
-	if pathErr != nil {
-		return "", terminal(fmt.Sprintf("resolve working directory: %v", pathErr))
-	}
-	state, stateErr := a.state(input.SessionID)
-	if stateErr != nil {
-		return "", stateErr
-	}
-	state.opMu.Lock()
-	defer state.opMu.Unlock()
-	if err := bindWorkdir(state, absolute); err != nil {
-		return "", err
-	}
-	projector := newEventProjector(onEvent)
-	projector.user(input.Parts)
-	deadline := time.Time{}
-	if input.Timeout > 0 {
-		deadline = time.Now().Add(input.Timeout)
-	}
+	request.projector.user(input.Parts)
 	originalPrompt := artifactMetadataPromptPreamble + joinParts(input.Parts)
-	request := runRequest{
-		prompt: originalPrompt, model: input.Model, effort: input.ReasoningEffort,
-		workdir: absolute, sessionID: state.resolveConversationID(input.SessionID),
-		timeout: remaining(deadline, input.Timeout), projector: projector, requireResultID: true,
-	}
-	if request.timeout <= 0 && input.Timeout > 0 {
-		return "", interrupted("turn timed out and was interrupted")
-	}
-	result, _, runErr := a.runWithSteering(state, request, deadline, input.Timeout)
-	if runErr != nil && isArtifactPathError(runErr) {
-		repairPrompt := artifactWriteRepairPrompt(originalPrompt, runErr.Message)
-		projector.user([]harness.ContentPart{{Type: harness.ContentPartText, Text: repairPrompt}})
-		request.prompt = repairPrompt
+	request.prompt = originalPrompt
+
+	result, err := a.run(ctx, state, request)
+	if err != nil && isArtifactPathError(err) && ctx.Err() == nil {
+		// Do not resume the conversation that just failed: once a
+		// conversation has taken one artifact-path failure, resumed turns
+		// keep reporting that stale error. Start a fresh conversation with
+		// the original prompt plus a corrective note and, on success, adopt
+		// it as this session's live conversation.
+		request.prompt = artifactWriteRepairPrompt(originalPrompt, err.Error())
+		request.projector.user([]harness.ContentPart{{Type: harness.ContentPartText, Text: request.prompt}})
 		request.sessionID = ""
 		request.newProject = true
-		request.timeout = remaining(deadline, input.Timeout)
-		if request.timeout <= 0 && input.Timeout > 0 {
-			return "", interrupted("turn timed out and was interrupted")
-		}
-		result, _, runErr = a.runWithSteering(state, request, deadline, input.Timeout)
-		if runErr == nil {
+		result, err = a.run(ctx, state, request)
+		if err == nil {
 			state.adoptConversationID(result.conversationID)
+			request.sessionID = result.conversationID
+			request.newProject = false
 		}
 	}
-	if runErr != nil {
-		return "", runErr
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
-	return result.response, nil
+	if err != nil {
+		return nil, err
+	}
+	if validator == nil {
+		return harness.TextResult(result.response)
+	}
+
+	if err := compareEchoedSchema(input.OutputSchema, result.echoedSchema); err != nil {
+		return nil, err
+	}
+	raw, invalid := validateStructured(validator, result.structured)
+	if invalid == nil {
+		return raw, nil
+	}
+	request.prompt = fmt.Sprintf("Your previous structured output did not conform to the required JSON schema: %s. Respond again. Output only a JSON object conforming exactly to the schema. Do not run any tools.", invalid.Error())
+	request.projector.user([]harness.ContentPart{{Type: harness.ContentPartText, Text: request.prompt}})
+	result, err = a.run(ctx, state, request)
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := compareEchoedSchema(input.OutputSchema, result.echoedSchema); err != nil {
+		return nil, err
+	}
+	raw, invalid = validateStructured(validator, result.structured)
+	if invalid != nil {
+		return nil, fmt.Errorf("agy result does not conform to the supplied schema: %w", invalid)
+	}
+	return raw, nil
 }
 
-// Steer interrupts the active print process and resumes its native
-// conversation with the steering message inside the same logical RunTurn.
+// Steer interrupts the active print process and resumes the native
+// conversation with the steering message inside the same RunTurn.
 func (a *Adapter) Steer(sessionID string, parts []harness.ContentPart) {
-	if strings.TrimSpace(sessionID) == "" || harness.ValidateContentParts(parts) != nil {
+	if harness.ValidateContentParts(parts) != nil {
 		return
 	}
-	state := a.lookup(sessionID)
+	a.mu.Lock()
+	state := a.states[sessionID]
+	a.mu.Unlock()
 	if state == nil {
 		return
 	}
-	copied := append([]harness.ContentPart(nil), parts...)
 	state.mu.Lock()
 	active := state.active
 	if active != nil {
-		state.pendingSteer = append(state.pendingSteer, copied)
+		state.pendingSteer = append(state.pendingSteer, append([]harness.ContentPart(nil), parts...))
 		active.steered.Store(true)
 	}
 	state.mu.Unlock()
@@ -358,7 +270,9 @@ func (a *Adapter) Steer(sessionID string, parts []harness.ContentPart) {
 
 // Interrupt signals the active native process and returns immediately.
 func (a *Adapter) Interrupt(sessionID string) {
-	state := a.lookup(sessionID)
+	a.mu.Lock()
+	state := a.states[sessionID]
+	a.mu.Unlock()
 	if state == nil {
 		return
 	}
@@ -371,37 +285,35 @@ func (a *Adapter) Interrupt(sessionID string) {
 }
 
 // Compact asks agy to compact the native conversation with its /compact
-// command. The operation is rejected while another turn is active.
-func (a *Adapter) Compact(sessionID, workdir string) *harness.Error {
+// command.
+func (a *Adapter) Compact(sessionID, workdir string) error {
 	if err := harness.ValidateSessionInput(sessionID, workdir); err != nil {
 		return err
 	}
 	absolute, err := filepath.Abs(workdir)
 	if err != nil {
-		return terminal(fmt.Sprintf("resolve working directory: %v", err))
+		return fmt.Errorf("resolve working directory: %w", err)
 	}
-	state, _, stateErr := a.stateWithExistence(sessionID)
-	if stateErr != nil {
-		return stateErr
-	}
-	if !state.opMu.TryLock() {
-		return terminal("cannot compact a session with an active operation")
-	}
-	defer state.opMu.Unlock()
-	if err := bindWorkdir(state, absolute); err != nil {
+	state, err := a.state(sessionID)
+	if err != nil {
 		return err
 	}
-	_, _, runErr := a.runForState(state, runRequest{
+	if !state.ops.TryLock() {
+		return errors.New("cannot compact a session with an active turn")
+	}
+	defer state.ops.Unlock()
+	if err := state.bind(absolute); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), createTimeout)
+	defer cancel()
+	_, _, err = a.runOnce(ctx, state, runRequest{
 		prompt:          "/compact",
 		workdir:         absolute,
-		sessionID:       state.resolveConversationID(sessionID),
-		timeout:         createTimeout,
+		sessionID:       state.conversationID(sessionID),
 		requireResultID: true,
 	})
-	if runErr != nil {
-		a.removeState(sessionID, state)
-	}
-	return runErr
+	return err
 }
 
 // Close interrupts all active agy processes.
@@ -427,146 +339,90 @@ func (a *Adapter) Close() {
 	}
 }
 
-// ensureHook provisions (once per Adapter) the Gimble-owned PreToolUse
-// allow/deny hook that intercepts agy's native write tools before they
-// execute. See native_write_hook.go for why this — not the documented
-// custom-agent tools: allowlist — is the mechanism Gimble actually uses.
-//
-// Before writing anything, it checks the installed agy binary's version
-// against minSupportedAgyVersion: PreToolUse hooks.json support was only
-// verified live against agy 1.1.15 (see the worklog), so an older or
-// unparseable version fails fast with an actionable error naming the check
-// and how to resolve it, rather than silently provisioning a hook the
-// running agy may not honor and trusting it worked.
-func (a *Adapter) ensureHook() *harness.Error {
-	a.hookOnce.Do(func() {
-		if err := verifyAgyHookSupport(a.config); err != nil {
-			a.hookErr = err
-			return
-		}
-		home := a.config.homeDir
-		if home == "" {
-			resolved, err := os.UserHomeDir()
-			if err != nil {
-				a.hookErr = terminal(fmt.Sprintf("resolve home directory for agy native-write hook: %v", err))
-				return
-			}
-			home = resolved
-		}
-		if err := ensureNativeWriteHook(home); err != nil {
-			a.hookErr = terminal(fmt.Sprintf("provision gimble agy native-write hook: %v", err))
-			return
-		}
-	})
-	return a.hookErr
+func (a *Adapter) state(sessionID string) (*sessionState, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.closed {
+		return nil, errors.New("agy adapter is closed")
+	}
+	state := a.states[sessionID]
+	if state == nil {
+		state = &sessionState{}
+		a.states[sessionID] = state
+	}
+	return state, nil
 }
 
-// verifyAgyHookSupport runs `agy --version` (cheap, no model turn) and
-// confirms it meets minSupportedAgyVersion before ensureHook trusts
-// hooks.json to actually gate any tool call. This is the runtime invariant
-// for the hook prevention layer: fail fast with a clear, actionable error
-// naming the check and the fix, rather than writing a hook to hooks.json
-// and silently assuming the installed agy honors it.
-func verifyAgyHookSupport(config runnerConfig) *harness.Error {
-	ctx, cancel := context.WithTimeout(context.Background(), controlTimeout)
-	defer cancel()
-	args := append(append([]string(nil), config.baseArgs...), "--version")
-	cmd := exec.CommandContext(ctx, config.binary, args...)
-	cmd.Env = config.env
-	out, err := cmd.Output()
-	if err != nil {
-		return terminal(fmt.Sprintf(
-			"verify agy version before provisioning the gimble-no-native-write PreToolUse hook: run %q --version: %v; "+
-				"the hook (harness/agy/native_write_hook.go) requires a working agy binary on PATH",
-			config.binary, err,
-		))
+func (s *sessionState) bind(workdir string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.workdir != "" && s.workdir != workdir {
+		return errors.New("session working directory cannot change")
 	}
-	version := strings.TrimSpace(string(out))
-	ok, parseErr := agyVersionAtLeast(version, minSupportedAgyVersion)
-	if parseErr != nil {
-		return terminal(fmt.Sprintf(
-			"agy --version reported %q, which harness/agy could not parse as a dotted version to confirm PreToolUse hooks.json support "+
-				"(verified live only from agy %s onward; see harness/agy/native_write_hook.go). Update agyVersionAtLeast's parser "+
-				"for the new version format, or pin a known-good agy release.",
-			version, minSupportedAgyVersion,
-		))
-	}
-	if !ok {
-		return terminal(fmt.Sprintf(
-			"agy %s is older than %s, the minimum version harness/agy has verified live supports the PreToolUse hooks.json mechanism "+
-				"the gimble-no-native-write hook (harness/agy/native_write_hook.go) depends on; upgrade agy, or re-verify hook support on this "+
-				"version and lower minSupportedAgyVersion. Without a supported hook, only the reactive artifact-path repair-retry protects turns from the artifact-path bug.",
-			version, minSupportedAgyVersion,
-		))
-	}
+	s.workdir = workdir
 	return nil
 }
 
-func (a *Adapter) runForState(state *sessionState, request runRequest) (nativeResult, *activeTurn, *harness.Error) {
-	result, active, err := a.runOnceWithActive(request, func(active *activeTurn) {
-		state.mu.Lock()
-		state.active = active
-		state.mu.Unlock()
-	})
-	state.mu.Lock()
-	if state.active == active {
-		state.active = nil
+// conversationID returns the agy conversation to resume for this session:
+// the repaired one if an artifact-path repair adopted it, else external.
+func (s *sessionState) conversationID(external string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.agyConversationID != "" {
+		return s.agyConversationID
 	}
-	state.mu.Unlock()
-	return result, active, err
+	return external
 }
 
-func (a *Adapter) runWithSteering(
-	state *sessionState,
-	request runRequest,
-	deadline time.Time,
-	originalTimeout time.Duration,
-) (nativeResult, *activeTurn, *harness.Error) {
-	for {
-		result, active, err := a.runForState(state, request)
-		parts := takeSteer(state)
-		if len(parts) == 0 {
-			return result, active, err
-		}
-		if err != nil && (active == nil || !active.steered.Load() || err.Category != harness.ErrorInterrupted) {
-			return nativeResult{}, active, err
-		}
-		request.projector.user(parts)
-		request.prompt = joinParts(parts)
-		request.timeout = remaining(deadline, originalTimeout)
-		if request.timeout <= 0 && originalTimeout > 0 {
-			return nativeResult{}, active, interrupted("turn timed out and was interrupted")
-		}
-	}
+func (s *sessionState) adoptConversationID(id string) {
+	s.mu.Lock()
+	s.agyConversationID = id
+	s.mu.Unlock()
 }
 
-func takeSteer(state *sessionState) []harness.ContentPart {
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	if len(state.pendingSteer) == 0 {
+func (s *sessionState) takeSteer() []harness.ContentPart {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.pendingSteer) == 0 {
 		return nil
 	}
-	parts := state.pendingSteer[0]
-	state.pendingSteer = state.pendingSteer[1:]
+	parts := s.pendingSteer[0]
+	s.pendingSteer = s.pendingSteer[1:]
 	return parts
 }
 
-func (a *Adapter) runOnce(request runRequest) (nativeResult, *activeTurn, *harness.Error) {
-	return a.runOnceWithActive(request, nil)
+// run executes request and, whenever a steering message arrives, resumes the
+// same conversation with it until no steer is pending.
+func (a *Adapter) run(ctx context.Context, state *sessionState, request runRequest) (nativeResult, error) {
+	for {
+		result, active, err := a.runOnce(ctx, state, request)
+		parts := state.takeSteer()
+		if len(parts) == 0 {
+			return result, err
+		}
+		steerInterrupted := active != nil && active.steered.Load() && errors.Is(err, errInterrupted)
+		if err != nil && !steerInterrupted {
+			return nativeResult{}, err
+		}
+		request.projector.user(parts)
+		request.prompt = joinParts(parts)
+	}
 }
 
-func (a *Adapter) runOnceWithActive(request runRequest, started func(*activeTurn)) (nativeResult, *activeTurn, *harness.Error) {
+// runOnce launches one `agy -p` process, streams its events, and returns its
+// result. When state is non-nil the process is published as the session's
+// active turn so Steer and Interrupt can reach it.
+func (a *Adapter) runOnce(ctx context.Context, state *sessionState, request runRequest) (nativeResult, *activeTurn, error) {
 	a.mu.Lock()
 	if a.closed {
 		a.mu.Unlock()
-		return nativeResult{}, nil, terminal("agy adapter is closed")
+		return nativeResult{}, nil, errors.New("agy adapter is closed")
 	}
 	config := a.config
 	stderrWriter := a.stderr
 	a.mu.Unlock()
-
-	if hookErr := a.ensureHook(); hookErr != nil {
-		return nativeResult{}, nil, hookErr
+	if err := a.ensureHook(); err != nil {
+		return nativeResult{}, nil, err
 	}
 
 	args := append([]string(nil), config.baseArgs...)
@@ -585,9 +441,9 @@ func (a *Adapter) runOnceWithActive(request runRequest, started func(*activeTurn
 	if request.outputSchema != "" {
 		args = append(args, "--json-schema", request.outputSchema)
 	}
-	backstop := defaultTimeout
-	if request.timeout > 0 {
-		backstop = request.timeout + 30*time.Second
+	backstop := printBackstop
+	if deadline, ok := ctx.Deadline(); ok {
+		backstop = time.Until(deadline) + 30*time.Second
 	}
 	args = append(args, "--print-timeout", backstop.String())
 
@@ -596,7 +452,7 @@ func (a *Adapter) runOnceWithActive(request runRequest, started func(*activeTurn
 	command.Env = config.env
 	stdout, err := command.StdoutPipe()
 	if err != nil {
-		return nativeResult{}, nil, categorize(err, false)
+		return nativeResult{}, nil, err
 	}
 	var stderr bytes.Buffer
 	if stderrWriter != nil {
@@ -605,11 +461,20 @@ func (a *Adapter) runOnceWithActive(request runRequest, started func(*activeTurn
 		command.Stderr = &stderr
 	}
 	if err := command.Start(); err != nil {
-		return nativeResult{}, nil, categorize(err, false)
+		return nativeResult{}, nil, err
 	}
 	active := &activeTurn{command: command, done: make(chan struct{})}
-	if started != nil {
-		started(active)
+	if state != nil {
+		state.mu.Lock()
+		state.active = active
+		state.mu.Unlock()
+		defer func() {
+			state.mu.Lock()
+			if state.active == active {
+				state.active = nil
+			}
+			state.mu.Unlock()
+		}()
 	}
 	envelopes := make(chan schema.Envelope)
 	go scanStream(stdout, envelopes)
@@ -619,18 +484,11 @@ func (a *Adapter) runOnceWithActive(request runRequest, started func(*activeTurn
 		close(active.done)
 	}()
 
-	var timer <-chan time.Time
-	var timeout *time.Timer
-	if request.timeout > 0 {
-		timeout = time.NewTimer(request.timeout)
-		timer = timeout.C
-		defer timeout.Stop()
-	}
+	ctxDone := ctx.Done()
 	var result *nativeResult
 	initSeen := false
 	initID := ""
-	var processErr error
-	var protocolErr *harness.Error
+	var processErr, protocolErr error
 	for envelopes != nil || waited != nil {
 		select {
 		case envelope, ok := <-envelopes:
@@ -643,11 +501,10 @@ func (a *Adapter) runOnceWithActive(request runRequest, started func(*activeTurn
 			}
 			if envelope.Event == "init" {
 				initSeen = true
-				id := envelopeConversationID(envelope)
-				initID = id
-				if request.sessionID != "" && id != request.sessionID {
+				initID = envelopeConversationID(envelope)
+				if request.sessionID != "" && initID != request.sessionID {
 					interruptProcess(active)
-					protocolErr = terminal("agy init returned a different conversation ID")
+					protocolErr = errors.New("agy init returned a different conversation ID")
 				}
 			}
 			if envelope.Event == "result" && envelope.Result != nil {
@@ -661,23 +518,23 @@ func (a *Adapter) runOnceWithActive(request runRequest, started func(*activeTurn
 				}
 				if parsed.status == "SUCCESS" && request.sessionID != "" && parsed.conversationID != request.sessionID {
 					interruptProcess(active)
-					protocolErr = terminal("agy result returned a different conversation ID")
+					protocolErr = errors.New("agy result returned a different conversation ID")
 				}
 				result = &parsed
 			}
 		case waitErr := <-waited:
 			waited = nil
 			processErr = waitErr
-		case <-timer:
+		case <-ctxDone:
+			ctxDone = nil
 			interruptProcess(active)
-			timer = nil
 		}
 	}
 	if protocolErr != nil {
 		return nativeResult{}, active, protocolErr
 	}
 	if active.interrupted.Load() {
-		return nativeResult{}, active, interrupted("agy turn was interrupted")
+		return nativeResult{}, active, errInterrupted
 	}
 	if result == nil {
 		message := strings.TrimSpace(stderr.String())
@@ -687,7 +544,7 @@ func (a *Adapter) runOnceWithActive(request runRequest, started func(*activeTurn
 		if message == "" {
 			message = "agy stream ended without a result"
 		}
-		return nativeResult{}, active, categorize(errors.New(message), false)
+		return nativeResult{}, active, errors.New(message)
 	}
 	if result.status != "SUCCESS" {
 		message := result.errorMessage
@@ -695,15 +552,15 @@ func (a *Adapter) runOnceWithActive(request runRequest, started func(*activeTurn
 			message = fmt.Sprintf("agy turn ended with status %q", result.status)
 		}
 		if result.status == "CANCELED" || result.status == "INTERRUPTED" {
-			return nativeResult{}, active, interrupted(message)
+			return nativeResult{}, active, fmt.Errorf("%w: %s", errInterrupted, message)
 		}
-		return nativeResult{}, active, categorize(errors.New(message), false)
+		return nativeResult{}, active, errors.New(message)
 	}
 	if request.requireResultID && (!initSeen || result.conversationID == "") {
-		return nativeResult{}, active, terminal("agy stream omitted the required conversation ID")
+		return nativeResult{}, active, errors.New("agy stream omitted the required conversation ID")
 	}
 	if request.requireResultID && initID != result.conversationID {
-		return nativeResult{}, active, terminal("agy init and result returned different conversation IDs")
+		return nativeResult{}, active, errors.New("agy init and result returned different conversation IDs")
 	}
 	return *result, active, nil
 }
@@ -735,47 +592,50 @@ func interruptProcess(active *activeTurn) {
 	}()
 }
 
-func (a *Adapter) state(sessionID string) (*sessionState, *harness.Error) {
-	state, _, err := a.stateWithExistence(sessionID)
-	return state, err
+// ensureHook provisions, once per Adapter, the Gimble-owned PreToolUse hook
+// that blocks agy's native write tools from targeting workspace files with
+// ArtifactMetadata. See native_write_hook.go for the mechanism. It first
+// checks the installed agy meets minSupportedAgyVersion, the version the hook
+// was verified live against, and fails fast otherwise.
+func (a *Adapter) ensureHook() error {
+	a.hookOnce.Do(func() {
+		if err := verifyAgyHookSupport(a.config); err != nil {
+			a.hookErr = err
+			return
+		}
+		home := a.config.homeDir
+		if home == "" {
+			resolved, err := os.UserHomeDir()
+			if err != nil {
+				a.hookErr = fmt.Errorf("resolve home directory for agy native-write hook: %w", err)
+				return
+			}
+			home = resolved
+		}
+		if err := ensureNativeWriteHook(home); err != nil {
+			a.hookErr = fmt.Errorf("provision gimble agy native-write hook: %w", err)
+		}
+	})
+	return a.hookErr
 }
 
-func (a *Adapter) stateWithExistence(sessionID string) (*sessionState, bool, *harness.Error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.closed {
-		return nil, false, terminal("agy adapter is closed")
+func verifyAgyHookSupport(config runnerConfig) error {
+	ctx, cancel := context.WithTimeout(context.Background(), controlTimeout)
+	defer cancel()
+	args := append(append([]string(nil), config.baseArgs...), "--version")
+	cmd := exec.CommandContext(ctx, config.binary, args...)
+	cmd.Env = config.env
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("verify agy version before provisioning the gimble-no-native-write PreToolUse hook: run %q --version: %w", config.binary, err)
 	}
-	state, existed := a.states[sessionID]
-	if !existed {
-		state = &sessionState{}
-		a.states[sessionID] = state
+	version := strings.TrimSpace(string(out))
+	ok, parseErr := agyVersionAtLeast(version, minSupportedAgyVersion)
+	if parseErr != nil {
+		return fmt.Errorf("agy --version reported %q, which could not be parsed as a dotted version to confirm PreToolUse hooks.json support (verified from agy %s onward; see harness/agy/native_write_hook.go)", version, minSupportedAgyVersion)
 	}
-	return state, existed, nil
-}
-
-func (a *Adapter) lookup(sessionID string) *sessionState {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.states[sessionID]
-}
-
-func (a *Adapter) removeState(sessionID string, state *sessionState) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.states[sessionID] == state {
-		delete(a.states, sessionID)
-	}
-}
-
-func bindWorkdir(state *sessionState, workdir string) *harness.Error {
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	if state.workdir != "" && state.workdir != workdir {
-		return terminal("session working directory cannot change")
-	}
-	if state.workdir == "" {
-		state.workdir = workdir
+	if !ok {
+		return fmt.Errorf("agy %s is older than %s, the minimum version verified to honor the PreToolUse hooks.json mechanism the gimble-no-native-write hook depends on; upgrade agy", version, minSupportedAgyVersion)
 	}
 	return nil
 }
@@ -804,32 +664,34 @@ func writeSchema(raw json.RawMessage) (string, error) {
 	return name, nil
 }
 
-func validateStructured(validator *harness.ResultValidator, value any) (harness.Result, *harness.Error) {
+func validateStructured(validator *harness.ResultValidator, value any) (json.RawMessage, error) {
 	raw, err := json.Marshal(value)
 	if err != nil {
-		return nil, terminal(fmt.Sprintf("encode agy structured output: %v", err))
+		return nil, fmt.Errorf("encode agy structured output: %w", err)
 	}
 	return validator.Validate(raw)
 }
 
-func compareEchoedSchema(requested json.RawMessage, echoed any) *harness.Error {
+// compareEchoedSchema checks that agy ran the turn against the schema it was
+// given, which it echoes back in the result.
+func compareEchoedSchema(requested json.RawMessage, echoed any) error {
 	if echoed == nil {
-		return terminal("agy result omitted json_schema")
+		return errors.New("agy result omitted json_schema")
 	}
 	var expected any
 	if err := json.Unmarshal(requested, &expected); err != nil {
-		return terminal(fmt.Sprintf("decode requested output schema: %v", err))
+		return fmt.Errorf("decode requested output schema: %w", err)
 	}
 	expectedRaw, err := json.Marshal(expected)
 	if err != nil {
-		return terminal(fmt.Sprintf("normalize requested output schema: %v", err))
+		return fmt.Errorf("normalize requested output schema: %w", err)
 	}
 	echoedRaw, err := json.Marshal(echoed)
 	if err != nil {
-		return terminal(fmt.Sprintf("normalize agy output schema: %v", err))
+		return fmt.Errorf("normalize agy output schema: %w", err)
 	}
 	if !bytes.Equal(expectedRaw, echoedRaw) {
-		return terminal("agy result echoed a different JSON schema")
+		return errors.New("agy result echoed a different JSON schema")
 	}
 	return nil
 }
@@ -845,13 +707,6 @@ func envelopeConversationID(envelope schema.Envelope) string {
 		return *envelope.Result.ConversationID
 	}
 	return ""
-}
-
-func remaining(deadline time.Time, original time.Duration) time.Duration {
-	if deadline.IsZero() {
-		return original
-	}
-	return time.Until(deadline)
 }
 
 func joinParts(parts []harness.ContentPart) string {
@@ -871,94 +726,35 @@ func modelIncludesEffort(model string) bool {
 	return false
 }
 
-func categorize(err error, wasInterrupted bool) *harness.Error {
-	if err == nil {
-		return nil
-	}
-	if wasInterrupted || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return interrupted(err.Error())
-	}
-	message := strings.TrimSpace(err.Error())
-	if message == "" {
-		message = "agy operation failed"
-	}
-	lower := strings.ToLower(message)
-	for _, marker := range []string{"rate limit", "quota", "resource exhausted", "overloaded", "unavailable", "temporarily", "connection reset", "broken pipe", "unexpected eof", "timeout waiting for response", "internal (code 500)", "can't connect"} {
-		if strings.Contains(lower, marker) {
-			return retryable(message)
-		}
-	}
-	for _, marker := range []string{"unknown model", "invalid", "not found", "permission", "unauthorized", "unauthenticated", "schema", "different conversation id", "denied by pre-tool hook"} {
-		if strings.Contains(lower, marker) {
-			return terminal(message)
-		}
-	}
-	return retryable(message)
-}
-
-// artifactPathErrorMarker matches agy's own error text when the model's
-// file-write tool call is routed through agy's native artifact tool, which
-// only accepts paths inside its private per-conversation "brain" directory
-// and rejects any path inside the workspace agy was given via --add-dir.
-// This is the fallback signature: the ensureHook-provisioned PreToolUse
-// hook (native_write_hook.go) blocks the tool before agy ever reaches this
-// declare-permissions failure, but the hook itself can only be as reliable
-// as agy's hooks.json support, so this detector stays in place in case the
-// hook is ever bypassed (e.g. a workspace with its own conflicting hook, or
-// a future agy version that stops honoring it).
+// artifactPathErrorMarker is agy's own error text when the model's file
+// write goes through agy's native artifact tool, which only accepts paths in
+// its private per-conversation directory. The PreToolUse hook blocks this
+// before agy reaches it; this detector is the fallback if the hook is ever
+// bypassed.
 const artifactPathErrorMarker = "is not a valid artifact path"
 
-// isArtifactPathError reports whether err is agy's "declaring permissions"
-// failure for a file-write tool call that carried an ArtifactMetadata
-// argument and targeted a path outside its brain directory (agy's own
-// error text), or Gimble's own PreToolUse hook denial of the same class
-// of call (nativeWriteHookMarker, native_write_hook.go). Either way the fix
-// is identical: redo the failed write(s) via a fresh conversation, omitting
-// ArtifactMetadata this time — see artifactWriteRepairPrompt.
-func isArtifactPathError(err *harness.Error) bool {
+func isArtifactPathError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(err.Message, artifactPathErrorMarker) || strings.Contains(err.Message, nativeWriteHookMarker)
+	message := err.Error()
+	return strings.Contains(message, artifactPathErrorMarker) || strings.Contains(message, nativeWriteHookMarker)
 }
 
-// artifactMetadataPromptPreamble is prepended (once, to the original turn
-// prompt only — not to repair or steering prompts) to steer the model away
-// from ever triggering the ArtifactMetadata bug in the first place. This is
-// layer zero of three: a static prompt hint, ahead of the PreToolUse hook
-// (layer one, native_write_hook.go) and the repair-retry below (layer two).
-// It is not a substitute for either: prompting alone is unreliable (the
-// same instruction, given verbatim, still let the model attach
-// ArtifactMetadata to an out-of-workspace write in some live trials — see
-// the worklog), but every hook denial burns a full turn plus a
-// fresh-conversation repair, so a static line that reduces how often that
-// happens is worth the negligible token cost.
+// artifactMetadataPromptPreamble is prepended to the original turn prompt to
+// steer the model away from triggering the ArtifactMetadata bug at all. It
+// is not a substitute for the hook or the repair; it just makes both rarer.
 const artifactMetadataPromptPreamble = "When using write_to_file, replace_file_content, or multi_replace_file_content to create or edit files in this workspace, never include an ArtifactMetadata argument. ArtifactMetadata is only for your own internal session-tracking documents inside your private per-conversation directory; attaching it to an ordinary workspace file causes the write to fail.\n\n"
 
-// artifactWriteRepairPrompt asks the model to redo originalPrompt (the
-// turn's real task) in a brand new conversation, appending a corrective
-// note about the exact mechanism that failed: an ArtifactMetadata argument
-// on a call targeting outside the artifact directory. It deliberately does
-// not push the model onto its shell/terminal tool — the empirically
-// verified fix is simpler than that: omit ArtifactMetadata and retry the
-// same native write tool, which agy's own validator then accepts.
+// artifactWriteRepairPrompt asks the model to redo the original task in a
+// fresh conversation, omitting ArtifactMetadata. It deliberately does not
+// push the model onto a different tool: retrying the same native write tool
+// without ArtifactMetadata is the verified fix.
 func artifactWriteRepairPrompt(originalPrompt, message string) string {
 	return fmt.Sprintf(
 		"%s\n\n---\nRetry note: a previous attempt at this exact task failed because a file-write tool call (write_to_file, replace_file_content, or multi_replace_file_content) included an ArtifactMetadata argument while targeting a path outside your private per-conversation artifact directory: %s. ArtifactMetadata is only valid for files inside that private directory. If you call one of those tools again for a file in this workspace, omit the ArtifactMetadata argument entirely — do not switch to a different tool for it. Complete the original task above now.",
 		originalPrompt, message,
 	)
-}
-
-func terminal(message string) *harness.Error {
-	return &harness.Error{Category: harness.ErrorTerminal, Message: message}
-}
-
-func retryable(message string) *harness.Error {
-	return &harness.Error{Category: harness.ErrorRetryable, Message: message}
-}
-
-func interrupted(message string) *harness.Error {
-	return &harness.Error{Category: harness.ErrorInterrupted, Message: message}
 }
 
 var _ harness.HarnessAdapter = (*Adapter)(nil)

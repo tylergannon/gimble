@@ -2,6 +2,7 @@ package program
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 )
 
 func TestCommandReturnsNonzeroExitAndCombinedOutputAsData(t *testing.T) {
-	runtime, err := NewRuntime(Config{Workdir: t.TempDir(), RunDir: t.TempDir(), Backend: &programBackend{}})
+	runtime, err := NewRuntime(Config{Workdir: t.TempDir(), RunDir: t.TempDir(), Adapters: fakeAdapters(&fakeAdapter{})})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +38,7 @@ func TestCommandReturnsNonzeroExitAndCombinedOutputAsData(t *testing.T) {
 }
 
 func TestCommandReturnsInfrastructureFailureSeparately(t *testing.T) {
-	runtime, err := NewRuntime(Config{Workdir: t.TempDir(), RunDir: t.TempDir(), Backend: &programBackend{}})
+	runtime, err := NewRuntime(Config{Workdir: t.TempDir(), RunDir: t.TempDir(), Adapters: fakeAdapters(&fakeAdapter{})})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,8 +51,8 @@ func TestCommandReturnsInfrastructureFailureSeparately(t *testing.T) {
 }
 
 func TestCodergenDecodesValidatedResultIntoRequestedType(t *testing.T) {
-	backend := &programBackend{result: harness.Result{"passed": true, "notes": "observed"}}
-	runtime, err := NewRuntime(Config{Workdir: t.TempDir(), RunDir: t.TempDir(), Backend: backend})
+	adapter := &fakeAdapter{result: json.RawMessage(`{"passed":true,"notes":"observed"}`)}
+	runtime, err := NewRuntime(Config{Workdir: t.TempDir(), RunDir: t.TempDir(), Adapters: fakeAdapters(adapter)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,8 +65,40 @@ func TestCodergenDecodesValidatedResultIntoRequestedType(t *testing.T) {
 	if got != (Validation{Passed: true, Notes: "observed"}) {
 		t.Fatalf("result = %#v", got)
 	}
-	if backend.turn.Model != "gpt-5.6-sol" || backend.turn.Provider != "openai" || backend.turn.Workdir != runtime.Workdir {
-		t.Fatalf("turn = %#v", backend.turn)
+	if adapter.input.Model != "gpt-5.6-sol" || adapter.input.Workdir != runtime.Workdir || adapter.input.SessionID != "session-1" {
+		t.Fatalf("turn = %#v", adapter.input)
+	}
+	if adapter.session.model != "gpt-5.6-sol" || adapter.session.workdir != runtime.Workdir {
+		t.Fatalf("session = %#v", adapter.session)
+	}
+}
+
+func TestCodergenWithoutSchemaReturnsText(t *testing.T) {
+	adapter := &fakeAdapter{result: json.RawMessage(`"plain answer"`)}
+	runtime, err := NewRuntime(Config{Workdir: t.TempDir(), RunDir: t.TempDir(), Adapters: fakeAdapters(adapter)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Codergen[string](context.Background(), runtime, CodergenRequest{Prompt: "say it", Model: "gpt-5.6-sol"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "plain answer" || adapter.input.OutputSchema != nil {
+		t.Fatalf("text = %q, schema = %s", got, adapter.input.OutputSchema)
+	}
+}
+
+func TestCodergenPropagatesContextCancellation(t *testing.T) {
+	adapter := &fakeAdapter{block: true}
+	runtime, err := NewRuntime(Config{Workdir: t.TempDir(), RunDir: t.TempDir(), Adapters: fakeAdapters(adapter)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = Codergen[string](ctx, runtime, CodergenRequest{Prompt: "hang", Model: "gpt-5.6-sol"})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
 	}
 }
 
@@ -74,8 +107,8 @@ func TestValidateRunsInferenceAfterCommandFailure(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(workdir, "evidence.txt"), []byte("actual evidence"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	backend := &programBackend{result: harness.Result{"passed": true, "notes": "evidence itself looks right"}}
-	runtime, err := NewRuntime(Config{Workdir: workdir, RunDir: t.TempDir(), Backend: backend})
+	adapter := &fakeAdapter{result: json.RawMessage(`{"passed":true,"notes":"evidence itself looks right"}`)}
+	runtime, err := NewRuntime(Config{Workdir: workdir, RunDir: t.TempDir(), Adapters: fakeAdapters(adapter)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,36 +117,58 @@ func TestValidateRunsInferenceAfterCommandFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Passed || backend.turn.NodeID != "validate-proof" {
-		t.Fatalf("validation = %#v, inference turn = %#v", got, backend.turn)
+	if got.Passed {
+		t.Fatalf("validation = %#v, want failed because the command failed", got)
 	}
-	if !strings.Contains(backend.turn.Parts[0].Text, "command exit: 4") || !strings.Contains(backend.turn.Parts[0].Text, "evidence.txt") {
-		t.Fatalf("judge prompt = %q", backend.turn.Parts[0].Text)
+	prompt := adapter.input.Parts[0].Text
+	if !strings.Contains(prompt, "command exit: 4") || !strings.Contains(prompt, "evidence.txt") {
+		t.Fatalf("judge prompt = %q", prompt)
+	}
+	operations, err := os.ReadFile(filepath.Join(runtime.RunDir, "operations.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(operations), `"name":"validate-proof"`) {
+		t.Fatalf("operations = %s", operations)
 	}
 }
 
-type programBackend struct {
-	result harness.Result
-	runErr *harness.Error
-	turn   harness.AgentTurn
+func fakeAdapters(adapter *fakeAdapter) map[string]harness.HarnessAdapter {
+	return map[string]harness.HarnessAdapter{"codex": adapter, "claude": adapter, "agy": adapter}
 }
 
-func (b *programBackend) RunResult(turn harness.AgentTurn) (harness.Result, *harness.Error) {
-	b.turn = turn
-	if err := harness.ValidateAgentTurn(turn); err != nil {
+type fakeSession struct {
+	model   string
+	workdir string
+}
+
+// fakeAdapter records the session and turn it was asked for and returns a
+// fixed result.
+type fakeAdapter struct {
+	result  json.RawMessage
+	block   bool
+	session fakeSession
+	input   harness.RunTurnInput
+}
+
+func (f *fakeAdapter) CreateSession(model, workdir string) (string, error) {
+	f.session = fakeSession{model: model, workdir: workdir}
+	return "session-1", nil
+}
+
+func (f *fakeAdapter) RunTurn(ctx context.Context, input harness.RunTurnInput, onEvent harness.OnEvent) (json.RawMessage, error) {
+	if err := harness.ValidateRunTurnInput(input, onEvent); err != nil {
 		return nil, err
 	}
-	return b.result, b.runErr
+	f.input = input
+	if f.block {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	onEvent(harness.Event{"type": harness.EventUser, "parts": input.Parts})
+	return f.result, nil
 }
-func (b *programBackend) Run(harness.AgentTurn) (harness.Outcome, *harness.Error) {
-	return harness.Outcome{}, nil
-}
-func (b *programBackend) RunSupervisor(harness.SupervisorTurn) (harness.Verdict, *harness.Error) {
-	return harness.Verdict{}, nil
-}
-func (b *programBackend) Steer([]harness.ContentPart) harness.SteerStatus {
-	return harness.SteerNotActive
-}
-func (b *programBackend) InterruptAll()                              {}
-func (b *programBackend) Bindings() map[string]harness.ThreadBinding { return nil }
-func (b *programBackend) SetBindingOpened(harness.BindingOpened)     {}
+
+func (f *fakeAdapter) Steer(string, []harness.ContentPart) {}
+func (f *fakeAdapter) Interrupt(string)                    {}
+func (f *fakeAdapter) Compact(string, string) error        { return nil }

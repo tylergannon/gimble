@@ -2,6 +2,7 @@ package codex
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,13 +55,13 @@ func TestAdapterRetainsFreshProcessThenResumesWithCompleteEvents(t *testing.T) {
 	}
 
 	var events []harness.Event
-	result, runErr := adapter.RunTurn(validInput(sessionID, workdir, "first"), func(event harness.Event) {
+	result, runErr := adapter.RunTurn(context.Background(), validInput(sessionID, workdir, "first"), func(event harness.Event) {
 		events = append(events, event)
 	})
 	if runErr != nil {
 		t.Fatalf("first RunTurn() error = %v", runErr)
 	}
-	if result["next"] != "done" || result["notes"] != "first result" {
+	if object := decodeObject(t, result); object["next"] != "done" || object["notes"] != "first result" {
 		t.Fatalf("first result = %#v", result)
 	}
 	wantTypes := []any{
@@ -82,7 +83,7 @@ func TestAdapterRetainsFreshProcessThenResumesWithCompleteEvents(t *testing.T) {
 		t.Fatalf("opening user event = %#v", events[0])
 	}
 
-	if _, runErr := adapter.RunTurn(validInput(sessionID, workdir, "second"), func(harness.Event) {}); runErr != nil {
+	if _, runErr := adapter.RunTurn(context.Background(), validInput(sessionID, workdir, "second"), func(harness.Event) {}); runErr != nil {
 		t.Fatalf("second RunTurn() error = %v", runErr)
 	}
 	records := readProtocolLog(t, logPath)
@@ -108,11 +109,12 @@ func TestAdapterPlainTextTurnOmitsOutputSchema(t *testing.T) {
 		t.Fatal(createErr)
 	}
 	input := validInput(sessionID, workdir, "plain")
-	text, runErr := adapter.RunTextTurn(input, func(harness.Event) {})
+	input.OutputSchema = nil
+	raw, runErr := adapter.RunTurn(context.Background(), input, func(harness.Event) {})
 	if runErr != nil {
 		t.Fatal(runErr)
 	}
-	if text != "plain result" {
+	if text := decodeText(t, raw); text != "plain result" {
 		t.Fatalf("text = %q", text)
 	}
 	params := nthRecord(t, readProtocolLog(t, logPath), "turn/start", 0).Params
@@ -153,29 +155,31 @@ func TestAdapterCodexStrictSchemaCompatibilityPreservesCallerSemantics(t *testin
 
 	input := validInput(sessionID, workdir, "optional null verdict")
 	input.OutputSchema = optionalVerdictSchema
-	result, runErr := adapter.RunTurn(input, func(harness.Event) {})
+	result, runErr := adapter.RunTurn(context.Background(), input, func(harness.Event) {})
 	if runErr != nil {
 		t.Fatalf("optional verdict RunTurn() error = %v", runErr)
 	}
-	if len(result) != 2 || result["verdict"] != "ok" || result["message"] != "observed" {
-		t.Fatalf("normalized optional verdict = %#v", result)
+	object := decodeObject(t, result)
+	if len(object) != 2 || object["verdict"] != "ok" || object["message"] != "observed" {
+		t.Fatalf("normalized optional verdict = %#v", object)
 	}
-	if _, exists := result["target"]; exists {
-		t.Fatalf("optional null target was retained: %#v", result)
+	if _, exists := object["target"]; exists {
+		t.Fatalf("optional null target was retained: %#v", object)
 	}
 	assertCodexVerdictSchema(t, nthRecord(t, readProtocolLog(t, logPath), "turn/start", 0).Params)
 
 	input = validInput(sessionID, workdir, "required nullable verdict")
 	input.OutputSchema = requiredNullableVerdictSchema
-	result, runErr = adapter.RunTurn(input, func(harness.Event) {})
+	result, runErr = adapter.RunTurn(context.Background(), input, func(harness.Event) {})
 	if runErr != nil {
 		t.Fatalf("required nullable verdict RunTurn() error = %v", runErr)
 	}
-	if value, exists := result["verdict"]; !exists || value != nil {
-		t.Fatalf("required null verdict was stripped: %#v", result)
+	object = decodeObject(t, result)
+	if value, exists := object["verdict"]; !exists || value != nil {
+		t.Fatalf("required null verdict was stripped: %#v", object)
 	}
-	if _, exists := result["target"]; exists {
-		t.Fatalf("optional null target was retained: %#v", result)
+	if _, exists := object["target"]; exists {
+		t.Fatalf("optional null target was retained: %#v", object)
 	}
 }
 
@@ -208,12 +212,12 @@ func TestAdapterInterruptTimeoutRecoveryAndActiveCompaction(t *testing.T) {
 		t.Fatal(createErr)
 	}
 
-	result := make(chan *harness.Error, 1)
+	result := make(chan error, 1)
 	var eventMu sync.Mutex
 	var events []harness.Event
 	go func() {
 		input := validInput(sessionID, workdir, "hang until interrupted")
-		_, err := adapter.RunTurn(input, func(event harness.Event) {
+		_, err := adapter.RunTurn(context.Background(), input, func(event harness.Event) {
 			eventMu.Lock()
 			events = append(events, event)
 			eventMu.Unlock()
@@ -224,11 +228,11 @@ func TestAdapterInterruptTimeoutRecoveryAndActiveCompaction(t *testing.T) {
 	steering := []harness.ContentPart{{Type: harness.ContentPartText, Text: "steer-value-91"}}
 	adapter.Steer(sessionID, steering)
 	waitForMethod(t, logPath, "turn/steer")
-	if err := adapter.Compact(sessionID, workdir); err == nil || err.Category != harness.ErrorTerminal {
-		t.Fatalf("Compact(active) = %v, want terminal error", err)
+	if err := adapter.Compact(sessionID, workdir); err == nil {
+		t.Fatalf("Compact(active) = %v, want error", err)
 	}
 	adapter.Interrupt(sessionID)
-	if err := <-result; err == nil || err.Category != harness.ErrorInterrupted {
+	if err := <-result; !errors.Is(err, errInterrupted) {
 		t.Fatalf("interrupted RunTurn() = %v", err)
 	}
 	eventMu.Lock()
@@ -241,25 +245,19 @@ func TestAdapterInterruptTimeoutRecoveryAndActiveCompaction(t *testing.T) {
 	}
 	eventMu.Unlock()
 
-	if _, err := adapter.RunTurn(validInput(sessionID, workdir, "recovered"), func(harness.Event) {}); err != nil {
+	if _, err := adapter.RunTurn(context.Background(), validInput(sessionID, workdir, "recovered"), func(harness.Event) {}); err != nil {
 		t.Fatalf("post-interrupt RunTurn() = %v", err)
 	}
 
 	timeoutInput := validInput(sessionID, workdir, "hang for timeout")
-	timeoutInput.Timeout = 30 * time.Millisecond
+	timeoutCtx, cancelTimeout := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancelTimeout()
 	started := time.Now()
-	if _, err := adapter.RunTurn(timeoutInput, func(harness.Event) {}); err == nil || err.Category != harness.ErrorInterrupted {
+	if _, err := adapter.RunTurn(timeoutCtx, timeoutInput, func(harness.Event) {}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("timed out RunTurn() = %v", err)
 	}
 	if elapsed := time.Since(started); elapsed > 3*time.Second {
 		t.Fatalf("timeout took %s", elapsed)
-	}
-}
-
-func TestCategorizeInvalidSchemaIsTerminal(t *testing.T) {
-	err := categorize(errors.New(`invalid_request_error: invalid_json_schema`), false)
-	if err.Category != harness.ErrorTerminal {
-		t.Fatalf("categorize(invalid_json_schema) = %v", err)
 	}
 }
 
@@ -270,7 +268,7 @@ func TestAdapterCompactionUnknownSessionAndCleanup(t *testing.T) {
 	if createErr != nil {
 		t.Fatal(createErr)
 	}
-	if _, err := adapter.RunTurn(validInput(sessionID, workdir, "remember"), func(harness.Event) {}); err != nil {
+	if _, err := adapter.RunTurn(context.Background(), validInput(sessionID, workdir, "remember"), func(harness.Event) {}); err != nil {
 		t.Fatal(err)
 	}
 	if err := adapter.Compact(sessionID, workdir); err != nil {
@@ -280,8 +278,8 @@ func TestAdapterCompactionUnknownSessionAndCleanup(t *testing.T) {
 	if !containsSubsequence(methods, []string{"thread/resume", "thread/compact/start"}) {
 		t.Fatalf("protocol methods = %v", methods)
 	}
-	if err := adapter.Compact("missing-thread", workdir); err == nil || err.Category != harness.ErrorTerminal {
-		t.Fatalf("Compact(unknown) = %v, want terminal error", err)
+	if err := adapter.Compact("missing-thread", workdir); err == nil {
+		t.Fatalf("Compact(unknown) = %v, want error", err)
 	}
 
 	retained, retainedLog := newProtocolTestAdapter(t)
@@ -684,4 +682,22 @@ func appendProtocolRecord(path string, record protocolRecord) {
 	}
 	_ = json.NewEncoder(file).Encode(record)
 	_ = file.Close()
+}
+
+func decodeObject(t *testing.T, raw json.RawMessage) map[string]any {
+	t.Helper()
+	var object map[string]any
+	if err := json.Unmarshal(raw, &object); err != nil {
+		t.Fatalf("decode result %s: %v", raw, err)
+	}
+	return object
+}
+
+func decodeText(t *testing.T, raw json.RawMessage) string {
+	t.Helper()
+	var text string
+	if err := json.Unmarshal(raw, &text); err != nil {
+		t.Fatalf("decode text result %s: %v", raw, err)
+	}
+	return text
 }
