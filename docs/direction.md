@@ -7,9 +7,9 @@ identified below. [His broader direction statement](../ephemeral/projects/gimble
 his [clarification of program shape versus input](../ephemeral/projects/gimble/programmatic-workflows/INPUT-SEPARATION-VERBATIM.md),
 and his [corrections to the first synthesis](../ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CORRECTIONS-VERBATIM.md)
 are preserved separately, with only the retired project name normalized.
-This document guides the work ahead; the [specification](spec.md) describes
-the current graph engine. The Go-program runtime described here has not been
-merged into `main`.
+This document guides the work ahead. The graph engine it contrasts with was
+retired on 2026-09-10; the Go-program runtime described here is being built in
+`program/`.
 
 ## Learn from the experience of authoring workflows
 

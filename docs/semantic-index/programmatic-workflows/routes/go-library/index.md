@@ -1,7 +1,14 @@
 # Go workflow route
 
-- [Compiling API examples](../../sources/compiling-examples.md): ordinary Go workflows with canned/no-op implementations.
-- [Recovered POC](../../sources/poc-recovery.md): the preserved earlier implementation and its provenance.
-- [POC workflow source](../../sources/poc-workflows.md) and [earlier concurrency sketches](../../sources/concurrency-shapes.md).
+Start here for the Go API.
 
-The current examples are for API inspection. They do not implement a replacement runtime.
+- [POC workflow source](../../sources/poc-workflows.md): the 88-line orchestration
+  file. `program.Loop` owns validation and done; ordinary Go owns implement,
+  review, repair, and nesting. This is the approved shape, ported into `program/`.
+- [Recovered POC](../../sources/poc-recovery.md): the full library and its provenance.
+- [Concurrency sketches](../../sources/concurrency-shapes.md): critique circles and
+  bake-offs with ordinary `errgroup`.
+
+The compiling stub examples that once sat above these were removed on 2026-09-10.
+They had accreted `Sprints`, `Chapters`, `Scope`, and context calls through a
+review loop and no longer matched the approved shape.

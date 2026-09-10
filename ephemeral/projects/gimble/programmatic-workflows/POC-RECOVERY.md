@@ -85,7 +85,7 @@ identifiers is an accepted interface merely because it appears in the index.
 ## New Go source examples
 
 For actual Go programs to read and run in the current checkout, see
-[the stubbed workflow examples](../../../../examples/go-workflows/README.md).
+the stubbed workflow examples that were removed on 2026-09-10.
 Bake-off and critique circle use ordinary `errgroup`; sprint execution uses
 a Go iterator with visible implementation/review/repair control flow. Inputs,
 prompts, and demo responses live in separate files.

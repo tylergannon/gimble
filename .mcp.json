@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "gimble": {
-      "command": "gimble",
-      "args": ["mcp"],
-      "cwd": "."
-    }
-  }
-}

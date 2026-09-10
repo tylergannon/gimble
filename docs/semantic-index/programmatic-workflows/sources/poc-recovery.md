@@ -26,4 +26,4 @@ the unmerged POC, historical proof reports, and proposed follow-up work.
 - For “what already works?”, read lines 21-42 and
   [the actual source](poc-workflows.md).
 - For new design, follow [the earlier concurrency sketches](concurrency-shapes.md)
-  before [the current API examples](compiling-examples.md).
+  as the starting point.

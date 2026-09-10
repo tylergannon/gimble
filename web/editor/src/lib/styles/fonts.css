@@ -1,9 +1,0 @@
-/* ------------------------------------------------------------------
-   shadcn-svelte — Webfonts
-   Default stack is Geist + Geist Mono (the source ships these via
-   @fontsource variable packages). We load the identical typefaces from
-   Google Fonts, which serves the @font-face declarations below.
-   NOTE: these are the SAME families as the source — not a substitution.
------------------------------------------------------------------- */
-
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap");
