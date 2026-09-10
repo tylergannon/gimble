@@ -16,7 +16,7 @@ func newRootCommand() *cobra.Command {
 		SilenceUsage:      true,
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	}
-	root.AddCommand(newRunPromptCommand())
+	root.AddCommand(newRunCommand(), newLsCommand(), newRunPromptCommand())
 	return root
 }
 
