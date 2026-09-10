@@ -7,7 +7,5 @@ connects the proposal to the normative JSON graph specification.
   of the proposal.
 - [Workflows as programs](../../sources/workflows-as-programs.md): implementation
   record saying the Go runtime is not on `main`.
-- [Current specification](../../sources/spec.md): the shipped typed JSON graph
-  contract and execution lifecycle.
 - [Direction corrections, verbatim](../../sources/direction-corrections-verbatim.md):
   keep README/current behavior honest until refactor.

@@ -19,4 +19,3 @@
 - **Original wording:** `ephemeral/projects/gimble/programmatic-workflows/*-VERBATIM.md`.
 - **Current shipped contract:** the index's topic is future direction; use
   [status-and-contract](routes/status-and-contract/index.md) for the comparison and
-  `docs/spec.md` for the normative current graph engine.

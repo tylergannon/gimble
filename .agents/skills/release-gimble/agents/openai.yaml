@@ -1,4 +1,0 @@
-interface:
-  display_name: "Release Gimble"
-  short_description: "Release Gimble and refresh its Codex marketplace install"
-  default_prompt: "Release Gimble and verify the marketplace install is current."

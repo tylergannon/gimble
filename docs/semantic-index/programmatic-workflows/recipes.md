@@ -1,7 +1,8 @@
 # Retrieval recipes
 
-For the Go API, start with the [compiling stub examples](sources/compiling-examples.md).
-The [Go library route](routes/go-library/index.md) also locates the recovered POC.
+For the Go API, start with the [recovered POC workflow source](sources/poc-workflows.md):
+`program.Loop`, `Codergen[T]`, `Command`, `Validate`. That is the approved shape and it is
+ported into `program/`. The later stub sketches were removed on 2026-09-10.
 
 Start with the route that matches the question, then follow that narrow topic
 node to its source leaves.
