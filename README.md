@@ -24,7 +24,7 @@ metal a Go-authored workflow needs:
 | [`program/`](program) | `Loop` over a checklist, `Codergen[T]`, `Command`, `Validate` |
 | [`program/workflows/`](program/workflows) | `SprintExecute`, `ChapterLoop`, `DeliveryLoop` in ordinary Go control flow |
 | [`internal/modelalias/`](internal/modelalias) | Model aliases resolved to provider, native model ID, and effort |
-| [`cmd/gimble`](cmd/gimble) | `gimble run-prompt`, one agent turn from the shell |
+| [`cmd/gimble`](cmd/gimble) | `gimble ls`, `gimble run <workflow>`, and `gimble run-prompt` |
 
 The workflow shape is the one recorded in
 [POC-WORKFLOWS.md](ephemeral/projects/gimble/programmatic-workflows/POC-WORKFLOWS.md):
@@ -44,6 +44,21 @@ for iteration, err := range program.Loop(ctx, ledger, program.LoopOptions{
 
 The iterator owns validation and `done`. The body owns implementation, review,
 and repair. A chapter loop is a loop whose body runs a sprint loop.
+
+## Run a workflow
+
+```sh
+gimble ls
+gimble run sprint-execute --help
+gimble run sprint-execute --goal "Finish the planned sprints." \
+  --checklist docs/sprints/ledger.md --workdir . --logs .gimble/run
+```
+
+A workflow's flags are its input struct's fields. The run directory holds
+`operations.jsonl`, one line per command or agent call, and the native agent
+logs under `agents/`.
+
+This is a proof of concept. Interfaces change without compatibility.
 
 ## Run one prompt
 

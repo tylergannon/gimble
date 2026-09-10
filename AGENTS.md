@@ -1,5 +1,15 @@
 # Gimble repository instructions
 
+## This is a proof of concept
+
+Everything in this repository is a proof of concept. Nothing here has users,
+a stable interface, or a release. When you change functionality, change it.
+Agents are FORBIDDEN from planning, proposing, or building backwards
+compatibility: no deprecation paths, no legacy flags, no shims, no "keep the
+old behavior behind an option," no migration notes. Delete what is replaced.
+If a change breaks something you were not asked to touch, open a GitHub issue
+describing the break and move on.
+
 ## What Gimble is for
 
 `docs/five-arts.md` names the five arts of orchestration this project exists to
@@ -13,6 +23,10 @@ into `program/`: `program.Loop`, `program.Codergen[T]`, `Runtime.Command`,
 `Runtime.Validate`. Sprints and chapters are both just `Loop`. Do not invent
 wrappers around these. Do not reintroduce a graph language, node types, or a
 context subsystem.
+
+The CLI is `gimble ls` and `gimble run <workflow> [flags]`. A workflow's flags
+are its input struct's fields. There is no JSON input file, schema command, or
+catalog.
 
 ## Build what was asked
 
