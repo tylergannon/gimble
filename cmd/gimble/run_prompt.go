@@ -6,18 +6,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tylergannon/gimble/harness"
-	"github.com/tylergannon/gimble/harness/agy"
-	"github.com/tylergannon/gimble/harness/claude"
-	"github.com/tylergannon/gimble/harness/codex"
 	"github.com/tylergannon/gimble/internal/modelalias"
-	"github.com/tylergannon/gimble/internal/runlog"
+	"github.com/tylergannon/gimble/program"
 )
 
 type promptCaller string
@@ -34,8 +29,7 @@ type runPromptOptions struct {
 	effort       string
 	outputSchema string
 	workdir      string
-	logsRoot     string
-	sessionID    string
+	logs         string
 	timeout      time.Duration
 }
 
@@ -55,8 +49,7 @@ func newRunPromptCommand() *cobra.Command {
 	command.Flags().StringVar(&options.effort, "effort", "", "reasoning effort: low, medium, high, xhigh, or max")
 	command.Flags().StringVar(&options.outputSchema, "output-schema", "", "exact JSON Schema for structured output; omit for plain text")
 	command.Flags().StringVar(&options.workdir, "workdir", ".", "agent workspace")
-	command.Flags().StringVar(&options.logsRoot, "logs", "", "run log directory; default is a new temporary directory")
-	command.Flags().StringVar(&options.sessionID, "session", "", "existing native session ID")
+	command.Flags().StringVar(&options.logs, "logs", "", "new run log directory; default is a temporary directory")
 	command.Flags().DurationVar(&options.timeout, "timeout", 20*time.Minute, "turn timeout")
 	return command
 }
@@ -100,96 +93,42 @@ func runPrompt(command *cobra.Command, options runPromptOptions, caller promptCa
 	if err != nil {
 		return err
 	}
-	workdir, err := absoluteDirectory(options.workdir)
+	runtime, err := program.NewRuntime(program.Config{
+		Workdir: options.workdir, RunDir: options.logs,
+		DefaultModel: selection.Model, ReasoningEffort: selection.Effort, Timeout: options.timeout,
+	})
 	if err != nil {
 		return err
 	}
-	logsRoot := options.logsRoot
-	if logsRoot == "" {
-		logsRoot, err = os.MkdirTemp("", "gimble-run-prompt-")
-	} else {
-		logsRoot, err = filepath.Abs(logsRoot)
-	}
-	if err != nil {
-		return fmt.Errorf("prepare logs directory: %w", err)
-	}
+	defer runtime.Close()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	codexAdapter := codex.New()
-	codexAdapter.SetStderr(command.ErrOrStderr())
-	defer codexAdapter.Close()
-	claudeAdapter := claude.New()
-	claudeAdapter.SetStderr(command.ErrOrStderr())
-	defer claudeAdapter.Close()
-	agyAdapter := agy.New()
-	agyAdapter.SetStderr(command.ErrOrStderr())
-	defer agyAdapter.Close()
-	bindings := map[string]harness.ThreadBinding(nil)
-	if options.sessionID != "" {
-		bindings = map[string]harness.ThreadBinding{
-			"run-prompt": {Harness: selection.Harness, SessionID: options.sessionID, Workdir: workdir},
-		}
-	}
-	backend, backendErr := harness.NewHarnessBackend(logsRoot,
-		map[string]harness.HarnessAdapter{"agy": agyAdapter, "claude": claudeAdapter, "codex": codexAdapter},
-		harness.DefaultProviderRoutes(), bindings)
-	if backendErr != nil {
-		return backendErr
-	}
-	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stopSignals()
-	done := make(chan struct{})
-	defer close(done)
-	go func() {
-		select {
-		case <-ctx.Done():
-			backend.InterruptAll()
-		case <-done:
-		}
-	}()
-	allocator, err := runlog.New(logsRoot)
-	if err != nil {
-		return err
-	}
-	segment, err := allocator.Allocate("run-prompt")
-	if err != nil {
-		return err
-	}
-	common := harness.TextTurn{
-		NodeID: "run-prompt", Role: "agent", Parts: []harness.ContentPart{{Type: harness.ContentPartText, Text: prompt}},
-		Model: selection.Model, Provider: selection.Provider, ReasoningEffort: selection.Effort,
-		Fidelity: harness.FidelityFull, ThreadKey: "run-prompt", Workdir: workdir,
-		RunLog: segment.Path, Timeout: options.timeout,
-	}
+	request := program.CodergenRequest{Name: "run-prompt", Prompt: prompt, Model: selection.Model, Effort: selection.Effort}
+	out := command.OutOrStdout()
 	if options.outputSchema == "" {
-		text, runErr := backend.RunText(common)
-		if runErr != nil {
-			return runErr
-		}
-		if _, err := fmt.Fprint(command.OutOrStdout(), text); err != nil {
+		text, err := program.Codergen[string](ctx, runtime, request)
+		if err != nil {
 			return err
 		}
 		if !strings.HasSuffix(text, "\n") {
-			if _, err := fmt.Fprintln(command.OutOrStdout()); err != nil {
-				return err
-			}
+			text += "\n"
+		}
+		if _, err := fmt.Fprint(out, text); err != nil {
+			return err
 		}
 	} else {
-		turn := harness.AgentTurn{
-			NodeID: common.NodeID, Role: common.Role, Parts: common.Parts,
-			OutputSchema: json.RawMessage(options.outputSchema), Model: common.Model,
-			Provider: common.Provider, ReasoningEffort: common.ReasoningEffort,
-			Fidelity: common.Fidelity, ThreadKey: common.ThreadKey, Workdir: common.Workdir,
-			RunLog: common.RunLog, Timeout: common.Timeout,
+		if err := json.Unmarshal([]byte(options.outputSchema), &request.JSONSchema); err != nil {
+			return fmt.Errorf("decode --output-schema: %w", err)
 		}
-		result, runErr := backend.RunResult(turn)
-		if runErr != nil {
-			return runErr
+		result, err := program.Codergen[json.RawMessage](ctx, runtime, request)
+		if err != nil {
+			return err
 		}
-		if err := json.NewEncoder(command.OutOrStdout()).Encode(result); err != nil {
+		if _, err := fmt.Fprintf(out, "%s\n", result); err != nil {
 			return err
 		}
 	}
-	binding := backend.Bindings()["run-prompt"]
-	_, err = fmt.Fprintf(command.ErrOrStderr(), "Session: %s\nLogs: %s\n", binding.SessionID, logsRoot)
+	_, err = fmt.Fprintf(command.ErrOrStderr(), "Logs: %s\n", runtime.RunDir)
 	return err
 }

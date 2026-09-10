@@ -30,23 +30,23 @@ const (
 	defaultTimeout    = 20 * time.Minute
 )
 
-// Config initializes a Runtime. Backend is primarily an integration seam for
-// callers that already own a harness backend and for focused tests.
+// Config initializes a Runtime. Adapters is keyed by harness name (codex,
+// claude, agy); leave it nil to use Gimble's native adapters.
 type Config struct {
 	Workdir           string
 	RunDir            string
-	Backend           harness.AgentBackend
+	Adapters          map[string]harness.HarnessAdapter
 	DefaultModel      string
 	DefaultJudgeModel string
 	ReasoningEffort   string
 	Timeout           time.Duration
 }
 
-// Runtime owns the workspace, artifacts, and native agent backend for a program.
+// Runtime owns the workspace, artifacts, and harness adapters for a program.
 type Runtime struct {
 	Workdir           string
 	RunDir            string
-	Backend           harness.AgentBackend
+	Adapters          map[string]harness.HarnessAdapter
 	DefaultModel      string
 	DefaultJudgeModel string
 	ReasoningEffort   string
@@ -64,8 +64,8 @@ type CommandResult struct {
 	Output   string `json:"output"`
 }
 
-// NewRuntime prepares a program runtime and, unless Backend is supplied,
-// constructs Gimble's native Codex, Claude, and agy harness backend.
+// NewRuntime prepares a program runtime and, unless Adapters is supplied,
+// constructs Gimble's native Codex, Claude, and agy adapters.
 func NewRuntime(config Config) (*Runtime, error) {
 	workdir := config.Workdir
 	if strings.TrimSpace(workdir) == "" {
@@ -102,7 +102,7 @@ func NewRuntime(config Config) (*Runtime, error) {
 	if err := os.MkdirAll(filepath.Join(runDir, "agents"), 0o755); err != nil {
 		return nil, fmt.Errorf("prepare agent logs: %w", err)
 	}
-	r := &Runtime{Workdir: workdir, RunDir: runDir, Backend: config.Backend,
+	r := &Runtime{Workdir: workdir, RunDir: runDir, Adapters: config.Adapters,
 		DefaultModel: config.DefaultModel, DefaultJudgeModel: config.DefaultJudgeModel,
 		ReasoningEffort: config.ReasoningEffort, Timeout: config.Timeout}
 	if r.DefaultModel == "" {
@@ -117,23 +117,15 @@ func NewRuntime(config Config) (*Runtime, error) {
 	if r.Timeout == 0 {
 		r.Timeout = defaultTimeout
 	}
-	if r.Backend == nil {
+	if r.Adapters == nil {
 		codexAdapter, claudeAdapter, agyAdapter := codex.New(), claude.New(), agy.New()
-		backend, backendErr := harness.NewHarnessBackend(filepath.Join(runDir, "agents"),
-			map[string]harness.HarnessAdapter{"codex": codexAdapter, "claude": claudeAdapter, "agy": agyAdapter}, nil, nil)
-		if backendErr != nil {
-			codexAdapter.Close()
-			claudeAdapter.Close()
-			agyAdapter.Close()
-			return nil, backendErr
-		}
-		r.Backend = backend
+		r.Adapters = map[string]harness.HarnessAdapter{"codex": codexAdapter, "claude": claudeAdapter, "agy": agyAdapter}
 		r.closers = []interface{ Close() }{codexAdapter, claudeAdapter, agyAdapter}
 	}
 	return r, nil
 }
 
-// Close releases native harness resources created by NewRuntime.
+// Close releases native adapter resources created by NewRuntime.
 func (r *Runtime) Close() {
 	for _, closer := range r.closers {
 		closer.Close()

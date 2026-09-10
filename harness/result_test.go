@@ -29,15 +29,23 @@ func TestValidateResultUsesExactRuntimeSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ValidateResult() error = %v", err)
 	}
-	if got[property] != "continue" {
-		t.Fatalf("ValidateResult()[%q] = %v, want continue", property, got[property])
+	var decoded map[string]any
+	if err := json.Unmarshal(got, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded[property] != "continue" {
+		t.Fatalf("ValidateResult()[%q] = %v, want continue", property, decoded[property])
 	}
 
 	withExtraProperty := []byte(fmt.Sprintf(`{%q:"continue","details":{"order":["first","second"]},"extra":true}`, property))
-	assertTerminalError(t, validateWithSchema(t, schema, withExtraProperty))
+	if _, err := ValidateResult(schema, withExtraProperty); err == nil {
+		t.Fatal("expected error for extra property")
+	}
 
 	wrongNestedOrder := []byte(fmt.Sprintf(`{%q:"continue","details":{"order":["second","first"]}}`, property))
-	assertTerminalError(t, validateWithSchema(t, schema, wrongNestedOrder))
+	if _, err := ValidateResult(schema, wrongNestedOrder); err == nil {
+		t.Fatal("expected error for wrong nested order")
+	}
 }
 
 func TestResultValidatorRejectsInvalidResults(t *testing.T) {
@@ -62,8 +70,9 @@ func TestResultValidatorRejectsInvalidResults(t *testing.T) {
 	}
 	for name, result := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, gotErr := validator.Validate(result)
-			assertTerminalError(t, gotErr)
+			if _, gotErr := validator.Validate(result); gotErr == nil {
+				t.Fatal("expected error")
+			}
 		})
 	}
 }
@@ -79,27 +88,20 @@ func TestNewResultValidatorRejectsInvalidObjectSchemas(t *testing.T) {
 	}
 	for name, schema := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, err := NewResultValidator(schema)
-			assertTerminalError(t, err)
+			if _, err := NewResultValidator(schema); err == nil {
+				t.Fatal("expected error")
+			}
 		})
 	}
 }
 
-func validateWithSchema(t *testing.T, schema json.RawMessage, result []byte) *Error {
-	t.Helper()
-	_, err := ValidateResult(schema, result)
-	return err
-}
-
-func assertTerminalError(t *testing.T, err *Error) {
-	t.Helper()
-	if err == nil {
-		t.Fatal("expected error")
+func TestTextResultEncodesAJSONString(t *testing.T) {
+	got, err := TextResult("hello\n")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !err.Valid() {
-		t.Fatalf("error is not a valid categorized error: %#v", err)
-	}
-	if err.Category != ErrorTerminal {
-		t.Fatalf("error category = %q, want %q", err.Category, ErrorTerminal)
+	var text string
+	if err := json.Unmarshal(got, &text); err != nil || text != "hello\n" {
+		t.Fatalf("TextResult() = %s, err = %v", got, err)
 	}
 }

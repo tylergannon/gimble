@@ -1,148 +1,63 @@
 package harness
 
 import (
+	"errors"
 	"fmt"
 	"strings"
-	"time"
 )
 
 // ValidateCreateSessionInput validates the provider-neutral inputs available
 // before a native session is created.
-func ValidateCreateSessionInput(model, workdir string) *Error {
+func ValidateCreateSessionInput(model, workdir string) error {
 	if strings.TrimSpace(model) == "" {
-		return terminalError("model must not be empty")
+		return errors.New("model must not be empty")
 	}
 	if strings.TrimSpace(workdir) == "" {
-		return terminalError("workdir must not be empty")
+		return errors.New("workdir must not be empty")
 	}
 	return nil
 }
 
 // ValidateRunTurnInput validates a turn before native harness activity begins.
-func ValidateRunTurnInput(input RunTurnInput, onEvent OnEvent) *Error {
+func ValidateRunTurnInput(input RunTurnInput, onEvent OnEvent) error {
 	if strings.TrimSpace(input.SessionID) == "" {
-		return terminalError("session ID must not be empty")
+		return errors.New("session ID must not be empty")
 	}
 	if err := ValidateCreateSessionInput(input.Model, input.Workdir); err != nil {
 		return err
 	}
 	if strings.TrimSpace(input.ReasoningEffort) == "" {
-		return terminalError("reasoning effort must not be empty")
+		return errors.New("reasoning effort must not be empty")
 	}
 	if err := ValidateContentParts(input.Parts); err != nil {
 		return err
 	}
-	if input.Timeout < 0 {
-		return terminalError("timeout must not be negative")
-	}
 	if onEvent == nil {
-		return terminalError("event callback must not be nil")
+		return errors.New("event callback must not be nil")
 	}
 	return nil
 }
 
 // ValidateSessionInput validates inputs for a session-scoped operation.
-func ValidateSessionInput(sessionID, workdir string) *Error {
+func ValidateSessionInput(sessionID, workdir string) error {
 	if strings.TrimSpace(sessionID) == "" {
-		return terminalError("session ID must not be empty")
+		return errors.New("session ID must not be empty")
 	}
 	if strings.TrimSpace(workdir) == "" {
-		return terminalError("workdir must not be empty")
+		return errors.New("workdir must not be empty")
 	}
 	return nil
 }
 
 // ValidateContentParts enforces the non-empty ordered text-part contract.
-func ValidateContentParts(parts []ContentPart) *Error {
+func ValidateContentParts(parts []ContentPart) error {
 	if len(parts) == 0 {
-		return terminalError("content parts must not be empty")
+		return errors.New("content parts must not be empty")
 	}
 	for i, part := range parts {
 		if part.Type != ContentPartText {
-			return terminalError(fmt.Sprintf("content part %d has unsupported type %q", i, part.Type))
+			return fmt.Errorf("content part %d has unsupported type %q", i, part.Type)
 		}
 	}
 	return nil
-}
-
-// ValidateAgentTurn validates a fully resolved backend turn.
-func ValidateAgentTurn(turn AgentTurn) *Error {
-	if err := validateBackendTurn(turn.NodeID, turn.Role, turn.Provider, turn.Model, turn.ReasoningEffort, turn.Workdir, turn.RunLog, turn.Parts, turn.Timeout); err != nil {
-		return err
-	}
-	switch turn.Fidelity {
-	case FidelityNone:
-		if turn.ThreadKey != "" {
-			return terminalError("thread key must be empty for none fidelity")
-		}
-	case FidelityFull, FidelityCompacted:
-		if strings.TrimSpace(turn.ThreadKey) == "" {
-			return terminalError("thread key must not be empty for reusable fidelity")
-		}
-	default:
-		return terminalError(fmt.Sprintf("unsupported fidelity %q", turn.Fidelity))
-	}
-	return nil
-}
-
-// ValidateTextTurn validates a plain-text turn without weakening the
-// structured AgentTurn contract.
-func ValidateTextTurn(turn TextTurn) *Error {
-	if err := validateBackendTurn(turn.NodeID, turn.Role, turn.Provider, turn.Model, turn.ReasoningEffort, turn.Workdir, turn.RunLog, turn.Parts, turn.Timeout); err != nil {
-		return err
-	}
-	switch turn.Fidelity {
-	case FidelityNone:
-		if turn.ThreadKey != "" {
-			return terminalError("thread key must be empty for none fidelity")
-		}
-	case FidelityFull, FidelityCompacted:
-		if strings.TrimSpace(turn.ThreadKey) == "" {
-			return terminalError("thread key must not be empty for reusable fidelity")
-		}
-	default:
-		return terminalError(fmt.Sprintf("unsupported fidelity %q", turn.Fidelity))
-	}
-	return nil
-}
-
-// ValidateSupervisorTurn validates a fully resolved advisory turn.
-func ValidateSupervisorTurn(turn SupervisorTurn) *Error {
-	return validateBackendTurn(turn.NodeID, turn.Role, turn.Provider, turn.Model, turn.ReasoningEffort, turn.Workdir, turn.RunLog, turn.Parts, turn.Timeout)
-}
-
-func validateBackendTurn(
-	nodeID, role, provider, model, reasoningEffort, workdir, runLog string,
-	parts []ContentPart,
-	timeout time.Duration,
-) *Error {
-	if strings.TrimSpace(nodeID) == "" {
-		return terminalError("node ID must not be empty")
-	}
-	if strings.TrimSpace(role) == "" {
-		return terminalError("role must not be empty")
-	}
-	if strings.TrimSpace(provider) == "" {
-		return terminalError("provider must not be empty")
-	}
-	if err := ValidateCreateSessionInput(model, workdir); err != nil {
-		return err
-	}
-	if strings.TrimSpace(reasoningEffort) == "" {
-		return terminalError("reasoning effort must not be empty")
-	}
-	if strings.TrimSpace(runLog) == "" {
-		return terminalError("run log must not be empty")
-	}
-	if err := ValidateContentParts(parts); err != nil {
-		return err
-	}
-	if timeout < 0 {
-		return terminalError("timeout must not be negative")
-	}
-	return nil
-}
-
-func terminalError(message string) *Error {
-	return &Error{Category: ErrorTerminal, Message: message}
 }

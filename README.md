@@ -19,7 +19,7 @@ metal a Go-authored workflow needs:
 
 | Package | What it is |
 | --- | --- |
-| [`harness/`](harness) | Runs real Claude Code, Codex, and Gemini CLI sessions: text turns, schema-validated structured turns, interrupts, thread bindings |
+| [`harness/`](harness) | One five-method adapter interface, `CreateSession`, `RunTurn`, `Steer`, `Interrupt`, `Compact`, implemented for Claude Code, Codex, and Gemini CLI. `RunTurn` takes a context; cancelling it interrupts the native turn |
 | [`checklist/`](checklist) | The Markdown/YAML ledger format and its `done` bookkeeping |
 | [`program/`](program) | `Loop` over a checklist, `Codergen[T]`, `Command`, `Validate` |
 | [`program/workflows/`](program/workflows) | `SprintExecute`, `ChapterLoop`, `DeliveryLoop` in ordinary Go control flow |
