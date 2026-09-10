@@ -19,6 +19,18 @@ func main() {
 		MaxIterations: 6,
 		MaxRepairs:    2,
 	}, func(ctx context.Context, input Input) error {
+		directory, err := os.MkdirTemp("", "gimble-sprints-")
+		if err != nil {
+			return err
+		}
+		ctx, err = program.NewContext(ctx, directory, program.ContextLimits{ValueBytes: 600, PromptBytes: 2400})
+		if err != nil {
+			return err
+		}
+		if err := program.SetContext(ctx, "goal", input.Goal); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "Context files retained under %s\n", directory)
 		ledger, err := SprintExecute(ctx, demoRuntime(input), input)
 		if err != nil {
 			return err

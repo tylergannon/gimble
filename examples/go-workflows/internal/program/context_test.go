@@ -109,7 +109,7 @@ func TestContextAggregateSpillAndCompactRouting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Prompt != contextRoute(snapshot.Index) || len(snapshot.Inline) != 0 || len(snapshot.External) != 43 {
+	if snapshot.Prompt != contextRoute(filepath.Join(snapshot.View, "index.json")) || len(snapshot.Inline) != 0 || len(snapshot.External) != 43 {
 		t.Fatalf("routing was not collapsed coherently: %#v", snapshot)
 	}
 	if len(readContextIndex(t, snapshot).Entries) != 43 {

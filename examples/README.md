@@ -22,7 +22,8 @@ spend tokens on a substantial coding task. The Go authoring examples use stubs.
 - [`go-workflows/`](go-workflows/README.md) contains compiling Go translations
   of bake-off, critique circle, and sprint execution, with ordinary `errgroup`,
   checklist iterators, typed arguments, and stubbed external operations. Its
-  context example writes real local values/indexes and shows bounded prompts.
+  context examples write real local values/indexes, show bounded prompts, and
+  demonstrate nested and parallel scopes.
 
 Each directory documents the invocation and the observable success criteria.
 

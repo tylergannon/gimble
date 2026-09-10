@@ -19,13 +19,14 @@ func SprintExecute(ctx context.Context, rt *program.Runtime, input Input) ([]pro
 	if err != nil {
 		return nil, err
 	}
-	for sprint, err := range program.Loop(ctx, ledger, program.LoopOptions{
+	for sprint, err := range program.Sprints(ctx, ledger, program.LoopOptions{
 		Validate:      validate(rt),
 		MaxIterations: input.MaxIterations,
 	}) {
 		if err != nil {
 			return nil, err
 		}
+		ctx := sprint.Context
 		if _, err := program.Codergen[Change](ctx, rt, "implement", sswe, implementPrompt(input.Goal, sprint.Item)); err != nil {
 			return nil, err
 		}

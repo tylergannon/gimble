@@ -12,10 +12,12 @@ Start with the algorithms:
 - [Context projection](context/main.go): set context values, then call agents
   with short instructions; inspect prompts as large values and aggregate
   pressure move data behind a filesystem index.
+- [Nested scopes](scopes/main.go): automatic chapter/sprint contexts, arbitrary
+  parallel review scopes, and parent context restored after each nested call.
 
 These are real Go programs. Agent responses and command results are canned;
-workspaces are symbolic names; integration only logs an action. The context
-example writes real local JSON values and indexes. Running these demonstrates
+workspaces are symbolic names; integration only logs an action. Context-enabled
+examples write real local JSON values and indexes. Running these demonstrates
 Go control flow and context projection, not successful agent work, command
 execution, or Git isolation. The existing Gimble runtime is untouched.
 
@@ -26,6 +28,7 @@ go run ./examples/go-workflows/bakeoff
 go run ./examples/go-workflows/critique
 go run ./examples/go-workflows/sprints
 go run ./examples/go-workflows/context
+go run ./examples/go-workflows/scopes
 ```
 
 Each prints a stub trace to stderr and a JSON result to stdout. The sprint demo
@@ -62,8 +65,11 @@ does not wait for indexing. There is no background indexing worker in this sketc
 Small values appear inline. A per-value limit or a total context limit moves
 values behind short key-based routes to an index containing their full paths.
 Values and indexes use immutable files, so an older prompt's links remain valid
-after replacement. A failed index update prevents the agent call. The limits
-count bytes in the context contribution, excluding the separate task instruction;
+after replacement. Each snapshot also publishes a `View` directory with
+`index.json` and `values/<key>.json` symlinks for ordinary file tools. The prompt
+points to that view's index. Keys cannot differ only by letter case, so the view
+works on case-insensitive filesystems. A failed index/view update prevents the
+agent call. The limits count bytes in the context contribution, excluding the separate task instruction;
 token accounting and the real semantic placement policy remain to be designed.
 
 The program prints the exact prompt received by each stub agent at three stages:
@@ -75,6 +81,31 @@ semantic index; it makes no judgment about which information matters most.
 
 See [the context design note](../../ephemeral/projects/gimble/programmatic-workflows/CONTEXT-FILES.md)
 for the proposed waiting contract and open-source research leads.
+
+## Context scopes and physical layers
+
+`Chapters` and `Sprints` create item scopes automatically and yield their
+`Context`; validation receives that same context. An arbitrary
+`Scope(ctx, "research")` uses the same primitive. Each child inherits a snapshot
+of the parent's effective values, writes overrides in its own nested directory,
+and references the original ancestor files for inherited values. An effective
+index tells the agent what applies in that scope. Its published `View/values`
+directory lists all effective keys as symlinks, including inherited ones.
+Each view creates directory entries and links rather than copying unchanged
+payloads. `SetContext` writes a fresh value file; the next view links to it.
+Directly editing a symlink would edit its target, so context updates stay behind
+`SetContext`. There is no FUSE mount or identity-dependent filesystem view.
+
+Sibling writes stay separate. Passing the parent context again restores its
+view; returning a result does not implicitly add it to parent context. Agents
+are trusted to follow the supplied index and write to their assigned layer;
+these paths do not enforce read access restrictions. Ordinary `errgroup`
+joining still owns the lifetime of parallel work.
+
+An item scope is retained across retries in one loop activation. Because the
+iterator checks every item before choosing work, those first checks create the
+scopes; later parent updates do not change already-created sibling views.
+See [the scoping design and filesystem comparison](../../ephemeral/projects/gimble/programmatic-workflows/CONTEXT-SCOPES.md).
 
 ## The small primitives
 
@@ -92,11 +123,11 @@ reviews and failed acceptance checks remain typed observations for the caller
 to interpret. The callbacks run concurrently, outside the trace writer's lock.
 
 `prompts.go` contains wording; `demo.go` contains canned responses and the
-executable entrypoint. Attached context is inherited by calls; child contexts
-currently share the same store. Branch-local ownership, real role-to-provider
-bindings, timeouts, retries, supervisors, and production persistence remain
-outside these examples. Separate observation and steering support will be
-needed to retain those arts while simplifying authoring.
+executable entrypoint. Ordinary Go child contexts share their attached store;
+`Scope` creates a separate writable layer. Real role-to-provider bindings,
+timeouts, retries of native calls, supervisors, and production persistence
+remain outside these examples. Separate observation and steering support will
+be needed to retain those arts while simplifying authoring.
 
 ```sh
 go build ./examples/go-workflows/...

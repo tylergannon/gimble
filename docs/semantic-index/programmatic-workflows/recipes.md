@@ -52,6 +52,18 @@ node to its source leaves.
   indexing proposal. The example uses byte limits and placeholder routes;
   OpenViking and Letta are research leads, not adopted dependencies.
 
+## Follow nested scopes or compare branching filesystems
+
+- Follow [context scopes](sources/context-scopes.md) for chapter/sprint
+  iterators, arbitrary `Scope` branches, inherited snapshots, explicit local
+  writes, and the scope directory tree.
+- The same route compares Afero, Dagger, and Linux OverlayFS. The prototype
+  uses manifest layers that agents navigate with ordinary file tools; it
+  does not mount a merged filesystem or treat visibility as a security boundary.
+- For BranchFS, follow the pinned source assessment in [context scopes](sources/context-scopes.md):
+  frozen inheritance, explicit branch commits, parent-write conflict limits,
+  and filesystem copy/publication behavior. No dependency has been adopted.
+
 ## Separate reusable method from task data
 
 - Follow [program-input](routes/program-input/index.md) for the short source statement

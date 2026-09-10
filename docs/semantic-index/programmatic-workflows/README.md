@@ -16,10 +16,11 @@ stubbed programs under `examples/go-workflows/`. Citations
 are repository-relative `path:line` anchors and should resolve from the root.
 
 The graph engine is shipped. A Go library POC exists on a recovered unmerged
-branch, with its workflow source preserved here for inspection. Automatic
-scoped context remains proposed. New examples express concurrency with
-ordinary `errgroup` and explore [filesystem-backed context](sources/context-files.md)
-with real value files and coherent snapshots. The index is a deterministic
+branch, with its workflow source preserved here for inspection. New examples
+express concurrency with ordinary `errgroup`, [filesystem context](sources/context-files.md),
+and [automatic item/arbitrary scopes](sources/context-scopes.md) in nested
+directories with real value files and complete symlink views per snapshot.
+Native tools can read each view without FUSE. The index is a deterministic
 placeholder; agent/command replies and workspaces remain stubs. The newer
 Go-library API sketches need revision after Tyler's indirection correction.
 

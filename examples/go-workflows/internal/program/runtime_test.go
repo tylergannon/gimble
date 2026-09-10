@@ -33,6 +33,9 @@ func TestCodergenMaterializesContextBeforeCallingAgent(t *testing.T) {
 		if _, err := os.ReadFile(snapshot.Index); err != nil {
 			t.Errorf("agent started before its index was readable: %v", err)
 		}
+		if value, err := os.ReadFile(filepath.Join(snapshot.View, "values", "goal.json")); err != nil || string(value) != `"Demonstrate the quote command."` {
+			t.Errorf("agent started before its filesystem view was readable: %q, %v", value, err)
+		}
 		return "scripted result", nil
 	}}
 	if _, err := Codergen[string](ctx, rt, "implement", "sswe", "Implement the current task."); err != nil {

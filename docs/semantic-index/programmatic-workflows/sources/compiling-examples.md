@@ -18,9 +18,9 @@ generator, builtin catalog, Polytype schemas, or runtime-parity claim.
 - Critique circle has two ordinary `errgroup` phases: proposals, then peer
   critiques of the unchanged proposal set. It returns both collections:
   `examples/go-workflows/critique/main.go:32-79`.
-- Sprint execution uses `range program.Loop`, implementation, typed review,
-  and bounded repair; a separate callback combines a command observation and
-  judgment: `examples/go-workflows/sprints/workflow.go:15-62`.
+- Sprint execution uses `range program.Sprints` and its item context,
+  implementation, typed review, and bounded repair; a separate callback combines
+  a command observation and judgment: `examples/go-workflows/sprints/workflow.go:15-63`.
 - Each program owns its JSON argument type, separate from prompts and control
   flow: `examples/go-workflows/bakeoff/input.go:8-22`,
   `examples/go-workflows/critique/input.go:8-17`, and
@@ -29,9 +29,11 @@ generator, builtin catalog, Polytype schemas, or runtime-parity claim.
   `examples/go-workflows/internal/program/runtime.go:1-35`.
 - The example iterator updates `Done` only through its validation callback and
   returns `iter.Seq2[Iteration, error]`; it has no persistent ledger:
-  `examples/go-workflows/internal/program/loop.go:28-81`.
+  `examples/go-workflows/internal/program/loop.go:31-122`.
 - [Filesystem-backed context](context-files.md) supplies the `SetContext`
   design, coherent snapshot boundary, inline/spill demo, and status limits.
+- [Context scopes](context-scopes.md) supplies the nested chapter/sprint and
+  arbitrary `errgroup` branches with private physical write layers.
 
 ## Retrieval recipes
 
@@ -44,6 +46,8 @@ generator, builtin catalog, Polytype schemas, or runtime-parity claim.
   options and inspect its `input.go`; these do not generate JSON Schema.
 - For inline-small, spill-large, and aggregate context-budget rebalancing,
   follow [the context source leaf](context-files.md) to the filesystem demo.
+- For nested automatic scopes and arbitrary parallel branches, run
+  `go run ./examples/go-workflows/scopes` and follow [context scopes](context-scopes.md).
 - For prior native agents, persisted checklist handling, and source
   provenance, follow [POC recovery](poc-recovery.md). Stub output does not
   reverify the historical native execution or demonstrate application success.

@@ -10,8 +10,8 @@ budget. Its three agent instructions stay short. `Codergen` obtains a ready
 context projection before handing each assembled prompt to the canned agent.
 There is no explicit wait or prompt assembly in the workflow.
 
-Context JSON files and the versioned routing index are real and retained under
-the directory printed on stderr. Agent responses are canned: this example does
+Context JSON files, versioned indices, and symlink views are real and retained
+under the directory printed on stderr. Agent responses are canned: this example does
 not implement or execute a quote command. `-dir /absolute/path` chooses a parent
 directory; `-example` prints the typed JSON input, and `-input file.json` replaces it.
 
@@ -21,7 +21,15 @@ limit and an 800-byte context projection budget, before the short instruction
 is appended. Values remain in immutable JSON files even when projected inline.
 An oversized value and aggregate overflow both move material out of the prompt
 and into the index. `SetContext` invalidates that projection; the next agent
-call synchronously obtains the updated index before proceeding.
+call synchronously obtains the updated index and complete view before proceeding.
+
+Each snapshot's `view` is an ordinary revision directory. `values/<key>.json`
+symlinks expose every effective value, and `index.json` links to the authoritative
+`index` file. The context prompt points at `view/index.json`; native tools can
+also list and read `view/values/`. No original value bytes are copied and no
+FUSE mount is needed. Context is read-only by convention: use `SetContext` for
+updates, which writes a new file and produces a new view at the next snapshot.
+Writing through a symlink changes its target; it is not automatic copy-on-write.
 
 Read `main.go` for the sequence, `input.go` for the argument shape, and
 `fixtures.go` for the example task data. `demo.go` captures prompts at the actual

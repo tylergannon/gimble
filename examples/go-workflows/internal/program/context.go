@@ -20,8 +20,10 @@ type ContextLimits struct {
 
 type ContextSnapshot struct {
 	Revision int      `json:"revision"`
+	Scope    []string `json:"scope,omitempty"`
 	Prompt   string   `json:"prompt"`
 	Index    string   `json:"index"`
+	View     string   `json:"view"`
 	Inline   []string `json:"inline"`
 	External []string `json:"external"`
 }
@@ -38,6 +40,7 @@ type contextStore struct {
 	dir      string
 	limits   ContextLimits
 	values   map[string]contextValue
+	scope    []string
 	revision int
 	snapshot *ContextSnapshot
 }
@@ -62,7 +65,7 @@ func NewContext(ctx context.Context, dir string, limits ContextLimits) (context.
 	if err != nil {
 		return nil, err
 	}
-	if len(contextRoute(filepath.Join(root, "index-000000-0000000000.json"))) > limits.PromptBytes {
+	if len(contextRoute(filepath.Join(root, "view-000000-0000000000", "index.json"))) > limits.PromptBytes {
 		_ = os.Remove(root)
 		return nil, errors.New("context prompt budget cannot fit its index entrypoint")
 	}
@@ -76,7 +79,8 @@ func NewContext(ctx context.Context, dir string, limits ContextLimits) (context.
 
 // SetContext preserves the complete JSON value immediately. It invalidates the
 // projection but does no indexing: ordinary Go can continue until an agent asks
-// for a snapshot. Child contexts inherit this store; it is not a branch fork.
+// for a snapshot. Ordinary derived contexts share this store; Scope creates a
+// named, isolated snapshot of its parent's values instead.
 func SetContext(ctx context.Context, key string, value any) error {
 	store, ok := ctx.Value(contextKey{}).(*contextStore)
 	if !ok {
@@ -96,6 +100,11 @@ func SetContext(ctx context.Context, key string, value any) error {
 	defer store.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	for existing := range store.values {
+		if existing != key && strings.EqualFold(existing, key) {
+			return fmt.Errorf("context key %q conflicts with existing key %q on case-insensitive filesystems", key, existing)
+		}
 	}
 	file, err := writeContextFile(store.dir, fmt.Sprintf("value-%06d-*.json", store.revision+1), raw)
 	if err != nil {
@@ -147,10 +156,11 @@ func SnapshotContext(ctx context.Context) (ContextSnapshot, error) {
 		entries = append(entries, entry{key, value.path, len(value.raw), fmt.Sprintf("JSON value (%d bytes); placeholder description", len(value.raw))})
 	}
 	index, err := json.MarshalIndent(struct {
-		Revision int     `json:"revision"`
-		Kind     string  `json:"kind"`
-		Entries  []entry `json:"entries"`
-	}{store.revision, "deterministic routing placeholder", entries}, "", "  ")
+		Revision int      `json:"revision"`
+		Scope    []string `json:"scope,omitempty"`
+		Kind     string   `json:"kind"`
+		Entries  []entry  `json:"entries"`
+	}{store.revision, store.scope, "deterministic routing placeholder", entries}, "", "  ")
 	if err != nil {
 		return ContextSnapshot{}, err
 	}
@@ -161,11 +171,17 @@ func SnapshotContext(ctx context.Context) (ContextSnapshot, error) {
 	if err != nil {
 		return ContextSnapshot{}, err
 	}
-	snapshot, err := store.project(keys, indexPath)
+	view, err := store.materializeView(ctx, indexPath, keys)
+	if err != nil {
+		_ = os.Remove(indexPath)
+		return ContextSnapshot{}, err
+	}
+	snapshot, err := store.project(keys, indexPath, view)
 	if err == nil {
 		err = ctx.Err()
 	}
 	if err != nil {
+		_ = os.RemoveAll(view)
 		_ = os.Remove(indexPath)
 		return ContextSnapshot{}, err
 	}
@@ -173,8 +189,8 @@ func SnapshotContext(ctx context.Context) (ContextSnapshot, error) {
 	return cloneContextSnapshot(snapshot), nil
 }
 
-func (store *contextStore) project(keys []string, index string) (ContextSnapshot, error) {
-	root := contextRoute(index)
+func (store *contextStore) project(keys []string, index, view string) (ContextSnapshot, error) {
+	root := contextRoute(filepath.Join(view, "index.json"), store.scope...)
 	if len(root) > store.limits.PromptBytes {
 		return ContextSnapshot{}, errors.New("context prompt budget cannot fit its index entrypoint")
 	}
@@ -220,7 +236,7 @@ func (store *contextStore) project(keys []string, index string) (ContextSnapshot
 		// remains in the versioned index; one entrypoint is sufficient here.
 		prompt = root
 	}
-	snapshot := ContextSnapshot{Revision: store.revision, Prompt: prompt, Index: index, Inline: []string{}, External: []string{}}
+	snapshot := ContextSnapshot{Revision: store.revision, Scope: slices.Clone(store.scope), Prompt: prompt, Index: index, View: view, Inline: []string{}, External: []string{}}
 	for _, key := range keys {
 		if external[key] {
 			snapshot.External = append(snapshot.External, key)
@@ -231,11 +247,18 @@ func (store *contextStore) project(keys []string, index string) (ContextSnapshot
 	return snapshot, nil
 }
 
-func contextRoute(index string) string {
-	return "Context JSON data. Read the index for all keys and exact value files:\n" + index + "\n"
+func contextRoute(index string, scope ...string) string {
+	root := "Context JSON data. Read this index; sibling values/ contains every key:\n" + index + "\n"
+	if len(scope) == 0 {
+		return root
+	}
+	// JSON quoting keeps arbitrary scope names from introducing prompt lines.
+	name, _ := json.Marshal(scope)
+	return "Scope: " + string(name) + "\n" + root
 }
 
 func cloneContextSnapshot(snapshot ContextSnapshot) ContextSnapshot {
+	snapshot.Scope = slices.Clone(snapshot.Scope)
 	snapshot.Inline = slices.Clone(snapshot.Inline)
 	snapshot.External = slices.Clone(snapshot.External)
 	return snapshot

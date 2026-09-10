@@ -6,6 +6,7 @@ Route to the [context design note](../../../../ephemeral/projects/gimble/program
 and [filesystem demo](../../../../examples/go-workflows/context/README.md).
 Separate Tyler's context-update direction from the agent's proposed timing,
 the current deterministic example, and external systems worth inspecting.
+For named scopes and physical branches, continue to [context scopes](context-scopes.md).
 
 ## Key concepts
 
@@ -25,15 +26,20 @@ the current deterministic example, and external systems worth inspecting.
   projection, recompile boundary, and budget maintenance. Neither is an
   adopted dependency or a demonstrated complete match:
   `ephemeral/projects/gimble/programmatic-workflows/CONTEXT-FILES.md:73-98`.
+- Tyler's chosen ordinary symlink views: effective keys visible to native
+  tools, complete publication before an agent call, and API-owned updates:
+  `ephemeral/projects/gimble/programmatic-workflows/CONTEXT-FILES.md:110-122`.
 
 ## Implementation entrypoints
 
 - Context demo with short step instructions and three data-growth stages:
   `examples/go-workflows/context/main.go:15-44`.
 - Store creation and immutable-value setter:
-  `examples/go-workflows/internal/program/context.go:45-112`.
-- Snapshot publication and bounded context projection:
-  `examples/go-workflows/internal/program/context.go:114-232`.
+  `examples/go-workflows/internal/program/context.go:48-121`.
+- Snapshot publication, complete view, and bounded context projection:
+  `examples/go-workflows/internal/program/context.go:123-248`.
+- Native-tool view with `values/<key>.json` and `index.json` symlinks:
+  `examples/go-workflows/internal/program/view.go:10-47`.
 - Automatic snapshot before invoking an agent callback:
   `examples/go-workflows/internal/program/runtime.go:37-68`.
 
@@ -47,9 +53,12 @@ the current deterministic example, and external systems worth inspecting.
   The demo prints the delivered prompts and retains its context files.
 - For "what semantic-index dependency do we use?", read the limitations and
   research leads. This example uses a deterministic JSON route index only.
+- For "how can shell tools read inherited values?", inspect `ContextSnapshot.View`
+  and its `values/` directory. Symlinks expose effective data without a mount;
+  `SetContext` creates replacements without changing earlier snapshots.
 
 ## Themes
 
 Filesystem context; aggregate prompt budget; inline versus external data;
 coherent snapshots; deferred indexing; immutable source files; agent-entry wait;
-plain-text routes; semantic indexing research.
+plain-text routes; materialized symlink views; semantic indexing research.

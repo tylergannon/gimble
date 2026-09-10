@@ -96,3 +96,27 @@ This was a bounded source inspection, not a comparative runtime evaluation.
 Neither inspected system establishes the complete automatic `SetContext`
 contract: aggregate prompt rebalance plus coherent index publication and an
 agent-entry wait. Those remain our design questions.
+
+## Follow-up: nested and arbitrary scopes
+
+[Context scopes and physical filesystem layers](CONTEXT-SCOPES.md) extends
+this example with `Scope`, automatic chapter/sprint contexts, and nested
+directories. Ordinary derived Go contexts still share a store; explicit
+`Scope` snapshots inherited values and gives child writes a private layer.
+That follow-up records retry lifetime, parent-update behavior, trusted
+filesystem visibility, and the distinction between manifest and mounted
+overlays. Its example still uses canned agent replies and command outcomes.
+
+## Follow-up: ordinary revision views
+
+Tyler chose ordinary directories of symlinks and no FUSE. The examples now
+publish `ContextSnapshot.View`: a complete directory with `values/<key>.json`
+links for every effective value and `index.json` linked to `ContextSnapshot.Index`.
+The context prompt points at this view's index, so native file tools can also
+list and read its sibling `values/` directory. Publication finishes before an
+agent callback receives the snapshot; existing views remain readable.
+`SetContext` writes replacement JSON to a new file and invalidates the view.
+Direct edits through symlinks are not copy-on-write and must not be used for
+context updates. See [the revision-view decision](CONTEXT-SCOPES.md#fuse-versus-an-ordinary-revision-directory)
+for current implementation limits and the earlier FUSE comparison. Agents and
+command effects remain stubs.
