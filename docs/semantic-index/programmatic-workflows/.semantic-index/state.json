@@ -1,47 +1,45 @@
 {
   "index_metrics": {
-    "balance_ratio": 1.55,
+    "balance_ratio": 1.57,
     "benchmark_file_count": 3,
     "breadth_by_level": {
       "1": 7,
-      "2": 27,
-      "3": 8
+      "2": 18,
+      "3": 7
     },
-    "citation_count": 113,
-    "citation_density_per_leaf": 6.28,
+    "citation_count": 52,
+    "citation_density_per_leaf": 4.73,
     "debt_marker_count": 1,
     "exists": true,
     "extension_counts": {
-      ".json": 2,
+      ".json": 1,
       ".jsonl": 1,
-      ".md": 28
+      ".md": 20
     },
     "fan_out": {
-      "max": 27,
-      "mean": 3.89,
+      "max": 18,
+      "mean": 3.12,
       "skewed_nodes": [
         "."
       ],
-      "variance": 75.11
+      "variance": 36.12
     },
-    "file_count": 31,
-    "last_benchmark_at": "2026-09-10T02:38:41+00:00",
-    "likely_leaf_count": 18,
+    "file_count": 22,
+    "last_benchmark_at": "2026-09-09T23:24:41+00:00",
+    "likely_leaf_count": 11,
     "max_file_depth": 3,
-    "mean_leaf_depth": 1.94,
+    "mean_leaf_depth": 1.91,
     "orphan_leaf_count": 0,
     "orphan_leaves": [],
-    "path": "/Users/tyler/.codex/worktrees/a5b1/gimble/docs/semantic-index/programmatic-workflows",
-    "routing_density": 8.69,
-    "routing_file_count": 13,
+    "path": "/Users/tyler/.codex/worktrees/acfe/gimble/docs/semantic-index/programmatic-workflows",
+    "routing_density": 4.73,
+    "routing_file_count": 11,
     "routing_files": [
       ".semantic-index/benchmarks/run-20260909T232441Z.json",
       ".semantic-index/evals.jsonl",
-      ".semantic-index/state.json",
       "README.md",
       "routes/context-and-indexing/index.md",
       "routes/go-authorship/index.md",
-      "routes/go-library/index.md",
       "routes/legibility/index.md",
       "routes/program-input/index.md",
       "routes/roles-and-evaluation/index.md",
@@ -52,39 +50,32 @@
     "sample_likely_leaves": [
       "recipes.md",
       "sources/actions-and-knowledge-verbatim.md",
-      "sources/compiling-examples.md",
-      "sources/concurrency-shapes.md",
-      "sources/context-files.md",
       "sources/context-reframing-verbatim.md",
-      "sources/context-scopes.md",
       "sources/direction-clarification-verbatim.md",
       "sources/direction-corrections-verbatim.md",
       "sources/direction.md",
       "sources/five-arts.md",
-      "sources/go-library-sketches.md",
       "sources/input-separation-verbatim.md",
       "sources/key-claim-verbatim.md",
-      "sources/poc-recovery.md",
-      "sources/poc-workflows.md",
       "sources/spec.md",
       "sources/workflows-as-programs.md"
     ],
     "state": null
   },
-  "last_housekeeping_at": "2026-09-10T02:40:06+00:00",
-  "last_mode": "incremental-update",
+  "last_housekeeping_at": "2026-09-09T23:28:49+00:00",
+  "last_mode": "scratch-build",
   "source": {
     "exists": true,
     "extension_counts": {
       ".astro": 6,
       ".css": 9,
-      ".go": 166,
+      ".go": 125,
       ".html": 4,
       ".ico": 1,
       ".js": 14,
-      ".json": 27,
+      ".json": 26,
       ".jsonl": 1,
-      ".md": 86,
+      ".md": 65,
       ".mjs": 1,
       ".mod": 3,
       ".png": 6,
@@ -99,7 +90,7 @@
       ".yml": 2,
       "[none]": 6
     },
-    "file_count": 392,
-    "path": "/Users/tyler/.codex/worktrees/a5b1/gimble"
+    "file_count": 329,
+    "path": "/Users/tyler/.codex/worktrees/acfe/gimble"
   }
 }

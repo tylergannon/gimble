@@ -46,6 +46,7 @@ func Main[T any](example T, run func(context.Context, T) error) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	_, _ = fmt.Fprintln(os.Stderr, "API sketch: backend operations and results are stubbed.")
 	exitOnError(run(ctx, input))
 }
 

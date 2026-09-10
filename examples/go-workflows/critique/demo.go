@@ -12,7 +12,6 @@ import (
 // Returned values stand in for agent responses and unchanged file collection.
 func demoRuntime() *program.Runtime {
 	return &program.Runtime{
-		Output: os.Stderr,
 		Agent: func(_ context.Context, call program.Call) (any, error) {
 			switch call.Name {
 			case "propose":

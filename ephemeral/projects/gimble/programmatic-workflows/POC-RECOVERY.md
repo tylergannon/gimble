@@ -13,7 +13,7 @@ the Go POC exists on a preserved, unmerged branch.
    critique-circle and bake-off algorithms using ordinary `errgroup` and
    synchronous typed operations. This document is restored unchanged;
    its Tractor names and present-tense POC status refer to that branch.
-3. [New Go-library sketches](GO-LIBRARY-SKETCHES.md): the later proposal for
+3. The removed Go-library sketches recorded the later proposal for
    roles, arbitrary Polytype inputs, an additive migration, and a curated
    catalog. Tyler rejected its level of indirection. Its API names are
    hypothetical and need revision against the earlier work.

@@ -80,10 +80,8 @@ should explain when to use the workflow, document its calling convention,
 and validate the argument. Workflow-defined role names such as `sswe`,
 `eng-mgr`, and `tester` express assignments instead of direct model arguments.
 
-The [Go library sketches](../ephemeral/projects/gimble/programmatic-workflows/GO-LIBRARY-SKETCHES.md)
-record this clarification and a proposed roadmap. Their hypothetical API
-indirection was rejected and needs revision against the recovered POC and
-[earlier concurrency sketches](../ephemeral/projects/gimble/programmatic-workflows/CONCURRENCY-SHAPES.md).
+The Go workflow examples preserve this clarification as a compact API sketch.
+See the [earlier concurrency sketches](../ephemeral/projects/gimble/programmatic-workflows/CONCURRENCY-SHAPES.md).
 
 ## Preserve what good graphs give us
 

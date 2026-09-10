@@ -1,34 +1,12 @@
 # Retrieval recipes
 
+For the Go API, start with the [compiling stub examples](sources/compiling-examples.md).
+The [Go library route](routes/go-library/index.md) also locates the recovered POC.
+
 Start with the route that matches the question, then follow that narrow topic
 node to its source leaves.
 
-## Show actual Go programs that can be compiled and run
-
-- Start with [the stubbed source examples](sources/compiling-examples.md) for
-  bake-off, critique circle, and sprint execution. Agent and command replies
-  are canned; workspaces and integration are symbolic.
-- For the prior native implementation, follow
-  [go-library](routes/go-library/index.md) to the recovered POC.
-
-## Find the existing Go POC before designing an API
-
-- Follow [go-library](routes/go-library/index.md) for the preserved branch,
-  actual iterator-based workflows, and the earlier concurrency sketches.
-
-## Express a bake-off or critique circle in ordinary Go
-
-- Follow [go-library](routes/go-library/index.md) first to the new `errgroup`
-  source examples, then to the earlier design sketches. The examples make
-  Go control flow executable while leaving native operations stubbed.
-
-## Find argument schemas, roles, and the curated builtin calling convention
-
-- Follow [program-input](routes/program-input/index.md) and
-  [go-library](routes/go-library/index.md). The newer roadmap is indexed with
-  Tyler's correction: its API indirection needs revision.
-
-## Understand the proposed Go direction
+## Understand the proposed replacement
 
 - Follow [go-authorship](routes/go-authorship/index.md) for the core case and the
   original claim/corrections.
@@ -42,31 +20,6 @@ node to its source leaves.
 
 - Follow [context-and-indexing](routes/context-and-indexing/index.md) for one context,
   on-disk information, retrieval, and research/indexing.
-
-## Set context, spill large values, and wait for an updated index
-
-- Follow [context-and-indexing](routes/context-and-indexing/index.md) to the
-  filesystem design and demo: immutable values, per-value and aggregate
-  budgets, and a coherent snapshot before each agent callback.
-- Distinguish Tyler's update-trigger direction from the agent's deferred
-  indexing proposal. The example uses byte limits and placeholder routes;
-  OpenViking and Letta are research leads, not adopted dependencies.
-
-## Follow nested scopes or compare branching filesystems
-
-- Start with the current ownership rule in [context scopes](sources/context-scopes.md):
-  ownership is declared before assignment, and each agent call refreshes
-  inherited values. Agent/backend operations stay stubbed;
-  the retained intraprocedural analyzer is unadopted, with call-graph work deferred.
-- Follow [context scopes](sources/context-scopes.md) for chapter/sprint
-  iterators, arbitrary `Scope` branches, fixed per-call snapshots, explicit local
-  writes, and the scope directory tree.
-- The same route compares Afero, Dagger, and Linux OverlayFS. The prototype
-  uses manifest layers that agents navigate with ordinary file tools; it
-  does not mount a merged filesystem or treat visibility as a security boundary.
-- For BranchFS, follow the pinned source assessment in [context scopes](sources/context-scopes.md):
-  frozen inheritance, explicit branch commits, parent-write conflict limits,
-  and filesystem copy/publication behavior. No dependency has been adopted.
 
 ## Separate reusable method from task data
 

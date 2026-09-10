@@ -1,150 +1,76 @@
-# Go workflow examples with executable stubs
+# Go workflow API examples
 
-Start with the algorithms:
+Start with these workflow functions; their dependencies are small stubs in
+[internal/program](internal/program). No agents, commands, context storage,
+indexing, or Git operations are implemented here.
 
-- [Bake-off](bakeoff/main.go): three concurrent builders, join, judge, integrate,
-  then check the integrated result. Translates [bake-off.yaml](../loops/bake-off.yaml).
-- [Critique circle](critique/main.go): three independent proposals, join, then
-  each author critiques the other two. Translates [critique-circle.yaml](../loops/critique-circle.yaml).
-- [Sprint execution](sprints/workflow.go): range over a checklist iterator,
-  implement, review, repair material defects, then let validation decide done.
-  Follows the [recovered Go POC](../../ephemeral/projects/gimble/programmatic-workflows/POC-WORKFLOWS.md).
-- [Context projection](context/main.go): set context values, then call agents
-  with short instructions; inspect prompts as large values and aggregate
-  pressure move data behind a filesystem index.
-- [Nested scopes](scopes/main.go): automatic chapter/sprint contexts, arbitrary
-  parallel review scopes, and parent context restored after each nested call.
+| Example | What to inspect |
+| --- | --- |
+| [BakeOff](bakeoff/main.go) | Parallel candidates with ordinary `errgroup`, a judge, and integration |
+| [CritiqueCircle](critique/main.go) | Parallel proposals, then peer critiques |
+| [SprintExecute](sprints/workflow.go) | Sprint iteration, review, and repair in ordinary Go |
+| [ContextWalkthrough](context/main.go) | Context declarations and updates between agent calls |
+| [NestedScopes](scopes/main.go) | Chapter/sprint scopes and arbitrary parallel review scopes |
 
-These are real Go programs. Agent responses and command results are canned;
-workspaces are symbolic names; integration only logs an action. Context-enabled
-examples write real local JSON values and indexes. Running these demonstrates
-Go control flow and context projection, not successful agent work, command
-execution, or Git isolation. The existing Gimble runtime is untouched.
-
-From the repository root:
-
-```sh
-go run ./examples/go-workflows/bakeoff
-go run ./examples/go-workflows/critique
-go run ./examples/go-workflows/sprints
-go run ./examples/go-workflows/context
-go run ./examples/go-workflows/scopes
-```
-
-Each prints a stub trace to stderr and a JSON result to stdout. The sprint demo
-deliberately needs a repair and another implementation attempt before its
-scripted check passes; both checklist entries must finish. The bake-off always
-chooses the second candidate. Custom inputs change the task passed to each
-stub, not these scripted outcomes.
-
-Every workflow owns its argument type in `input.go`. There are no model arguments:
-roles such as `sswe`, `eng-mgr`, and `tester` are declared by the workflow. Show
-the calling convention or supply an entire replacement JSON argument:
-
-```sh
-go run ./examples/go-workflows/bakeoff -example
-printf '%s\n' '{"topic":"How should we explain Gimble?"}' |
-  go run ./examples/go-workflows/critique -input -
-go run ./examples/go-workflows/sprints -input /path/to/sprints.json
-```
-
-The input types are ordinary workflow-specific structs, including nested objects
-and lists. They are the intended roots for Polytype argument schemas. This demo
-uses Go JSON decoding and small semantic checks; it does not implement schema
-generation, schema-complete validation, or the proposed builtin catalog.
-
-## Filesystem context and the agent boundary
-
-The [context example](context/main.go) adds a small filesystem-backed prototype
-to the stubs. `DeclareContext(ctx, name)` returns a key owned by that scope.
-`SetContext(ctx, key, value)` writes the entire JSON value and marks
-the prompt view stale. The next `Codergen` call automatically materializes a
-coherent index and prompt before entering the agent callback. Multiple setters
-can be combined; ordinary Go work between setting data and calling the agent
-does not wait for indexing. There is no background indexing worker in this sketch.
-
-Small values appear inline. A per-value limit or a total context limit moves
-values behind short key-based routes to an index containing their full paths.
-Values and indexes use immutable files, so an older prompt's links remain valid
-after replacement. Each snapshot also publishes a `View` directory with
-`index.json` and `values/<key>.json` symlinks for ordinary file tools. The prompt
-points to that view's index. Same-scope names cannot differ only by letter case;
-any cross-scope collision qualifies ALL effective keys with scope IDs to avoid aliases. A failed index/view update prevents the
-agent call. The limits count bytes in the context contribution, excluding the separate task instruction;
-token accounting and the real semantic placement policy remain to be designed.
-
-The program prints the exact prompt received by each stub agent at three stages:
-small context, oversized research, and aggregate pressure from smaller notes.
-It also reports each stage's index, inline keys, and external keys. The temporary
-directory is retained for inspection and printed on stderr. No raw prompts or
-run artifacts are committed. This deterministic index is a placeholder for the
-semantic index; it makes no judgment about which information matters most.
-
-See [the context design note](../../ephemeral/projects/gimble/programmatic-workflows/CONTEXT-FILES.md)
-for the proposed waiting contract and open-source research leads.
-
-## Context scopes and physical layers
-
-`Chapters` and `Sprints` create item scopes automatically and yield their
-`Context`; validation receives that same context. An arbitrary
-`Scope(ctx, "research")` uses the same primitive. Each child retains its parent,
-writes owned values in its own named, nested directory, and resolves current
-ancestor values at each agent call. `Call.Context` is the fixed snapshot received
-by that call; an already-running call keeps its original files and prompt. An effective
-index tells the agent what applies in that scope. Its published `View/values`
-directory lists all effective keys as symlinks, including inherited ones.
-Each view creates directory entries and links rather than copying unchanged
-payloads. `SetContext` writes a fresh value file; the next view links to it.
-Directly editing a symlink would edit its target, so context updates stay behind
-`SetContext`. There is no FUSE mount or identity-dependent filesystem view.
-
-Each value has one declaring scope. `SetContext` rejects any other scope
-writing that key, regardless of assignment order. Same-named declarations in
-different scopes are distinct values and both remain visible. Chapter and
-sprint attempts live inside their respective metadata objects; same-kind
-nested loops have distinct metadata bindings. See the
-[ownership rule](../../ephemeral/projects/gimble/programmatic-workflows/CONTEXT-OWNERSHIP.md).
-
-Sibling writes stay separate. Passing the parent context again restores its
-view; returning a result does not implicitly add it to parent context. Agents
-are trusted to follow the supplied index and write to their assigned layer;
-these paths do not enforce read access restrictions. Ordinary `errgroup`
-joining still owns the lifetime of parallel work.
-
-An item scope is retained across retries in one loop activation. The iterator's
-initial checks create all scopes, but their next agent calls resolve current
-parent data. The nested example updates chapter context after each sprint,
-and the following sprint receives that update through its filesystem context.
-See [the scoping design and filesystem comparison](../../ephemeral/projects/gimble/programmatic-workflows/CONTEXT-SCOPES.md).
-
-## The small primitives
-
-[The stub package](internal/program/runtime.go) exposes synchronous `Codergen[T]`,
-`Command`, `Worktree`, and `Integrate`. [Loop](internal/program/loop.go) returns an
-`iter.Seq2[Iteration, error]` and owns checklist validation and done reconciliation.
-It rechecks every item on each arrival, including after the final permitted
-implementation attempt. The in-memory ledger has no file reload or persistence.
-
-Parallelism is directly visible in the workflows: `errgroup.WithContext`,
-`group.Go`, and `group.Wait`. Each goroutine writes its own result slot. Later
-phases use the parent context because the group's context is canceled after
-`Wait`, even on success. Operational errors stop a parallel phase; negative
-reviews and failed acceptance checks remain typed observations for the caller
-to interpret. The callbacks run concurrently, outside the trace writer's lock.
-
-`prompts.go` contains wording; `demo.go` contains canned responses and the
-executable entrypoint. Ordinary Go child contexts share their attached store;
-`Scope` creates a separate writable layer. Real role-to-provider bindings,
-timeouts, retries of native calls, supervisors, and production persistence
-remain outside these examples. Separate observation and steering support will
-be needed to retain those arts while simplifying authoring.
+Each directory has its argument type in `input.go` and canned responses in
+`demo.go`. Roles such as `sswe`, `eng-mgr`, and `tester` belong to the workflow.
 
 ```sh
 go build ./examples/go-workflows/...
-go test -race ./examples/go-workflows/...
+go run ./examples/go-workflows/bakeoff
+# Replace bakeoff with critique, sprints, context, or scopes.
+go run ./examples/go-workflows/bakeoff --example
+go run ./examples/go-workflows/bakeoff -input argument.json
 ```
 
-The [semantic index](../../docs/semantic-index/programmatic-workflows/README.md)
-routes to the original POC, earlier concurrency designs, and the broader
-role/input/catalog direction. These stubs explore that API; they do not port
-the native POC into Gimble or establish runtime parity with YAML.
+`--example` prints the argument JSON; `-input -` reads a complete argument from
+stdin. The intended calling convention is any JSON shape supported by Polytype;
+these examples use structs. Schema generation is deferred. A future builtin
+catalog should describe when to use each named workflow, expose its argument
+schema, and validate that argument before calling it. Stable argument contracts
+allow the implementation behind a named workflow to improve independently.
+
+## Context contract being illustrated
+
+A declared key belongs to one scope. Only that scope may change its value.
+Chapters and sprints should create scopes automatically; `Scope` supplies an
+arbitrary one. Each agent entry should resolve current ancestor values and wait
+for its index, then receive a fixed view for that call. Later calls can see
+parent updates. No ownership analyzer is included.
+
+These are intended semantics. The context functions are **no-ops**. Loop stubs
+visit each supplied item once; they do not validate, retry, or set `Done`.
+Worktree names are symbolic and agent/command responses are canned.
+
+## Illustrative prompts
+
+These are hand-written pictures of the intended context projection, not output
+produced by the stubs. Paths are illustrative. Storage and indexing are undecided.
+
+Small context, before the planning call:
+
+```text
+Scope: goal
+goal: Implement the quote CLI.
+constraints: Use integer cents; free shipping starts at 50.00.
+Task: Outline the implementation and its proof.
+```
+
+After adding large research:
+
+```text
+Scope: goal
+goal: Implement the quote CLI.
+research: Detailed observations at context/research.json.
+Task: Implement the quote command.
+```
+
+After many small notes exceed the shared context budget:
+
+```text
+Scope: goal / chapter: Quote command / sprint: Price boundaries
+goal: Implement the quote CLI.
+chapter_focus: Build on the completed amount parser.
+Context index: context/index.md — research, constraints, boundary cases.
+Task: Exercise the boundary cases and judge the recorded evidence.
+```

@@ -12,7 +12,6 @@ import (
 // Every response is canned. No agent, shell command, or Git operation runs.
 func demoRuntime() *program.Runtime {
 	return &program.Runtime{
-		Output: os.Stderr,
 		Agent: func(_ context.Context, call program.Call) (any, error) {
 			switch call.Name {
 			case "build":

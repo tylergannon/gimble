@@ -2,8 +2,6 @@
 
 ## Core routes
 
-- **Existing Go library, recovery branch, and concrete authoring sketches:**
-  [go-library](routes/go-library/index.md).
 - **Go instead of a general JSON/DAG workflow language:**
   [go-authorship](routes/go-authorship/index.md).
 - **Legibility and visual explanation:** [legibility](routes/legibility/index.md).
@@ -19,10 +17,6 @@
 
 - **Edited synthesis:** `docs/direction.md` and `docs/workflows-as-programs.md`.
 - **Original wording:** `ephemeral/projects/gimble/programmatic-workflows/*-VERBATIM.md`.
-- **Recovered implementation:** [POC source and recovery](routes/go-library/index.md);
-  unmerged Go library, separate from the shipped graph engine.
-- **Proposals:** earlier ordinary-Go concurrency sketches and newer library
-  sketches; the latter's API needs revision after Tyler's correction.
-- **Current shipped contract:** use
+- **Current shipped contract:** the index's topic is future direction; use
   [status-and-contract](routes/status-and-contract/index.md) for the comparison and
   `docs/spec.md` for the normative current graph engine.

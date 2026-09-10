@@ -41,18 +41,8 @@ objective. This is the program direction's direct connection to the
 
 ## Status boundaries matter
 
-The recovered Go POC implements typed calls, commands, validation, and checklist
-iterators. It is unmerged; automatic structural views, unified context assembly,
-and parallel-call support remain proposed. The newer library sketches need
-revision against that existing work. Good supervision remains the concrete
-approach identified for correcting work that has lost its goal.
+The Go-program runtime, automatic structural views, unified context assembly,
+and comprehensive telemetry are proposals. Good supervision is the only
+concrete recovery approach identified so far. The edited documents and
+corrections explicitly retain these as direction rather than shipped behavior.
 See [status-and-contract](routes/status-and-contract/index.md).
-
-## A maintained method can have a dependable calling convention
-
-Tyler's newer direction emphasizes a small curated builtin library, arbitrary
-Polytype-supported arguments, workflow-defined roles, and CLI discoverability.
-The method can improve while its named call remains dependable. Keep that
-direction separate from the later proposal's rejected API indirection.
-See [go-library](routes/go-library/index.md) and
-[program-input](routes/program-input/index.md).

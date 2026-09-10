@@ -3,10 +3,6 @@
 Use this route for distributed responsibility, research/coding/validation
 roles, five-arts tradeoffs, and learning from bad runs.
 
-- [Newer library sketches](../../sources/go-library-sketches.md): workflow-owned
-  role names, staffing relationships, and curated calls; API spelling remains
-  subject to Tyler's indirection correction.
-
 - [Gimble's direction](../../sources/direction.md): action roles, telemetry, and
   builder/supervisor/checker division.
 - [Context reframing, verbatim](../../sources/context-reframing-verbatim.md):

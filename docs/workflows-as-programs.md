@@ -200,10 +200,8 @@ The earlier [concurrency sketches](../ephemeral/projects/gimble/programmatic-wor
 express critique circles and bake-offs through ordinary goroutines/errgroup.
 That concurrency work, automatic scoped context, the task-oriented index
 entry point, and unified assembly of agent requests remain proposed behavior.
-The [newer library sketches](../ephemeral/projects/gimble/programmatic-workflows/GO-LIBRARY-SKETCHES.md)
-record additive adoption, arbitrary argument shapes, roles, and a curated
-catalog, but Tyler rejected their API indirection. Revise those sketches
-against the existing POC and earlier designs; they are not the accepted API.
+The examples currently use canned callbacks and symbolic workspaces while the
+argument shape and role direction remain illustrative.
 
 Until that refactor lands, the root README should continue to describe the
 graph engine that Gimble actually ships. Rewrite it when the implementation

@@ -3,18 +3,6 @@
 Use this route for the one-context framing, success-oriented retrieval, and
 research/indexing as part of workflow preparation.
 
-- [Context scopes and filesystem layers](../../sources/context-scopes.md):
-  automatic chapter/sprint contexts, arbitrary named branches, retry lifetime,
-  values writable only by their owning scope, physical ancestry, and filesystem
-  comparisons. A call-graph analyzer is deferred; the local experiment is unadopted.
-- [Filesystem-backed context](../../sources/context-files.md): `SetContext`,
-  inline/spill budgets, coherent agent-entry snapshots, the filesystem demo,
-  and two open-source leads. Deferred indexing is an agent proposal; the
-  current index is a deterministic routing placeholder.
-- [Earlier concurrency sketches](../../sources/concurrency-shapes.md): child
-  scopes, short step prompts, call identity, and cancellation follow-ups to
-  the existing POC; these were proposed, not implemented parallel support.
-
 - [Workflows as programs](../../sources/workflows-as-programs.md): one context,
   first message, scoped context, and evolving index.
 - [Context reframing, verbatim](../../sources/context-reframing-verbatim.md):
