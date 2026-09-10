@@ -3,6 +3,14 @@
 Start with the route that matches the question, then follow that narrow topic
 node to its source leaves.
 
+## Show actual Go programs that can be compiled and run
+
+- Start with [the stubbed source examples](sources/compiling-examples.md) for
+  bake-off, critique circle, and sprint execution. Agent and command replies
+  are canned; workspaces and integration are symbolic.
+- For the prior native implementation, follow
+  [go-library](routes/go-library/index.md) to the recovered POC.
+
 ## Find the existing Go POC before designing an API
 
 - Follow [go-library](routes/go-library/index.md) for the preserved branch,
@@ -10,8 +18,9 @@ node to its source leaves.
 
 ## Express a bake-off or critique circle in ordinary Go
 
-- Follow [go-library](routes/go-library/index.md) to the `errgroup` sketches.
-  Keep their proposed concurrency status distinct from the implemented POC.
+- Follow [go-library](routes/go-library/index.md) first to the new `errgroup`
+  source examples, then to the earlier design sketches. The examples make
+  Go control flow executable while leaving native operations stubbed.
 
 ## Find argument schemas, roles, and the curated builtin calling convention
 

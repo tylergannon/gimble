@@ -1,8 +1,8 @@
 # Gimble examples
 
-These examples exercise Gimble through its real coding-agent harnesses. They
+Most examples exercise Gimble through its real coding-agent harnesses. They
 are intentionally small because their purpose is to prove orchestration, not to
-spend tokens on a substantial coding task.
+spend tokens on a substantial coding task. The Go authoring examples use stubs.
 
 - [`steering/external-steering.json`](steering/external-steering.json) proves
   that an external operator can steer one active Codex turn. The workflow only
@@ -19,6 +19,9 @@ spend tokens on a substantial coding task.
 - [`loops/`](loops/README.md) are the starting points for iterative work:
   fix-until-green, critique circle, bake-off, a milestone loop, and a
   checklist loop. Copy one, change the goal and the check, run it.
+- [`go-workflows/`](go-workflows/README.md) contains compiling Go translations
+  of bake-off, critique circle, and sprint execution, with ordinary `errgroup`,
+  checklist iterators, typed arguments, and stubbed external operations.
 
 Each directory documents the invocation and the observable success criteria.
 

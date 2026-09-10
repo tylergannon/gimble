@@ -81,3 +81,18 @@ ordinary goroutines/errgroup for concurrency. The next sketches should build
 from the recovered code and those requests. Keep the newer role/input/catalog
 direction distinct from its rejected API spelling; none of its invented
 identifiers is an accepted interface merely because it appears in the index.
+
+## New Go source examples
+
+For actual Go programs to read and run in the current checkout, see
+[the stubbed workflow examples](../../../../examples/go-workflows/README.md).
+Bake-off and critique circle use ordinary `errgroup`; sprint execution uses
+a Go iterator with visible implementation/review/repair control flow. Inputs,
+prompts, and demo responses live in separate files.
+
+These are new examples of the authoring shape, not a restoration of the native
+runtime. Agent and command responses are canned; workspaces and integration
+are symbolic; checklist state is in memory. Catalog discovery, generated
+Polytype schemas, automatic context assembly, and full runtime parity remain
+outside them. The historical POC and its provenance above remain the starting
+point for native execution work.

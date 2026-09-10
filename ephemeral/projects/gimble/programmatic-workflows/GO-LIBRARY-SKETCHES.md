@@ -16,7 +16,7 @@ scoped context. The branch survives in the pre-rename history bundle at
 `/Users/tyler/src/gimble-history-backup-20260909.bundle`.
 Start with [POC recovery and status](POC-RECOVERY.md), the
 [actual workflow source](POC-WORKFLOWS.md), and the
-[earlier concurrency sketches](CONCURRENCY-SHAPES.md).
+[earlier concurrency sketches](CONCURRENCY-SHAPES.md). For actual Go source, see [the new stub examples](../../../../examples/go-workflows/README.md).
 
 ## Direction
 
