@@ -1,29 +1,34 @@
 # Programmatic-workflows semantic index
 
-This is a compact routing tree for Gimble's writings about replacing the JSON
-workflow language with ordinary Go, while preserving workflow legibility and
-making context engineering a first-class concern.
+This is a compact routing tree for Gimble's Go-workflow direction, recovered
+library POC, and authoring sketches. Start with the existing implementation
+before proposing new primitives. Go adoption can coexist with the graph
+language while preserving workflow legibility and context engineering.
 
 ## Scope and token cache
 
 The token cache is the local Gimble repository checkout. The indexed corpus is
-intentionally narrower: the two edited direction documents, the five-arts
-framing, and the six preserved source notes under
-`ephemeral/projects/gimble/programmatic-workflows/`. Citations are repository-
-relative `path:line` anchors and should resolve from the repository root.
+intentionally narrower: the edited direction documents, five-arts framing,
+preserved statements, POC source/recovery notes, and Go-library/concurrency
+sketches under `ephemeral/projects/gimble/programmatic-workflows/`. Citations
+are repository-relative `path:line` anchors and should resolve from the root.
 
-This index is a navigation aid, not a claim that the proposed runtime exists.
-The current graph engine remains the shipped implementation; the Go-program
-runtime, unified context, and evolving task index are documented direction.
+The graph engine is shipped. A Go library POC exists on a recovered unmerged
+branch, with its workflow source preserved here for inspection. Automatic
+scoped context and the concurrency sketches remain proposed. The newer
+Go-library API sketches need revision after Tyler's indirection correction.
 
 ## Route order
 
-1. Start with [recipes.md](recipes.md) when you have a task-shaped question.
+1. For code/API design, start with [the POC and sketches](routes/go-library/index.md).
+   Otherwise start with [recipes.md](recipes.md) for a task-shaped question.
 2. Use [topics.md](topics.md) to route by concept or source authority.
 3. Use [themes.md](themes.md) for cross-cutting relationships and tradeoffs.
 4. Open the linked leaf under `sources/` for the exact source anchors.
 
 The edited syntheses are the best starting points for the current framing.
+The POC and earlier concurrency sketches are the starting points for concrete
+Go authoring; the newer proposal is not an accepted replacement API.
 The verbatim leaves preserve Tyler's original wording and corrections; use
 them when the distinction between the source claim and later synthesis matters.
 
@@ -39,8 +44,10 @@ them when the distinction between the source claim and later synthesis matters.
 
 ## Housekeeping
 
-- Build mode: scratch build.
+- Build mode: incremental update after POC recovery.
 - Last indexed source review: 2026-09-09.
 - Benchmark: run `python3 <df-semantic-index>/scripts/run_evals.py --index docs/semantic-index/programmatic-workflows --write-results` from the repository root.
 - Known debt: citations point to mutable working-tree documents; the preserved
-  verbatim notes provide stable wording but not immutable historical snapshots.
+  verbatim notes provide stable wording. The restored POC source and concurrency
+  sketches identify their historical revision; the complete library requires
+  the local backup described in the recovery guide.

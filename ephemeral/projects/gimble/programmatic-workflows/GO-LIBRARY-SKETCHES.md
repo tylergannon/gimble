@@ -14,6 +14,9 @@ The original implementation uses `Loop(...) iter.Seq2[Iteration, error]`;
 the subsequent design explicitly favors ordinary goroutines/errgroup and
 scoped context. The branch survives in the pre-rename history bundle at
 `/Users/tyler/src/gimble-history-backup-20260909.bundle`.
+Start with [POC recovery and status](POC-RECOVERY.md), the
+[actual workflow source](POC-WORKFLOWS.md), and the
+[earlier concurrency sketches](CONCURRENCY-SHAPES.md).
 
 ## Direction
 

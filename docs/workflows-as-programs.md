@@ -188,10 +188,22 @@ arrangement against the same task and established validation.
 
 ## Implementation record
 
-The Go-program runtime is not present on `main`. The unified context,
-task-oriented index entry point, and scoped assembly of agent requests
-described here remain direction; their exact APIs and presentation policies
-remain to be developed.
+The Go-program runtime is not present on `main`, but an existing unmerged
+POC is preserved. Start with the [recovery guide](../ephemeral/projects/gimble/programmatic-workflows/POC-RECOVERY.md)
+before designing a replacement. It locates the implemented `program` package:
+typed `Codergen[T]` calls, command execution, validation, and
+`Loop(...) iter.Seq2[Iteration, error]`. Its sprint, chapter, and delivery
+programs use ordinary Go control flow, with inputs and prompts separated
+from their algorithms.
+
+The earlier [concurrency sketches](../ephemeral/projects/gimble/programmatic-workflows/CONCURRENCY-SHAPES.md)
+express critique circles and bake-offs through ordinary goroutines/errgroup.
+That concurrency work, automatic scoped context, the task-oriented index
+entry point, and unified assembly of agent requests remain proposed behavior.
+The [newer library sketches](../ephemeral/projects/gimble/programmatic-workflows/GO-LIBRARY-SKETCHES.md)
+record additive adoption, arbitrary argument shapes, roles, and a curated
+catalog, but Tyler rejected their API indirection. Revise those sketches
+against the existing POC and earlier designs; they are not the accepted API.
 
 Until that refactor lands, the root README should continue to describe the
 graph engine that Gimble actually ships. Rewrite it when the implementation

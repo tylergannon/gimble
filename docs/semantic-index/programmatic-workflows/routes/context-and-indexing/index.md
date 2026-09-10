@@ -3,6 +3,10 @@
 Use this route for the one-context framing, success-oriented retrieval, and
 research/indexing as part of workflow preparation.
 
+- [Earlier concurrency sketches](../../sources/concurrency-shapes.md): child
+  scopes, short step prompts, call identity, and cancellation follow-ups to
+  the existing POC; these were proposed, not implemented parallel support.
+
 - [Workflows as programs](../../sources/workflows-as-programs.md): one context,
   first message, scoped context, and evolving index.
 - [Context reframing, verbatim](../../sources/context-reframing-verbatim.md):
