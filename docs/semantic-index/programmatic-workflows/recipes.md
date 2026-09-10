@@ -1,5 +1,8 @@
 # Retrieval recipes
 
+For the Go API, start with the [compiling stub examples](sources/compiling-examples.md).
+The [Go library route](routes/go-library/index.md) also locates the recovered POC.
+
 Start with the route that matches the question, then follow that narrow topic
 node to its source leaves.
 

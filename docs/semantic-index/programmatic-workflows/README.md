@@ -1,5 +1,8 @@
 # Programmatic-workflows semantic index
 
+For the Go API, start with the [compiling stub examples](sources/compiling-examples.md).
+The [Go library route](routes/go-library/index.md) also locates the recovered POC.
+
 This is a compact routing tree for Gimble's writings about replacing the JSON
 workflow language with ordinary Go, while preserving workflow legibility and
 making context engineering a first-class concern.

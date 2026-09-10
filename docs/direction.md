@@ -64,6 +64,25 @@ coverage or index arrangements, or compare different program shapes from
 the same starting task, data, and index. Understanding a run therefore
 requires both the method and the information conditions in which it ran.
 
+## Curate dependable named workflows
+
+Tyler's September 9 clarification allows an additive Go library while the
+existing workflow language remains available. The [recovered Go POC](../ephemeral/projects/gimble/programmatic-workflows/POC-RECOVERY.md)
+already supplies a narrow implementation to extend; this is not a fresh
+start for the primitives or the ordinary-Go authoring shape.
+
+The public library matters, but the primary investment is a small curated
+set of named workflows that improve over time. Their calling conventions
+should remain dependable enough for long-term scheduled tasks. Each workflow
+declares its own arbitrary Polytype-supported argument shape; generated JSON
+Schemas describe that argument, rather than the workflow's program. The CLI
+should explain when to use the workflow, document its calling convention,
+and validate the argument. Workflow-defined role names such as `sswe`,
+`eng-mgr`, and `tester` express assignments instead of direct model arguments.
+
+The Go workflow examples preserve this clarification as a compact API sketch.
+See the [earlier concurrency sketches](../ephemeral/projects/gimble/programmatic-workflows/CONCURRENCY-SHAPES.md).
+
 ## Preserve what good graphs give us
 
 Tyler identifies a real strength of DAG-style workflow definitions:
@@ -315,7 +334,8 @@ Readable source aids authoring; context inspection aids understanding and
 steering; distributing responsibility can help individual agents while
 making the whole harder to follow. These are tradeoffs to examine in use.
 
-The narrow Go POC establishes a starting point. This direction does not add
+The [narrow Go POC](../ephemeral/projects/gimble/programmatic-workflows/POC-RECOVERY.md)
+establishes a starting point. This direction does not add
 static rendering, context diagnostics, comprehensive telemetry, or an eval
 platform to its first version. It gives the primitives, examples, and future
 tools a common test: do they help people understand and improve the agent's

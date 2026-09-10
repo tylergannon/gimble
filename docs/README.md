@@ -15,6 +15,11 @@
   workflow authoring, context, observability, and evaluation.
 - [Workflows as programs](workflows-as-programs.md): the Go-authored workflow
   and context-engineering direction. This is not yet shipped behavior.
+- [Recovered Go POC](../ephemeral/projects/gimble/programmatic-workflows/POC-RECOVERY.md):
+  the existing unmerged library, branch recovery, and earlier concurrency sketches.
+- [Go workflow examples](../examples/go-workflows/README.md):
+  additive adoption, argument schemas, roles, and a curated workflow catalog;
+  the hypothetical API needs revision against the recovered POC.
 
 ## Historical reference
 
