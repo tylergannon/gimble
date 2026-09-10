@@ -43,6 +43,15 @@ node to its source leaves.
 - Follow [context-and-indexing](routes/context-and-indexing/index.md) for one context,
   on-disk information, retrieval, and research/indexing.
 
+## Set context, spill large values, and wait for an updated index
+
+- Follow [context-and-indexing](routes/context-and-indexing/index.md) to the
+  filesystem design and demo: immutable values, per-value and aggregate
+  budgets, and a coherent snapshot before each agent callback.
+- Distinguish Tyler's update-trigger direction from the agent's deferred
+  indexing proposal. The example uses byte limits and placeholder routes;
+  OpenViking and Letta are research leads, not adopted dependencies.
+
 ## Separate reusable method from task data
 
 - Follow [program-input](routes/program-input/index.md) for the short source statement

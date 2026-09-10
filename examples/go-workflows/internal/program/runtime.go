@@ -1,5 +1,6 @@
 // Package program contains executable stubs for exploring Go workflow authoring.
 // It does not call agents, execute commands, create worktrees, or integrate files.
+// Optional context storage writes real files and builds a simple index prototype.
 package program
 
 import (
@@ -41,6 +42,15 @@ func Codergen[T any](ctx context.Context, rt *Runtime, name string, role Role, p
 	}
 	if rt.Agent == nil {
 		return zero, fmt.Errorf("%s: agent stub is missing", name)
+	}
+	// A call must see one coherent context revision, including its retrieval
+	// paths. Pending context updates are materialized before the agent starts.
+	snapshot, err := SnapshotContext(ctx)
+	if err != nil {
+		return zero, fmt.Errorf("%s context: %w", name, err)
+	}
+	if snapshot.Prompt != "" {
+		prompt = snapshot.Prompt + "\n\n## Task\n" + prompt
 	}
 	rt.trace("agent %s role=%s workspace=%s", name, role, Workspace(ctx))
 	value, err := rt.Agent(ctx, Call{name, role, prompt, Workspace(ctx)})

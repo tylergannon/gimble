@@ -3,6 +3,10 @@
 Use this route for the one-context framing, success-oriented retrieval, and
 research/indexing as part of workflow preparation.
 
+- [Filesystem-backed context](../../sources/context-files.md): `SetContext`,
+  inline/spill budgets, coherent agent-entry snapshots, the filesystem demo,
+  and two open-source leads. Deferred indexing is an agent proposal; the
+  current index is a deterministic routing placeholder.
 - [Earlier concurrency sketches](../../sources/concurrency-shapes.md): child
   scopes, short step prompts, call identity, and cancellation follow-ups to
   the existing POC; these were proposed, not implemented parallel support.

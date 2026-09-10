@@ -6,9 +6,9 @@ Actual Go source for reading, compiling, and running the proposed authoring
 shape. Start with [the example guide](../../../../examples/go-workflows/README.md).
 These are new isolated examples, not the recovered native-agent POC or a
 published runtime API. Agent/command replies are canned, workspaces and
-integration are symbolic, and the checklist is in memory. There is no builtin
-catalog, Polytype schema generation, automatic context engine, or runtime-parity
-claim.
+integration are symbolic, and the checklist is in memory. The context example
+writes real files and projects a bounded prompt; it has no semantic index
+generator, builtin catalog, Polytype schemas, or runtime-parity claim.
 
 ## Key concepts
 
@@ -26,10 +26,12 @@ claim.
   `examples/go-workflows/critique/input.go:8-17`, and
   `examples/go-workflows/sprints/input.go:10-38`.
 - Effects are synchronous stub callbacks; orchestration belongs to callers:
-  `examples/go-workflows/internal/program/runtime.go:1-34`.
+  `examples/go-workflows/internal/program/runtime.go:1-35`.
 - The example iterator updates `Done` only through its validation callback and
   returns `iter.Seq2[Iteration, error]`; it has no persistent ledger:
   `examples/go-workflows/internal/program/loop.go:28-81`.
+- [Filesystem-backed context](context-files.md) supplies the `SetContext`
+  design, coherent snapshot boundary, inline/spill demo, and status limits.
 
 ## Retrieval recipes
 
@@ -40,6 +42,8 @@ claim.
   `go run ./examples/go-workflows/sprints`.
 - For calling conventions, use each entrypoint's `--example` and `--input`
   options and inspect its `input.go`; these do not generate JSON Schema.
+- For inline-small, spill-large, and aggregate context-budget rebalancing,
+  follow [the context source leaf](context-files.md) to the filesystem demo.
 - For prior native agents, persisted checklist handling, and source
   provenance, follow [POC recovery](poc-recovery.md). Stub output does not
   reverify the historical native execution or demonstrate application success.

@@ -4,35 +4,35 @@
     "benchmark_file_count": 3,
     "breadth_by_level": {
       "1": 7,
-      "2": 25,
+      "2": 26,
       "3": 8
     },
-    "citation_count": 86,
-    "citation_density_per_leaf": 5.38,
+    "citation_count": 95,
+    "citation_density_per_leaf": 5.59,
     "debt_marker_count": 1,
     "exists": true,
     "extension_counts": {
       ".json": 2,
       ".jsonl": 1,
-      ".md": 26
+      ".md": 27
     },
     "fan_out": {
-      "max": 25,
-      "mean": 3.67,
+      "max": 26,
+      "mean": 3.78,
       "skewed_nodes": [
         "."
       ],
-      "variance": 64
+      "variance": 69.44
     },
-    "file_count": 29,
-    "last_benchmark_at": "2026-09-10T00:44:42+00:00",
-    "likely_leaf_count": 16,
+    "file_count": 30,
+    "last_benchmark_at": "2026-09-10T01:00:28+00:00",
+    "likely_leaf_count": 17,
     "max_file_depth": 3,
     "mean_leaf_depth": 1.94,
     "orphan_leaf_count": 0,
     "orphan_leaves": [],
     "path": "/Users/tyler/.codex/worktrees/a5b1/gimble/docs/semantic-index/programmatic-workflows",
-    "routing_density": 6.62,
+    "routing_density": 7.31,
     "routing_file_count": 13,
     "routing_files": [
       ".semantic-index/benchmarks/run-20260909T232441Z.json",
@@ -54,6 +54,7 @@
       "sources/actions-and-knowledge-verbatim.md",
       "sources/compiling-examples.md",
       "sources/concurrency-shapes.md",
+      "sources/context-files.md",
       "sources/context-reframing-verbatim.md",
       "sources/direction-clarification-verbatim.md",
       "sources/direction-corrections-verbatim.md",
@@ -69,20 +70,20 @@
     ],
     "state": null
   },
-  "last_housekeeping_at": "2026-09-10T00:44:42+00:00",
+  "last_housekeeping_at": "2026-09-10T01:00:28+00:00",
   "last_mode": "incremental-update",
   "source": {
     "exists": true,
     "extension_counts": {
       ".astro": 6,
       ".css": 9,
-      ".go": 143,
+      ".go": 150,
       ".html": 4,
       ".ico": 1,
       ".js": 14,
       ".json": 27,
       ".jsonl": 1,
-      ".md": 77,
+      ".md": 80,
       ".mjs": 1,
       ".mod": 3,
       ".png": 6,
@@ -97,7 +98,7 @@
       ".yml": 2,
       "[none]": 6
     },
-    "file_count": 360,
+    "file_count": 370,
     "path": "/Users/tyler/.codex/worktrees/a5b1/gimble"
   }
 }

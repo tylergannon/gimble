@@ -17,5 +17,9 @@ or looking for the POC that disappeared from the active branch list.
    roadmap, Polytype arguments, roles, and a curated CLI catalog. Tyler rejected
    the API's indirection; revise it against the earlier work, not vice versa.
 
+For `SetContext`, inline versus external data, aggregate prompt budgets, and
+waiting for a coherent index, use [filesystem-backed context](../../sources/context-files.md).
+That example writes real context files while agent operations remain stubbed.
+
 For general rationale use [Go authorship](../go-authorship/index.md); for
 current shipped behavior use [status and contract](../status-and-contract/index.md).

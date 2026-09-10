@@ -17,10 +17,11 @@ are repository-relative `path:line` anchors and should resolve from the root.
 
 The graph engine is shipped. A Go library POC exists on a recovered unmerged
 branch, with its workflow source preserved here for inspection. Automatic
-scoped context remains proposed. New examples express the concurrency shapes
-with ordinary `errgroup`, but their agent/command replies and workspaces are
-stubs, not native runtime integration. The newer Go-library API sketches need
-revision after Tyler's indirection correction.
+scoped context remains proposed. New examples express concurrency with
+ordinary `errgroup` and explore [filesystem-backed context](sources/context-files.md)
+with real value files and coherent snapshots. The index is a deterministic
+placeholder; agent/command replies and workspaces remain stubs. The newer
+Go-library API sketches need revision after Tyler's indirection correction.
 
 ## Route order
 

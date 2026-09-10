@@ -21,7 +21,8 @@ spend tokens on a substantial coding task. The Go authoring examples use stubs.
   checklist loop. Copy one, change the goal and the check, run it.
 - [`go-workflows/`](go-workflows/README.md) contains compiling Go translations
   of bake-off, critique circle, and sprint execution, with ordinary `errgroup`,
-  checklist iterators, typed arguments, and stubbed external operations.
+  checklist iterators, typed arguments, and stubbed external operations. Its
+  context example writes real local values/indexes and shows bounded prompts.
 
 Each directory documents the invocation and the observable success criteria.
 
