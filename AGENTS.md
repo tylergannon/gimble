@@ -20,13 +20,41 @@ serve, and the tensions between them. Read it before proposing a feature.
 Workflows are ordinary Go. The approved API is the recovered POC preserved at
 `ephemeral/projects/gimble/programmatic-workflows/POC-WORKFLOWS.md` and ported
 into `program/`: `program.Loop`, `program.Codergen[T]`, `Runtime.Command`,
-`Runtime.Validate`. Sprints and chapters are both just `Loop`. Do not invent
-wrappers around these. Do not reintroduce a graph language, node types, or a
-context subsystem.
+`Runtime.Validate`. Sprints and chapters are both just `Loop`. Do not
+reintroduce a graph language, node types, or a context subsystem.
 
 The CLI is `gimble ls` and `gimble run <workflow> [flags]`. A workflow's flags
 are its input struct's fields. There is no JSON input file, schema command, or
 catalog.
+
+## No wrappers: the orchestration is written out where it runs
+
+Tyler, 2026-09-10, after an agent proposed `Runtime.Worktree`,
+`Runtime.Integrate`, and `workflows.BakeOff` as the next task:
+
+> WE ARE NOT DOING HIGH LEVEL WRAPPERS OF FUNCTIONALITY THAT OBSCURES THE
+> MEANING OF THE CODE. There is NO SUCH THING as a `workflows.BakeOff`
+> function.
+
+A workflow's control flow is visible on its own page. An orchestration tactic
+(parallel candidates, a critique round, a retry, an isolated worktree, a
+merge) is written inline in the workflow that uses it: goroutines and
+`errgroup`, `runtime.Command(ctx, "git worktree add ...")`, one
+`program.Codergen[T]` call per agent, an `if` on the typed result. A tactic is
+never packaged as a library function or a `Runtime` method for callers to
+invoke without seeing it. The reader test: `runtime.Command(ctx, "git merge
+--no-ff candidate-2")` says what happens; `runtime.Integrate(winner)` hides
+it. Unexported helpers inside one workflow file are fine when the page still
+shows what repeats, what waits, what decides, and what ends the work.
+
+The four primitives are complete until a workflow written against them shows
+a gap, and a new primitive is added only when Tyler asks for it by name. A
+named workflow is a `gimble run` entry point Tyler asked for, with a purpose
+and an input struct; a tactic like a bake-off is not a workflow and gets no
+name of its own. When proposing the next task, name a program to write and
+what it will do, never a function or method to add. If a proposal introduces
+a new exported name in `program/` or `program/workflows/`, it is the wrapper
+this section forbids.
 
 ## Build what was asked
 

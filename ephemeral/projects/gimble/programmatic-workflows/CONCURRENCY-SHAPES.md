@@ -7,6 +7,14 @@ Tyler's direction: choose readable orchestration pseudocode first, then derive
 functions/types from it. Prefer ordinary Go goroutines and errgroup over new
 graph nodes, edge types, or a mandatory promise/future abstraction.
 
+**Status 2026-09-10.** The two code blocks below are the intended shape: the
+tactic is written out in the workflow with `errgroup`. `RunTrial` and `Choose`
+are local helpers of that one workflow, not library functions, and there is
+no `workflows.BakeOff`. The section "What Tractor supplies underneath" is
+withdrawn: no scoped context, no observation scopes, no workspace-isolation
+primitive. A candidate worktree is `runtime.Command(ctx, "git worktree add
+...")` in the workflow's own code. See AGENTS.md, "No wrappers".
+
 ## Starting recommendation
 
 Use ordinary synchronous operations returning typed values and errors. A caller
