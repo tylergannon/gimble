@@ -9,6 +9,10 @@ the prototype's snapshot choices and possible filesystem dependencies.
 
 ## Key concepts
 
+- Current [scope ownership rule](../../../../ephemeral/projects/gimble/programmatic-workflows/CONTEXT-OWNERSHIP.md):
+  only the owning scope may edit a value; ancestors/descendants cannot shadow
+  it. The local-only analyzer was rejected and is retained unadopted at Tyler's
+  request. Call-graph analysis is deferred; agent/backend effects remain stubs.
 - Automatic chapter/sprint scopes, arbitrary named branches, trusted read
   visibility, and explicit write ownership:
   `ephemeral/projects/gimble/programmatic-workflows/CONTEXT-SCOPES.md:8-15`.
@@ -36,9 +40,9 @@ the prototype's snapshot choices and possible filesystem dependencies.
 - Earlier FUSE comparison: memory/opaque storage, caller identity, caches,
   macOS backends, and filesystem lifecycle obligations:
   `ephemeral/projects/gimble/programmatic-workflows/CONTEXT-SCOPES.md:136-158`.
-- Parent changes after child overrides: current frozen inheritance versus
-  proposed live lexical inheritance, and intentional overrides versus stale
-  derived values requiring explicit invalidation, rebase, or adjudication:
+- Earlier parent/child override discussion, superseded for writes by the
+  ownership rule. Frozen inheritance remains the current read policy; live
+  inheritance and invalidation are separate unimplemented proposals:
   `ephemeral/projects/gimble/programmatic-workflows/CONTEXT-SCOPES.md:160-181`.
 - BranchFS at a pinned revision: frozen snapshots, explicit leaf commits,
   direct-parent-write versus sibling-commit conflict behavior, file-copy cost,
@@ -48,11 +52,13 @@ the prototype's snapshot choices and possible filesystem dependencies.
 ## Implementation entrypoints
 
 - Snapshot fork, physical child directory, and immutable-by-API convention:
-  `examples/go-workflows/internal/program/scope.go:13-58`.
+  `examples/go-workflows/internal/program/scope.go:13-61`.
+- Runtime ownership claim and write rejection:
+  `examples/go-workflows/internal/program/context.go:95-162`.
 - Item scope creation, metadata refresh, validation, and retries:
-  `examples/go-workflows/internal/program/loop.go:31-122`.
+  `examples/go-workflows/internal/program/loop.go:37-124`.
 - Automatic chapter/sprint wrappers:
-  `examples/go-workflows/internal/program/loop.go:124-135`.
+  `examples/go-workflows/internal/program/loop.go:126-137`.
 - Nested orchestration and arbitrary `errgroup` reviewer branches:
   `examples/go-workflows/scopes/main.go:16-80`.
 - Complete revision directory with effective-value and authoritative-index links:
@@ -73,8 +79,11 @@ the prototype's snapshot choices and possible filesystem dependencies.
   Tyler chose ordinary symlink views. Updates use `SetContext`; direct writes
   through these links are not copy-on-write.
 - For "does a parent change overwrite my child's value?", read the precedence
-  discussion. Inheritance currently freezes at scope creation. Live resolution
-  at the next agent call is only an agent proposal; freshness needs a separate rule.
+  and ownership notes. A descendant cannot write an ancestor-owned value.
+  Inheritance still freezes at scope creation; freshness is a separate policy.
+- For static checking, read the ownership note's status section. No adopted
+  analyzer validates ownership; retained local-only code does not meet Tyler's
+  requirement to traverse the call graph.
 - For BranchFS, read the pinned source assessment before inferring behavior
   from its branching or atomic-commit description. Its commit counter tracks
   sibling commits, not direct parent edits; no package or driver is adopted.

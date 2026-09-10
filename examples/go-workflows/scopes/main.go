@@ -33,7 +33,7 @@ func NestedScopes(ctx context.Context, runtime *program.Runtime, input Input) ([
 		if err != nil {
 			return nil, err
 		}
-		if err := program.SetContext(chapter.Context, "focus", "Complete "+chapter.Item.Name+" without expanding scope."); err != nil {
+		if err := program.SetContext(chapter.Context, "chapter_focus", "Complete "+chapter.Item.Name+" without expanding scope."); err != nil {
 			return nil, err
 		}
 		for sprint, err := range program.Sprints(chapter.Context, sprints[chapter.Item.Name], loopOptions(runtime)) {
@@ -69,7 +69,7 @@ func parallelReviews(ctx context.Context, runtime *program.Runtime) error {
 			if err != nil {
 				return err
 			}
-			if err := program.SetContext(child, "focus", review.Focus); err != nil {
+			if err := program.SetContext(child, "review_focus", review.Focus); err != nil {
 				return err
 			}
 			_, err = program.Codergen[string](child, runtime, "review", review.Role, "Review the current sprint.")

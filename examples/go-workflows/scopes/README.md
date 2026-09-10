@@ -10,8 +10,9 @@ The workflow passes that context to short agent calls; it never copies those
 fields into a prompt.
 
 The first sprint also creates two ordinary child scopes in an `errgroup`.
-Each overrides `focus` differently. After the group joins, a call with the
-original sprint context sees the sprint's inherited focus. After the inner
+Each owns a different `review_focus` value. The chapter owns `chapter_focus`;
+the root's `focus` remains visible throughout. After the group joins, a call with
+the original sprint context has no reviewer-local values. After the inner
 loop, the chapter context has no sprint metadata; after the outer loop, the
 root has neither chapter nor sprint metadata. No pop or cleanup call changes
 which scope is active: the caller chooses the context it passes.
@@ -23,8 +24,9 @@ links to the authoritative `ContextSnapshot.Index`. Native tools can list and
 read the effective context through those ordinary paths, without a FUSE mount.
 The complete view is prepared before the agent callback receives its prompt.
 
-Context files are read-only by convention. `SetContext` writes a new local
-value file; the next snapshot publishes a new view pointing to that replacement,
+Context files are read-only by convention. `SetContext` can create or update
+values owned by that scope; attempts to overwrite inherited keys fail.
+The next snapshot publishes a new view pointing to the replacement file,
 leaving earlier views intact. Direct writes through symlinks would modify their
 targets; these links do not implement automatic copy-on-write.
 

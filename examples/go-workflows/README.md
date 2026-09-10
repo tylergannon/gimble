@@ -87,7 +87,7 @@ for the proposed waiting contract and open-source research leads.
 `Chapters` and `Sprints` create item scopes automatically and yield their
 `Context`; validation receives that same context. An arbitrary
 `Scope(ctx, "research")` uses the same primitive. Each child inherits a snapshot
-of the parent's effective values, writes overrides in its own nested directory,
+of the parent's effective values, writes owned values in its own nested directory,
 and references the original ancestor files for inherited values. An effective
 index tells the agent what applies in that scope. Its published `View/values`
 directory lists all effective keys as symlinks, including inherited ones.
@@ -95,6 +95,11 @@ Each view creates directory entries and links rather than copying unchanged
 payloads. `SetContext` writes a fresh value file; the next view links to it.
 Directly editing a symlink would edit its target, so context updates stay behind
 `SetContext`. There is no FUSE mount or identity-dependent filesystem view.
+
+Each value has one owning scope. `SetContext` rejects ancestor/descendant
+writes to the same binding; an owner may update its own value. Chapter and
+sprint attempts live inside their respective metadata objects. See the
+[ownership rule](../../ephemeral/projects/gimble/programmatic-workflows/CONTEXT-OWNERSHIP.md).
 
 Sibling writes stay separate. Passing the parent context again restores its
 view; returning a result does not implicitly add it to parent context. Agents

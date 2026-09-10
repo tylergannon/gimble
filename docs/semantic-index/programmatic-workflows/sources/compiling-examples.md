@@ -29,7 +29,7 @@ generator, builtin catalog, Polytype schemas, or runtime-parity claim.
   `examples/go-workflows/internal/program/runtime.go:1-35`.
 - The example iterator updates `Done` only through its validation callback and
   returns `iter.Seq2[Iteration, error]`; it has no persistent ledger:
-  `examples/go-workflows/internal/program/loop.go:31-122`.
+  `examples/go-workflows/internal/program/loop.go:37-124`.
 - [Filesystem-backed context](context-files.md) supplies the `SetContext`
   design, coherent snapshot boundary, inline/spill demo, and status limits.
 - [Context scopes](context-scopes.md) supplies the nested chapter/sprint and

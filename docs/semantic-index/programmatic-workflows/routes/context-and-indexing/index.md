@@ -5,7 +5,8 @@ research/indexing as part of workflow preparation.
 
 - [Context scopes and filesystem layers](../../sources/context-scopes.md):
   automatic chapter/sprint contexts, arbitrary named branches, retry lifetime,
-  physical ancestry, and manifest versus transparent filesystem overlays.
+  values writable only by their owning scope, physical ancestry, and filesystem
+  comparisons. A call-graph analyzer is deferred; the local experiment is unadopted.
 - [Filesystem-backed context](../../sources/context-files.md): `SetContext`,
   inline/spill budgets, coherent agent-entry snapshots, the filesystem demo,
   and two open-source leads. Deferred indexing is an agent proposal; the

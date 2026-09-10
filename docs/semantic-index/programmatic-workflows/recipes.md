@@ -54,6 +54,9 @@ node to its source leaves.
 
 ## Follow nested scopes or compare branching filesystems
 
+- Start with the current ownership rule in [context scopes](sources/context-scopes.md):
+  inherited values cannot be overwritten. Agent/backend operations stay stubbed;
+  the retained intraprocedural analyzer is unadopted, with call-graph work deferred.
 - Follow [context scopes](sources/context-scopes.md) for chapter/sprint
   iterators, arbitrary `Scope` branches, inherited snapshots, explicit local
   writes, and the scope directory tree.

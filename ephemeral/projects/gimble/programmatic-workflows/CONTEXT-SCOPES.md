@@ -1,9 +1,9 @@
 # Context scopes and physical filesystem layers
 
 Design/example note, 2026-09-09. This extends
-[filesystem-backed context](CONTEXT-FILES.md). Tyler's requested direction is
-separated below from the prototype's chosen semantics. These examples do not
-establish a production API or native-agent runtime parity.
+[filesystem-backed context](CONTEXT-FILES.md). For the current write contract, see
+[scope-owned values](CONTEXT-OWNERSHIP.md). These examples do not establish
+a production API or native-agent runtime parity.
 
 ## Tyler's direction
 
@@ -23,9 +23,9 @@ mutable map and a new directory physically inside its parent directory.
 The name is recorded in the snapshot/index scope path; generated directory
 names identify the physical layers.
 
-`SetContext(child, key, value)` writes a new file in the child's directory.
-Its effective index resolves that key to the local value, shadowing the
-inherited reference. Other inherited keys still point to ancestor files.
+`SetContext(child, key, value)` creates or updates a child-owned value file.
+Writing an ancestor-owned key fails; local values cannot shadow inherited
+bindings. Inherited keys still point to ancestor files.
 Later parent updates do not change an existing child; child writes do not
 change siblings or automatically promote results to a parent. Files are
 immutable by API convention, not protected from direct filesystem edits.
@@ -157,12 +157,12 @@ rename/unlink semantics, caching, and mount lifecycle all need attention.
 Opaque storage does not remove those obligations. Revisit FUSE if lazy access
 or transparent filesystem behavior becomes worth that runtime commitment.
 
-## Parent changes after a child override
+## Parent changes after a child override (earlier discussion)
 
-Tyler raised what should happen when a parent changes after a child has
-overridden some of its context. The current prototype freezes inheritance
+Before the [ownership rule](CONTEXT-OWNERSHIP.md), Tyler asked what happens when
+a parent changes after a child override. The prototype froze inheritance
 when `Scope` is created. Later parent writes do not reach that child, even for
-keys it has never overridden. A child override remains local, and each
+keys it had never overridden. Child overrides were local, and each
 published revision view remains stable under writes made through the API.
 
 **Agent proposal, not accepted or implemented:** live lexical inheritance

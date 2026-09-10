@@ -7,9 +7,9 @@
       "2": 27,
       "3": 8
     },
-    "citation_count": 112,
-    "citation_density_per_leaf": 6.22,
-    "debt_marker_count": 2,
+    "citation_count": 113,
+    "citation_density_per_leaf": 6.28,
+    "debt_marker_count": 1,
     "exists": true,
     "extension_counts": {
       ".json": 2,
@@ -25,14 +25,14 @@
       "variance": 75.11
     },
     "file_count": 31,
-    "last_benchmark_at": "2026-09-10T01:33:41+00:00",
+    "last_benchmark_at": "2026-09-10T01:58:53+00:00",
     "likely_leaf_count": 18,
     "max_file_depth": 3,
     "mean_leaf_depth": 1.94,
     "orphan_leaf_count": 0,
     "orphan_leaves": [],
     "path": "/Users/tyler/.codex/worktrees/a5b1/gimble/docs/semantic-index/programmatic-workflows",
-    "routing_density": 8.62,
+    "routing_density": 8.69,
     "routing_file_count": 13,
     "routing_files": [
       ".semantic-index/benchmarks/run-20260909T232441Z.json",
@@ -71,20 +71,20 @@
     ],
     "state": null
   },
-  "last_housekeeping_at": "2026-09-10T01:37:48+00:00",
+  "last_housekeeping_at": "2026-09-10T01:59:45+00:00",
   "last_mode": "incremental-update",
   "source": {
     "exists": true,
     "extension_counts": {
       ".astro": 6,
       ".css": 9,
-      ".go": 159,
+      ".go": 166,
       ".html": 4,
       ".ico": 1,
       ".js": 14,
       ".json": 27,
       ".jsonl": 1,
-      ".md": 83,
+      ".md": 85,
       ".mjs": 1,
       ".mod": 3,
       ".png": 6,
@@ -99,7 +99,7 @@
       ".yml": 2,
       "[none]": 6
     },
-    "file_count": 382,
+    "file_count": 391,
     "path": "/Users/tyler/.codex/worktrees/a5b1/gimble"
   }
 }

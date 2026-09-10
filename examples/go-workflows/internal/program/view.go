@@ -11,7 +11,7 @@ import (
 // Only directories and symlinks are new; inherited JSON bytes are not copied.
 // The caller holds the store lock and publishes the view after it is complete.
 // Writing directly through a symlink is not copy-on-write: callers must use
-// SetContext to create an override without changing earlier scope revisions.
+// SetContext to replace an owned value without changing earlier revisions.
 func (store *contextStore) materializeView(ctx context.Context, index string, keys []string) (view string, err error) {
 	if err := ctx.Err(); err != nil {
 		return "", err

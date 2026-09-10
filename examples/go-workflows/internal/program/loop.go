@@ -14,6 +14,12 @@ type Item struct {
 	Done    bool   `json:"done"`
 }
 
+// itemState keeps loop-owned metadata in one binding in the item's scope.
+type itemState struct {
+	Item
+	Attempt int `json:"attempt"`
+}
+
 // Iteration offers one failed item to the workflow's ordinary Go loop body.
 type Iteration struct {
 	Item    Item
@@ -69,11 +75,7 @@ func Loop(ctx context.Context, items []Item, options LoopOptions) iter.Seq2[Iter
 				}
 				itemContext := contexts[index]
 				if options.Scope != "" {
-					if err := SetContext(itemContext, options.Scope, items[index]); err != nil {
-						yield(Iteration{}, err)
-						return
-					}
-					if err := SetContext(itemContext, "attempt", attempts[index]); err != nil {
+					if err := SetContext(itemContext, options.Scope, itemState{items[index], attempts[index]}); err != nil {
 						yield(Iteration{}, err)
 						return
 					}
@@ -90,7 +92,7 @@ func Loop(ctx context.Context, items []Item, options LoopOptions) iter.Seq2[Iter
 				changed := items[index].Done != passed
 				items[index].Done = passed
 				if changed && options.Scope != "" {
-					if err := SetContext(itemContext, options.Scope, items[index]); err != nil {
+					if err := SetContext(itemContext, options.Scope, itemState{items[index], attempts[index]}); err != nil {
 						yield(Iteration{}, err)
 						return
 					}
@@ -109,7 +111,7 @@ func Loop(ctx context.Context, items []Item, options LoopOptions) iter.Seq2[Iter
 			attempts[firstFailed]++
 			itemContext := contexts[firstFailed]
 			if options.Scope != "" {
-				if err := SetContext(itemContext, "attempt", attempts[firstFailed]); err != nil {
+				if err := SetContext(itemContext, options.Scope, itemState{items[firstFailed], attempts[firstFailed]}); err != nil {
 					yield(Iteration{}, err)
 					return
 				}

@@ -11,8 +11,10 @@ import (
 )
 
 // Scope freezes the parent's effective values into a named child scope. Child
-// writes, sibling writes, and later parent writes remain isolated. Immutable
-// value files are shared; the child publishes its own index when next used.
+// local writes, sibling writes, and later parent writes remain isolated.
+// Inherited keys are read-only; new keys belong exclusively to the child along
+// its ancestor/descendant chain. Immutable value files are shared; the child
+// publishes its own index when next used.
 // Files are immutable by API convention. Scope routes are not access controls:
 // agent tools can read neighboring layers and otherwise use the filesystem.
 //
@@ -52,6 +54,7 @@ func Scope(ctx context.Context, name string) (context.Context, error) {
 	}
 	child := &contextStore{
 		dir: dir, limits: parent.limits, scope: path,
+		tree: parent.tree, parent: parent,
 		values: maps.Clone(parent.values), revision: parent.revision,
 	}
 	return context.WithValue(ctx, contextKey{}, child), nil

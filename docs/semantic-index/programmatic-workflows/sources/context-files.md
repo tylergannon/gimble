@@ -34,10 +34,10 @@ For named scopes and physical branches, continue to [context scopes](context-sco
 
 - Context demo with short step instructions and three data-growth stages:
   `examples/go-workflows/context/main.go:15-44`.
-- Store creation and immutable-value setter:
-  `examples/go-workflows/internal/program/context.go:48-121`.
+- Store creation, scope ownership, and immutable-value setter:
+  `examples/go-workflows/internal/program/context.go:38-162`.
 - Snapshot publication, complete view, and bounded context projection:
-  `examples/go-workflows/internal/program/context.go:123-248`.
+  `examples/go-workflows/internal/program/context.go:164-289`.
 - Native-tool view with `values/<key>.json` and `index.json` symlinks:
   `examples/go-workflows/internal/program/view.go:10-47`.
 - Automatic snapshot before invoking an agent callback:

@@ -31,8 +31,10 @@ func TestSprintsShareItemScopeWithValidationAndRetries(t *testing.T) {
 			t.Fatalf("wrong scope: %v", snapshot.Scope)
 		}
 		if worked[item.Name] == 0 {
-			if value, _ := scopedValue(t, snapshot, "attempt"); value != "0" {
-				t.Fatalf("initial sprint validation inherited a parent attempt: %s", value)
+			metadata, _ := scopedValue(t, snapshot, "sprint")
+			var state itemState
+			if err := json.Unmarshal([]byte(metadata), &state); err != nil || state.Attempt != 0 {
+				t.Fatalf("initial sprint validation has wrong attempt: %s, %v", metadata, err)
 			}
 		}
 		if item.Name == "first" {
@@ -49,8 +51,8 @@ func TestSprintsShareItemScopeWithValidationAndRetries(t *testing.T) {
 		}
 		snapshot := scopedSnapshot(t, sprint.Context)
 		metadata, _ := scopedValue(t, snapshot, "sprint")
-		var item Item
-		if err := json.Unmarshal([]byte(metadata), &item); err != nil || item != sprint.Item {
+		var state itemState
+		if err := json.Unmarshal([]byte(metadata), &state); err != nil || state.Item != sprint.Item || state.Attempt != sprint.Attempt {
 			t.Fatalf("scope kept stale checklist state: %s, %v", metadata, err)
 		}
 		if value, _ := scopedValue(t, snapshot, "goal"); value != `"original"` {

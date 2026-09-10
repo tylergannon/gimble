@@ -38,7 +38,7 @@ func scopedValue(t *testing.T, snapshot ContextSnapshot, key string) (string, st
 	return "", ""
 }
 
-func TestScopeNestedShadowingRestoresParent(t *testing.T) {
+func TestScopeNestedValuesRestoreParent(t *testing.T) {
 	type callerKey struct{}
 	base := context.WithValue(t.Context(), callerKey{}, "caller state")
 	root, err := NewContext(base, t.TempDir(), ContextLimits{ValueBytes: 256, PromptBytes: 2000})
@@ -53,14 +53,14 @@ func TestScopeNestedShadowingRestoresParent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(chapter, "focus", "chapter work"); err != nil {
+	if err := SetContext(chapter, "chapter_focus", "chapter work"); err != nil {
 		t.Fatal(err)
 	}
 	sprint, err := Scope(chapter, "sprint")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(sprint, "focus", "sprint work"); err != nil {
+	if err := SetContext(sprint, "sprint_focus", "sprint work"); err != nil {
 		t.Fatal(err)
 	}
 	current := scopedSnapshot(t, sprint)
@@ -70,7 +70,7 @@ func TestScopeNestedShadowingRestoresParent(t *testing.T) {
 	if sprint.Value(callerKey{}) != "caller state" {
 		t.Fatal("scope discarded another Go context value")
 	}
-	if value, _ := scopedValue(t, current, "focus"); value != `"sprint work"` {
+	if value, _ := scopedValue(t, current, "sprint_focus"); value != `"sprint work"` {
 		t.Fatalf("sprint focus: %s", value)
 	}
 	parent := scopedSnapshot(t, chapter)
@@ -78,7 +78,7 @@ func TestScopeNestedShadowingRestoresParent(t *testing.T) {
 	if filepath.Dir(childDir) != parentDir {
 		t.Fatalf("child storage %s is not inside parent layer %s", childDir, parentDir)
 	}
-	if value, _ := scopedValue(t, parent, "focus"); value != `"chapter work"` {
+	if value, _ := scopedValue(t, parent, "chapter_focus"); value != `"chapter work"` {
 		t.Fatalf("child write leaked to parent: %s", value)
 	}
 	if restored := scopedSnapshot(t, root); !reflect.DeepEqual(restored, original) {
@@ -138,7 +138,7 @@ func TestScopeParallelSiblingWritesAreIsolated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SetContext(parent, "choice", "parent"); err != nil {
+	if err := SetContext(parent, "goal", "parent"); err != nil {
 		t.Fatal(err)
 	}
 	group, ctx := errgroup.WithContext(parent)
@@ -164,7 +164,7 @@ func TestScopeParallelSiblingWritesAreIsolated(t *testing.T) {
 			t.Fatalf("sibling %d contains %s", i, value)
 		}
 	}
-	if value, _ := scopedValue(t, scopedSnapshot(t, parent), "choice"); value != `"parent"` {
+	if value, _ := scopedValue(t, scopedSnapshot(t, parent), "goal"); value != `"parent"` {
 		t.Fatalf("parallel child writes leaked to parent: %s", value)
 	}
 }

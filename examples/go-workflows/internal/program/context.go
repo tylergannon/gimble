@@ -35,8 +35,20 @@ type contextValue struct {
 	path string
 }
 
+type contextOwner struct {
+	store *contextStore
+	key   string
+}
+
+type contextTree struct {
+	mu     sync.Mutex
+	owners map[string][]contextOwner
+}
+
 type contextStore struct {
 	mu       sync.Mutex
+	tree     *contextTree
+	parent   *contextStore
 	dir      string
 	limits   ContextLimits
 	values   map[string]contextValue
@@ -73,14 +85,20 @@ func NewContext(ctx context.Context, dir string, limits ContextLimits) (context.
 		_ = os.Remove(root)
 		return nil, err
 	}
-	store := &contextStore{dir: root, limits: limits, values: make(map[string]contextValue)}
+	store := &contextStore{
+		dir: root, limits: limits, values: make(map[string]contextValue),
+		tree: &contextTree{owners: make(map[string][]contextOwner)},
+	}
 	return context.WithValue(ctx, contextKey{}, store), nil
 }
 
 // SetContext preserves the complete JSON value immediately. It invalidates the
 // projection but does no indexing: ordinary Go can continue until an agent asks
 // for a snapshot. Ordinary derived contexts share this store; Scope creates a
-// named, isolated snapshot of its parent's values instead.
+// named, isolated snapshot of its parent's values instead. A key belongs to the
+// first scope that writes it. Only that scope may replace it; ancestors and
+// descendants cannot claim the same key, even if their snapshots lack it.
+// Siblings may independently own the same key in their separate branches.
 func SetContext(ctx context.Context, key string, value any) error {
 	store, ok := ctx.Value(contextKey{}).(*contextStore)
 	if !ok {
@@ -96,14 +114,24 @@ func SetContext(ctx context.Context, key string, value any) error {
 	if err != nil {
 		return fmt.Errorf("encode context %q: %w", key, err)
 	}
+	// Keep the ownership check and successful claim atomic across the tree.
+	// Snapshotting and scope creation only need the individual store's lock.
+	store.tree.mu.Lock()
+	defer store.tree.mu.Unlock()
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	for existing := range store.values {
-		if existing != key && strings.EqualFold(existing, key) {
-			return fmt.Errorf("context key %q conflicts with existing key %q on case-insensitive filesystems", key, existing)
+	owned := false
+	for _, owner := range store.tree.owners[strings.ToLower(key)] {
+		if owner.store == store {
+			if owner.key != key {
+				return fmt.Errorf("context key %q conflicts with existing key %q on case-insensitive filesystems", key, owner.key)
+			}
+			owned = true
+		} else if owner.store.ancestorOf(store) || store.ancestorOf(owner.store) {
+			return fmt.Errorf("context key %q cannot be written in scope %q: owned by scope %q", key, store.scope, owner.store.scope)
 		}
 	}
 	file, err := writeContextFile(store.dir, fmt.Sprintf("value-%06d-*.json", store.revision+1), raw)
@@ -114,10 +142,23 @@ func SetContext(ctx context.Context, key string, value any) error {
 		_ = os.Remove(file)
 		return err
 	}
+	if !owned {
+		normalized := strings.ToLower(key)
+		store.tree.owners[normalized] = append(store.tree.owners[normalized], contextOwner{store: store, key: key})
+	}
 	store.values[key] = contextValue{raw: raw, path: file}
 	store.revision++
 	store.snapshot = nil
 	return nil
+}
+
+func (store *contextStore) ancestorOf(other *contextStore) bool {
+	for parent := other.parent; parent != nil; parent = parent.parent {
+		if parent == store {
+			return true
+		}
+	}
+	return false
 }
 
 // SnapshotContext is the indexing barrier before an agent call. Pending setters
