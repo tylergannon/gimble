@@ -10,6 +10,7 @@ import (
 )
 
 //go:generate go tool polytype --validate
+//go:generate go run ./internal/generatefixups detach-doc jsonschema_gen.go
 
 // AgentOption is an argument to Generate. The same options are a
 // supervisor's own where WithSupervisor attaches it, so a supervisor can
@@ -53,8 +54,8 @@ func apply(opts []AgentOption) options {
 	return o
 }
 
-// Review is a supervisor's answer to one look at the work.
-type Review struct {
+// review is a supervisor's answer to one look at the work.
+type review struct {
 	// Each objection is one thing the agent under review must change or stop doing, written as an instruction to that agent. Leave the list empty when you have no objection.
 	Objections []string `json:"objections"`
 }
@@ -103,7 +104,7 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 				}
 				look := lookPrompt(sup, prompt, seen == 0, events)
 				seen += len(events)
-				review, err := sup.session.Generate[Review](withSteerSource(ctx, sup.session.id), look, sup.opts...)
+				review, err := sup.session.Generate[review](withSteerSource(ctx, sup.session.id), look, sup.opts...)
 				if err != nil {
 					logf("%s: a look at %s failed: %v", sup.session.id, s.id, err)
 					continue

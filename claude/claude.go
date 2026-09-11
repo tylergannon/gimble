@@ -19,8 +19,8 @@ import (
 
 const controlTimeout = 5 * time.Second
 
-// Adapter runs Claude Code sessions. The zero value is not usable; call New.
-type Adapter struct {
+// adapter runs Claude Code sessions.
+type adapter struct {
 	mu       sync.Mutex
 	sessions map[string]*session
 }
@@ -40,19 +40,20 @@ type activeTurn struct {
 	emit   *projector
 }
 
-// New returns an adapter that launches Claude Code.
-func New() *Adapter {
-	return &Adapter{sessions: make(map[string]*session)}
+// New returns Gimble's Claude Code harness. It launches Claude Code when a
+// session first needs it.
+func New() gimble.HarnessAdapter {
+	return &adapter{sessions: make(map[string]*session)}
 }
 
 // CreateSession mints the id the first turn passes as --session-id.
-func (a *Adapter) CreateSession(ctx context.Context, model, workdir string) (string, error) {
+func (a *adapter) CreateSession(ctx context.Context, model, workdir string) (string, error) {
 	return a.add(&session{model: model, workdir: workdir, fresh: true})
 }
 
 // Fork mints an id for a new session that forks from sessionID on its
 // first turn, with --resume and --fork-session.
-func (a *Adapter) Fork(ctx context.Context, sessionID string) (string, error) {
+func (a *adapter) Fork(ctx context.Context, sessionID string) (string, error) {
 	parent, err := a.session(sessionID)
 	if err != nil {
 		return "", err
@@ -60,7 +61,7 @@ func (a *Adapter) Fork(ctx context.Context, sessionID string) (string, error) {
 	return a.add(&session{model: parent.model, workdir: parent.workdir, parent: sessionID})
 }
 
-func (a *Adapter) add(s *session) (string, error) {
+func (a *adapter) add(s *session) (string, error) {
 	var u [16]byte
 	if _, err := rand.Read(u[:]); err != nil {
 		return "", fmt.Errorf("claude: mint a session id: %w", err)
@@ -75,7 +76,7 @@ func (a *Adapter) add(s *session) (string, error) {
 }
 
 // RunTurn runs one turn and blocks until it ends.
-func (a *Adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.Event)) (json.RawMessage, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.Event)) (json.RawMessage, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
 		return nil, err
@@ -155,7 +156,7 @@ func (a *Adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 }
 
 // Steer sends message into the session's running turn, if there is one.
-func (a *Adapter) Steer(ctx context.Context, sessionID, message string) error {
+func (a *adapter) Steer(ctx context.Context, sessionID, message string) error {
 	s, err := a.session(sessionID)
 	if err != nil {
 		return err
@@ -176,7 +177,7 @@ func (a *Adapter) Steer(ctx context.Context, sessionID, message string) error {
 	return nil
 }
 
-func (a *Adapter) Interrupt(ctx context.Context, sessionID string) error {
+func (a *adapter) Interrupt(ctx context.Context, sessionID string) error {
 	s, err := a.session(sessionID)
 	if err != nil {
 		return err
@@ -189,7 +190,7 @@ func (a *Adapter) Interrupt(ctx context.Context, sessionID string) error {
 	return err
 }
 
-func (a *Adapter) session(id string) (*session, error) {
+func (a *adapter) session(id string) (*session, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if s := a.sessions[id]; s != nil {
@@ -330,4 +331,4 @@ func fatalStderr(data string) error {
 	return nil
 }
 
-var _ gimble.HarnessAdapter = (*Adapter)(nil)
+var _ gimble.HarnessAdapter = (*adapter)(nil)

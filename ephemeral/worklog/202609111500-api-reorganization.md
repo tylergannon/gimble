@@ -1,0 +1,8 @@
+correction: Godoc, not a published API.md, is the authoritative public API definition.
+correction: The runtime owns and automatically starts the web application; web serving is not a separate public subsystem.
+decision: Concrete provider implementations are private. Role-based model reconciliation is the direction, but its public contract is not settled, so this pass does not invent replacement session/provider names.
+design_bug: Event currently combines unrelated variants in a comprehensive struct; issue #122 owns replacement with Polytype sealed unions, and this task leaves Event unchanged.
+decision: HarnessAdapter remains in the root package for this pass because moving it without Event would either create an import cycle or force a temporary duplicate event contract; issue #122 should move both along the final dependency boundary.
+friction: The generated SvelteKit build was ignored, so a runtime that serves the web application by default would compile from a checkout but not from the published module -> commit the small embedded build and keep its browser origin relative so WithPort works without rebuilding.
+friction: skgo's generated route package used symlinks, which Go module archives omit -> generation now materializes those links as regular files after skgo runs.
+proof: The rebuilt production binary served the embedded application on a selected loopback port and all three browser scenarios passed; runtime tests exercised TCP, UDS, cancellation, and socket cleanup. `just build`, `go test ./...`, `go vet ./...`, `go test -race .`, repeated generation, and `git diff --check` passed before the PR commit.

@@ -11,16 +11,19 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/tylergannon/gimble/internal/runlog"
 )
 
 // fake is a HarnessAdapter whose turns are answered by a function.
 type fake struct {
 	answer func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error)
 
-	mu      sync.Mutex
-	made    int
-	steers  []string
-	running map[string]func(Event)
+	mu         sync.Mutex
+	made       int
+	steers     []string
+	interrupts int
+	running    map[string]func(Event)
 }
 
 func (f *fake) CreateSession(ctx context.Context, model, workdir string) (string, error) {
@@ -63,32 +66,47 @@ func (f *fake) Steer(ctx context.Context, session, message string) error {
 	return nil
 }
 
+func (f *fake) Interrupt(context.Context, string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.interrupts++
+	return nil
+}
+
 func (f *fake) Fork(ctx context.Context, session string) (string, error) {
 	return session + "-fork", nil
 }
 
 func runTest(t *testing.T, body func(ctx context.Context) error) error {
 	t.Helper()
-	return Run(Project(t.Context(), t.TempDir()), "test", body)
+	runtime, err := NewRuntime(t.Context(), t.TempDir(), WithNoWeb())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return runtime.Run(t.Context(), "test", body)
 }
 
-func TestRunDirAndReadRun(t *testing.T) {
+func TestRunLogCanBeRead(t *testing.T) {
 	project := t.TempDir()
 	var dir string
-	if err := Run(Project(t.Context(), project), "reader", func(ctx context.Context) error {
-		dir = RunDir(ctx)
+	runtime, err := NewRuntime(t.Context(), project, WithNoWeb())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runtime.Run(t.Context(), "reader", func(ctx context.Context) error {
+		dir = runDir(ctx)
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if dir == "" {
-		t.Fatal("RunDir returned empty inside a run")
+		t.Fatal("run directory was empty inside a run")
 	}
-	if RunDir(t.Context()) != "" {
-		t.Fatal("RunDir returned a directory outside a run")
+	if runDir(t.Context()) != "" {
+		t.Fatal("run directory was present outside a run")
 	}
 	var got []string
-	if err := ReadRun(t.Context(), dir, func(e Event) error {
+	if err := runlog.Read[Event](t.Context(), dir, func(e Event) error {
 		got = append(got, e.Kind)
 		return nil
 	}); err != nil {
@@ -107,7 +125,7 @@ func TestRunDirAndReadRun(t *testing.T) {
 	seen := make(chan string, 2)
 	readErr := make(chan error, 1)
 	go func() {
-		readErr <- ReadRun(t.Context(), liveDir, func(e Event) error {
+		readErr <- runlog.Read[Event](t.Context(), liveDir, func(e Event) error {
 			seen <- e.Kind
 			return nil
 		})
@@ -139,7 +157,7 @@ func TestScopeData(t *testing.T) {
 		if err := Set(ctx, "language", "rust"); err == nil {
 			t.Error("a second Set of a key in one scope succeeded")
 		}
-		if err := SetJSON(ctx, "review", Review{Objections: []string{"too big"}}); err != nil {
+		if err := SetJSON(ctx, "review", review{Objections: []string{"too big"}}); err != nil {
 			return err
 		}
 		var inner context.Context
@@ -183,11 +201,11 @@ func TestGenerate(t *testing.T) {
 		if err != nil || text != "hello" {
 			t.Errorf("Generate[Text] = %q, %v", text, err)
 		}
-		review, err := s.Generate[Review](ctx, "review")
-		if err != nil || len(review.Objections) != 1 {
-			t.Errorf("Generate[Review] = %v, %v", review, err)
+		gotReview, err := s.Generate[review](ctx, "review")
+		if err != nil || len(gotReview.Objections) != 1 {
+			t.Errorf("Generate[review] = %v, %v", gotReview, err)
 		}
-		if _, err := s.Generate[Review](ctx, "bad"); err == nil {
+		if _, err := s.Generate[review](ctx, "bad"); err == nil {
 			t.Error("a result that does not validate was accepted")
 		}
 		if s.id != "coder.1" || NewSession(ctx, "coder", f, "m", "/w").id != "coder.2" {
@@ -206,6 +224,38 @@ func TestGenerate(t *testing.T) {
 	}
 	if _, err := escaped.Generate[Text](t.Context(), "zombie"); err == nil {
 		t.Error("a session whose scope ended ran a turn")
+	}
+}
+
+func TestInterruptUsesHarnessContract(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	f := &fake{answer: func(context.Context, string, string, json.RawMessage, func(Event)) (string, error) {
+		close(started)
+		<-release
+		return "done", nil
+	}}
+	err := runTest(t, func(ctx context.Context) error {
+		session := NewSession(ctx, "worker", f, "model", t.TempDir())
+		done := make(chan error, 1)
+		go func() {
+			_, err := session.Generate[Text](ctx, "work")
+			done <- err
+		}()
+		<-started
+		if err := session.Interrupt(ctx); err != nil {
+			return err
+		}
+		close(release)
+		return <-done
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.interrupts != 1 {
+		t.Fatalf("interrupt calls = %d", f.interrupts)
 	}
 }
 
@@ -453,12 +503,15 @@ func TestAttestEventFixture(t *testing.T) {
 		return "done", nil
 	}
 
-	ctx := Project(t.Context(), project)
+	runtime, err := NewRuntime(t.Context(), project, WithNoWeb())
+	if err != nil {
+		t.Fatal(err)
+	}
 	runDone := make(chan error, 1)
 	go func() {
-		runDone <- Run(ctx, "attest", func(ctx context.Context) error {
-			if RunDir(ctx) == "" {
-				return errors.New("RunDir returned empty inside a run")
+		runDone <- runtime.Run(t.Context(), "attest", func(ctx context.Context) error {
+			if runDir(ctx) == "" {
+				return errors.New("run directory was empty inside a run")
 			}
 			if err := Set(ctx, "root", "value"); err != nil {
 				return err
@@ -513,7 +566,7 @@ func TestAttestEventFixture(t *testing.T) {
 	var tailed []Event
 	readDone := make(chan error, 1)
 	go func() {
-		readDone <- ReadRun(t.Context(), runDir, func(e Event) error {
+		readDone <- runlog.Read[Event](t.Context(), runDir, func(e Event) error {
 			tailed = append(tailed, e)
 			return nil
 		})

@@ -1,1 +1,0 @@
-../../../web/src/routes/skgo_remotes_gen.go

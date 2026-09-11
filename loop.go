@@ -14,7 +14,9 @@ import (
 
 // Task is one lap's work: the lap number, from 1, and the planner's text.
 type Task struct {
-	Lap  int
+	// Lap is the one-based number of this task in the loop.
+	Lap int
+	// Text is the complete next task supplied by the planner.
 	Text string
 }
 
@@ -32,10 +34,20 @@ type loop struct {
 	err     error
 }
 
-// Loop iterates a backlog file, where the planner decides each lap what
-// comes next. The file is markdown with YAML frontmatter: the goal, as a
-// Definition of Done, and a list of steps, each with an optional command.
-// It lives in the run directory at the loop's scope path.
+// Loop creates a planner-owned backlog loop. Range over its Laps field, then
+// return its Err method's result:
+//
+//	loop := gimble.Loop(ctx, "delivery", goal, planner)
+//	for ctx, task := range loop.Laps {
+//		// Perform task.Text in the lap's ctx.
+//	}
+//	return loop.Err()
+//
+// The backlog is Markdown with YAML frontmatter containing the goal and steps
+// with optional commands. It lives beneath the loop's scope in the run
+// directory. Each lap reloads the file, runs its commands as facts for the
+// planner, asks for one next task, and yields that task in a child scope. The
+// loop ends when the planner returns no task.
 func Loop(ctx context.Context, name, goal string, planner *Session) *loop {
 	return &loop{ctx: ctx, name: name, goal: goal, planner: planner}
 }
