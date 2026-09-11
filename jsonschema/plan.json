@@ -1,0 +1,4 @@
+{"type":"object",
+"description":"plan is the planner's answer each lap.","properties":{
+"next":{"type":"string","description":"The next task: one self-contained piece of work that moves the goal forward, written as complete instructions for an agent who has not seen the backlog. Leave it empty when the goal is met and nothing is left to do."}
+},"required":["next"],"additionalProperties":false}

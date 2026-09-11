@@ -20,3 +20,15 @@ ephemeral/**/checkpoint.json
 ephemeral/**/mcp-*.log
 ephemeral/**/stdout.json
 ephemeral/**/*.zip
+
+# skgo app
+/bin/
+/tmp/
+web/node_modules/
+web/.svelte-kit/
+web/build/
+e2e/.features-gen/
+e2e/node_modules/
+e2e/playwright-report/
+e2e/screenshots/
+e2e/test-results/
