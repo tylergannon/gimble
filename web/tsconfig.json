@@ -1,0 +1,12 @@
+{
+	"extends": "$app/tsconfig",
+	"compilerOptions": {
+		"strict": true
+	},
+	"include": [
+		"src/**/*",
+		"vite.config.ts",
+		".svelte-kit/types/**/*"
+	],
+	"exclude": ["build", "node_modules"]
+}

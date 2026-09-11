@@ -1,0 +1,31 @@
+{
+	"name": "gimble-web",
+	"private": true,
+	"type": "module",
+	"imports": {
+		"#lib/*": "./src/lib/*"
+	},
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+	},
+	"devDependencies": {
+		"@skgo/sveltekit-adapter": "<=0.3.4",
+		"@sveltejs/kit": "3.0.0-next.27",
+		"@sveltejs/vite-plugin-svelte": "7.3.0",
+		"@types/node": "22.20.1",
+		"svelte": "5.57.0",
+		"svelte-check": "4.7.6",
+		"typescript": "6.0.3",
+		"vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
+		"vite-plus": "0.3.1"
+	},
+	"devEngines": {
+		"packageManager": {
+			"name": "pnpm",
+			"version": "11.25.0",
+			"onFail": "download"
+		}
+	}
+}

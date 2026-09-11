@@ -17,23 +17,35 @@ type HarnessAdapter interface { /* ... */ }
 // Session is a concrete struct wrapping one adapter session.
 type Session struct { /* adapter, session id, model, workdir */ }
 
+// NewSession creates a session in the scope the ctx is in, named for the
+// graph. It cannot fail: the agent process starts on the first turn, and
+// the adapter carries the harness-specific config.
+func NewSession(ctx context.Context, name string, adapter HarnessAdapter, model, workdir string) *Session
+
 // Generate runs one turn and blocks until it ends. T is a polytype-generated
-// type: its schema is sent with the prompt, and the result is validated and
-// decoded into T.
-func (s *Session) Generate[T Output](ctx context.Context, prompt string) (T, error)
+// type: its schema is sent with the prompt, and the result is validated
+// once, here, and decoded into T. A failed validation is an error. For
+// gimble.Text no schema is sent and the result is the final message. The
+// only option is Supervise (see Supervise).
+func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...Option) (T, error)
 
 // Steer injects a message into the turn that is running on this session.
 // It is called from another goroutine while Generate blocks. The message
-// lands at the worker's next model call.
+// lands at the worker's next model call. If no turn is running the message
+// is dropped, and Steer returns nil either way; the log records whether it
+// landed. The error is for a harness that could not be reached.
 func (s *Session) Steer(ctx context.Context, message string) error
 
 // Interrupt stops the turn that is running on this session. Generate
 // returns with an error. Cancelling Generate's context does the same thing;
 // the method is for callers that hold the session but not the context.
+// With no turn running it does nothing and returns nil, for the same
+// reason Steer does not error: the caller can always lose that race.
 func (s *Session) Interrupt(ctx context.Context) error
 
-// Fork returns a new session, named for the graph, with the same
-// conversation so far. The two sessions are independent after that.
+// Fork returns a new session, named for the graph, in the same workdir,
+// with the same conversation so far. The two sessions are independent
+// after that.
 func (s *Session) Fork(ctx context.Context, name string) (*Session, error)
 ```
 
@@ -41,8 +53,23 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error)
   method (Go 1.27 allows generic methods on concrete types, never on
   interfaces). Unit tests fake the `HarnessAdapter` underneath; proof comes
   from live runs.
-- Sessions are created with `gimble.NewSession(ctx, name, ...)`. The run
-  is in the ctx, and so is the scope the session belongs to (see Scope).
+- Sessions are created with `gimble.NewSession(ctx, name, adapter, model,
+  workdir)`. The run is in the ctx, and so is the scope the session belongs
+  to (see Scope). `workdir` is a path. Gimble has no worktree primitive: a
+  workflow that wants a candidate in its own worktree runs `git worktree
+  add` at the top of the scope body, removes it in a `defer`, and hands the
+  path to `NewSession`, so the worktree ends with the scope like everything
+  else.
+- One method for every turn. A prose turn is `Generate[gimble.Text]`, a
+  polytype type Gimble ships, and for it the adapter sends no schema and
+  returns the final message. This is where AI SDK 6 landed too: it
+  deprecated `generateObject` and left one `generateText`, whose `output`
+  setting decides whether the result is text or a validated object. The
+  type parameter is that setting.
+- Validation happens once, in `Generate`, with `T`'s `ValidateJSON`, and a
+  failure is an error. The harnesses enforce the schema natively, so it is
+  rare, and a retry is a follow-up on the same session when a live run
+  shows one is needed.
 - A follow-up is another `Generate` on the same session. There is no
   `FollowUp`.
 - `Steer` is a primitive, not an option. `Supervise` is built on it, and a
@@ -50,14 +77,21 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error)
   timer). The legacy adapters implement it: Codex through native
   `turn/steer` on the active turn, Claude by sending on the live SDK
   session, and agy, which has no native steer, by interrupting the process
-  and replaying the message on the resumed turn.
+  and replaying the message on the resumed turn. It never errors for want
+  of a turn: a reviewer or a person can always lose the race with the turn
+  ending, and an error there would report timing, not a bug. The log says
+  whether each steer landed or was dropped, and the page shows whether a
+  turn is running before anyone types.
 - `Fork` exists because loading a session with research costs tokens and
   minutes, and a fork pays that once. Prime one session, then fork it for
   the coder and the validator so both start already knowing the codebase;
   or research, fork, attempt, and on failure attempt again from the fork
   instead of from scratch. Forks share one harness, so priming that has to
   cross models is a doc both sessions read, not a fork. Two forks in the
-  same workdir cannot run turns at once.
+  same workdir cannot run turns at once. A fork inherits its parent's
+  workdir: the conversation is about that tree and the transcript is full
+  of its paths. Whether a harness forks natively or resumes from a copied
+  transcript is the adapter's business, not the API's.
 
 ## Context
 
@@ -75,8 +109,9 @@ lifetime that owns it, not from whoever triggered it.**
   `http.Server.BaseContext` to return the root, so every request context is
   a child of root and dies with it.
 - A steer from a handler is a short call; `r.Context()` is fine.
-- A turn started from a handler derives from the run's context, not the
-  request's. A dropped browser tab must not kill twenty minutes of work.
+- A run started from a form handler on the page derives from the
+  project's root, not the request's (that is `Start`, under Run). A
+  dropped browser tab must not kill twenty minutes of work.
 - An observer streaming events derives from the request. Losing the client
   ends the stream, not the turn.
 - "Cancel when either of two contexts dies" is `context.AfterFunc`, not a
@@ -178,8 +213,9 @@ Identity is in the ctx; data is in the run.
   chain the same way, innermost wins, and the workflow puts it in the
   prompt itself. `Generate` injects nothing.
 - Two `Set` functions, because a Go constraint cannot mix a type set with
-  an interface that has methods. `Set` takes scalars and derives their
-  schema. `SetJSON` takes polytype-generated types, the same `Output` that
+  an interface that has methods. `Set` takes `~string | ~int | ~float64 |
+  ~bool | ~[]string`, tilde so a named string type works, and derives
+  their schema. `SetJSON` takes polytype-generated types, the same `Output` that
   `Generate` decodes into, so a value carries its schema and the field
   descriptions an agent reads. An arbitrary struct or a map does not
   compile, which is the point.
@@ -219,12 +255,17 @@ for ctx, prompt := range gimble.Each(ctx, "attempt", prompts) {
 }
 ```
 
+`Each` is built with `Scope`, before `Loop`: it is the iterator with
+nothing to decide, and `Loop` is the least settled thing in this doc.
+
 A group made inside a lap is waited inside the lap. One that should
 outlive laps is made in the loop's scope, outside the range.
 
 **Lints.** The rules above are checkable statically, in one analyzer over
 the ssa form, and the runtime errors stay as the backstop for what it
-cannot see:
+cannot see. Every lint fails the build; there is no warning level, because
+a name built at runtime silently loses a node from the page, which is worse
+than a red build:
 
 - Two `Set` calls with the same constant key under the same scope, with no
   scope between them.
@@ -243,9 +284,9 @@ cannot see:
 **Files.** Later, and without changing the API: the store is written
 through to the run directory. Go keeps reading from memory, so there is no
 filesystem read race on the Go side; the files are for agents, the page,
-and restart. Layout is the scope chain, as in
-`run/scopes/sprint/attempt.3/research.json`, with instances of a repeated
-scope given an ordinal by the runtime. The runtime is the only writer;
+and, one day, restart. Layout is the scope key from Events, as in
+`run/scopes/lap.3/attempt.2/research.json`, each segment a scope name
+with its ordinal. The runtime is the only writer;
 agents and the page read. Writes are atomic, temp file then rename, and a
 scope's directory is frozen when the scope ends. The directory tree is the scope
 tree is the graph. Once files exist, `ScopeText` can reference a large
@@ -257,17 +298,101 @@ A run is the root scope, and there is a runtime object behind it. The
 workflow never holds it.
 
 ```go
+// Run starts one run of a workflow and blocks until the body returns. The
+// run's ctx derives from the caller's, so main can put a deadline on it.
 func Run(ctx context.Context, name string, body func(ctx context.Context) error) error
+
+// Start is for a caller that must not own the run, such as a form handler
+// on the page: the run's ctx derives from the project's root, not the
+// request's, and Start returns the run id at once.
+func Start(ctx context.Context, name string, body func(ctx context.Context) error) (string, error)
+
+// Project puts the runs directory and the live registry in the root ctx.
+func Project(ctx context.Context, dir string) context.Context
+
+// Serve binds the address, then serves the project in the background until
+// the ctx ends. It is in package web, beside the embedded build, because
+// the page's remote functions import gimble and gimble cannot import the
+// page.
+func Serve(ctx context.Context, addr string) error
 ```
 
 The process is a server first. It serves the project's runs directory for
 its whole life, live runs and past ones alike, and it hosts the workflows
-compiled into it. `Run` creates a run inside it: a directory under the
-project's runs, the event log, the session registry, the scope store. It
-registers the run with the server as live, opens the root scope, and calls
-the body. When the body returns, the root scope ends like any other,
+compiled into it. `Run` and `Start` create a run inside it: a directory
+under the project's runs, the event log, the session registry, the scope
+store. They register the run with the server as live, open the root scope,
+and call the body. When the body returns, the root scope ends like any other,
 sessions closed and ctx cancelled, the log gets its final event, and from
 then on the run is served the way every past run is: from its log.
+
+How a run starts is ordinary Go in the workflow's `main`. There is no CLI
+in Gimble:
+
+```go
+func sprint(ctx context.Context, in SprintInput) error {
+	gimble.SetJSON(ctx, "input", in) // the page shows it as the root scope's data
+	// ...
+	return nil
+}
+
+func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	ctx = gimble.Project(ctx, ".gimble") // the runs dir and the live registry, in the root ctx
+	if err := web.Serve(ctx, ":8080"); err != nil {
+		log.Fatal(err)
+	}
+	err := gimble.Run(ctx, "sprint", func(ctx context.Context) error {
+		return sprint(ctx, SprintInput{Goal: os.Args[1]})
+	})
+	if err != nil {
+		log.Println(err)
+	}
+	<-ctx.Done() // keep serving until SIGINT; the page can start more runs meanwhile
+}
+```
+
+- The process stays up after the body returns, so the page does not die
+  under the person looking at it. A headless caller returns instead of
+  waiting on the ctx.
+- `Project` puts the project in the root ctx; `Serve`, `Run`, and `Start`
+  read it from there. Workflow tests call `Project` and `Run` with fake
+  adapters and no `Serve`.
+- The page starts runs through one form per workflow, typed with the
+  workflow's own input. It is a `skgo.Form` beside the workflow's Svelte
+  page, and this is all the code there is:
+
+  ```go
+  func startSprint(ctx context.Context, in SprintInput) (string, error) {
+  	return gimble.Start(ctx, "sprint", func(ctx context.Context) error { return sprint(ctx, in) })
+  }
+
+  var _ = skgo.Form(startSprint)
+  ```
+
+  Nothing untyped crosses the wire: no map, no raw JSON. The argument is
+  the type the body takes, a polytype type like anything else a workflow
+  sets or generates, so the compiler holds the handler to the workflow. skgo generates the page's TypeScript from the Go signatures,
+  and its own example has a test that renames a Go field on the wire and
+  requires the Svelte type check to fail naming the page that read it, so
+  the form cannot drift from the input either. The page's controls are
+  named by the input's fields, and an agent can write that page from the
+  Go type and its doc comments. One function and one page per workflow
+  does not scale to hundreds and does not need to; if it ever hurts, the
+  fallback is one `startRun` whose argument is a sealed union of every
+  input type, which polytype supports as long as the variants share a
+  package. A binary that leaves every start to the page is this `main`
+  without the `Run` call.
+- A run id is a timestamp and then the name, as in
+  `20260910-140322.sprint`: sortable in a listing, readable in a URL,
+  unique enough for one machine. The runs directory is `.gimble/runs/` in
+  the project being worked on, ignored by git.
+- A session id is the key of the scope that created it plus the session's
+  name and ordinal there, as in `lap.3/coder.1` (see Events); the
+  harness's native id is logged as an attribute. The remote functions take
+  the run and the session together, so nothing needs to be unique across
+  runs.
 
 The wiring between workflow state and the server is the ctx, in both
 directions:
@@ -280,12 +405,19 @@ directions:
   ctx that is a child of the process root, which carries the project: the
   runs directory and the registry of live runs. A watch tails a log from
   disk, live or past, and stops at the run's final event. `steer`,
-  `interrupt`, and a scope cancel need a live run and error on a past
-  one.
+  `interrupt`, and `cancelRun` need a live run and error on a past one.
 - Inside the run, the log has one writer and any number of readers, and
   the registries are maps under a mutex. Nothing is global, so two runs in
   one process do not see each other.
-- Tests call `Run` with fake adapters and the server off.
+- The log is files in the run directory: one for the run and one per
+  session, at paths an agent can be told. A workflow has no Go API for
+  events; a reviewer or a post-mortem agent that should know the event
+  stream is told where it is in its prompt. Token counts and timing are
+  logged per turn from the start, since the harnesses report them.
+- The server has its own tests, in the three layers skgo's example uses:
+  the remote functions as plain Go over a fixture runs directory (a past
+  run replays, a fake live run pushes), the assembled handler over the
+  embedded build under `httptest`, and a browser suite for the graph page.
 
 ## Concurrency: Scope and Group
 
@@ -326,11 +458,7 @@ for _, prompt := range prompts {
 	g.Go("attempt", func(ctx context.Context) error {
 		// One session per turn in flight. They share the name: the name is the
 		// node, and the page stacks the instances under it.
-		s, err := gimble.NewSession(ctx, "candidate", adapter, model, workdir)
-		if err != nil {
-			results <- outcome{err: err}
-			return nil
-		}
+		s := gimble.NewSession(ctx, "candidate", adapter, model, workdir)
 		res, err := s.Generate[Result](ctx, prompt)
 		results <- outcome{res, err} // a failure travels on the channel,
 		return nil                   // because returning it would cancel every other candidate
@@ -373,7 +501,7 @@ Why each line is there:
 When the candidates return different types, use one channel per type and a
 `select`, written in the workflow that needs it.
 
-## Loop: the first built-in
+## Loop
 
 Gimble provides two orchestration shapes, `Loop` and `Supervise`. `Loop`
 iterates a task file, where a planner agent decides each lap what comes
@@ -391,9 +519,12 @@ if err := loop.Err(); err != nil {
 
 The file is markdown with YAML frontmatter: the goal as a prose Definition
 of Done, and a list of steps. It lives in the run directory at the loop's
-scope path, so the durable state and the graph are one tree; kill the
-process, rerun, and the planner reads where things stand. The goal is a Go
-string, and the loop writes it into the file when it starts.
+scope path, so the durable state and the graph are one tree. The goal is a
+Go string, and the loop writes it into the file when it starts. A rerun is
+a new run: the planner reads the workdir and starts a fresh backlog from
+the goal, so what a crash costs is one planning lap and the planner's
+notes, not the work. Resuming those notes from an earlier run is an
+aspiration, not something the design bends around.
 
 Each lap the iterator:
 
@@ -429,14 +560,16 @@ Details:
 - When the planner names nothing, the iterator returns and `range` falls
   through. That is all `iter.Seq2` needs: the function exits. How the
   planner's JSON says "nothing" is the planner type's business and never
-  reaches the body. The yielded type is just `Task`; there is no `Done`
-  field, because the body never sees a lap where nothing is next.
+  reaches the body. The yielded `Task` is the lap number and the planner's
+  text, nothing more yet; there is no `Done` field, because the body never
+  sees a lap where nothing is next. The command results are the planner's
+  input, not the body's: the body's agent can run the commands itself.
 - The lap is a scope. When the body returns, the lap's sessions are closed
   and its ctx is cancelled; a group the body made was waited before that,
-  by the lint. A lap can be interrupted from
-  the page without stopping the loop: the body's `Generate` returns the
-  context error, and the planner sees an interrupted lap when it plans the
-  next.
+  by the lint. The page does not cancel laps, or any scope; it interrupts
+  a session's turn or cancels the whole run. A body that treats an
+  interrupted turn as a fact and continues gives the planner an
+  interrupted lap to plan from; one that returns the error ends the loop.
 - `Err` is checked after the range, the way `bufio.Scanner` does it,
   because the yielded pair is the context and the task. `Loop` fails only
   for real reasons: its file, a command that will not start, the planner's
@@ -450,7 +583,7 @@ Details:
 - Cost is one planner call per lap plus the commands. The legacy loop
   re-judged every inference item every lap, which was O(n²) judge calls.
 
-## Supervise: the second built-in
+## Supervise
 
 `Supervise` attaches reviewers to a turn. A reviewer is a session of its own
 and an instruction saying what to watch for.
@@ -544,7 +677,10 @@ for round := 1; ; round++ {
   tool result, not a token; that is what a review can judge.
 - A steer lands at the worker's next model call, same as a person talking
   over its shoulder. The reviewer judged a snapshot that is now a few
-  seconds old; that is fine.
+  seconds old; that is fine. If the turn ended first the steer is dropped,
+  and the objection comes back at the final look.
+- `maxRounds` is three, fixed. A workflow that wants another cap inlines
+  the loop above.
 - Reviewers are sessions, so a reviewer in round two remembers round one and
   can say "you still have not removed the plugin system."
 - Reviewers get the instruction, the worker's prompt, the transcript so far,
@@ -567,10 +703,12 @@ new Go shape, and it waits for a workflow that needs it.
 ## Observability
 
 The process serves a web page for every run in the project, live or past,
-that shows the graph of agents: every scope, every session, its turns, the
-reviewers watching each turn, every steer, and the transcript behind each
-node. A person at that page can steer or interrupt any
-session through the same `Steer` and `Interrupt` the reviewers use.
+that shows the graph of agents: every scope with its values, rendered the
+way `ScopeText` hands them to an agent inside it, every session, its
+turns, the reviewers watching each turn, every steer, and the transcript
+behind each node. A person at that page can steer or interrupt any
+session through the same `Steer` and `Interrupt` the reviewers use, and
+cancel a run.
 
 The graph has two sources. The runtime supplies what happened: every
 instance, and every edge, because structure is declared in scopes. A static
@@ -596,8 +734,9 @@ loop := gimble.Loop(ctx, "sprint", goal, planner)
   stacked under the node. So names are compile-time constants, and the
   static pass checks that. A name built at runtime would hide a node from
   it.
-- The name is the join key between the static pass and the log. Nothing
-  else would work: the runtime cannot know its call site without
+- The name is the join key between the static pass and the log; precisely,
+  the path of names from the root, which Events below calls the node key.
+  Nothing else would work: the runtime cannot know its call site without
   reflection, which is out, and a `file:line` key would churn on every
   edit anyway. A name at the call site is also visible to whoever reads the
   workflow.
@@ -611,15 +750,95 @@ loop := gimble.Loop(ctx, "sprint", goal, planner)
   steering from the page is a supervisor node too, one the runtime adds
   itself since it is not in the source.
 
-**The runtime** writes to the log what happened: each scope as it begins
-and ends, each instance as it is created (name, id, scope, parent for a
-fork), each turn's events (model calls, tool calls, tool results: the
-transcript), each `Supervise` attachment, each lap of a `Loop`, each `Set`,
-and each `Steer` with who sent it. That is the whole live graph.
+**The runtime** writes to the log what happened, as the events listed
+below, and that is the whole live graph.
+
+**Events** are of two kinds. Lifecycle events are Gimble's own and go in
+the run's log; the project log carries the run-level ones, which is the
+server-wide stream. Agent events are the harness's, one file per session
+under the run. Both kinds carry the same placement, and the placement is
+what draws the graph.
+
+**Keys.** Every scope instance has a key: the chain of scope names from
+the run's root, each with the ordinal the runtime gave that instance under
+its parent, as in `lap.3/bakeoff.1/attempt.2`. The root's key is empty. A
+session's id extends the key of the scope that created it, `lap.3/coder.1`,
+and a turn's id extends its session's, `lap.3/coder.1/turn.2`. Every event
+carries `seq`, `time`, the key of the scope it happened in, and the session
+and turn ids when it has them. That is the whole structure:
+
+- Containment is prefix. An event is inside every scope whose key prefixes
+  its own, and the scope tree is the prefix tree of the keys in the log.
+  No event names its parent.
+- Node identity is the key with the ordinals stripped, `lap/bakeoff/attempt`.
+  Every instance with the same node key stacks under one card, and the
+  node key, a path of constant names, is the join key with the static
+  pass. Two sessions both named `coder` under different scopes are
+  different nodes.
+- Peers share a parent key. Same node key under one parent means repeated
+  instances (laps, attempts); different node keys under one parent are the
+  different things that scope did (coder, validator).
+- Sequence within a scope instance is `seq` order, and it is a real
+  sequence: a scope's body is one goroutine, because `Group.Go` is the
+  only way to start another and every `Go` is a child scope. So two
+  sibling scopes whose began-ended intervals overlap ran concurrently, in
+  a group, and siblings that do not overlap ran one after another, in
+  laps or plain calls. The page tells a bake-off from a loop by the
+  intervals alone.
+- A turn's events carry the key of the scope where the turn ran, which
+  may be below the scope that created its session; the session id says
+  where it was created. That is how a coder made in the loop's scope shows
+  a turn in each lap.
+- Data is the same rule. A `Set` carries its scope key; the value a turn
+  saw for a key is the nearest prefix's `Set` before the turn's `seq`. The
+  page renders what any agent was shown by walking the prefix chain, with
+  no event for reads.
+
+Three relations are not prefixes, and they are fields on events that
+exist anyway, not new events: a forked session's parent; a `Supervise`
+attachment's reviewer session and worker turn; and a steer's source and
+target. Supervision is also the one concurrency inside a single scope:
+reviewer turns overlap the worker's, in Gimble's own code, marked by the
+attachment. Any other overlap inside one scope key is a bug.
+
+Lifecycle events, ours:
+
+- run: started (name), ended (error or none), cancelled (by whom).
+- scope: began (name), ended (error or none). Groups, laps, and attempts
+  are scopes; a lap's begin carries its task.
+- loop, per lap: each command run with its exit code, and the planner's
+  decision.
+- set: key, value.
+- session: created (name, adapter, model, workdir, parent for a fork),
+  closed.
+- turn: started (prompt, output type), ended (result or error, tokens,
+  duration, interrupted or not). A validation failure is an ended with an
+  error.
+- supervise: attached (reviewer session, worker turn, instruction).
+  Reviews are turns on the reviewer's session and rounds are follow-up
+  turns on the worker's, so neither needs an event of its own.
+- steer: target session, message, source, landed or dropped. interrupt:
+  session, source. cancel: run, source.
+
+Agent events, the harness's:
+
+- user message (the prompt, and each steer as it lands), assistant
+  message, thinking, tool call, tool result.
+- a delta: a part of a message, a thought, or a tool input still
+  accumulating, naming the id of what it extends. The log stores what the
+  harness emits at the grain it emits it, and the page coalesces by id, so
+  a live watch and a replay are the same code.
+- usage per model call (tokens, duration); the turn's ended event sums it.
+- a harness error or retry; an approval request, which the page may one
+  day answer; and a nested transcript when a harness runs a subagent
+  inside a tool call, the one shape that is not flat.
+
+What each event carries beyond its placement is settled by the page as it
+is drawn.
 
 **The static pass** draws the same graph before it has run: the template
-the page shows with nothing lit up yet. Over the ssa form of an entry point
-it finds every `Scope`, `Group`, `NewSession`, `Fork`, `Loop`, `Each`,
+the page shows with nothing lit up yet. Over the ssa form of each `Run` or
+`Start` body it finds every `Scope`, `Group`, `NewSession`, `Fork`, `Loop`, `Each`,
 `Supervise`, `Set`, and `Get`, with their constant names and keys, and
 traces each ctx from the scope that made it to the calls that receive it.
 Constant keys add data edges: this scope writes `research`, that node's
@@ -634,12 +853,14 @@ and it needs no agent: what an agent was going to guess about structure is
 now declared.
 
 The server is a `tylergannon/skgo` app: SvelteKit pages, Go remote
-functions beside them, one binary. The known surface so far is five remote
-functions, and there will be more as the page finds what it needs:
+functions beside them, one binary. The known surface so far is six remote
+functions shared by every workflow, plus one form per workflow that starts
+it (see Run), and there will be more as the page finds what it needs:
 
 ```go
-// listRuns names every run in the project, live and past.
-func listRuns(ctx context.Context) ([]RunInfo, error)
+// watchRuns is the server-wide stream: every run in the project, live and
+// past, pushed now and again whenever a run starts or ends.
+func watchRuns(ctx context.Context, yield func([]RunInfo) error) error
 
 // watchRun replays every event of one run from its log, then pushes each
 // new one until the run ends or the browser goes away. The page draws the
@@ -655,68 +876,62 @@ func watchSession(ctx context.Context, runID, sessionID string, yield func(Event
 // because a tab closed.
 func steer(ctx context.Context, runID, sessionID, message string) error
 func interrupt(ctx context.Context, runID, sessionID string) error
+
+// cancelRun cancels a live run's root ctx: every turn is interrupted, every
+// scope ends, the body returns. The page cancels whole runs and interrupts
+// single turns, and nothing in between; cancelling one scope of a running
+// workflow is a knob nobody has asked for.
+func cancelRun(ctx context.Context, runID string) error
 ```
 
 - The watches read logs from disk, so a past run and a live one go through
   the same code, and the log's final event is what tells a watch to stop.
   `Generate` writes events there, and the log feeds the reviewers'
-  transcripts, the page, and the post-mortem. Whether a workflow can also
-  see events stays open.
+  transcripts, the page, and the post-mortem. The workflow does not see
+  events through Go; an agent that should see them is told the path (see
+  Run).
 - A steer from the page is recorded like a reviewer's steer, attributed to
-  the person. In the graph the person is one more supervisor node, attached
-  to every session at once. `Steer` takes no source argument; the run
-  attributes by call path (`Supervise` knows its reviewer, the `steer`
-  command knows it is the console, anything else is the workflow).
+  the person and marked landed or dropped. In the graph the person is one
+  more supervisor node, attached to every session at once. `Steer` takes
+  no source argument; the run attributes by call path (`Supervise` knows
+  its reviewer, the `steer` command knows it is the console, anything else
+  is the workflow).
 - Contexts follow the rule above. A live query's `ctx` is the request's, so
-  a watch returns when the browser leaves; `steer` and `interrupt` are
-  short calls on the request context; nothing the page does can end a turn
-  except `interrupt`.
-- Build order: the skgo server comes first. The first commit is the server
-  over an empty runs directory, and the first run writes a log into it, so
-  every primitive after it
-  (`Scope`, `Generate`, `Steer`, `Supervise`, `Fork`) is visible in the
-  page the day
-  it is written, and the event schema gets answered by what the page needs
-  to draw rather than guessed here.
+  a watch returns when the browser leaves; `steer`, `interrupt`, and
+  `cancelRun` are short calls on the request context; nothing the page
+  does can end a turn except `interrupt` and `cancelRun`.
+- Build order: the API first, all of it, then the events into files, then
+  the page in two passes. The sequence is `SPRINTS.md` beside this file.
+  The event schema is still answered by what the page needs to draw, which
+  is why the page's second pass may grow `Event`.
 
 ## Still open
 
-- Plain-text turns: every turn typed (e.g. `struct{ Notes string }`), or a
-  separate text path.
-- `Compact`: left out until a workflow needs it.
-- `Fork`: whether it takes a workdir or inherits the parent's; which
-  harnesses fork natively and which resume from a transcript copy.
-- `Steer` when no turn is running: error, or drop like the legacy adapters.
-  The page argues for an error, since a message a person typed should not
-  vanish silently.
-- Validation: once, in `Generate`, or also in the adapter.
-- Session construction: settled that sessions are created from the ctx,
-  which carries the run, and carry a name. Still open: the arguments after
-  the name.
-- `Run`: written in above as the proposal; not yet agreed. How a run is
-  started in the long-lived process: the workflow named on the command
-  line, a command from the page, or a CLI client talking to the server.
-  Run ids, the runs directory layout, and whether session ids are unique
-  across runs.
-- Sessions closing with their scope: written in under Scope with the
-  argument; agreed in principle ("maybe both"), not yet firmly.
-- Interrupting a scope from the page (a lap, an attempt). The Loop section
-  promises it and the server does not list it yet; it is a command that
-  cancels one scope's ctx, distinct from `interrupt` on a session.
-- Events: what `Event` carries, decided by what the page needs to draw.
-  Cost and timing per turn are the obvious additions once the graph works.
-  Whether a workflow can see events, or only reviewers and the page.
-- The static pass: whether a non-constant name or key fails the build or
-  only warns, and how much of the template the page shows before a run.
-- Restart: whether rerunning reuses the run directory, and so the loop's
-  file and the scope values, or starts fresh. Only if runs resume does
-  set-once make a rerun segment check `Get` before doing its work again.
-- `Set`'s scalar type set: which kinds, and whether `[]string` is in it or
-  goes through polytype.
-- `Each`: the name, and whether it earns its place once a workflow uses it.
-- What `Task` carries beyond the planner's text: a lap number, the command
-  results, the step it corresponds to in the file.
-- `Supervise`: the round cap (a fixed default, an option, or `ctx` only) and
-  exactly what the review prompt shows the reviewer.
-- Multi-level hierarchy: which shapes it needs beyond nesting, once a
-  workflow models one.
+- `Compact`. Open-minded. What is wanted is not the harness's in-place
+  compaction but Gimble's own: a chosen prompt that extracts a chosen
+  shape of what the session knows. That program exists with today's
+  primitives: `Generate[Handoff]` on the old session, `SetJSON` of the
+  result in a scope, a new session whose first prompt carries
+  `ScopeText`. It puts the handoff on the page as scope data, which a
+  native compact never would. A `Compact` name waits for a workflow to
+  show that program is too clunky to write out.
+- Restart. A rerun is a new run, and resumability is an aspiration the
+  design does not bend around. If it comes, it is a new run seeded from an
+  earlier one by id, and set-once meets it then.
+- How a workflow learns its run directory to tell an agent about the log.
+  One function on the ctx when the first workflow needs it.
+- The template: how much of it the page shows before a run, once the static
+  pass exists.
+- `Supervise`: the wording of the prompt it sends a reviewer each look (the
+  instruction, the worker's prompt, the transcript so far, and at the end
+  the result, asking for objections). Prompt engineering against real
+  reviews, not API.
+- Hierarchy. Wanted: a CEO that hears from supervisors about groups of
+  agents, deals only in summaries, steers the bottom-level work indirectly,
+  and thinks about strategy and pace rather than tactics. Most of it is
+  already here: a top `Loop` whose planner is the CEO, whose laps run the
+  leads' loops; the leads' backlog files are the summaries, and agents
+  edit those files, so the CEO steers a lead by editing its file and the
+  iterator reads it next lap; pace comes from the run log, which an agent
+  told the path can read. What it needs beyond that is decided when the
+  first one is written, after `Loop` exists.
