@@ -11,7 +11,7 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
 	},
 	"devDependencies": {
-		"@skgo/sveltekit-adapter": "<=0.3.4",
+		"@skgo/sveltekit-adapter": "<=0.4.0",
 		"@sveltejs/kit": "3.0.0-next.27",
 		"@sveltejs/vite-plugin-svelte": "7.3.0",
 		"@types/node": "22.20.1",

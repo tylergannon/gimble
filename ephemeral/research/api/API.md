@@ -311,14 +311,14 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 // request's, and Start returns the run id at once.
 func Start(ctx context.Context, name string, body func(ctx context.Context) error) (string, error)
 
-// Project puts the runs directory and the live registry in the root ctx.
-func Project(ctx context.Context, dir string) context.Context
+// NewRuntime owns the project directory and starts its web application. It is
+// in package web, beside the embedded build, because the page's remote
+// functions import gimble and gimble cannot import the page.
+func NewRuntime(ctx context.Context, dir string, opts ...Option) (*Runtime, error)
 
-// Serve binds the address, then serves the project in the background until
-// the ctx ends. It is in package web, beside the embedded build, because
-// the page's remote functions import gimble and gimble cannot import the
-// page.
-func Serve(ctx context.Context, addr string) error
+func WithPort(port int) Option
+func WithUDS(path string) Option
+func WithNoWeb() Option
 ```
 
 The process is a server first. It serves the project's runs directory for
@@ -343,11 +343,11 @@ func sprint(ctx context.Context, in SprintInput) error {
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	ctx = gimble.Project(ctx, ".gimble") // the runs dir and the live registry, in the root ctx
-	if err := web.Serve(ctx, ":8080"); err != nil {
+	runtime, err := web.NewRuntime(ctx, ".gimble")
+	if err != nil {
 		log.Fatal(err)
 	}
-	err := gimble.Run(ctx, "sprint", func(ctx context.Context) error {
+	err = runtime.Run(ctx, "sprint", func(ctx context.Context) error {
 		return sprint(ctx, SprintInput{Goal: os.Args[1]})
 	})
 	if err != nil {
@@ -360,9 +360,9 @@ func main() {
 - The process stays up after the body returns, so the page does not die
   under the person looking at it. A headless caller returns instead of
   waiting on the ctx.
-- `Project` puts the project in the root ctx; `Serve`, `Run`, and `Start`
-  read it from there. Workflow tests call `Project` and `Run` with fake
-  adapters and no `Serve`.
+- `web.Runtime` directly owns the project and assembled web application; the
+  root `gimble` package does not import or expose web assembly. Workflow tests
+  can still call `Project` and `Run` with fake adapters and no web listener.
 - The page starts runs through one form per workflow, typed with the
   workflow's own input. It is a `skgo.Form` beside the workflow's Svelte
   page, and this is all the code there is:
