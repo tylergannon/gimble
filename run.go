@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -19,7 +20,11 @@ func Project(ctx context.Context, dir string) context.Context {
 }
 
 type run struct {
-	dir string // <project>/runs/<id>
+	dir      string // <project>/runs/<id>
+	writer   *eventWriter
+	project  *eventWriter
+	mu       sync.Mutex
+	sessions map[string]*eventWriter
 }
 
 // Run starts one run of a workflow and blocks until the body returns. The
@@ -43,10 +48,42 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return fmt.Errorf("gimble: %w", err)
 	}
+	w, err := newEventWriter(filepath.Join(dir, "run.jsonl"))
+	if err != nil {
+		return fmt.Errorf("gimble: %w", err)
+	}
+	pw, _ := newEventWriter(filepath.Join(project, "project.jsonl"))
+	r := &run{dir: dir, writer: w, project: pw, sessions: make(map[string]*eventWriter)}
+	if pw != nil {
+		_ = pw.write(Event{Kind: "run_started", Name: name})
+	}
+	r.event(Event{Kind: "run_started", Name: name})
 	logf("run %s started in %s", id, dir)
-	err = (&scope{run: &run{dir: dir}}).do(ctx, body)
+	err = (&scope{run: r}).do(ctx, body)
+	if ctx.Err() != nil {
+		r.event(Event{Kind: "run_cancelled", Error: ctx.Err().Error()})
+		if pw != nil {
+			_ = pw.write(Event{Kind: "run_cancelled", Name: name, Error: ctx.Err().Error()})
+		}
+	}
+	r.event(Event{Kind: "run_ended", Name: name, Error: errString(err)})
+	if pw != nil {
+		_ = pw.write(Event{Kind: "run_ended", Name: name, Error: errString(err)})
+	}
+	r.event(Event{Kind: "complete"})
+	_ = w.close()
+	if pw != nil {
+		_ = pw.close()
+	}
 	logf("run %s ended: %v", id, orNone(err))
 	return err
+}
+
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 // logf traces what the runtime does on stderr until the run log exists.

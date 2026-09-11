@@ -20,6 +20,7 @@ type Session struct {
 
 	mu      sync.Mutex
 	native  string // the harness's session id, made on the first turn
+	turns   int
 	running bool
 	closed  bool
 }
@@ -31,6 +32,7 @@ func NewSession(ctx context.Context, name string, adapter HarnessAdapter, model,
 	s := &Session{adapter: adapter, name: name, model: model, workdir: workdir}
 	if scope, err := current(ctx); err == nil {
 		scope.adopt(s)
+		scope.run.event(Event{Kind: "session_created", Scope: scope.key, Session: s.id, Name: name, Model: model, Workdir: workdir})
 	}
 	return s
 }
@@ -81,6 +83,8 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		return nil, err
 	}
 	s.running = true
+	s.turns++
+	turnID := fmt.Sprintf("%s/turn.%d", s.id, s.turns)
 	native := s.native
 	s.mu.Unlock()
 	defer func() {
@@ -103,16 +107,38 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}
 	logf("%s: turn started (%s)", s.id, s.model)
 	start := time.Now()
-	raw, err := s.adapter.RunTurn(ctx, native, prompt, schema, onEvent)
+	scope, _ := current(ctx)
+	if scope != nil {
+		scope.run.event(Event{Kind: "turn_started", Scope: scope.key, Session: s.id, Turn: turnID, Text: prompt})
+	}
+	wrapped := func(e Event) {
+		e.Scope = scope.key
+		e.Session = s.id
+		e.Turn = turnID
+		scope.run.sessionEvent(s.id, e)
+		if onEvent != nil {
+			onEvent(e)
+		}
+	}
+	raw, err := s.adapter.RunTurn(ctx, native, prompt, schema, wrapped)
 	if ctx.Err() != nil {
 		err = ctx.Err()
 	}
 	logf("%s: turn ended after %s: %v", s.id, time.Since(start).Round(time.Second), orNone(err))
 	if ctx.Err() != nil {
+		if scope != nil {
+			scope.run.event(Event{Kind: "turn_ended", Scope: scope.key, Session: s.id, Turn: turnID, Error: ctx.Err().Error(), Interrupted: true})
+		}
 		return nil, ctx.Err()
 	}
 	if err != nil {
+		if scope != nil {
+			scope.run.event(Event{Kind: "turn_ended", Scope: scope.key, Session: s.id, Turn: turnID, Error: err.Error()})
+		}
 		return nil, fmt.Errorf("gimble: %s: %w", s.id, err)
+	}
+	if scope != nil {
+		scope.run.event(Event{Kind: "turn_ended", Scope: scope.key, Session: s.id, Turn: turnID, Result: raw})
 	}
 	return raw, nil
 }
@@ -141,9 +167,17 @@ func (s *Session) Steer(ctx context.Context, message string) error {
 	s.mu.Unlock()
 	if !running || native == "" {
 		logf("%s: steer dropped: %s", s.id, oneLine(message))
+		if scope, err := current(ctx); err == nil {
+			landed := false
+			scope.run.event(Event{Kind: "steer", Scope: scope.key, Session: s.id, Target: s.id, Message: message, Landed: &landed})
+		}
 		return nil
 	}
 	logf("%s: steer: %s", s.id, oneLine(message))
+	if scope, err := current(ctx); err == nil {
+		landed := true
+		scope.run.event(Event{Kind: "steer", Scope: scope.key, Session: s.id, Target: s.id, Message: message, Landed: &landed})
+	}
 	return s.adapter.Steer(ctx, native, message)
 }
 
@@ -169,6 +203,7 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 		}
 	}
 	scope.adopt(fork)
+	scope.run.event(Event{Kind: "session_created", Scope: scope.key, Session: fork.id, Name: name, Model: fork.model, Workdir: fork.workdir, Parent: s.id})
 	logf("%s: forked from %s", fork.id, s.id)
 	return fork, nil
 }
