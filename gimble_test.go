@@ -457,6 +457,9 @@ func TestAttestEventFixture(t *testing.T) {
 	runDone := make(chan error, 1)
 	go func() {
 		runDone <- Run(ctx, "attest", func(ctx context.Context) error {
+			if RunDir(ctx) == "" {
+				return errors.New("RunDir returned empty inside a run")
+			}
 			if err := Set(ctx, "root", "value"); err != nil {
 				return err
 			}
@@ -591,6 +594,22 @@ func TestAttestEventFixture(t *testing.T) {
 	if !seen["complete"] {
 		t.Error("run log lacks completion event")
 	}
+	if got := tailed[0].Scope; got != "" {
+		t.Errorf("run_started scope = %q, want root scope", got)
+	}
+	for _, want := range []string{"nested.1", ""} {
+		if !slices.ContainsFunc(tailed, func(e Event) bool { return e.Kind == "scope_began" && e.Scope == want }) {
+			t.Errorf("scope tree lacks began event for %q", want)
+		}
+	}
+	for _, e := range tailed {
+		if e.Kind == "set" && e.Key == "root" && string(e.Value) != `"value"` {
+			t.Errorf("root set value = %s, want JSON string", e.Value)
+		}
+		if e.Kind == "set" && e.Key == "child" && e.Scope != "nested.1" {
+			t.Errorf("child set scope = %q, want nested.1", e.Scope)
+		}
+	}
 	var forked, supervised, landed, dropped bool
 	var workerTurn, reviewerTurn [2]time.Time
 	for _, e := range tailed {
@@ -642,12 +661,27 @@ func TestAttestEventFixture(t *testing.T) {
 	if len(files) < 3 {
 		t.Fatalf("session transcripts = %d, want at least 3", len(files))
 	}
+	transcriptKinds := map[string]map[string]bool{}
 	for _, file := range files {
 		var events []Event
 		readEvents(t, file, &events)
 		if len(events) == 0 || events[0].Kind != "user" {
 			t.Errorf("%s is not a transcript: %+v", file, events)
 		}
+		seenKinds := map[string]bool{}
+		for _, e := range events {
+			if e.Seq == 0 || e.Time.IsZero() || e.Session == "" || e.Turn == "" {
+				t.Errorf("%s has incomplete agent event placement: %+v", file, e)
+			}
+			seenKinds[e.Kind] = true
+		}
+		transcriptKinds[filepath.Base(file)] = seenKinds
+	}
+	if !slices.ContainsFunc(files, func(file string) bool {
+		kinds := transcriptKinds[filepath.Base(file)]
+		return kinds["tool_call"] && kinds["tool_result"]
+	}) {
+		t.Error("no session transcript contains the tool call/result pair")
 	}
 }
 
