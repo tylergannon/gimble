@@ -8,18 +8,6 @@ web/editor/node_modules
 web/editor/.svelte-kit
 .gimble/run/
 .gimble/runs/
-ephemeral/**/run/
-ephemeral/**/runs/
-ephemeral/**/logs/
-ephemeral/**/*-logs/
-ephemeral/**/events/
-ephemeral/**/stages/
-ephemeral/**/current.jsonl
-ephemeral/**/timeline.jsonl
-ephemeral/**/checkpoint.json
-ephemeral/**/mcp-*.log
-ephemeral/**/stdout.json
-ephemeral/**/*.zip
 
 # skgo app
 /bin/
@@ -32,3 +20,5 @@ e2e/node_modules/
 e2e/playwright-report/
 e2e/screenshots/
 e2e/test-results/
+
+.claude/worktrees
