@@ -1,8 +1,9 @@
 {"type":"object",
 "description":"Input starts a sprint.","properties":{
-"sprint":{"type":"integer","description":"The sprint to build: its number in ephemeral/research/api/SPRINTS.md, e.g. 2."},
-"repo":{"type":"string","description":"Absolute path of the repository. Each lap is committed to the branch checked out there, and the sprint ends by merging that branch."},
-"model":{"type":"string","description":"Codex model for the researcher, the planner, and the coders, e.g. \"gpt-5.6-luna\"."},
-"review_model":{"type":"string","description":"Claude Code model for the supervisors and the validator, e.g. \"haiku\"."},
-"laps":{"type":"integer","description":"The most laps to run in all. The sprint fails if the planner is not done by then."}
-},"required":["sprint","repo","model","review_model","laps"],"additionalProperties":false}
+"sprint":{"type":"integer","description":"The sprint to build: its number in ephemeral/research/api/SPRINTS.md, e.g. 3."},
+"issues":{"type":"array","description":"GitHub issues to work beside the sprint, each in a worktree and branch of its own, e.g. [120].","items":{"type":"integer"}},
+"repo":{"type":"string","description":"Absolute path of the repository. The sprint's laps are committed to the branch checked out there, and the sprint ends by merging that branch."},
+"model":{"type":"string","description":"Codex model for the researchers, the planners, and the coders, e.g. \"gpt-5.6-luna\"."},
+"review_model":{"type":"string","description":"Claude Code model for the supervisors and the validators, e.g. \"haiku\"."},
+"laps":{"type":"integer","description":"The most laps one piece of work may run. It fails if its planner is not done by then."}
+},"required":["sprint","issues","repo","model","review_model","laps"],"additionalProperties":false}

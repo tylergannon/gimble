@@ -69,6 +69,10 @@ Ship: `go get github.com/tylergannon/gimble` and write any workflow in
   is legitimately demonstrated; its objections are another loop. Then the
   planner files what is left as issues and merges the branch with `gh`. No
   bake-off: it multiplies every lap's cost, and a sprint does not need it.
+  Revised for Sprint 3: GitHub issues are worked beside the sprint by the
+  same process, each in a worktree of its own; `just build` joins the
+  checks; the coder's supervisor looks every minute, and the validator has
+  a supervisor of its own that keeps it to validation.
 - `Justfile` gains `vet`, `test`, `attest`. Tests: every primitive over a
   fake adapter. `just attest`: one workflow on `gpt-5.6-luna` and Haiku
   that touches every primitive once (a scope with data, a schema turn, a

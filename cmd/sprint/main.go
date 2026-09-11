@@ -9,17 +9,23 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 
 	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/sprint"
 )
 
 func main() {
-	var in sprint.Input
+	in := sprint.Input{Issues: []int{}}
 	flag.IntVar(&in.Sprint, "sprint", 0, "the sprint of SPRINTS.md to build")
-	flag.StringVar(&in.Model, "model", "gpt-5.6-luna", "Codex model for the researcher, the planner, and the coders")
-	flag.StringVar(&in.ReviewModel, "review-model", "haiku", "Claude Code model for the supervisors and the validator")
-	flag.IntVar(&in.Laps, "laps", 10, "the most laps to run in all")
+	flag.StringVar(&in.Model, "model", "gpt-5.6-luna", "Codex model for the researchers, the planners, and the coders")
+	flag.StringVar(&in.ReviewModel, "review-model", "haiku", "Claude Code model for the supervisors and the validators")
+	flag.IntVar(&in.Laps, "laps", 10, "the most laps one piece of work may run")
+	flag.Func("issue", "a GitHub issue to work beside the sprint; repeat for more", func(s string) error {
+		n, err := strconv.Atoi(s)
+		in.Issues = append(in.Issues, n)
+		return err
+	})
 	flag.Parse()
 	repo, err := os.Getwd()
 	if err != nil {
