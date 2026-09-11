@@ -68,7 +68,7 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 		s.mu.Unlock()
 		if scope, err := current(ctx); err == nil {
 			o := apply(sup.opts)
-			scope.run.event(Event{Kind: "supervise_attached", Scope: scope.key, Session: s.id, Turn: turn, Reviewer: sup.session.id, Worker: turn, Instruction: sup.instruction, Interval: o.every})
+			scope.run.event(scope.key, s.id, turn, SuperviseAttached{Reviewer: sup.session.id, Worker: turn, Instruction: sup.instruction, Interval: o.every})
 		}
 	}
 
@@ -121,7 +121,7 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 
 // lookPrompt asks a supervisor for objections to what the worker did since
 // its last look; the first look also carries the instruction and the task.
-func lookPrompt(sup supervisor, prompt string, first bool, events []Event) string {
+func lookPrompt(sup supervisor, prompt string, first bool, events []AgentEvent) string {
 	var b strings.Builder
 	if first {
 		fmt.Fprintf(&b, "You are supervising another agent in %s while it works. What you watch for:\n\n%s\n\n", sup.session.workdir, sup.instruction)
@@ -133,18 +133,22 @@ func lookPrompt(sup supervisor, prompt string, first bool, events []Event) strin
 	return b.String()
 }
 
-func renderEvents(events []Event) string {
+func renderEvents(events []AgentEvent) string {
 	var b strings.Builder
 	for _, e := range events {
-		switch e.Kind {
-		case "user":
+		switch e := e.(type) {
+		case UserMessage:
 			fmt.Fprintf(&b, "[message to the agent] %s\n", clip(e.Text))
-		case "assistant":
+		case AssistantMessage:
 			fmt.Fprintf(&b, "[agent] %s\n", clip(e.Text))
-		case "tool_call":
-			fmt.Fprintf(&b, "[tool call: %s] %s\n", e.Tool, clip(string(e.Data)))
-		case "tool_result":
-			fmt.Fprintf(&b, "[tool result] %s\n", clip(string(e.Data)))
+		case AssistantMessageDelta:
+			fmt.Fprintf(&b, "[agent fragment] %s\n", clip(e.Text))
+		case ToolCall:
+			fmt.Fprintf(&b, "[tool call: %s] %s\n", e.Tool, clip(string(e.Input)))
+		case ToolResult:
+			fmt.Fprintf(&b, "[tool result] %s\n", clip(string(e.Output)))
+		case ToolResultDelta:
+			fmt.Fprintf(&b, "[tool result fragment] %s\n", clip(string(e.Output)))
 		}
 	}
 	return b.String()
@@ -161,16 +165,16 @@ func clip(text string) string {
 // transcript is the worker's events in one turn, appended as they arrive.
 type transcript struct {
 	mu     sync.Mutex
-	events []Event
+	events []AgentEvent
 }
 
-func (t *transcript) append(e Event) {
+func (t *transcript) append(e AgentEvent) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.events = append(t.events, e)
 }
 
-func (t *transcript) since(seen int) []Event {
+func (t *transcript) since(seen int) []AgentEvent {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return slices.Clone(t.events[seen:])

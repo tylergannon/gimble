@@ -25,8 +25,10 @@ func __gen_jsonschema_panic(fname string, err error) {
 
 // Compiled JSON schemas for validation, initialized once at startup.
 var (
-	__gen_jsonschema_compiled_review *jsonschema.Schema
-	__gen_jsonschema_compiled_plan   *jsonschema.Schema
+	__gen_jsonschema_compiled_review          *jsonschema.Schema
+	__gen_jsonschema_compiled_plan            *jsonschema.Schema
+	__gen_jsonschema_compiled_LifecycleRecord *jsonschema.Schema
+	__gen_jsonschema_compiled_AgentRecord     *jsonschema.Schema
 )
 
 func init() {
@@ -56,6 +58,16 @@ func init() {
 		var __zero plan
 		__gen_jsonschema_compiled_plan = compile("plan", __zero.Schema())
 	}
+
+	{
+		var __zero LifecycleRecord
+		__gen_jsonschema_compiled_LifecycleRecord = compile("LifecycleRecord", __zero.Schema())
+	}
+
+	{
+		var __zero AgentRecord
+		__gen_jsonschema_compiled_AgentRecord = compile("AgentRecord", __zero.Schema())
+	}
 }
 
 func (review) Schema() json.RawMessage {
@@ -69,6 +81,24 @@ func (review) Schema() json.RawMessage {
 
 func (plan) Schema() json.RawMessage {
 	const fileName = "jsonschema/plan.json"
+	data, err := __gen_jsonschema_fs.ReadFile(fileName)
+	if err != nil {
+		__gen_jsonschema_panic(fileName, err)
+	}
+	return data
+}
+
+func (LifecycleRecord) Schema() json.RawMessage {
+	const fileName = "jsonschema/LifecycleRecord.json"
+	data, err := __gen_jsonschema_fs.ReadFile(fileName)
+	if err != nil {
+		__gen_jsonschema_panic(fileName, err)
+	}
+	return data
+}
+
+func (AgentRecord) Schema() json.RawMessage {
+	const fileName = "jsonschema/AgentRecord.json"
 	data, err := __gen_jsonschema_fs.ReadFile(fileName)
 	if err != nil {
 		__gen_jsonschema_panic(fileName, err)
@@ -92,4 +122,502 @@ func (plan) ValidateJSON(data []byte) error {
 		return err
 	}
 	return __gen_jsonschema_compiled_plan.Validate(inst)
+}
+
+// ValidateJSON validates the given JSON bytes against the schema for LifecycleRecord.
+func (LifecycleRecord) ValidateJSON(data []byte) error {
+	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	return __gen_jsonschema_compiled_LifecycleRecord.Validate(inst)
+}
+
+// ValidateJSON validates the given JSON bytes against the schema for AgentRecord.
+func (AgentRecord) ValidateJSON(data []byte) error {
+	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	return __gen_jsonschema_compiled_AgentRecord.Validate(inst)
+}
+
+// MarshalJSON is a generated custom json.Marshaler implementation for
+// AgentRecord.
+func (a AgentRecord) MarshalJSON() ([]byte, error) {
+	type Alias AgentRecord
+	type Wrapper struct {
+		Alias
+		Event json.RawMessage `json:"event"`
+	}
+	wrapper := Wrapper{Alias: Alias(a)}
+	var err error
+
+	if wrapper.Event, err = __jsonMarshal__gimble__AgentEvent__099be3bdb547803ae2cd21fa3cb4cbe34b60b1a8c675778939cda5631e7f0793(a.Event); err != nil {
+		return nil, fmt.Errorf("field event: %w", err)
+	}
+
+	return json.Marshal(&wrapper)
+}
+
+// UnmarshalJSON is a generated custom json.Unmarshaler implementation for
+// AgentRecord.
+func (a *AgentRecord) UnmarshalJSON(data []byte) (err error) {
+	type Alias AgentRecord
+	type Wrapper struct {
+		Alias
+		Event json.RawMessage `json:"event"`
+	}
+	var wrapper Wrapper
+	if err = json.Unmarshal(data, &wrapper); err != nil {
+		return err
+	}
+	__next := AgentRecord(wrapper.Alias)
+
+	var __decoded0 AgentEvent
+	if __decoded0, err = __jsonUnmarshal__gimble__AgentEvent__099be3bdb547803ae2cd21fa3cb4cbe34b60b1a8c675778939cda5631e7f0793(wrapper.Event); err != nil {
+		return err
+	}
+	__next.Event = __decoded0
+
+	*a = __next
+	return nil
+}
+
+// MarshalJSON is a generated custom json.Marshaler implementation for
+// LifecycleRecord.
+func (l LifecycleRecord) MarshalJSON() ([]byte, error) {
+	type Alias LifecycleRecord
+	type Wrapper struct {
+		Alias
+		Event json.RawMessage `json:"event"`
+	}
+	wrapper := Wrapper{Alias: Alias(l)}
+	var err error
+
+	if wrapper.Event, err = __jsonMarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33d1edd455327dfc34fe83a399361f7d(l.Event); err != nil {
+		return nil, fmt.Errorf("field event: %w", err)
+	}
+
+	return json.Marshal(&wrapper)
+}
+
+// UnmarshalJSON is a generated custom json.Unmarshaler implementation for
+// LifecycleRecord.
+func (l *LifecycleRecord) UnmarshalJSON(data []byte) (err error) {
+	type Alias LifecycleRecord
+	type Wrapper struct {
+		Alias
+		Event json.RawMessage `json:"event"`
+	}
+	var wrapper Wrapper
+	if err = json.Unmarshal(data, &wrapper); err != nil {
+		return err
+	}
+	__next := LifecycleRecord(wrapper.Alias)
+
+	var __decoded0 LifecycleEvent
+	if __decoded0, err = __jsonUnmarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33d1edd455327dfc34fe83a399361f7d(wrapper.Event); err != nil {
+		return err
+	}
+	__next.Event = __decoded0
+
+	*l = __next
+	return nil
+}
+
+func __jsonMarshal__gimble__AgentEvent__099be3bdb547803ae2cd21fa3cb4cbe34b60b1a8c675778939cda5631e7f0793(value AgentEvent) (json.RawMessage, error) {
+	if value == nil {
+		return nil, fmt.Errorf("cannot marshal nil registered interface AgentEvent")
+	}
+	var (
+		data          []byte
+		err           error
+		discriminator string
+	)
+	switch object := value.(type) {
+	case ApprovalRequest:
+		discriminator = "approval_request"
+		data, err = json.Marshal(&object)
+	case AssistantMessage:
+		discriminator = "assistant_message"
+		data, err = json.Marshal(&object)
+	case AssistantMessageDelta:
+		discriminator = "assistant_message_delta"
+		data, err = json.Marshal(&object)
+	case HarnessError:
+		discriminator = "harness_error"
+		data, err = json.Marshal(&object)
+	case NestedTranscript:
+		discriminator = "nested_transcript"
+		data, err = json.Marshal(&object)
+	case Retry:
+		discriminator = "retry"
+		data, err = json.Marshal(&object)
+	case Thinking:
+		discriminator = "thinking"
+		data, err = json.Marshal(&object)
+	case ThinkingDelta:
+		discriminator = "thinking_delta"
+		data, err = json.Marshal(&object)
+	case ToolCall:
+		discriminator = "tool_call"
+		data, err = json.Marshal(&object)
+	case ToolInputDelta:
+		discriminator = "tool_input_delta"
+		data, err = json.Marshal(&object)
+	case ToolResult:
+		discriminator = "tool_result"
+		data, err = json.Marshal(&object)
+	case ToolResultDelta:
+		discriminator = "tool_result_delta"
+		data, err = json.Marshal(&object)
+	case Usage:
+		discriminator = "usage"
+		data, err = json.Marshal(&object)
+	case UserMessage:
+		discriminator = "user_message"
+		data, err = json.Marshal(&object)
+	default:
+		return nil, fmt.Errorf("unregistered dynamic implementation %T for AgentEvent", value)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("marshal registered implementation %T for AgentEvent: %w", value, err)
+	}
+	return __jsonschema__marshalUnionObject(data,
+		"kind",
+		discriminator,
+	)
+}
+
+func __jsonUnmarshal__gimble__AgentEvent__099be3bdb547803ae2cd21fa3cb4cbe34b60b1a8c675778939cda5631e7f0793(data []byte) (AgentEvent, error) {
+	var (
+		temp          map[string]json.RawMessage
+		discriminator string
+		err           = json.Unmarshal(data, &temp)
+	)
+
+	if err != nil {
+		return nil, err
+	} else if _tempDiscriminator, ok := temp["kind"]; !ok {
+		// per-field discriminator property
+		return nil, fmt.Errorf("no discriminator property '%s' found", "kind")
+	} else if discriminator, err = __jsonschema__decodeDiscriminator(_tempDiscriminator); err != nil {
+		return nil, __jsonschema__unmarshalDiscriminatorError(_tempDiscriminator, err)
+	}
+	switch discriminator {
+	case "approval_request":
+		var obj ApprovalRequest
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "assistant_message":
+		var obj AssistantMessage
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "assistant_message_delta":
+		var obj AssistantMessageDelta
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "harness_error":
+		var obj HarnessError
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "nested_transcript":
+		var obj NestedTranscript
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "retry":
+		var obj Retry
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "thinking":
+		var obj Thinking
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "thinking_delta":
+		var obj ThinkingDelta
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "tool_call":
+		var obj ToolCall
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "tool_input_delta":
+		var obj ToolInputDelta
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "tool_result":
+		var obj ToolResult
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "tool_result_delta":
+		var obj ToolResultDelta
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "usage":
+		var obj Usage
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "user_message":
+		var obj UserMessage
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	default:
+		return nil, fmt.Errorf("unknown discriminator: %s", discriminator)
+	}
+}
+func __jsonMarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33d1edd455327dfc34fe83a399361f7d(value LifecycleEvent) (json.RawMessage, error) {
+	if value == nil {
+		return nil, fmt.Errorf("cannot marshal nil registered interface LifecycleEvent")
+	}
+	var (
+		data          []byte
+		err           error
+		discriminator string
+	)
+	switch object := value.(type) {
+	case Complete:
+		discriminator = "complete"
+		data, err = json.Marshal(&object)
+	case Interrupt:
+		discriminator = "interrupt"
+		data, err = json.Marshal(&object)
+	case LoopCommand:
+		discriminator = "loop_command"
+		data, err = json.Marshal(&object)
+	case PlannerDecision:
+		discriminator = "planner_decision"
+		data, err = json.Marshal(&object)
+	case RunCancelled:
+		discriminator = "run_cancelled"
+		data, err = json.Marshal(&object)
+	case RunEnded:
+		discriminator = "run_ended"
+		data, err = json.Marshal(&object)
+	case RunStarted:
+		discriminator = "run_started"
+		data, err = json.Marshal(&object)
+	case ScopeBegan:
+		discriminator = "scope_began"
+		data, err = json.Marshal(&object)
+	case ScopeEnded:
+		discriminator = "scope_ended"
+		data, err = json.Marshal(&object)
+	case SessionClosed:
+		discriminator = "session_closed"
+		data, err = json.Marshal(&object)
+	case SessionCreated:
+		discriminator = "session_created"
+		data, err = json.Marshal(&object)
+	case Steer:
+		discriminator = "steer"
+		data, err = json.Marshal(&object)
+	case SuperviseAttached:
+		discriminator = "supervise_attached"
+		data, err = json.Marshal(&object)
+	case TurnEnded:
+		discriminator = "turn_ended"
+		data, err = json.Marshal(&object)
+	case TurnStarted:
+		discriminator = "turn_started"
+		data, err = json.Marshal(&object)
+	case ValueSet:
+		discriminator = "value_set"
+		data, err = json.Marshal(&object)
+	default:
+		return nil, fmt.Errorf("unregistered dynamic implementation %T for LifecycleEvent", value)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("marshal registered implementation %T for LifecycleEvent: %w", value, err)
+	}
+	return __jsonschema__marshalUnionObject(data,
+		"kind",
+		discriminator,
+	)
+}
+
+func __jsonUnmarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33d1edd455327dfc34fe83a399361f7d(data []byte) (LifecycleEvent, error) {
+	var (
+		temp          map[string]json.RawMessage
+		discriminator string
+		err           = json.Unmarshal(data, &temp)
+	)
+
+	if err != nil {
+		return nil, err
+	} else if _tempDiscriminator, ok := temp["kind"]; !ok {
+		// per-field discriminator property
+		return nil, fmt.Errorf("no discriminator property '%s' found", "kind")
+	} else if discriminator, err = __jsonschema__decodeDiscriminator(_tempDiscriminator); err != nil {
+		return nil, __jsonschema__unmarshalDiscriminatorError(_tempDiscriminator, err)
+	}
+	switch discriminator {
+	case "complete":
+		var obj Complete
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "interrupt":
+		var obj Interrupt
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "loop_command":
+		var obj LoopCommand
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "planner_decision":
+		var obj PlannerDecision
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "run_cancelled":
+		var obj RunCancelled
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "run_ended":
+		var obj RunEnded
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "run_started":
+		var obj RunStarted
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "scope_began":
+		var obj ScopeBegan
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "scope_ended":
+		var obj ScopeEnded
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "session_closed":
+		var obj SessionClosed
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "session_created":
+		var obj SessionCreated
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "steer":
+		var obj Steer
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "supervise_attached":
+		var obj SuperviseAttached
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "turn_ended":
+		var obj TurnEnded
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "turn_started":
+		var obj TurnStarted
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "value_set":
+		var obj ValueSet
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	default:
+		return nil, fmt.Errorf("unknown discriminator: %s", discriminator)
+	}
+}
+
+func __jsonschema__marshalUnionObject(data []byte, discriminatorProp, discriminatorValue string) (json.RawMessage, error) {
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(data, &object); err != nil {
+		return nil, fmt.Errorf("registered union payload must encode as a JSON object: %w", err)
+	}
+	if object == nil {
+		return nil, fmt.Errorf("registered union payload must encode as a JSON object, got null")
+	}
+	if encoded, ok := object[discriminatorProp]; ok {
+		current, err := __jsonschema__decodeDiscriminator(encoded)
+		if err != nil {
+			return nil, fmt.Errorf("discriminator property %q must be a string: %w", discriminatorProp, err)
+		}
+		if current != discriminatorValue {
+			return nil, fmt.Errorf("discriminator property %q is %q, want registered value %q", discriminatorProp, current, discriminatorValue)
+		}
+	} else {
+		encoded, err := json.Marshal(discriminatorValue)
+		if err != nil {
+			return nil, err
+		}
+		object[discriminatorProp] = encoded
+	}
+	return json.Marshal(object)
+}
+
+func __jsonschema__decodeDiscriminator(discriminator json.RawMessage) (string, error) {
+	var value *string
+	if err := json.Unmarshal(discriminator, &value); err != nil {
+		return "", err
+	}
+	if value == nil {
+		return "", errors.New("JSON null is not a string")
+	}
+	return *value, nil
+}
+
+func __jsonschema__unmarshalDiscriminatorError(discriminator json.RawMessage, err error) error {
+	return fmt.Errorf("unable to unmarshal discriminator value %v: %w", discriminator, err)
 }

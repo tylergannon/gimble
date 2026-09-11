@@ -2,6 +2,7 @@ package claude
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -12,14 +13,14 @@ import (
 // projector turns Claude Code messages into Gimble events.
 type projector struct {
 	mu      sync.Mutex
-	emit    func(gimble.Event)
+	emit    func(gimble.AgentEvent)
 	pending []string // tool calls without a result yet, oldest first
 }
 
 func (p *projector) user(text string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.emit(gimble.Event{Kind: "user", Text: text})
+	p.emit(gimble.UserMessage{Text: text})
 }
 
 func (p *projector) message(message claudeagent.Message) {
@@ -43,7 +44,7 @@ func (p *projector) message(message claudeagent.Message) {
 
 func (p *projector) assistant(message claudeagent.AssistantMessage) {
 	var texts []string
-	for _, block := range message.Message.Content {
+	for i, block := range message.Message.Content {
 		switch block.Type {
 		case "text":
 			if strings.TrimSpace(block.Text) != "" {
@@ -51,15 +52,15 @@ func (p *projector) assistant(message claudeagent.AssistantMessage) {
 			}
 		case "thinking":
 			if strings.TrimSpace(block.Text) != "" {
-				p.emit(gimble.Event{Kind: "thinking", Text: block.Text})
+				p.emit(gimble.Thinking{ID: fmt.Sprintf("%s/thinking.%d", message.UUID, i+1), Text: block.Text})
 			}
 		case "tool_use":
-			p.emit(gimble.Event{Kind: "tool_call", CallID: block.ID, Tool: block.Name, Data: json.RawMessage(block.Input)})
+			p.emit(gimble.ToolCall{CallID: block.ID, Tool: block.Name, Input: gimble.JSONText(block.Input)})
 			p.pending = append(p.pending, block.ID)
 		}
 	}
 	if len(texts) > 0 {
-		p.emit(gimble.Event{Kind: "assistant", Text: strings.Join(texts, "")})
+		p.emit(gimble.AssistantMessage{ID: message.UUID, Text: strings.Join(texts, "")})
 	}
 }
 
@@ -73,12 +74,12 @@ func (p *projector) toolResult(message claudeagent.UserMessage) {
 	} else if len(p.pending) > 0 {
 		callID, p.pending = p.pending[0], p.pending[1:]
 	}
-	p.emit(gimble.Event{Kind: "tool_result", CallID: callID, Data: encode(message.ToolUseResult)})
+	p.emit(gimble.ToolResult{CallID: callID, Output: gimble.JSONText(encode(message.ToolUseResult))})
 }
 
 func (p *projector) usage(usage any) {
 	if raw := encode(usage); raw != nil && string(raw) != "null" {
-		p.emit(gimble.Event{Kind: "usage", Data: raw})
+		p.emit(gimble.Usage{Data: gimble.JSONText(raw)})
 	}
 }
 

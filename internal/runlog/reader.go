@@ -29,7 +29,9 @@ func Read[T any](ctx context.Context, dir string, yield func(T) error) error {
 		pending = append(pending, line...)
 		if len(pending) != 0 && pending[len(pending)-1] == '\n' {
 			var envelope struct {
-				Kind string `json:"kind"`
+				Event struct {
+					Kind string `json:"kind"`
+				} `json:"event"`
 			}
 			if err := json.Unmarshal(pending, &envelope); err != nil {
 				return err
@@ -42,7 +44,7 @@ func Read[T any](ctx context.Context, dir string, yield func(T) error) error {
 			if err := yield(event); err != nil {
 				return err
 			}
-			if envelope.Kind == "complete" {
+			if envelope.Event.Kind == "complete" {
 				return nil
 			}
 		}
