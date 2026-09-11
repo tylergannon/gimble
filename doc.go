@@ -16,6 +16,6 @@
 //
 // Every operation follows context.Context. Returning from a scope closes its
 // sessions, Group.Wait joins its children, and cancelling a run interrupts its
-// agent work. See the package examples for complete, compiling uses of runs,
-// groups, and planner loops.
+// agent work. See the package examples for complete, compiling uses of runs
+// and groups.
 package gimble
