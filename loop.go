@@ -75,7 +75,7 @@ func (l *loop) Laps(yield func(context.Context, Task) bool) {
 			if bad != nil {
 				logf("%s: the backlog does not parse, so the planner is asked to fix it: %v", loopScope.key, bad)
 			}
-			results, err := runCommands(ctx, l.planner.workdir, commands)
+			results, err := runCommands(ctx, loopScope.run, loopScope.key, l.planner.workdir, commands)
 			if err != nil {
 				return err
 			}
@@ -84,12 +84,15 @@ func (l *loop) Laps(yield func(context.Context, Task) bool) {
 				return err
 			}
 			if strings.TrimSpace(p.Next) == "" {
+				loopScope.run.event(Event{Kind: "planner_decision", Scope: loopScope.key, Decision: ""})
 				logf("%s: the planner named nothing after %d laps", loopScope.key, lap-1)
 				return nil
 			}
 			logf("%s: lap %d: %s", loopScope.key, lap, oneLine(p.Next))
+			loopScope.run.event(Event{Kind: "planner_decision", Scope: loopScope.key, Decision: p.Next})
 			more := true
-			_ = loopScope.child("lap").do(ctx, func(ctx context.Context) error {
+			lapCtx := context.WithValue(ctx, taskKey{}, p.Next)
+			_ = loopScope.child("lap").do(lapCtx, func(ctx context.Context) error {
 				more = yield(ctx, Task{Lap: lap, Text: p.Next})
 				return nil
 			})
@@ -145,7 +148,7 @@ type commandResult struct {
 
 // runCommands runs each command in dir. A non-zero exit is a result, not an
 // error; a command that cannot run is an error.
-func runCommands(ctx context.Context, dir string, commands []string) ([]commandResult, error) {
+func runCommands(ctx context.Context, r *run, scope, dir string, commands []string) ([]commandResult, error) {
 	var results []commandResult
 	for _, command := range commands {
 		cmd := exec.CommandContext(ctx, "sh", "-c", command)
@@ -160,6 +163,7 @@ func runCommands(ctx context.Context, dir string, commands []string) ([]commandR
 			code = exit.ExitCode()
 		}
 		logf("$ %s: exit %d", command, code)
+		r.event(Event{Kind: "loop_command", Scope: scope, Command: command, ExitCode: code})
 		results = append(results, commandResult{command: command, code: code, output: tail(string(out), 3000)})
 	}
 	return results, nil

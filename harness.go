@@ -50,6 +50,7 @@ type Event struct {
 	Duration    time.Duration   `json:"duration,omitempty"`
 	Interrupted bool            `json:"interrupted,omitempty"`
 	ExitCode    int             `json:"exit_code,omitempty"`
+	Command     string          `json:"command,omitempty"`
 	Decision    string          `json:"decision,omitempty"`
 	Adapter     string          `json:"adapter,omitempty"`
 	Model       string          `json:"model,omitempty"`
