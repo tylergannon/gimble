@@ -1,4 +1,8 @@
-# Gimble API: decisions so far
+# Gimble API design record
+
+This file preserves the decisions, rationale, and open questions that shaped
+Gimble. It is not the current public contract; the root package's Godoc and
+compiling examples define the API that exists.
 
 The rule: **as simple as possible.** Add a name only when a workflow that
 exists needs it. Everything else is ordinary Go written in the workflow.

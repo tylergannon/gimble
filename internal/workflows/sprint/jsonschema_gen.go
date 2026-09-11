@@ -24,7 +24,8 @@ func __gen_jsonschema_panic(fname string, err error) {
 
 // Compiled JSON schemas for validation, initialized once at startup.
 var (
-	__gen_jsonschema_compiled_Input *jsonschema.Schema
+	__gen_jsonschema_compiled_Input  *jsonschema.Schema
+	__gen_jsonschema_compiled_review *jsonschema.Schema
 )
 
 func init() {
@@ -49,10 +50,24 @@ func init() {
 		var __zero Input
 		__gen_jsonschema_compiled_Input = compile("Input", __zero.Schema())
 	}
+
+	{
+		var __zero review
+		__gen_jsonschema_compiled_review = compile("review", __zero.Schema())
+	}
 }
 
 func (Input) Schema() json.RawMessage {
 	const fileName = "jsonschema/Input.json"
+	data, err := __gen_jsonschema_fs.ReadFile(fileName)
+	if err != nil {
+		__gen_jsonschema_panic(fileName, err)
+	}
+	return data
+}
+
+func (review) Schema() json.RawMessage {
+	const fileName = "jsonschema/review.json"
 	data, err := __gen_jsonschema_fs.ReadFile(fileName)
 	if err != nil {
 		__gen_jsonschema_panic(fileName, err)
@@ -67,4 +82,13 @@ func (Input) ValidateJSON(data []byte) error {
 		return err
 	}
 	return __gen_jsonschema_compiled_Input.Validate(inst)
+}
+
+// ValidateJSON validates the given JSON bytes against the schema for review.
+func (review) ValidateJSON(data []byte) error {
+	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	return __gen_jsonschema_compiled_review.Validate(inst)
 }

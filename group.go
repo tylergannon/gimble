@@ -14,10 +14,17 @@ type group struct {
 	err    error
 }
 
-// Group opens a concurrent scope named name. Go starts goroutines in it,
-// each in a child scope of its own, and Wait joins them and ends it. The
-// first error a goroutine returns cancels the group's ctx, interrupting
-// the others' turns, and comes back from Wait.
+// Group opens an errgroup-shaped concurrent scope named name. Call its Go
+// method for each child, then return its Wait method's result:
+//
+//	group := gimble.Group(ctx, "candidates")
+//	group.Go("candidate", first)
+//	group.Go("candidate", second)
+//	return group.Wait()
+//
+// Each child receives its own named scope. The first error cancels the group,
+// interrupting the other children's turns; Wait joins every child, ends the
+// group scope, and returns that first error.
 func Group(ctx context.Context, name string) *group {
 	parent, err := current(ctx)
 	if err != nil {

@@ -21,8 +21,8 @@ const (
 	controlTimeout = 5 * time.Second
 )
 
-// Adapter runs Codex sessions. The zero value is not usable; call New.
-type Adapter struct {
+// adapter runs Codex sessions.
+type adapter struct {
 	mu       sync.Mutex
 	sessions map[string]*session
 }
@@ -42,13 +42,14 @@ type activeTurn struct {
 	emit   *projector
 }
 
-// New returns an adapter that launches `codex app-server --stdio`.
-func New() *Adapter {
-	return &Adapter{sessions: make(map[string]*session)}
+// New returns Gimble's Codex harness. It launches `codex app-server --stdio`
+// when a session first needs it.
+func New() gimble.HarnessAdapter {
+	return &adapter{sessions: make(map[string]*session)}
 }
 
 // CreateSession starts a Codex thread.
-func (a *Adapter) CreateSession(ctx context.Context, model, workdir string) (string, error) {
+func (a *adapter) CreateSession(ctx context.Context, model, workdir string) (string, error) {
 	return a.thread(ctx, "thread/start", map[string]any{
 		"model":          model,
 		"cwd":            workdir,
@@ -59,7 +60,7 @@ func (a *Adapter) CreateSession(ctx context.Context, model, workdir string) (str
 }
 
 // Fork starts a new thread with the conversation of sessionID so far.
-func (a *Adapter) Fork(ctx context.Context, sessionID string) (string, error) {
+func (a *adapter) Fork(ctx context.Context, sessionID string) (string, error) {
 	parent, err := a.session(sessionID)
 	if err != nil {
 		return "", err
@@ -74,7 +75,7 @@ func (a *Adapter) Fork(ctx context.Context, sessionID string) (string, error) {
 
 // thread calls a method that makes a thread and keeps its process for the
 // thread's first turn.
-func (a *Adapter) thread(ctx context.Context, method string, params map[string]any, s *session) (string, error) {
+func (a *adapter) thread(ctx context.Context, method string, params map[string]any, s *session) (string, error) {
 	conn, err := start(ctx)
 	if err != nil {
 		return "", err
@@ -99,7 +100,7 @@ func (a *Adapter) thread(ctx context.Context, method string, params map[string]a
 }
 
 // RunTurn runs one turn on the thread and blocks until it ends.
-func (a *Adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.Event)) (json.RawMessage, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.Event)) (json.RawMessage, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
 		return nil, err
@@ -158,7 +159,7 @@ func (a *Adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 }
 
 // Steer sends message into the thread's running turn, if there is one.
-func (a *Adapter) Steer(ctx context.Context, sessionID, message string) error {
+func (a *adapter) Steer(ctx context.Context, sessionID, message string) error {
 	s, err := a.session(sessionID)
 	if err != nil {
 		return err
@@ -184,7 +185,7 @@ func (a *Adapter) Steer(ctx context.Context, sessionID, message string) error {
 	return nil
 }
 
-func (a *Adapter) Interrupt(ctx context.Context, sessionID string) error {
+func (a *adapter) Interrupt(ctx context.Context, sessionID string) error {
 	s, err := a.session(sessionID)
 	if err != nil {
 		return err
@@ -197,7 +198,7 @@ func (a *Adapter) Interrupt(ctx context.Context, sessionID string) error {
 	return nil
 }
 
-func (a *Adapter) session(id string) (*session, error) {
+func (a *adapter) session(id string) (*session, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if s := a.sessions[id]; s != nil {
@@ -417,4 +418,4 @@ func matches(raw json.RawMessage, threadID, turnID string) bool {
 	return envelope.Turn.ID == turnID
 }
 
-var _ gimble.HarnessAdapter = (*Adapter)(nil)
+var _ gimble.HarnessAdapter = (*adapter)(nil)

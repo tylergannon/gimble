@@ -11,7 +11,8 @@ it. Everything else is ordinary Go written in the workflow.
 
 ## Read first
 
-- `ephemeral/research/api/API.md`: the API and the reasons behind it.
+- `go doc -all .`: the current public API and its behavioral contract.
+- `ephemeral/research/api/API.md`: the design record and reasons behind the API.
 - `ephemeral/research/api/SPRINTS.md`: what is being built, in what order,
   and how each sprint is proven.
 - `docs/definition-of-done.md`: how work is gated, validated, and merged.

@@ -13,9 +13,7 @@ import (
 
 type projectKey struct{}
 
-// RunDir returns the directory of the run in ctx. It returns an empty string
-// when ctx is not inside a run.
-func RunDir(ctx context.Context) string {
+func runDir(ctx context.Context) string {
 	s, _ := ctx.Value(scopeKey{}).(*scope)
 	if s == nil || s.run == nil {
 		return ""

@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/sprint"
+	"github.com/tylergannon/gimble/internal/workflows/sprint"
 )
 
 func main() {

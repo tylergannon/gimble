@@ -1,6 +1,21 @@
-// Package gimble is a library for writing agent workflows as ordinary Go,
-// with a web page that shows every run live.
+// Package gimble runs agent workflows written as ordinary Go.
 //
-// The API and the reasons behind it are in ephemeral/research/api/API.md;
-// the build order is in ephemeral/research/api/SPRINTS.md.
+// Project places the project directory in a context. Run uses that context to
+// establish the root scope and durable record for one workflow run.
+//
+// Workflows use normal Go control flow. Scope names a bounded segment of work;
+// Group provides an observable form of errgroup-style concurrency; Loop yields
+// planner-selected tasks. Gimble supplies these runtime primitives, not named
+// tactics: retries, critique rounds, bake-offs, and delivery methods remain
+// visible in the workflow that needs them.
+//
+// NewSession creates a conversation owned by the current scope. Generate runs
+// a blocking turn and returns either Text or a schema-bearing Output. Set,
+// SetJSON, and ScopeText let the workflow explicitly choose which scoped data
+// it places in a prompt; Generate does not inject context implicitly.
+//
+// Every operation follows context.Context. Returning from a scope closes its
+// sessions, Group.Wait joins its children, and cancelling a run interrupts its
+// agent work. See the package examples for complete, compiling uses of runs
+// and groups.
 package gimble

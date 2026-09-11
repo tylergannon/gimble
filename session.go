@@ -28,7 +28,8 @@ type Session struct {
 
 // NewSession creates a session in the scope the ctx is in, named for the
 // graph. It cannot fail: the agent process starts on the first turn, and
-// the adapter carries the harness-specific config.
+// the adapter carries the harness-specific config. A session created outside
+// Run cannot generate turns or be forked.
 func NewSession(ctx context.Context, name string, adapter HarnessAdapter, model, workdir string) *Session {
 	s := &Session{adapter: adapter, name: name, model: model, workdir: workdir}
 	if scope, err := current(ctx); err == nil {

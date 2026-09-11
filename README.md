@@ -1,7 +1,14 @@
-# gimble
+# Gimble
 
-A SvelteKit app served by Go. One binary, one build gesture; Node is a
-build-time dependency only.
+Gimble is a Go library for writing agent workflows as ordinary Go. Its public
+programming contract is the root package's Godoc and compiling examples:
+
+```sh
+go doc -all github.com/tylergannon/gimble
+```
+
+The web application is a SvelteKit app served by Go. One binary, one build
+gesture; Node is a build-time dependency only.
 
 ## Build and run
 

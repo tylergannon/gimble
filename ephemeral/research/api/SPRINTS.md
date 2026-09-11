@@ -1,5 +1,9 @@
 # Building Gimble: four sprints
 
+The root package's Godoc defines the current public API. `API.md` beside this
+file is the design record behind it; this file records delivery order and
+historical sprint scope.
+
 0. The skgo app, generated. Done 2026-09-10.
 1. The API, all of it.
 2. The events, into files.
@@ -10,7 +14,8 @@ Sprint 1 is built by hand. Every sprint after it is built by `cmd/sprint`,
 the sprint workflow, written in Sprint 1 against the finished API and not
 rewritten after: from Sprint 2 on, building Gimble is a run of Gimble.
 
-`API.md` is the spec and the reasons. The reports beside it are done with.
+Godoc is the API contract. `API.md` preserves the decisions and reasons. The
+reports beside it are done with.
 
 Rules: as simple as possible, no name that `API.md` does not have, tactics
 inline in the workflow. Attestation runs on the cheap tier (`gpt-5.6-luna`,

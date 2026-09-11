@@ -1,4 +1,6 @@
-package gimble
+// Package runlog reads Gimble's persisted run records for the runtime and its
+// web application.
+package runlog
 
 import (
 	"bufio"
@@ -11,10 +13,9 @@ import (
 	"time"
 )
 
-// ReadRun replays the run log at dir and follows it until the complete event
-// is observed. It is safe to read while the run writer is appending: a record
-// is delivered only after its newline has been written.
-func ReadRun(ctx context.Context, dir string, yield func(Event) error) error {
+// Read replays the run log at dir and follows it until a record whose kind is
+// "complete" is observed. T must decode the records written to the log.
+func Read[T any](ctx context.Context, dir string, yield func(T) error) error {
 	f, err := os.Open(filepath.Join(dir, "run.jsonl"))
 	if err != nil {
 		return err
@@ -27,7 +28,13 @@ func ReadRun(ctx context.Context, dir string, yield func(Event) error) error {
 		line, readErr := r.ReadBytes('\n')
 		pending = append(pending, line...)
 		if len(pending) != 0 && pending[len(pending)-1] == '\n' {
-			var event Event
+			var envelope struct {
+				Kind string `json:"kind"`
+			}
+			if err := json.Unmarshal(pending, &envelope); err != nil {
+				return err
+			}
+			var event T
 			if err := json.Unmarshal(pending, &event); err != nil {
 				return err
 			}
@@ -35,7 +42,7 @@ func ReadRun(ctx context.Context, dir string, yield func(Event) error) error {
 			if err := yield(event); err != nil {
 				return err
 			}
-			if event.Kind == "complete" {
+			if envelope.Kind == "complete" {
 				return nil
 			}
 		}

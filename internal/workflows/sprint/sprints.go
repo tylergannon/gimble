@@ -38,6 +38,12 @@ type Input struct {
 	Laps int `json:"laps"`
 }
 
+// review is the validator's assessment of whether the sprint was demonstrated.
+type review struct {
+	// Each objection is one requirement whose evidence is invalid, written as an instruction to the builders. Leave the list empty when the sprint is demonstrated.
+	Objections []string `json:"objections"`
+}
+
 var checks = []string{"go vet ./...", "go test ./..."}
 
 // Sprint builds sprint in.Sprint.
@@ -85,7 +91,7 @@ func Sprint(ctx context.Context, in Input) error {
 		if laps > in.Laps {
 			return fmt.Errorf("sprint: the planner was not done after %d laps", in.Laps)
 		}
-		review, err := validator.Generate[gimble.Review](ctx, fmt.Sprintf(validatePrompt, in.Sprint)+"\n\n"+goal)
+		review, err := validator.Generate[review](ctx, fmt.Sprintf(validatePrompt, in.Sprint)+"\n\n"+goal)
 		if err != nil {
 			return err
 		}
