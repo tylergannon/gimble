@@ -431,3 +431,157 @@ func TestLoopShowsThePlannerABadBacklog(t *testing.T) {
 		t.Errorf("%d laps; planner prompts:\n%s\n---\n%s", laps, prompts[1], prompts[2])
 	}
 }
+
+func TestAttestEventFixture(t *testing.T) {
+	project := t.TempDir()
+	f := &fake{}
+	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error) {
+		emit(Event{Kind: "assistant", Text: "working"})
+		if session == "native-2" {
+			emit(Event{Kind: "tool_call", CallID: "call-1", Tool: "shell", Data: json.RawMessage(`{"command":"test"}`)})
+			emit(Event{Kind: "tool_result", CallID: "call-1", Data: json.RawMessage(`"ok"`)})
+			for {
+				f.mu.Lock()
+				steered := len(f.steers) > 0
+				f.mu.Unlock()
+				if steered || ctx.Err() != nil {
+					break
+				}
+				time.Sleep(time.Millisecond)
+			}
+		}
+		return "done", nil
+	}
+
+	ctx := Project(t.Context(), project)
+	runDone := make(chan error, 1)
+	go func() {
+		runDone <- Run(ctx, "attest", func(ctx context.Context) error {
+			if err := Set(ctx, "root", "value"); err != nil {
+				return err
+			}
+			researcher := NewSession(ctx, "researcher", f, "model", project)
+			if _, err := researcher.Generate[Text](ctx, "prime"); err != nil {
+				return err
+			}
+			fork, err := researcher.Fork(ctx, "planner")
+			if err != nil {
+				return err
+			}
+			worker := NewSession(ctx, "worker", f, "model", project)
+			reviewer := NewSession(ctx, "reviewer", f, "review", project)
+			turnDone := make(chan error, 1)
+			go func() {
+				_, err := worker.Generate[Text](ctx, "build", WithSupervisor(reviewer, "watch", WithInterval(time.Millisecond)))
+				turnDone <- err
+			}()
+			time.Sleep(5 * time.Millisecond)
+			if err := worker.Steer(withSteerSource(ctx, reviewer.id), "continue"); err != nil {
+				return err
+			}
+			if err := <-turnDone; err != nil {
+				return err
+			}
+			if err := worker.Steer(ctx, "too late"); err != nil {
+				return err
+			}
+			if _, err := fork.Generate[Text](ctx, "plan"); err != nil {
+				return err
+			}
+			return Scope(ctx, "nested", func(ctx context.Context) error {
+				return Set(ctx, "child", "value")
+			})
+		})
+	}()
+
+	runs := filepath.Join(project, "runs")
+	var runDir string
+	for range 1000 {
+		entries, _ := os.ReadDir(runs)
+		if len(entries) == 1 {
+			runDir = filepath.Join(runs, entries[0].Name())
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if runDir == "" {
+		t.Fatal("run directory was not created")
+	}
+	var tailed []Event
+	for {
+		raw, _ := os.ReadFile(filepath.Join(runDir, "run.jsonl"))
+		taIledLines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+		taIled := make([]Event, 0, len(taIledLines))
+		for _, line := range taIledLines {
+			var e Event
+			if line != "" && json.Unmarshal([]byte(line), &e) == nil {
+				taIled = append(taIled, e)
+			}
+		}
+		taIled = slices.Clone(taIled)
+		tailed = taIled
+		if len(tailed) > 0 && tailed[len(tailed)-1].Kind == "complete" {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if err := <-runDone; err != nil {
+		t.Fatal(err)
+	}
+
+	if len(tailed) < 2 || tailed[0].Kind != "run_started" || tailed[len(tailed)-1].Kind != "complete" {
+		t.Fatalf("tail did not replay through completion: %v", tailed)
+	}
+	seq := uint64(0)
+	seen := map[string]bool{}
+	for _, e := range tailed {
+		if e.Seq <= seq || e.Time.IsZero() {
+			t.Fatalf("invalid event ordering: %+v", e)
+		}
+		seq = e.Seq
+		seen[e.Kind] = true
+	}
+	for _, kind := range []string{"scope_began", "scope_ended", "set", "session_created", "session_closed", "turn_started", "turn_ended", "supervise_attached", "steer"} {
+		if !seen[kind] {
+			t.Errorf("run log lacks %s", kind)
+		}
+	}
+	if !seen["complete"] {
+		t.Error("run log lacks completion event")
+	}
+
+	var projectEvents []Event
+	readEvents(t, filepath.Join(project, "project.jsonl"), &projectEvents)
+	if len(projectEvents) != 2 || projectEvents[0].Kind != "run_started" || projectEvents[1].Kind != "run_ended" {
+		t.Fatalf("project lifecycle: %+v", projectEvents)
+	}
+	files, _ := filepath.Glob(filepath.Join(runDir, "sessions", "*.jsonl"))
+	if len(files) < 3 {
+		t.Fatalf("session transcripts = %d, want at least 3", len(files))
+	}
+	for _, file := range files {
+		var events []Event
+		readEvents(t, file, &events)
+		if len(events) == 0 || events[0].Kind != "user" {
+			t.Errorf("%s is not a transcript: %+v", file, events)
+		}
+	}
+}
+
+func readEvents(t *testing.T, file string, dst *[]Event) {
+	t.Helper()
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		if line == "" {
+			continue
+		}
+		var e Event
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("decode %s: %v", file, err)
+		}
+		*dst = append(*dst, e)
+	}
+}
