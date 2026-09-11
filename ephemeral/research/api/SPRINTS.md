@@ -128,7 +128,7 @@ Proof: Sprint 3 is built by `cmd/sprint`, and the run it leaves in
 Ship: open a browser and see every run in the project, live and past,
 drawn as the graph.
 
-- `web.Serve` and `gimble.Start`. `cmd/main.go` becomes `cmd/sprint`:
+- `web.NewRuntime` and `gimble.Start`. `cmd/main.go` becomes `cmd/sprint`:
   with an argument it runs; without, it serves and waits. The form for
   the sprint workflow beside its page, `skgo.Form(startSprint)`, controls
   named by `Input`'s fields. The starter routes go.

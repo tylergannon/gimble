@@ -208,8 +208,8 @@ importers:
   .:
     devDependencies:
       '@skgo/sveltekit-adapter':
-        specifier: <=0.3.4
-        version: 0.3.4(@sveltejs/kit@3.0.0-next.27(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(typescript@6.0.3))(svelte@5.57.0))(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(typescript@6.0.3))(svelte@5.57.0)(typescript@6.0.3))
+        specifier: <=0.4.0
+        version: 0.3.7(@sveltejs/kit@3.0.0-next.27(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(typescript@6.0.3))(svelte@5.57.0))(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(typescript@6.0.3))(svelte@5.57.0)(typescript@6.0.3))
       '@sveltejs/kit':
         specifier: 3.0.0-next.27
         version: 3.0.0-next.27(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(typescript@6.0.3))(svelte@5.57.0))(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(typescript@6.0.3))(svelte@5.57.0)(typescript@6.0.3)
@@ -559,8 +559,8 @@ packages:
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
-  '@skgo/sveltekit-adapter@0.3.4':
-    resolution: {integrity: sha512-Jkl4u/PF7SCrh4qv59gthZvVL2Ew/bKXm0z/J4k9ItlmfuyVa5i7l0+kNntzYYdxE/PjxtlDvrwAeIXBTdkNqw==}
+  '@skgo/sveltekit-adapter@0.3.7':
+    resolution: {integrity: sha512-DDXxJMzDwvYFAKvGyPlXLEQm2S4ZoEW4j3hVAAjFNC606paif6BBKc7Kpp8dwIEGGEvTybIdygjmLicVjd2OJg==}
     peerDependencies:
       '@sveltejs/kit': ^3.0.0-next.0
 
@@ -1506,7 +1506,7 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.1': {}
 
-  '@skgo/sveltekit-adapter@0.3.4(@sveltejs/kit@3.0.0-next.27(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(typescript@6.0.3))(svelte@5.57.0))(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(typescript@6.0.3))(svelte@5.57.0)(typescript@6.0.3))':
+  '@skgo/sveltekit-adapter@0.3.7(@sveltejs/kit@3.0.0-next.27(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(typescript@6.0.3))(svelte@5.57.0))(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(typescript@6.0.3))(svelte@5.57.0)(typescript@6.0.3))':
     dependencies:
       '@sveltejs/kit': 3.0.0-next.27(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(typescript@6.0.3))(svelte@5.57.0))(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(typescript@6.0.3))(svelte@5.57.0)(typescript@6.0.3)
 

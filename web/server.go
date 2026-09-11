@@ -15,7 +15,7 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimble/generated"
+	generated "github.com/tylergannon/gimble/internal/skgo"
 )
 
 // NewHandler builds the server over the frontend build in dist. With a
@@ -115,9 +115,8 @@ func NewHandler(dist fs.FS, proxy, origin string) (http.Handler, string, error) 
 // A command is a POST, and skgo refuses a non-GET remote call whose `Origin`
 // header is not the origin the server was configured with — the same check kit
 // makes. That is a bare 403 with no body: in the browser every command fails
-// and nothing says why. The origin is decided in two places that have to
-// agree — the frontend is built with it, the binary is run with it — so this
-// wrapper watches for the mismatch and writes down both values and the fix.
+// and nothing says why. The runtime normally derives its origin from the
+// listener, so this wrapper names both values and the reverse-proxy override.
 func explainOriginRefusals(cfg skgo.RemoteConfig, next http.Handler) http.Handler {
 	if cfg.Origin == "" {
 		return next
@@ -136,11 +135,10 @@ func explainOriginRefusals(cfg skgo.RemoteConfig, next http.Handler) http.Handle
 		}
 		msg := "This app's origin is " + cfg.Origin + ", but the request came from " +
 			quoteOrigin(got) + ", so it was refused.\n\n" +
-			"The origin is fixed when the frontend is built and checked again when the\n" +
-			"binary runs. Either browse the app at " + cfg.Origin + ", or set ORIGIN in\n" +
-			"Justfile to the origin you are using and run `just build` again.\n"
-		log.Printf("skgo: refused %s %s: Origin %s, want %s. Rebuild with ORIGIN=%s or browse the app at %s",
-			r.Method, r.URL.Path, quoteOrigin(got), cfg.Origin, quoteOrigin(got), cfg.Origin)
+			"Browse the app at " + cfg.Origin + ", or set GIMBLE_WEB_ORIGIN to the\n" +
+			"browser-visible origin when Gimble runs behind a reverse proxy.\n"
+		log.Printf("skgo: refused %s %s: Origin %s, want %s. Set GIMBLE_WEB_ORIGIN=%s behind a reverse proxy or browse the app at %s",
+			r.Method, r.URL.Path, quoteOrigin(got), cfg.Origin, got, cfg.Origin)
 		http.Error(w, msg, http.StatusForbidden)
 	})
 }

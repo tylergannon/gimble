@@ -7,8 +7,10 @@ programming contract is the root package's Godoc and compiling examples:
 go doc -all github.com/tylergannon/gimble
 ```
 
-The web application is a SvelteKit app served by Go. One binary, one build
-gesture; Node is a build-time dependency only.
+The project runtime starts the SvelteKit web application automatically. It
+listens on loopback port 8080 by default; `web.WithPort`, `web.WithUDS`, and
+`web.WithNoWeb` select another runtime shape. Node is a build-time dependency
+only.
 
 ## Build and run
 
@@ -31,8 +33,8 @@ just dev-web
 just dev-go
 ```
 
-The public origin is set once in `Justfile`. Change it there and rebuild
-before serving the application at a different origin.
+The runtime derives the public origin from the TCP listener, including when
+port 0 selects an available port.
 
 ## Where things are
 
@@ -42,9 +44,9 @@ before serving the application at a different origin.
 | `@skgo/sveltekit-adapter` | kit's adapter, an ordinary devDependency paired with the skgo version `go.mod` requires |
 | `web/src/routes/*.remote.go` | server logic, colocated with the routes that call it |
 | `web/src/routes/**/server.go` | ordinary Go HTTP handlers for SvelteKit `+server.ts` routes |
-| `generated/` | what `go generate ./...` writes; never edited by hand |
+| `internal/skgo/` | skgo's generated Go implementation; never edited by hand |
 | `cmd/` | the binary |
-| `server.go` | the one composition the binary and any test both use |
+| `web/server.go` | the one composition the binary and any test both use |
 
 Write a remote function by adding a Go function to a `*.remote.go` file beside
 the route that needs it and marking it with `skgo.Query` or `skgo.Command`, then
@@ -56,16 +58,11 @@ the route and mark it with `skgo.GET`, `skgo.POST` or another HTTP method. The
 same build gesture writes the throwing `+server.ts` stub Kit compiles and the Go
 registration the server answers in both production and development.
 
-## The origin
+## The listener
 
-The app's origin is fixed when the frontend is built, and the server checks it
-on every non-GET remote call — that is kit's own rule, and a command is a POST.
-It is written once, as `ORIGIN` in `Justfile`, and both halves read it from
-there.
-
-To serve the app somewhere else, change `ORIGIN` and run `just build`
-again. Changing only one half makes every command fail with 403; the server
-says so in its log and in the response body if it happens.
+`web.NewRuntime` owns the project's runs and starts the web application before
+it returns. TCP is loopback-only. A Unix-domain socket is removed when the
+runtime context ends, and headless workflows use `web.WithNoWeb`.
 
 ## Development
 

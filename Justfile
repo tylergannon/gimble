@@ -5,14 +5,14 @@ build:
     go mod tidy
     cd web && pnpm install
     go generate ./...
-    cd web && ORIGIN='{{origin}}' pnpm exec vp build
-    go build -ldflags '-X main.origin={{origin}}' -o bin/gimble ./cmd
+    cd web && pnpm exec vp build
+    go build -o bin/gimble ./cmd
 
 dev-web:
     cd web && ORIGIN='{{origin}}' pnpm exec vp dev --host 127.0.0.1 --port 5173 --strictPort
 
 dev-go:
-    go run ./cmd --proxy http://127.0.0.1:5173
+    GIMBLE_WEB_PROXY=http://127.0.0.1:5173 GIMBLE_WEB_ORIGIN='{{origin}}' go run ./cmd --port 8080
 
 e2e run="run":
     cd e2e && pnpm install
