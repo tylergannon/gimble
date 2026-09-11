@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -232,7 +233,7 @@ func TestSupervise(t *testing.T) {
 	err := runTest(t, func(ctx context.Context) error {
 		worker := NewSession(ctx, "coder", f, "m", "/w")
 		supervisor := NewSession(ctx, "taste", f, "m", "/w")
-		res, err := worker.Generate[Text](ctx, "build it", Supervise(supervisor, "no plugin systems", 10*time.Millisecond))
+		res, err := worker.Generate[Text](ctx, "build it", WithSupervisor(supervisor, "no plugin systems", WithInterval(10*time.Millisecond)))
 		if res != "done" {
 			t.Errorf("result %q", res)
 		}
@@ -246,6 +247,55 @@ func TestSupervise(t *testing.T) {
 	}
 	if workerTurns != 1 || looks != 1 {
 		t.Errorf("worker ran %d turns and the supervisor looked %d times, want 1 and 1: a look waits for something new", workerTurns, looks)
+	}
+}
+
+func TestSuperviseASupervisor(t *testing.T) {
+	f := &fake{}
+	steered := func(text string) bool {
+		for range 400 {
+			f.mu.Lock()
+			found := slices.ContainsFunc(f.steers, func(s string) bool { return strings.Contains(s, text) })
+			f.mu.Unlock()
+			if found {
+				return true
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		return false
+	}
+	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error) {
+		switch {
+		case session == "native-1": // the worker, until its supervisor objects
+			emit(Event{Kind: "tool_result", CallID: "1", Data: json.RawMessage(`"built a plugin system"`)})
+			steered("remove the plugin system")
+			return "done", nil
+		case session == "native-2" && strings.Contains(prompt, "no plugin systems"): // the supervisor's first look, until its own supervisor objects
+			emit(Event{Kind: "assistant", Text: "I object to the variable names"})
+			if !steered("object only to plugin systems") {
+				return `{"objections": []}`, nil
+			}
+			return `{"objections": ["remove the plugin system"]}`, nil
+		case session == "native-3" && strings.Contains(prompt, "no nitpicking"): // the supervisor's supervisor
+			return `{"objections": ["object only to plugin systems"]}`, nil
+		}
+		return `{"objections": []}`, nil
+	}
+	err := runTest(t, func(ctx context.Context) error {
+		worker := NewSession(ctx, "coder", f, "m", "/w")
+		supervisor := NewSession(ctx, "taste", f, "m", "/w")
+		lead := NewSession(ctx, "lead", f, "m", "/w")
+		_, err := worker.Generate[Text](ctx, "build it", WithSupervisor(supervisor, "no plugin systems",
+			WithInterval(10*time.Millisecond),
+			WithSupervisor(lead, "no nitpicking", WithInterval(10*time.Millisecond)),
+		))
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.steers) < 2 || !strings.Contains(f.steers[0], "object only to plugin systems") || !strings.Contains(f.steers[1], "remove the plugin system") {
+		t.Errorf("steers: %q, want the lead's steer to the supervisor, then the supervisor's to the worker", f.steers)
 	}
 }
 

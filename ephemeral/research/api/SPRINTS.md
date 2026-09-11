@@ -35,7 +35,7 @@ Ship: `go get github.com/tylergannon/gimble` and write any workflow in
   `Compact`: create session, run turn with schema and event callback,
   steer, interrupt, fork. Both adapters ported from `ephemeral/legacy/
   harness/`: Codex (native steer, cheapest model) and Claude Code.
-- `NewSession`, `Generate[T]`, `Text`, `Option`, `Steer`, `Interrupt`,
+- `NewSession`, `Generate[T]`, `Text`, `AgentOption`, `Steer`, `Interrupt`,
   `Fork`. Validation once in `Generate`; a cancelled `Generate` interrupts
   the native turn and returns `ctx.Err()`; a steer with no turn returns
   nil and is marked dropped; a session past its scope errors.
@@ -47,22 +47,27 @@ Ship: `go get github.com/tylergannon/gimble` and write any workflow in
   from this sprint, it is the data half, last.
 - `Group`: `Go` is a child scope, `Wait` joins and ends the group, the
   first error cancels the rest.
-- `Supervise`, the loop in `API.md` verbatim, over the worker's in-memory
-  event stream: a look per new tool result, objections become steers, a
-  final look, three rounds. `Review` is `struct{ Objections []string }`.
+- `WithSupervisor` and `WithInterval`, the loop in `API.md` verbatim, over
+  the worker's in-memory event stream: a look every three minutes when
+  there is something new, objections become steers, no gate. A supervisor
+  takes the same options, so it can be supervised. `Review` is
+  `struct{ Objections []string }`.
 - `Loop(ctx, name, goal, planner)`, `Laps`, `Task`, `Err`. Backlog file:
   markdown with YAML frontmatter, goal as Definition of Done, steps with
   optional `command:`. Per lap: reload, run the commands, ask the planner,
   yield a child scope with the task, or return. Never marks anything.
 - `Run` and `Project`. `Project` is the runs directory only; `Run` opens
   the root scope, calls the body, ends it. No `Serve`, no `Start`.
-- `cmd/sprint`: `sprint.Sprint(ctx, in Input)` in `sprint/sprints.go`. A
-  researcher primed once on `API.md` and the code; a `Loop` whose goal is
-  the sprint's section of this file and whose planner is forked from the
-  researcher; each lap a coder forked from the researcher, a supervised
-  `Generate[Text]` with a scope reviewer ("nothing `API.md` does not
-  name") and a taste reviewer; the lap committed when `go vet ./...` and
-  `go test ./...` pass, and left in the tree for the planner otherwise. No
+- `cmd/sprint`: `sprint.Sprint(ctx, in Input)` in `sprint/sprints.go`,
+  gated as `docs/definition-of-done.md` says. A researcher primed once on
+  `API.md` and the code; a `Loop` whose goal is the sprint's section of
+  this file with the definition of done, and whose planner is forked from
+  the researcher; each lap a coder forked from the researcher, one
+  supervisor on it that steers and never gates, the lap committed when `go
+  vet ./...` and `go test ./...` pass and left in the tree for the planner
+  otherwise. When the planner is done, a validator checks that the sprint
+  is legitimately demonstrated; its objections are another loop. Then the
+  planner files what is left as issues and merges the branch with `gh`. No
   bake-off: it multiplies every lap's cost, and a sprint does not need it.
 - `Justfile` gains `vet`, `test`, `attest`. Tests: every primitive over a
   fake adapter. `just attest`: one workflow on `gpt-5.6-luna` and Haiku
@@ -78,7 +83,7 @@ Built 2026-09-10 as far as the sprint workflow needs: not yet
 the sprint workflow calls none of them.
 
 `API.md`: Sessions and turns, Context, Scope, Concurrency, Loop,
-Supervise, Run (minus Serve and Start).
+Supervisors, Run (minus Serve and Start).
 
 ## Sprint 2: events into files
 
@@ -99,7 +104,7 @@ agent can read while it runs and after.
   user, assistant, thinking, tool call, tool result, delta naming what it
   extends, usage, harness error, approval request, nested transcript.
 - One writer per run, atomic appends, a final event that marks the log
-  complete. `Supervise` reads the same stream the file is written from.
+  complete. Supervisors read the same stream the file is written from.
 - A function on the ctx for the run directory, if the sprint workflow
   wants to tell a post-mortem agent where the log is. That is the
   workflow that was going to decide it.

@@ -26,8 +26,8 @@ func NewSession(ctx context.Context, name string, adapter HarnessAdapter, model,
 // type: its schema is sent with the prompt, and the result is validated
 // once, here, and decoded into T. A failed validation is an error. For
 // gimble.Text no schema is sent and the result is the final message. The
-// only option is Supervise (see Supervise).
-func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...Option) (T, error)
+// options attach supervisors (see Supervisors).
+func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...AgentOption) (T, error)
 
 // Steer injects a message into the turn that is running on this session.
 // It is called from another goroutine while Generate blocks. The message
@@ -72,7 +72,7 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error)
   shows one is needed.
 - A follow-up is another `Generate` on the same session. There is no
   `FollowUp`.
-- `Steer` is a primitive, not an option. `Supervise` is built on it, and a
+- `Steer` is a primitive, not an option. Supervisors are built on it, and a
   workflow can call it directly (a human at the console, a watchdog on a
   timer). The legacy adapters implement it: Codex through native
   `turn/steer` on the active turn, Claude by sending on the live SDK
@@ -503,7 +503,7 @@ When the candidates return different types, use one channel per type and a
 
 ## Loop
 
-Gimble provides two orchestration shapes, `Loop` and `Supervise`. `Loop`
+Gimble provides two orchestration shapes, `Loop` and supervisors. `Loop`
 iterates a task file, where a planner agent decides each lap what comes
 next, and yields each lap with a context of its own.
 
@@ -583,16 +583,24 @@ Details:
 - Cost is one planner call per lap plus the commands. The legacy loop
   re-judged every inference item every lap, which was O(n²) judge calls.
 
-## Supervise
+## Supervisors
 
-`Supervise` attaches supervisors to a turn. A supervisor is a session of
-its own and an instruction saying what to watch for.
+`WithSupervisor` attaches a supervisor to a turn. A supervisor is a
+session of its own and an instruction saying what to watch for.
 
 ```go
-func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...Option) (T, error)
+func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...AgentOption) (T, error)
 
-// every is how often the supervisor looks; it defaults to three minutes.
-func Supervise(supervisor *Session, instruction string, every ...time.Duration) Option
+// AgentOption is an argument to Generate. The same options are a
+// supervisor's own where WithSupervisor attaches it.
+type AgentOption func(*options)
+
+// opts are the supervisor's: WithInterval, and WithSupervisor for
+// supervisors of its looks.
+func WithSupervisor(supervisor *Session, instruction string, opts ...AgentOption) AgentOption
+
+// WithInterval is how often a supervisor looks; three minutes by default.
+func WithInterval(every time.Duration) AgentOption
 ```
 
 ```go
@@ -600,7 +608,7 @@ coder := gimble.NewSession(ctx, "coder", adapter, model, workdir)
 taste := gimble.NewSession(ctx, "taste", adapter, cheap, workdir)
 
 res, err := coder.Generate[Result](ctx, task.Text,
-	gimble.Supervise(taste, "don't let it over-engineer"),
+	gimble.WithSupervisor(taste, "don't let it over-engineer", gimble.WithInterval(time.Minute)),
 )
 ```
 
@@ -610,7 +618,7 @@ supervisor that first speaks at the end watches the worker build the
 plugin system and then pays a second turn to tear it out.
 
 What `Generate` does when supervisors are attached. This is the whole
-definition; if `Supervise` ever needs more than this, inline it instead.
+definition; if supervision ever needs more than this, inline it instead.
 
 ```go
 transcript := newTranscript() // the worker's events, appended as they arrive
@@ -629,12 +637,13 @@ go func() {
 var wg sync.WaitGroup
 for _, sup := range supervisors {
 	wg.Go(func() {
-		for sup.tick(done) { // every three minutes until the turn ends
+		for sup.tick(done) { // at its interval until the turn ends
 			events := transcript.sinceLastLook(sup)
 			if len(events) == 0 {
 				continue
 			}
-			review, _ := sup.session.Generate[Review](ctx, sup.instruction, prompt, events)
+			// A look is a turn with the supervisor's own options.
+			review, _ := sup.session.Generate[Review](ctx, look(sup.instruction, prompt, events), sup.opts...)
 			if len(review.Objections) > 0 {
 				s.Steer(ctx, strings.Join(review.Objections, "\n"))
 			}
@@ -657,8 +666,8 @@ return res, err
 - A review is `struct{ Objections []string }`. An empty list is no
   objection; there is no `Approved` flag, for the same reason `Task` has
   no `Done`.
-- Cadence is a clock: every three minutes, or the interval passed as the
-  last argument. A tick with nothing new since the last look is skipped,
+- Cadence is a clock: every three minutes, or the supervisor's
+  `WithInterval`. A tick with nothing new since the last look is skipped,
   and a turn shorter than the interval is never looked at. Supervisors do
   not have to run all the time.
 - Supervisors steer; they never gate. There is no final look and no
@@ -674,6 +683,11 @@ return res, err
   seconds old; that is fine. If the turn ended first the steer is dropped.
 - Supervisors are sessions, so one remembers its earlier looks and can say
   "you still have not removed the plugin system."
+- Agents and supervisors share one option type. A supervisor's options are
+  `AgentOption`s and a look is a `Generate` with them, so any supervisor
+  can be supervised: `WithSupervisor(taste, "don't let it over-engineer",
+  WithSupervisor(lead, "don't let it nitpick"))`. `WithInterval` means
+  something only among a supervisor's options. The overload is for now.
 - A supervisor's first look carries the instruction and the worker's
   prompt; every look carries what the worker did since the last one. Tool
   output is shortened; supervisors read files in the workdir themselves.
@@ -685,7 +699,7 @@ return res, err
   needs the event stream, which a workflow does not otherwise see.
 
 Hierarchy is composition, not a third shape. A `Loop` body that calls
-`Generate` with `Supervise` is a manager over a supervised worker; a `Loop`
+`Generate` with `WithSupervisor` is a manager over a supervised worker; a `Loop`
 whose body runs a `Loop` is a manager over leads. The one thing these do not
 give is an agent that delegates to agents on its own, without a Go program
 in between. That would be `Generate` exposed to the agent as a tool, not a
@@ -786,7 +800,7 @@ and turn ids when it has them. That is the whole structure:
   no event for reads.
 
 Three relations are not prefixes, and they are fields on events that
-exist anyway, not new events: a forked session's parent; a `Supervise`
+exist anyway, not new events: a forked session's parent; a supervisor
 attachment's reviewer session and worker turn; and a steer's source and
 target. Supervision is also the one concurrency inside a single scope:
 reviewer turns overlap the worker's, in Gimble's own code, marked by the
@@ -830,7 +844,7 @@ is drawn.
 **The static pass** draws the same graph before it has run: the template
 the page shows with nothing lit up yet. Over the ssa form of each `Run` or
 `Start` body it finds every `Scope`, `Group`, `NewSession`, `Fork`, `Loop`, `Each`,
-`Supervise`, `Set`, and `Get`, with their constant names and keys, and
+`WithSupervisor`, `Set`, and `Get`, with their constant names and keys, and
 traces each ctx from the scope that made it to the calls that receive it.
 Constant keys add data edges: this scope writes `research`, that node's
 prompt reads it. The limitations are Go's existing ctx conventions: ctx
@@ -884,7 +898,7 @@ func cancelRun(ctx context.Context, runID string) error
 - A steer from the page is recorded like a reviewer's steer, attributed to
   the person and marked landed or dropped. In the graph the person is one
   more supervisor node, attached to every session at once. `Steer` takes
-  no source argument; the run attributes by call path (`Supervise` knows
+  no source argument; the run attributes by call path (supervision knows
   its reviewer, the `steer` command knows it is the console, anything else
   is the workflow).
 - Contexts follow the rule above. A live query's `ctx` is the request's, so
@@ -913,7 +927,7 @@ func cancelRun(ctx context.Context, runID string) error
   One function on the ctx when the first workflow needs it.
 - The template: how much of it the page shows before a run, once the static
   pass exists.
-- `Supervise`: the wording of the prompt it sends a supervisor each look
+- Supervisors: the wording of the prompt sent to a supervisor each look
   (the instruction and the worker's prompt on the first look, then what
   the worker did since the last one, asking for objections). Prompt
   engineering against real looks, not API.

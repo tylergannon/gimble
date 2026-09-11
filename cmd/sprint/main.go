@@ -18,8 +18,8 @@ func main() {
 	var in sprint.Input
 	flag.IntVar(&in.Sprint, "sprint", 0, "the sprint of SPRINTS.md to build")
 	flag.StringVar(&in.Model, "model", "gpt-5.6-luna", "Codex model for the researcher, the planner, and the coders")
-	flag.StringVar(&in.ReviewModel, "review-model", "haiku", "Claude Code model for the reviewers")
-	flag.IntVar(&in.Laps, "laps", 5, "the most laps to run")
+	flag.StringVar(&in.ReviewModel, "review-model", "haiku", "Claude Code model for the supervisors and the validator")
+	flag.IntVar(&in.Laps, "laps", 10, "the most laps to run in all")
 	flag.Parse()
 	repo, err := os.Getwd()
 	if err != nil {

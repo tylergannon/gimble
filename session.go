@@ -51,10 +51,10 @@ func (Text) ValidateJSON(raw []byte) error {
 // Generate runs one turn and blocks until it ends. T's schema is sent with
 // the prompt, and the result is validated once, here, and decoded into T.
 // A failed validation is an error. For Text no schema is sent and the
-// result is the final message. The only option is Supervise.
-func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...Option) (T, error) {
-	if len(opts) > 0 {
-		return supervise[T](ctx, s, prompt, opts)
+// result is the final message. The options attach supervisors.
+func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...AgentOption) (T, error) {
+	if o := apply(opts); len(o.supervisors) > 0 {
+		return supervise[T](ctx, s, prompt, o.supervisors)
 	}
 	return generate[T](ctx, s, prompt, nil)
 }

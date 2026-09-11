@@ -44,10 +44,11 @@ A supervisor is a session and an instruction, attached to one turn where
 the turn is started:
 
 ```go
-res, err := coder.Generate[Result](ctx, task, gimble.Supervise(taste, "don't let it over-engineer."))
+res, err := coder.Generate[Result](ctx, task, gimble.WithSupervisor(taste, "don't let it over-engineer."))
 ```
 
-Every three minutes, or at the interval passed to `Supervise`, it looks at
-what the worker did since its last look and steers the worker with any
-objection. It never gates the result. See `Supervise` in
+Every three minutes, or at its `WithInterval`, it looks at what the worker
+did since its last look and steers the worker with any objection. It
+never gates the result. A supervisor takes the same options as the turn
+it watches, so it can have supervisors of its own. See Supervisors in
 `ephemeral/research/api/API.md`.

@@ -11,22 +11,44 @@ import (
 
 //go:generate go tool polytype --validate
 
-// Option is an argument to Generate. The only one is Supervise.
-type Option struct {
-	supervisor  *Session
-	instruction string
+// AgentOption is an argument to Generate. The same options are a
+// supervisor's own where WithSupervisor attaches it, so a supervisor can
+// have an interval and supervisors of its own.
+type AgentOption func(*options)
+
+type options struct {
+	supervisors []supervisor
 	every       time.Duration
 }
 
-// Supervise attaches a supervisor to a turn: a session of its own and an
-// instruction saying what to watch for. Every three minutes while the turn
-// runs, or at the interval given, the supervisor looks at what the worker
-// did since its last look, and each objection it raises is steered into
-// the turn. It never holds up the result.
-func Supervise(supervisor *Session, instruction string, every ...time.Duration) Option {
-	o := Option{supervisor: supervisor, instruction: instruction, every: 3 * time.Minute}
-	if len(every) > 0 {
-		o.every = every[0]
+type supervisor struct {
+	session     *Session
+	instruction string
+	opts        []AgentOption
+}
+
+// WithSupervisor attaches a supervisor to a turn: a session of its own and
+// an instruction saying what to watch for. While the turn runs, the
+// supervisor looks at what the worker did since its last look, and each
+// objection it raises is steered into the turn. It never holds up the
+// result. opts are the supervisor's: WithInterval for how often it looks,
+// and WithSupervisor for supervisors of its looks.
+func WithSupervisor(session *Session, instruction string, opts ...AgentOption) AgentOption {
+	return func(o *options) {
+		o.supervisors = append(o.supervisors, supervisor{session: session, instruction: instruction, opts: opts})
+	}
+}
+
+// WithInterval is how often a supervisor looks, given among its options to
+// WithSupervisor. The default is three minutes.
+func WithInterval(every time.Duration) AgentOption {
+	return func(o *options) { o.every = every }
+}
+
+func apply(opts []AgentOption) options {
+	o := options{every: 3 * time.Minute}
+	for _, opt := range opts {
+		opt(&o)
 	}
 	return o
 }
@@ -38,7 +60,7 @@ type Review struct {
 }
 
 // supervise is Generate with supervisors attached.
-func supervise[T Output](ctx context.Context, s *Session, prompt string, supervisors []Option) (T, error) {
+func supervise[T Output](ctx context.Context, s *Session, prompt string, supervisors []supervisor) (T, error) {
 	t := &transcript{}
 
 	// The worker's turn, in the background so the supervisors can run beside it.
@@ -51,11 +73,12 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 	}()
 
 	// Each supervisor, on its own clock: look at what is new, steer on
-	// objection, stop when the turn ends.
+	// objection, stop when the turn ends. A look is a turn with the
+	// supervisor's own options, so it can be supervised in turn.
 	var wg sync.WaitGroup
-	for _, o := range supervisors {
+	for _, sup := range supervisors {
 		wg.Go(func() {
-			tick := time.NewTicker(o.every)
+			tick := time.NewTicker(apply(sup.opts).every)
 			defer tick.Stop()
 			seen := 0
 			for {
@@ -68,11 +91,11 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 				if len(events) == 0 {
 					continue
 				}
-				look := lookPrompt(o, prompt, seen == 0, events)
+				look := lookPrompt(sup, prompt, seen == 0, events)
 				seen += len(events)
-				review, err := o.supervisor.Generate[Review](ctx, look)
+				review, err := sup.session.Generate[Review](ctx, look, sup.opts...)
 				if err != nil {
-					logf("%s: a look at %s failed: %v", o.supervisor.id, s.id, err)
+					logf("%s: a look at %s failed: %v", sup.session.id, s.id, err)
 					continue
 				}
 				if len(review.Objections) > 0 {
@@ -88,10 +111,10 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 
 // lookPrompt asks a supervisor for objections to what the worker did since
 // its last look; the first look also carries the instruction and the task.
-func lookPrompt(o Option, prompt string, first bool, events []Event) string {
+func lookPrompt(sup supervisor, prompt string, first bool, events []Event) string {
 	var b strings.Builder
 	if first {
-		fmt.Fprintf(&b, "You are supervising another agent in %s while it works. What you watch for:\n\n%s\n\n", o.supervisor.workdir, o.instruction)
+		fmt.Fprintf(&b, "You are supervising another agent in %s while it works. What you watch for:\n\n%s\n\n", sup.session.workdir, sup.instruction)
 		fmt.Fprintf(&b, "The agent was asked:\n\n%s\n\n", prompt)
 		b.WriteString("Every few minutes you are shown what it did since your last look; tool output is shortened, so read the files yourself when you need more, and change none. Object only when what it does goes against what you watch for; each objection is sent to the agent at once, as an instruction. When you have no objection, answer with an empty list.\n\n")
 	}
