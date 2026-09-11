@@ -71,14 +71,14 @@ func (s *scope) adopt(session *Session) {
 // body returns.
 func (s *scope) do(ctx context.Context, body func(context.Context) error) error {
 	ctx, cancel := context.WithCancel(context.WithValue(ctx, scopeKey{}, s))
-	e := scopeBegan{Name: path.Base(s.key)}
+	e := ScopeBegan{Name: path.Base(s.key)}
 	if task, _ := ctx.Value(taskKey{}).(string); task != "" {
 		e.Task = task
 	}
 	s.run.event(s.key, "", "", e)
 	defer s.end(cancel)
 	err := body(ctx)
-	s.run.event(s.key, "", "", scopeEnded{Error: errString(err)})
+	s.run.event(s.key, "", "", ScopeEnded{Error: errString(err)})
 	return err
 }
 
@@ -92,7 +92,7 @@ func (s *scope) end(cancel context.CancelFunc) {
 		session.mu.Lock()
 		session.closed = true
 		session.mu.Unlock()
-		s.run.event(s.key, session.id, "", sessionClosed{})
+		s.run.event(s.key, session.id, "", SessionClosed{})
 	}
 	cancel()
 }
@@ -146,7 +146,7 @@ func store(ctx context.Context, key string, raw []byte) error {
 	}
 	s.values[key] = raw
 	s.keys = append(s.keys, key)
-	s.run.event(s.key, "", "", set{Key: key, Value: JSONText(raw)})
+	s.run.event(s.key, "", "", ValueSet{Key: key, Value: JSONText(raw)})
 	return nil
 }
 

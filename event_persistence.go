@@ -26,11 +26,11 @@ func newEventWriter(name string) (*eventWriter, error) {
 	}
 	return &eventWriter{file: f}, nil
 }
-func (w *eventWriter) writeLifecycle(scope, session, turn string, event lifecycleEvent) error {
+func (w *eventWriter) writeLifecycle(scope, session, turn string, event LifecycleEvent) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.seq++
-	record := lifecycleRecord{
+	record := LifecycleRecord{
 		Seq:     w.seq,
 		Time:    time.Now().UTC(),
 		Scope:   scope,
@@ -51,7 +51,7 @@ func (w *eventWriter) writeAgent(scope, session, turn string, event AgentEvent) 
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.seq++
-	record := agentRecord{
+	record := AgentRecord{
 		Seq:     w.seq,
 		Time:    time.Now().UTC(),
 		Scope:   scope,
@@ -73,7 +73,7 @@ func optionalString(value string) polytype.Optional[string] {
 }
 
 func (w *eventWriter) close() error { return w.file.Close() }
-func (r *run) event(scope, session, turn string, event lifecycleEvent) {
+func (r *run) event(scope, session, turn string, event LifecycleEvent) {
 	if r != nil && r.writer != nil {
 		_ = r.writer.writeLifecycle(scope, session, turn, event)
 	}
@@ -95,7 +95,7 @@ func (r *run) sessionEvent(scope, session, turn string, event AgentEvent) {
 		_ = w.writeAgent(scope, session, turn, event)
 	}
 }
-func projectEvent(dir string, event lifecycleEvent) {
+func projectEvent(dir string, event LifecycleEvent) {
 	w, err := newEventWriter(filepath.Join(dir, "project.jsonl"))
 	if err == nil {
 		_ = w.writeLifecycle("", "", "", event)

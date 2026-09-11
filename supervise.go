@@ -68,7 +68,7 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 		s.mu.Unlock()
 		if scope, err := current(ctx); err == nil {
 			o := apply(sup.opts)
-			scope.run.event(scope.key, s.id, turn, superviseAttached{Reviewer: sup.session.id, Worker: turn, Instruction: sup.instruction, Interval: o.every})
+			scope.run.event(scope.key, s.id, turn, SuperviseAttached{Reviewer: sup.session.id, Worker: turn, Instruction: sup.instruction, Interval: o.every})
 		}
 	}
 

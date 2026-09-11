@@ -74,39 +74,39 @@ func runTest(t *testing.T, body func(ctx context.Context) error) error {
 	return Run(Project(t.Context(), t.TempDir()), "test", body)
 }
 
-func lifecycleKind(event lifecycleEvent) string {
+func lifecycleKind(event LifecycleEvent) string {
 	switch event.(type) {
-	case runStarted:
+	case RunStarted:
 		return "run_started"
-	case runEnded:
+	case RunEnded:
 		return "run_ended"
-	case runCancelled:
+	case RunCancelled:
 		return "run_cancelled"
-	case scopeBegan:
+	case ScopeBegan:
 		return "scope_began"
-	case scopeEnded:
+	case ScopeEnded:
 		return "scope_ended"
-	case loopCommand:
+	case LoopCommand:
 		return "loop_command"
-	case plannerDecision:
+	case PlannerDecision:
 		return "planner_decision"
-	case set:
-		return "set"
-	case sessionCreated:
+	case ValueSet:
+		return "value_set"
+	case SessionCreated:
 		return "session_created"
-	case sessionClosed:
+	case SessionClosed:
 		return "session_closed"
-	case turnStarted:
+	case TurnStarted:
 		return "turn_started"
-	case turnEnded:
+	case TurnEnded:
 		return "turn_ended"
-	case superviseAttached:
+	case SuperviseAttached:
 		return "supervise_attached"
-	case steer:
+	case Steer:
 		return "steer"
-	case interrupt:
+	case Interrupt:
 		return "interrupt"
-	case complete:
+	case Complete:
 		return "complete"
 	default:
 		return "unknown"
@@ -164,7 +164,7 @@ func TestRunLogCanBeRead(t *testing.T) {
 		t.Fatal("run directory was present outside a run")
 	}
 	var got []string
-	if err := runlog.Read[lifecycleRecord](t.Context(), dir, func(e lifecycleRecord) error {
+	if err := runlog.Read[LifecycleRecord](t.Context(), dir, func(e LifecycleRecord) error {
 		got = append(got, lifecycleKind(e.Event))
 		return nil
 	}); err != nil {
@@ -183,15 +183,15 @@ func TestRunLogCanBeRead(t *testing.T) {
 	seen := make(chan string, 2)
 	readErr := make(chan error, 1)
 	go func() {
-		readErr <- runlog.Read[lifecycleRecord](t.Context(), liveDir, func(e lifecycleRecord) error {
+		readErr <- runlog.Read[LifecycleRecord](t.Context(), liveDir, func(e LifecycleRecord) error {
 			seen <- lifecycleKind(e.Event)
 			return nil
 		})
 	}()
-	if err := w.writeLifecycle("", "", "", runStarted{}); err != nil {
+	if err := w.writeLifecycle("", "", "", RunStarted{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := w.writeLifecycle("", "", "", complete{}); err != nil {
+	if err := w.writeLifecycle("", "", "", Complete{}); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -595,10 +595,10 @@ func TestAttestEventFixture(t *testing.T) {
 	if runDir == "" {
 		t.Fatal("run directory was not created")
 	}
-	var tailed []lifecycleRecord
+	var tailed []LifecycleRecord
 	readDone := make(chan error, 1)
 	go func() {
-		readDone <- runlog.Read[lifecycleRecord](t.Context(), runDir, func(e lifecycleRecord) error {
+		readDone <- runlog.Read[LifecycleRecord](t.Context(), runDir, func(e LifecycleRecord) error {
 			tailed = append(tailed, e)
 			return nil
 		})
@@ -631,16 +631,16 @@ func TestAttestEventFixture(t *testing.T) {
 		kind := lifecycleKind(e.Event)
 		seen[kind] = true
 		switch e.Event.(type) {
-		case scopeBegan:
+		case ScopeBegan:
 			scopes[e.Scope] = true
 			intervals[e.Scope] = [2]time.Time{e.Time}
-		case scopeEnded:
+		case ScopeEnded:
 			pair := intervals[e.Scope]
 			pair[1] = e.Time
 			intervals[e.Scope] = pair
-		case sessionCreated:
+		case SessionCreated:
 			sessionIDs = append(sessionIDs, e.Session.Value)
-		case turnStarted:
+		case TurnStarted:
 			turnIDs = append(turnIDs, e.Turn.Value)
 		}
 	}
@@ -672,7 +672,7 @@ func TestAttestEventFixture(t *testing.T) {
 			t.Fatalf("turn id lacks ordinal = %q", id)
 		}
 	}
-	for _, kind := range []string{"scope_began", "scope_ended", "set", "session_created", "session_closed", "turn_started", "turn_ended", "supervise_attached", "steer"} {
+	for _, kind := range []string{"scope_began", "scope_ended", "value_set", "session_created", "session_closed", "turn_started", "turn_ended", "supervise_attached", "steer"} {
 		if !seen[kind] {
 			t.Errorf("run log lacks %s", kind)
 		}
@@ -684,15 +684,15 @@ func TestAttestEventFixture(t *testing.T) {
 		t.Errorf("run_started scope = %q, want root scope", got)
 	}
 	for _, want := range []string{"nested.1", ""} {
-		if !slices.ContainsFunc(tailed, func(e lifecycleRecord) bool {
-			_, began := e.Event.(scopeBegan)
+		if !slices.ContainsFunc(tailed, func(e LifecycleRecord) bool {
+			_, began := e.Event.(ScopeBegan)
 			return began && e.Scope == want
 		}) {
 			t.Errorf("scope tree lacks began event for %q", want)
 		}
 	}
 	for _, e := range tailed {
-		if value, ok := e.Event.(set); ok {
+		if value, ok := e.Event.(ValueSet); ok {
 			if value.Key == "root" && value.Value != JSONText(`"value"`) {
 				t.Errorf("root set value = %s, want JSON string", value.Value)
 			}
@@ -705,29 +705,29 @@ func TestAttestEventFixture(t *testing.T) {
 	var workerTurn, reviewerTurn [2]time.Time
 	for _, e := range tailed {
 		switch event := e.Event.(type) {
-		case sessionCreated:
+		case SessionCreated:
 			if e.Session.Value == "planner.1" && event.Parent == "researcher.1" {
 				forked = true
 			}
-		case superviseAttached:
+		case SuperviseAttached:
 			if event.Reviewer == "reviewer.1" && strings.HasPrefix(event.Worker, "worker.1/turn.") {
 				supervised = true
 			}
-		case steer:
+		case Steer:
 			if event.Source == "reviewer.1" && event.Landed {
 				landed = true
 			}
 			if event.Message == "too late" && !event.Landed {
 				dropped = true
 			}
-		case turnStarted:
+		case TurnStarted:
 			if strings.HasPrefix(e.Turn.Value, "worker.1/turn.") {
 				workerTurn[0] = e.Time
 			}
 			if e.Session.Value == "reviewer.1" && reviewerTurn[0].IsZero() {
 				reviewerTurn[0] = e.Time
 			}
-		case turnEnded:
+		case TurnEnded:
 			if strings.HasPrefix(e.Turn.Value, "worker.1/turn.") {
 				workerTurn[1] = e.Time
 			}
@@ -742,12 +742,12 @@ func TestAttestEventFixture(t *testing.T) {
 	if workerTurn[0].IsZero() || workerTurn[1].IsZero() || reviewerTurn[0].IsZero() || !workerTurn[0].Before(reviewerTurn[0]) || !reviewerTurn[0].Before(workerTurn[1]) {
 		t.Fatalf("worker/reviewer turns did not overlap: worker=%v reviewer=%v", workerTurn, reviewerTurn)
 	}
-	persisted := readRecords[lifecycleRecord](t, filepath.Join(runDir, "run.jsonl"))
+	persisted := readRecords[LifecycleRecord](t, filepath.Join(runDir, "run.jsonl"))
 	if len(persisted) != len(tailed) {
 		t.Fatalf("persisted lifecycle records = %d, tailed %d", len(persisted), len(tailed))
 	}
 
-	projectEvents := readRecords[lifecycleRecord](t, filepath.Join(project, "project.jsonl"))
+	projectEvents := readRecords[LifecycleRecord](t, filepath.Join(project, "project.jsonl"))
 	if len(projectEvents) != 2 || lifecycleKind(projectEvents[0].Event) != "run_started" || lifecycleKind(projectEvents[1].Event) != "run_ended" {
 		t.Fatalf("project lifecycle: %+v", projectEvents)
 	}
@@ -757,7 +757,7 @@ func TestAttestEventFixture(t *testing.T) {
 	}
 	transcriptKinds := map[string]map[string]bool{}
 	for _, file := range files {
-		events := readRecords[agentRecord](t, file)
+		events := readRecords[AgentRecord](t, file)
 		if len(events) == 0 || agentKind(events[0].Event) != "user_message" {
 			t.Errorf("%s is not a transcript: %+v", file, events)
 		}

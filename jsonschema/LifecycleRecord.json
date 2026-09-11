@@ -1,66 +1,66 @@
 {"type":"object",
-"properties":{
+"description":"LifecycleRecord places one lifecycle event in a run or project log.","properties":{
 "seq":{"type":"integer"},
 "time":{"type":"string","description":"RFC3339 formatted date-time string (e.g., \"2006-01-02T15:04:05Z07:00\")"},
 "scope":{"type":"string"},
 "session":{"type":"string"},
 "turn":{"type":"string"},
 "event":{"anyOf":[{"type":"object",
-"properties":{
+"description":"Complete marks the durable end of a run log.","properties":{
 "kind":{"type":"string","const":"complete"}
 },"required":["kind"],"additionalProperties":false},
 {"type":"object",
-"properties":{
+"description":"Interrupt records a request to stop a running session.","properties":{
 "kind":{"type":"string","const":"interrupt"},
 "target":{"type":"string"},
 "source":{"type":"string"}
 },"required":["kind","target","source"],"additionalProperties":false},
 {"type":"object",
-"properties":{
+"description":"LoopCommand records one command run by a loop.","properties":{
 "kind":{"type":"string","const":"loop_command"},
 "command":{"type":"string"},
 "exit_code":{"type":"integer"}
 },"required":["kind","command","exit_code"],"additionalProperties":false},
 {"type":"object",
-"properties":{
+"description":"PlannerDecision records the task selected for a loop's next lap.","properties":{
 "kind":{"type":"string","const":"planner_decision"},
 "decision":{"type":"string"}
 },"required":["kind","decision"],"additionalProperties":false},
 {"type":"object",
-"properties":{
+"description":"RunCancelled records a workflow run stopped by context cancellation.","properties":{
 "kind":{"type":"string","const":"run_cancelled"},
 "name":{"type":"string"},
 "source":{"type":"string"},
 "error":{"type":"string"}
 },"required":["kind","name","source","error"],"additionalProperties":false},
 {"type":"object",
-"properties":{
+"description":"RunEnded records the result of a workflow run.","properties":{
 "kind":{"type":"string","const":"run_ended"},
 "name":{"type":"string"},
 "error":{"type":"string"}
 },"required":["kind","name","error"],"additionalProperties":false},
 {"type":"object",
-"properties":{
+"description":"RunStarted records the beginning of a workflow run.","properties":{
 "kind":{"type":"string","const":"run_started"},
 "name":{"type":"string"}
 },"required":["kind","name"],"additionalProperties":false},
 {"type":"object",
-"properties":{
+"description":"ScopeBegan records entry into one scope instance.","properties":{
 "kind":{"type":"string","const":"scope_began"},
 "name":{"type":"string"},
 "task":{"type":"string"}
 },"required":["kind","name","task"],"additionalProperties":false},
 {"type":"object",
-"properties":{
+"description":"ScopeEnded records exit from one scope instance.","properties":{
 "kind":{"type":"string","const":"scope_ended"},
 "error":{"type":"string"}
 },"required":["kind","error"],"additionalProperties":false},
 {"type":"object",
-"properties":{
+"description":"SessionClosed records that a scope closed one of its sessions.","properties":{
 "kind":{"type":"string","const":"session_closed"}
 },"required":["kind"],"additionalProperties":false},
 {"type":"object",
-"properties":{
+"description":"SessionCreated records a new agent session or fork.","properties":{
 "kind":{"type":"string","const":"session_created"},
 "name":{"type":"string"},
 "adapter":{"type":"string"},
@@ -69,13 +69,7 @@
 "parent":{"type":"string"}
 },"required":["kind","name","adapter","model","workdir","parent"],"additionalProperties":false},
 {"type":"object",
-"properties":{
-"kind":{"type":"string","const":"set"},
-"key":{"type":"string"},
-"value":{"type":"string","description":"JSONText is JSON source text carried opaquely by an event. Complete events contain one encoded value; delta events may contain only the next fragment. Text preserves provider-specific payloads while the event remains a closed Polytype shape."}
-},"required":["kind","key","value"],"additionalProperties":false},
-{"type":"object",
-"properties":{
+"description":"Steer records a message sent to a running session or dropped after it ended.","properties":{
 "kind":{"type":"string","const":"steer"},
 "target":{"type":"string"},
 "source":{"type":"string"},
@@ -83,7 +77,7 @@
 "landed":{"type":"boolean"}
 },"required":["kind","target","source","message","landed"],"additionalProperties":false},
 {"type":"object",
-"properties":{
+"description":"SuperviseAttached records a reviewer attached to a worker turn.","properties":{
 "kind":{"type":"string","const":"supervise_attached"},
 "reviewer":{"type":"string"},
 "worker":{"type":"string"},
@@ -91,7 +85,7 @@
 "interval":{"type":"integer","description":"A Duration represents the elapsed time between two instants as an int64 nanosecond count. The representation limits the largest representable duration to approximately 290 years."}
 },"required":["kind","reviewer","worker","instruction","interval"],"additionalProperties":false},
 {"type":"object",
-"properties":{
+"description":"TurnEnded records the result and accounting for one agent turn.","properties":{
 "kind":{"type":"string","const":"turn_ended"},
 "result":{"type":"string","description":"JSONText is JSON source text carried opaquely by an event. Complete events contain one encoded value; delta events may contain only the next fragment. Text preserves provider-specific payloads while the event remains a closed Polytype shape."},
 "error":{"type":"string"},
@@ -100,9 +94,15 @@
 "interrupted":{"type":"boolean"}
 },"required":["kind","result","error","tokens","duration","interrupted"],"additionalProperties":false},
 {"type":"object",
-"properties":{
+"description":"TurnStarted records the beginning of one agent turn.","properties":{
 "kind":{"type":"string","const":"turn_started"},
 "prompt":{"type":"string"},
 "output_type":{"type":"string"}
-},"required":["kind","prompt","output_type"],"additionalProperties":false}]}
+},"required":["kind","prompt","output_type"],"additionalProperties":false},
+{"type":"object",
+"description":"ValueSet records one value written into a scope.","properties":{
+"kind":{"type":"string","const":"value_set"},
+"key":{"type":"string"},
+"value":{"type":"string","description":"JSONText is JSON source text carried opaquely by an event. Complete events contain one encoded value; delta events may contain only the next fragment. Text preserves provider-specific payloads while the event remains a closed Polytype shape."}
+},"required":["kind","key","value"],"additionalProperties":false}]}
 },"required":["seq","time","scope","event"],"additionalProperties":false}

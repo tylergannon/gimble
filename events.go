@@ -154,65 +154,74 @@ type NestedTranscript struct {
 
 func (NestedTranscript) agentEvent() {}
 
-// lifecycleEvent is one typed change to a run's lifecycle. It is private
-// because workflows and harness adapters do not produce lifecycle events.
-type lifecycleEvent interface{ lifecycleEvent() }
+// LifecycleEvent is one typed change to a run's lifecycle. The interface is
+// sealed: Gimble produces the concrete variants defined here.
+type LifecycleEvent interface{ lifecycleEvent() }
 
-type runStarted struct {
+// RunStarted records the beginning of a workflow run.
+type RunStarted struct {
 	Name string `json:"name"`
 }
 
-func (runStarted) lifecycleEvent() {}
+func (RunStarted) lifecycleEvent() {}
 
-type runEnded struct {
+// RunEnded records the result of a workflow run.
+type RunEnded struct {
 	Name  string `json:"name"`
 	Error string `json:"error"`
 }
 
-func (runEnded) lifecycleEvent() {}
+func (RunEnded) lifecycleEvent() {}
 
-type runCancelled struct {
+// RunCancelled records a workflow run stopped by context cancellation.
+type RunCancelled struct {
 	Name   string `json:"name"`
 	Source string `json:"source"`
 	Error  string `json:"error"`
 }
 
-func (runCancelled) lifecycleEvent() {}
+func (RunCancelled) lifecycleEvent() {}
 
-type scopeBegan struct {
+// ScopeBegan records entry into one scope instance.
+type ScopeBegan struct {
 	Name string `json:"name"`
 	Task string `json:"task"`
 }
 
-func (scopeBegan) lifecycleEvent() {}
+func (ScopeBegan) lifecycleEvent() {}
 
-type scopeEnded struct {
+// ScopeEnded records exit from one scope instance.
+type ScopeEnded struct {
 	Error string `json:"error"`
 }
 
-func (scopeEnded) lifecycleEvent() {}
+func (ScopeEnded) lifecycleEvent() {}
 
-type loopCommand struct {
+// LoopCommand records one command run by a loop.
+type LoopCommand struct {
 	Command  string `json:"command"`
 	ExitCode int    `json:"exit_code"`
 }
 
-func (loopCommand) lifecycleEvent() {}
+func (LoopCommand) lifecycleEvent() {}
 
-type plannerDecision struct {
+// PlannerDecision records the task selected for a loop's next lap.
+type PlannerDecision struct {
 	Decision string `json:"decision"`
 }
 
-func (plannerDecision) lifecycleEvent() {}
+func (PlannerDecision) lifecycleEvent() {}
 
-type set struct {
+// ValueSet records one value written into a scope.
+type ValueSet struct {
 	Key   string   `json:"key"`
 	Value JSONText `json:"value"`
 }
 
-func (set) lifecycleEvent() {}
+func (ValueSet) lifecycleEvent() {}
 
-type sessionCreated struct {
+// SessionCreated records a new agent session or fork.
+type SessionCreated struct {
 	Name    string `json:"name"`
 	Adapter string `json:"adapter"`
 	Model   string `json:"model"`
@@ -220,20 +229,23 @@ type sessionCreated struct {
 	Parent  string `json:"parent"`
 }
 
-func (sessionCreated) lifecycleEvent() {}
+func (SessionCreated) lifecycleEvent() {}
 
-type sessionClosed struct{}
+// SessionClosed records that a scope closed one of its sessions.
+type SessionClosed struct{}
 
-func (sessionClosed) lifecycleEvent() {}
+func (SessionClosed) lifecycleEvent() {}
 
-type turnStarted struct {
+// TurnStarted records the beginning of one agent turn.
+type TurnStarted struct {
 	Prompt     string `json:"prompt"`
 	OutputType string `json:"output_type"`
 }
 
-func (turnStarted) lifecycleEvent() {}
+func (TurnStarted) lifecycleEvent() {}
 
-type turnEnded struct {
+// TurnEnded records the result and accounting for one agent turn.
+type TurnEnded struct {
 	Result      JSONText      `json:"result"`
 	Error       string        `json:"error"`
 	Tokens      []JSONText    `json:"tokens"`
@@ -241,47 +253,53 @@ type turnEnded struct {
 	Interrupted bool          `json:"interrupted"`
 }
 
-func (turnEnded) lifecycleEvent() {}
+func (TurnEnded) lifecycleEvent() {}
 
-type superviseAttached struct {
+// SuperviseAttached records a reviewer attached to a worker turn.
+type SuperviseAttached struct {
 	Reviewer    string        `json:"reviewer"`
 	Worker      string        `json:"worker"`
 	Instruction string        `json:"instruction"`
 	Interval    time.Duration `json:"interval"`
 }
 
-func (superviseAttached) lifecycleEvent() {}
+func (SuperviseAttached) lifecycleEvent() {}
 
-type steer struct {
+// Steer records a message sent to a running session or dropped after it ended.
+type Steer struct {
 	Target  string `json:"target"`
 	Source  string `json:"source"`
 	Message string `json:"message"`
 	Landed  bool   `json:"landed"`
 }
 
-func (steer) lifecycleEvent() {}
+func (Steer) lifecycleEvent() {}
 
-type interrupt struct {
+// Interrupt records a request to stop a running session.
+type Interrupt struct {
 	Target string `json:"target"`
 	Source string `json:"source"`
 }
 
-func (interrupt) lifecycleEvent() {}
+func (Interrupt) lifecycleEvent() {}
 
-type complete struct{}
+// Complete marks the durable end of a run log.
+type Complete struct{}
 
-func (complete) lifecycleEvent() {}
+func (Complete) lifecycleEvent() {}
 
-type lifecycleRecord struct {
+// LifecycleRecord places one lifecycle event in a run or project log.
+type LifecycleRecord struct {
 	Seq     uint64                    `json:"seq"`
 	Time    time.Time                 `json:"time"`
 	Scope   string                    `json:"scope"`
 	Session polytype.Optional[string] `json:"session,omitzero"`
 	Turn    polytype.Optional[string] `json:"turn,omitzero"`
-	Event   lifecycleEvent            `json:"event"`
+	Event   LifecycleEvent            `json:"event"`
 }
 
-type agentRecord struct {
+// AgentRecord places one harness event in a session transcript.
+type AgentRecord struct {
 	Seq     uint64     `json:"seq"`
 	Time    time.Time  `json:"time"`
 	Scope   string     `json:"scope"`

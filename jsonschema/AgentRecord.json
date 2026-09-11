@@ -1,5 +1,5 @@
 {"type":"object",
-"properties":{
+"description":"AgentRecord places one harness event in a session transcript.","properties":{
 "seq":{"type":"integer"},
 "time":{"type":"string","description":"RFC3339 formatted date-time string (e.g., \"2006-01-02T15:04:05Z07:00\")"},
 "scope":{"type":"string"},

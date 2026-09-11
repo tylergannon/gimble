@@ -32,7 +32,7 @@ func TestAgentEventUnionRoundTripsEveryVariant(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.kind, func(t *testing.T) {
-			record := agentRecord{Seq: 1, Time: when, Scope: "lap.1", Session: "coder.1", Turn: "coder.1/turn.1", Event: test.event}
+			record := AgentRecord{Seq: 1, Time: when, Scope: "lap.1", Session: "coder.1", Turn: "coder.1/turn.1", Event: test.event}
 			raw, err := json.Marshal(record)
 			if err != nil {
 				t.Fatal(err)
@@ -43,7 +43,7 @@ func TestAgentEventUnionRoundTripsEveryVariant(t *testing.T) {
 			if err := record.ValidateJSON(raw); err != nil {
 				t.Fatalf("generated schema rejected %s: %v", raw, err)
 			}
-			var decoded agentRecord
+			var decoded AgentRecord
 			if err := json.Unmarshal(raw, &decoded); err != nil {
 				t.Fatal(err)
 			}
@@ -66,29 +66,29 @@ func TestLifecycleEventUnionRoundTripsEveryVariant(t *testing.T) {
 	when := time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC)
 	tests := []struct {
 		kind  string
-		event lifecycleEvent
+		event LifecycleEvent
 	}{
-		{"run_started", runStarted{Name: "sprint"}},
-		{"run_ended", runEnded{Name: "sprint", Error: ""}},
-		{"run_cancelled", runCancelled{Name: "sprint", Source: "operator", Error: "context canceled"}},
-		{"scope_began", scopeBegan{Name: "lap", Task: "implement"}},
-		{"scope_ended", scopeEnded{Error: ""}},
-		{"loop_command", loopCommand{Command: "go test ./...", ExitCode: 0}},
-		{"planner_decision", plannerDecision{Decision: "implement events"}},
-		{"set", set{Key: "goal", Value: JSONText(`"ship"`)}},
-		{"session_created", sessionCreated{Name: "coder", Adapter: "codex", Model: "gpt", Workdir: "/work", Parent: "researcher.1"}},
-		{"session_closed", sessionClosed{}},
-		{"turn_started", turnStarted{Prompt: "build", OutputType: "gimble.Text"}},
-		{"turn_ended", turnEnded{Result: JSONText(`"done"`), Tokens: []JSONText{JSONText(`{"input":1}`)}, Duration: time.Second}},
-		{"supervise_attached", superviseAttached{Reviewer: "reviewer.1", Worker: "worker.1/turn.1", Instruction: "watch", Interval: time.Minute}},
-		{"steer", steer{Target: "worker.1", Source: "reviewer.1", Message: "fix it", Landed: true}},
-		{"interrupt", interrupt{Target: "worker.1", Source: "operator"}},
-		{"complete", complete{}},
+		{"run_started", RunStarted{Name: "sprint"}},
+		{"run_ended", RunEnded{Name: "sprint", Error: ""}},
+		{"run_cancelled", RunCancelled{Name: "sprint", Source: "operator", Error: "context canceled"}},
+		{"scope_began", ScopeBegan{Name: "lap", Task: "implement"}},
+		{"scope_ended", ScopeEnded{Error: ""}},
+		{"loop_command", LoopCommand{Command: "go test ./...", ExitCode: 0}},
+		{"planner_decision", PlannerDecision{Decision: "implement events"}},
+		{"value_set", ValueSet{Key: "goal", Value: JSONText(`"ship"`)}},
+		{"session_created", SessionCreated{Name: "coder", Adapter: "codex", Model: "gpt", Workdir: "/work", Parent: "researcher.1"}},
+		{"session_closed", SessionClosed{}},
+		{"turn_started", TurnStarted{Prompt: "build", OutputType: "gimble.Text"}},
+		{"turn_ended", TurnEnded{Result: JSONText(`"done"`), Tokens: []JSONText{JSONText(`{"input":1}`)}, Duration: time.Second}},
+		{"supervise_attached", SuperviseAttached{Reviewer: "reviewer.1", Worker: "worker.1/turn.1", Instruction: "watch", Interval: time.Minute}},
+		{"steer", Steer{Target: "worker.1", Source: "reviewer.1", Message: "fix it", Landed: true}},
+		{"interrupt", Interrupt{Target: "worker.1", Source: "operator"}},
+		{"complete", Complete{}},
 	}
 
 	for _, test := range tests {
 		t.Run(test.kind, func(t *testing.T) {
-			record := lifecycleRecord{Seq: 1, Time: when, Scope: "lap.1", Session: optionalString("coder.1"), Turn: optionalString("coder.1/turn.1"), Event: test.event}
+			record := LifecycleRecord{Seq: 1, Time: when, Scope: "lap.1", Session: optionalString("coder.1"), Turn: optionalString("coder.1/turn.1"), Event: test.event}
 			raw, err := json.Marshal(record)
 			if err != nil {
 				t.Fatal(err)
@@ -99,7 +99,7 @@ func TestLifecycleEventUnionRoundTripsEveryVariant(t *testing.T) {
 			if err := record.ValidateJSON(raw); err != nil {
 				t.Fatalf("generated schema rejected %s: %v", raw, err)
 			}
-			var decoded lifecycleRecord
+			var decoded LifecycleRecord
 			if err := json.Unmarshal(raw, &decoded); err != nil {
 				t.Fatal(err)
 			}
@@ -120,10 +120,10 @@ func TestLifecycleEventUnionRoundTripsEveryVariant(t *testing.T) {
 func TestEventUnionsRejectUnknownVariants(t *testing.T) {
 	t.Parallel()
 	raw := []byte(`{"seq":1,"time":"2026-09-11T12:00:00Z","scope":"","session":"coder.1","turn":"coder.1/turn.1","event":{"kind":"unknown"}}`)
-	if err := (agentRecord{}).ValidateJSON(raw); err == nil {
+	if err := (AgentRecord{}).ValidateJSON(raw); err == nil {
 		t.Fatal("generated schema accepted an unknown agent event")
 	}
-	var record agentRecord
+	var record AgentRecord
 	if err := json.Unmarshal(raw, &record); err == nil {
 		t.Fatal("generated codec accepted an unknown agent event")
 	}

@@ -32,7 +32,7 @@ func Group(ctx context.Context, name string) *group {
 	}
 	g := &group{scope: parent.child(name)}
 	g.ctx, g.cancel = context.WithCancel(context.WithValue(ctx, scopeKey{}, g.scope))
-	g.scope.run.event(g.scope.key, "", "", scopeBegan{Name: name})
+	g.scope.run.event(g.scope.key, "", "", ScopeBegan{Name: name})
 	return g
 }
 
@@ -59,7 +59,7 @@ func (g *group) Wait() error {
 		return g.err
 	}
 	g.wg.Wait()
-	g.scope.run.event(g.scope.key, "", "", scopeEnded{Error: errString(g.err)})
+	g.scope.run.event(g.scope.key, "", "", ScopeEnded{Error: errString(g.err)})
 	g.scope.end(g.cancel)
 	return g.err
 }

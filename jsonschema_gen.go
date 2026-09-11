@@ -27,8 +27,8 @@ func __gen_jsonschema_panic(fname string, err error) {
 var (
 	__gen_jsonschema_compiled_review          *jsonschema.Schema
 	__gen_jsonschema_compiled_plan            *jsonschema.Schema
-	__gen_jsonschema_compiled_lifecycleRecord *jsonschema.Schema
-	__gen_jsonschema_compiled_agentRecord     *jsonschema.Schema
+	__gen_jsonschema_compiled_LifecycleRecord *jsonschema.Schema
+	__gen_jsonschema_compiled_AgentRecord     *jsonschema.Schema
 )
 
 func init() {
@@ -60,13 +60,13 @@ func init() {
 	}
 
 	{
-		var __zero lifecycleRecord
-		__gen_jsonschema_compiled_lifecycleRecord = compile("lifecycleRecord", __zero.Schema())
+		var __zero LifecycleRecord
+		__gen_jsonschema_compiled_LifecycleRecord = compile("LifecycleRecord", __zero.Schema())
 	}
 
 	{
-		var __zero agentRecord
-		__gen_jsonschema_compiled_agentRecord = compile("agentRecord", __zero.Schema())
+		var __zero AgentRecord
+		__gen_jsonschema_compiled_AgentRecord = compile("AgentRecord", __zero.Schema())
 	}
 }
 
@@ -88,8 +88,8 @@ func (plan) Schema() json.RawMessage {
 	return data
 }
 
-func (lifecycleRecord) Schema() json.RawMessage {
-	const fileName = "jsonschema/lifecycleRecord.json"
+func (LifecycleRecord) Schema() json.RawMessage {
+	const fileName = "jsonschema/LifecycleRecord.json"
 	data, err := __gen_jsonschema_fs.ReadFile(fileName)
 	if err != nil {
 		__gen_jsonschema_panic(fileName, err)
@@ -97,8 +97,8 @@ func (lifecycleRecord) Schema() json.RawMessage {
 	return data
 }
 
-func (agentRecord) Schema() json.RawMessage {
-	const fileName = "jsonschema/agentRecord.json"
+func (AgentRecord) Schema() json.RawMessage {
+	const fileName = "jsonschema/AgentRecord.json"
 	data, err := __gen_jsonschema_fs.ReadFile(fileName)
 	if err != nil {
 		__gen_jsonschema_panic(fileName, err)
@@ -124,28 +124,28 @@ func (plan) ValidateJSON(data []byte) error {
 	return __gen_jsonschema_compiled_plan.Validate(inst)
 }
 
-// ValidateJSON validates the given JSON bytes against the schema for lifecycleRecord.
-func (lifecycleRecord) ValidateJSON(data []byte) error {
+// ValidateJSON validates the given JSON bytes against the schema for LifecycleRecord.
+func (LifecycleRecord) ValidateJSON(data []byte) error {
 	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
-	return __gen_jsonschema_compiled_lifecycleRecord.Validate(inst)
+	return __gen_jsonschema_compiled_LifecycleRecord.Validate(inst)
 }
 
-// ValidateJSON validates the given JSON bytes against the schema for agentRecord.
-func (agentRecord) ValidateJSON(data []byte) error {
+// ValidateJSON validates the given JSON bytes against the schema for AgentRecord.
+func (AgentRecord) ValidateJSON(data []byte) error {
 	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
-	return __gen_jsonschema_compiled_agentRecord.Validate(inst)
+	return __gen_jsonschema_compiled_AgentRecord.Validate(inst)
 }
 
 // MarshalJSON is a generated custom json.Marshaler implementation for
-// agentRecord.
-func (a agentRecord) MarshalJSON() ([]byte, error) {
-	type Alias agentRecord
+// AgentRecord.
+func (a AgentRecord) MarshalJSON() ([]byte, error) {
+	type Alias AgentRecord
 	type Wrapper struct {
 		Alias
 		Event json.RawMessage `json:"event"`
@@ -161,9 +161,9 @@ func (a agentRecord) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON is a generated custom json.Unmarshaler implementation for
-// agentRecord.
-func (a *agentRecord) UnmarshalJSON(data []byte) (err error) {
-	type Alias agentRecord
+// AgentRecord.
+func (a *AgentRecord) UnmarshalJSON(data []byte) (err error) {
+	type Alias AgentRecord
 	type Wrapper struct {
 		Alias
 		Event json.RawMessage `json:"event"`
@@ -172,7 +172,7 @@ func (a *agentRecord) UnmarshalJSON(data []byte) (err error) {
 	if err = json.Unmarshal(data, &wrapper); err != nil {
 		return err
 	}
-	__next := agentRecord(wrapper.Alias)
+	__next := AgentRecord(wrapper.Alias)
 
 	var __decoded0 AgentEvent
 	if __decoded0, err = __jsonUnmarshal__gimble__AgentEvent__099be3bdb547803ae2cd21fa3cb4cbe34b60b1a8c675778939cda5631e7f0793(wrapper.Event); err != nil {
@@ -185,9 +185,9 @@ func (a *agentRecord) UnmarshalJSON(data []byte) (err error) {
 }
 
 // MarshalJSON is a generated custom json.Marshaler implementation for
-// lifecycleRecord.
-func (l lifecycleRecord) MarshalJSON() ([]byte, error) {
-	type Alias lifecycleRecord
+// LifecycleRecord.
+func (l LifecycleRecord) MarshalJSON() ([]byte, error) {
+	type Alias LifecycleRecord
 	type Wrapper struct {
 		Alias
 		Event json.RawMessage `json:"event"`
@@ -195,7 +195,7 @@ func (l lifecycleRecord) MarshalJSON() ([]byte, error) {
 	wrapper := Wrapper{Alias: Alias(l)}
 	var err error
 
-	if wrapper.Event, err = __jsonMarshal__gimble__lifecycleEvent__513b810dd5b9b0436f047188a1218d20925ac17a1100568254b66b918a37664d(l.Event); err != nil {
+	if wrapper.Event, err = __jsonMarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33d1edd455327dfc34fe83a399361f7d(l.Event); err != nil {
 		return nil, fmt.Errorf("field event: %w", err)
 	}
 
@@ -203,9 +203,9 @@ func (l lifecycleRecord) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON is a generated custom json.Unmarshaler implementation for
-// lifecycleRecord.
-func (l *lifecycleRecord) UnmarshalJSON(data []byte) (err error) {
-	type Alias lifecycleRecord
+// LifecycleRecord.
+func (l *LifecycleRecord) UnmarshalJSON(data []byte) (err error) {
+	type Alias LifecycleRecord
 	type Wrapper struct {
 		Alias
 		Event json.RawMessage `json:"event"`
@@ -214,10 +214,10 @@ func (l *lifecycleRecord) UnmarshalJSON(data []byte) (err error) {
 	if err = json.Unmarshal(data, &wrapper); err != nil {
 		return err
 	}
-	__next := lifecycleRecord(wrapper.Alias)
+	__next := LifecycleRecord(wrapper.Alias)
 
-	var __decoded0 lifecycleEvent
-	if __decoded0, err = __jsonUnmarshal__gimble__lifecycleEvent__513b810dd5b9b0436f047188a1218d20925ac17a1100568254b66b918a37664d(wrapper.Event); err != nil {
+	var __decoded0 LifecycleEvent
+	if __decoded0, err = __jsonUnmarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33d1edd455327dfc34fe83a399361f7d(wrapper.Event); err != nil {
 		return err
 	}
 	__next.Event = __decoded0
@@ -394,9 +394,9 @@ func __jsonUnmarshal__gimble__AgentEvent__099be3bdb547803ae2cd21fa3cb4cbe34b60b1
 		return nil, fmt.Errorf("unknown discriminator: %s", discriminator)
 	}
 }
-func __jsonMarshal__gimble__lifecycleEvent__513b810dd5b9b0436f047188a1218d20925ac17a1100568254b66b918a37664d(value lifecycleEvent) (json.RawMessage, error) {
+func __jsonMarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33d1edd455327dfc34fe83a399361f7d(value LifecycleEvent) (json.RawMessage, error) {
 	if value == nil {
-		return nil, fmt.Errorf("cannot marshal nil registered interface lifecycleEvent")
+		return nil, fmt.Errorf("cannot marshal nil registered interface LifecycleEvent")
 	}
 	var (
 		data          []byte
@@ -404,59 +404,59 @@ func __jsonMarshal__gimble__lifecycleEvent__513b810dd5b9b0436f047188a1218d20925a
 		discriminator string
 	)
 	switch object := value.(type) {
-	case complete:
+	case Complete:
 		discriminator = "complete"
 		data, err = json.Marshal(&object)
-	case interrupt:
+	case Interrupt:
 		discriminator = "interrupt"
 		data, err = json.Marshal(&object)
-	case loopCommand:
+	case LoopCommand:
 		discriminator = "loop_command"
 		data, err = json.Marshal(&object)
-	case plannerDecision:
+	case PlannerDecision:
 		discriminator = "planner_decision"
 		data, err = json.Marshal(&object)
-	case runCancelled:
+	case RunCancelled:
 		discriminator = "run_cancelled"
 		data, err = json.Marshal(&object)
-	case runEnded:
+	case RunEnded:
 		discriminator = "run_ended"
 		data, err = json.Marshal(&object)
-	case runStarted:
+	case RunStarted:
 		discriminator = "run_started"
 		data, err = json.Marshal(&object)
-	case scopeBegan:
+	case ScopeBegan:
 		discriminator = "scope_began"
 		data, err = json.Marshal(&object)
-	case scopeEnded:
+	case ScopeEnded:
 		discriminator = "scope_ended"
 		data, err = json.Marshal(&object)
-	case sessionClosed:
+	case SessionClosed:
 		discriminator = "session_closed"
 		data, err = json.Marshal(&object)
-	case sessionCreated:
+	case SessionCreated:
 		discriminator = "session_created"
 		data, err = json.Marshal(&object)
-	case set:
-		discriminator = "set"
-		data, err = json.Marshal(&object)
-	case steer:
+	case Steer:
 		discriminator = "steer"
 		data, err = json.Marshal(&object)
-	case superviseAttached:
+	case SuperviseAttached:
 		discriminator = "supervise_attached"
 		data, err = json.Marshal(&object)
-	case turnEnded:
+	case TurnEnded:
 		discriminator = "turn_ended"
 		data, err = json.Marshal(&object)
-	case turnStarted:
+	case TurnStarted:
 		discriminator = "turn_started"
 		data, err = json.Marshal(&object)
+	case ValueSet:
+		discriminator = "value_set"
+		data, err = json.Marshal(&object)
 	default:
-		return nil, fmt.Errorf("unregistered dynamic implementation %T for lifecycleEvent", value)
+		return nil, fmt.Errorf("unregistered dynamic implementation %T for LifecycleEvent", value)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("marshal registered implementation %T for lifecycleEvent: %w", value, err)
+		return nil, fmt.Errorf("marshal registered implementation %T for LifecycleEvent: %w", value, err)
 	}
 	return __jsonschema__marshalUnionObject(data,
 		"kind",
@@ -464,7 +464,7 @@ func __jsonMarshal__gimble__lifecycleEvent__513b810dd5b9b0436f047188a1218d20925a
 	)
 }
 
-func __jsonUnmarshal__gimble__lifecycleEvent__513b810dd5b9b0436f047188a1218d20925ac17a1100568254b66b918a37664d(data []byte) (lifecycleEvent, error) {
+func __jsonUnmarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33d1edd455327dfc34fe83a399361f7d(data []byte) (LifecycleEvent, error) {
 	var (
 		temp          map[string]json.RawMessage
 		discriminator string
@@ -481,97 +481,97 @@ func __jsonUnmarshal__gimble__lifecycleEvent__513b810dd5b9b0436f047188a1218d2092
 	}
 	switch discriminator {
 	case "complete":
-		var obj complete
+		var obj Complete
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return obj, nil
 	case "interrupt":
-		var obj interrupt
+		var obj Interrupt
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return obj, nil
 	case "loop_command":
-		var obj loopCommand
+		var obj LoopCommand
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return obj, nil
 	case "planner_decision":
-		var obj plannerDecision
+		var obj PlannerDecision
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return obj, nil
 	case "run_cancelled":
-		var obj runCancelled
+		var obj RunCancelled
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return obj, nil
 	case "run_ended":
-		var obj runEnded
+		var obj RunEnded
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return obj, nil
 	case "run_started":
-		var obj runStarted
+		var obj RunStarted
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return obj, nil
 	case "scope_began":
-		var obj scopeBegan
+		var obj ScopeBegan
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return obj, nil
 	case "scope_ended":
-		var obj scopeEnded
+		var obj ScopeEnded
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return obj, nil
 	case "session_closed":
-		var obj sessionClosed
+		var obj SessionClosed
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return obj, nil
 	case "session_created":
-		var obj sessionCreated
-		if err = json.Unmarshal(data, &obj); err != nil {
-			return nil, err
-		}
-		return obj, nil
-	case "set":
-		var obj set
+		var obj SessionCreated
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return obj, nil
 	case "steer":
-		var obj steer
+		var obj Steer
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return obj, nil
 	case "supervise_attached":
-		var obj superviseAttached
+		var obj SuperviseAttached
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return obj, nil
 	case "turn_ended":
-		var obj turnEnded
+		var obj TurnEnded
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
 		return obj, nil
 	case "turn_started":
-		var obj turnStarted
+		var obj TurnStarted
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "value_set":
+		var obj ValueSet
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}

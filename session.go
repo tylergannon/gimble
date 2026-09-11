@@ -34,7 +34,7 @@ func NewSession(ctx context.Context, name string, adapter HarnessAdapter, model,
 	s := &Session{adapter: adapter, name: name, model: model, workdir: workdir}
 	if scope, err := current(ctx); err == nil {
 		scope.adopt(s)
-		scope.run.event(scope.key, s.id, "", sessionCreated{Name: name, Adapter: fmt.Sprintf("%T", adapter), Model: model, Workdir: workdir})
+		scope.run.event(scope.key, s.id, "", SessionCreated{Name: name, Adapter: fmt.Sprintf("%T", adapter), Model: model, Workdir: workdir})
 	}
 	return s
 }
@@ -114,7 +114,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	start := time.Now()
 	scope, _ := current(ctx)
 	if scope != nil {
-		scope.run.event(scope.key, s.id, turnID, turnStarted{Prompt: prompt, OutputType: outputType})
+		scope.run.event(scope.key, s.id, turnID, TurnStarted{Prompt: prompt, OutputType: outputType})
 	}
 	tokens := make([]JSONText, 0)
 	wrapped := func(e AgentEvent) {
@@ -133,18 +133,18 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	logf("%s: turn ended after %s: %v", s.id, time.Since(start).Round(time.Second), orNone(err))
 	if ctx.Err() != nil {
 		if scope != nil {
-			scope.run.event(scope.key, s.id, turnID, turnEnded{Error: ctx.Err().Error(), Tokens: tokens, Duration: time.Since(start), Interrupted: true})
+			scope.run.event(scope.key, s.id, turnID, TurnEnded{Error: ctx.Err().Error(), Tokens: tokens, Duration: time.Since(start), Interrupted: true})
 		}
 		return nil, ctx.Err()
 	}
 	if err != nil {
 		if scope != nil {
-			scope.run.event(scope.key, s.id, turnID, turnEnded{Error: err.Error(), Tokens: tokens, Duration: time.Since(start)})
+			scope.run.event(scope.key, s.id, turnID, TurnEnded{Error: err.Error(), Tokens: tokens, Duration: time.Since(start)})
 		}
 		return nil, fmt.Errorf("gimble: %s: %w", s.id, err)
 	}
 	if scope != nil {
-		scope.run.event(scope.key, s.id, turnID, turnEnded{Result: JSONText(raw), Tokens: tokens, Duration: time.Since(start)})
+		scope.run.event(scope.key, s.id, turnID, TurnEnded{Result: JSONText(raw), Tokens: tokens, Duration: time.Since(start)})
 	}
 	return raw, nil
 }
@@ -174,13 +174,13 @@ func (s *Session) Steer(ctx context.Context, message string) error {
 	if !running || native == "" {
 		logf("%s: steer dropped: %s", s.id, oneLine(message))
 		if scope, err := current(ctx); err == nil {
-			scope.run.event(scope.key, s.id, turn, steer{Target: s.id, Source: steerSource(ctx), Message: message})
+			scope.run.event(scope.key, s.id, turn, Steer{Target: s.id, Source: steerSource(ctx), Message: message})
 		}
 		return nil
 	}
 	logf("%s: steer: %s", s.id, oneLine(message))
 	if scope, err := current(ctx); err == nil {
-		scope.run.event(scope.key, s.id, turn, steer{Target: s.id, Source: steerSource(ctx), Message: message, Landed: true})
+		scope.run.event(scope.key, s.id, turn, Steer{Target: s.id, Source: steerSource(ctx), Message: message, Landed: true})
 	}
 	return s.adapter.Steer(ctx, native, message)
 }
@@ -193,7 +193,7 @@ func (s *Session) Interrupt(ctx context.Context) error {
 		return nil
 	}
 	if scope, err := current(ctx); err == nil {
-		scope.run.event(scope.key, s.id, turn, interrupt{Target: s.id, Source: steerSource(ctx)})
+		scope.run.event(scope.key, s.id, turn, Interrupt{Target: s.id, Source: steerSource(ctx)})
 	}
 	interruptor, ok := s.adapter.(interface {
 		Interrupt(context.Context, string) error
@@ -236,7 +236,7 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 		}
 	}
 	scope.adopt(fork)
-	scope.run.event(scope.key, fork.id, "", sessionCreated{Name: name, Adapter: fmt.Sprintf("%T", fork.adapter), Model: fork.model, Workdir: fork.workdir, Parent: s.id})
+	scope.run.event(scope.key, fork.id, "", SessionCreated{Name: name, Adapter: fmt.Sprintf("%T", fork.adapter), Model: fork.model, Workdir: fork.workdir, Parent: s.id})
 	logf("%s: forked from %s", fork.id, s.id)
 	return fork, nil
 }

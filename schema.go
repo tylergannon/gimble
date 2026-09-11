@@ -14,16 +14,16 @@ func (review) Schema() json.RawMessage              { panic("not implemented") }
 func (review) ValidateJSON(_ []byte) error          { panic("not implemented") }
 func (plan) Schema() json.RawMessage                { panic("not implemented") }
 func (plan) ValidateJSON(_ []byte) error            { panic("not implemented") }
-func (lifecycleRecord) Schema() json.RawMessage     { panic("not implemented") }
-func (lifecycleRecord) ValidateJSON(_ []byte) error { panic("not implemented") }
-func (agentRecord) Schema() json.RawMessage         { panic("not implemented") }
-func (agentRecord) ValidateJSON(_ []byte) error     { panic("not implemented") }
+func (LifecycleRecord) Schema() json.RawMessage     { panic("not implemented") }
+func (LifecycleRecord) ValidateJSON(_ []byte) error { panic("not implemented") }
+func (AgentRecord) Schema() json.RawMessage         { panic("not implemented") }
+func (AgentRecord) ValidateJSON(_ []byte) error     { panic("not implemented") }
 
 var (
 	_ = polytype.Declare(review.Schema)
 	_ = polytype.Declare(plan.Schema)
-	_ = polytype.Declare(lifecycleRecord.Schema)
-	_ = polytype.Declare(agentRecord.Schema)
-	_ = polytype.SealedUnion[lifecycleEvent]("kind", polytype.Snake)
+	_ = polytype.Declare(LifecycleRecord.Schema)
+	_ = polytype.Declare(AgentRecord.Schema)
+	_ = polytype.SealedUnion[LifecycleEvent]("kind", polytype.Snake)
 	_ = polytype.SealedUnion[AgentEvent]("kind", polytype.Snake)
 )
