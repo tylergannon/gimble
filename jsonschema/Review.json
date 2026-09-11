@@ -1,4 +1,4 @@
 {"type":"object",
-"description":"Review is a reviewer's answer to one look at the work.","properties":{
+"description":"Review is a supervisor's answer to one look at the work.","properties":{
 "objections":{"type":"array","description":"Each objection is one thing the agent under review must change or stop doing, written as an instruction to that agent. Leave the list empty when you have no objection.","items":{"type":"string"}}
 },"required":["objections"],"additionalProperties":false}

@@ -203,37 +203,36 @@ func TestFork(t *testing.T) {
 }
 
 func TestSupervise(t *testing.T) {
-	var workerTurns int
+	var workerTurns, looks int
 	f := &fake{}
 	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error) {
-		if session == "native-1" { // the worker
+		if session == "native-1" { // the worker, which runs until the supervisor's steer lands
 			workerTurns++
 			emit(Event{Kind: "tool_call", CallID: "1", Tool: "shell", Data: json.RawMessage(`{"command":"make plugins"}`)})
 			emit(Event{Kind: "tool_result", CallID: "1", Data: json.RawMessage(`"built a plugin system"`)})
-			for range 200 { // until the reviewer's steer lands
+			for range 200 {
 				f.mu.Lock()
 				n := len(f.steers)
 				f.mu.Unlock()
-				if n > 0 || workerTurns > 1 {
+				if n > 0 {
 					break
 				}
 				time.Sleep(5 * time.Millisecond)
 			}
 			return "done", nil
 		}
-		switch { // the reviewer
-		case strings.Contains(prompt, "plugin system") && !strings.Contains(prompt, "finished its turn"):
+		f.mu.Lock() // the supervisor
+		looks++
+		f.mu.Unlock()
+		if strings.Contains(prompt, "no plugin systems") && strings.Contains(prompt, "built a plugin system") {
 			return `{"objections": ["remove the plugin system"]}`, nil
-		case strings.Contains(prompt, "finished its turn") && workerTurns == 1:
-			return `{"objections": ["the plugin system is still there"]}`, nil
-		default:
-			return `{"objections": []}`, nil
 		}
+		return `{"objections": []}`, nil
 	}
 	err := runTest(t, func(ctx context.Context) error {
 		worker := NewSession(ctx, "coder", f, "m", "/w")
-		reviewer := NewSession(ctx, "scope", f, "m", "/w")
-		res, err := worker.Generate[Text](ctx, "build it", Supervise(reviewer, "no plugin systems"))
+		supervisor := NewSession(ctx, "taste", f, "m", "/w")
+		res, err := worker.Generate[Text](ctx, "build it", Supervise(supervisor, "no plugin systems", 10*time.Millisecond))
 		if res != "done" {
 			t.Errorf("result %q", res)
 		}
@@ -245,8 +244,8 @@ func TestSupervise(t *testing.T) {
 	if len(f.steers) == 0 || !strings.Contains(f.steers[0], "remove the plugin system") {
 		t.Errorf("steers: %q", f.steers)
 	}
-	if workerTurns != 2 {
-		t.Errorf("worker ran %d turns, want 2: the final objection is a follow-up", workerTurns)
+	if workerTurns != 1 || looks != 1 {
+		t.Errorf("worker ran %d turns and the supervisor looked %d times, want 1 and 1: a look waits for something new", workerTurns, looks)
 	}
 }
 

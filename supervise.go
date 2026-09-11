@@ -2,128 +2,101 @@ package gimble
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 	"sync"
+	"time"
 )
 
 //go:generate go tool polytype --validate
 
 // Option is an argument to Generate. The only one is Supervise.
 type Option struct {
-	reviewer    *Session
+	supervisor  *Session
 	instruction string
+	every       time.Duration
 }
 
-// Supervise attaches a reviewer to a turn: a session of its own and an
-// instruction saying what to watch for. The reviewer looks each time the
-// worker produces a tool result and steers it on objection; when the turn
-// ends it looks at the result, and its objections become a follow-up turn
-// on the worker's session, up to three rounds.
-func Supervise(reviewer *Session, instruction string) Option {
-	return Option{reviewer: reviewer, instruction: instruction}
+// Supervise attaches a supervisor to a turn: a session of its own and an
+// instruction saying what to watch for. Every three minutes while the turn
+// runs, or at the interval given, the supervisor looks at what the worker
+// did since its last look, and each objection it raises is steered into
+// the turn. It never holds up the result.
+func Supervise(supervisor *Session, instruction string, every ...time.Duration) Option {
+	o := Option{supervisor: supervisor, instruction: instruction, every: 3 * time.Minute}
+	if len(every) > 0 {
+		o.every = every[0]
+	}
+	return o
 }
 
-// Review is a reviewer's answer to one look at the work.
+// Review is a supervisor's answer to one look at the work.
 type Review struct {
 	// Each objection is one thing the agent under review must change or stop doing, written as an instruction to that agent. Leave the list empty when you have no objection.
 	Objections []string `json:"objections"`
 }
 
-const maxRounds = 3
+// supervise is Generate with supervisors attached.
+func supervise[T Output](ctx context.Context, s *Session, prompt string, supervisors []Option) (T, error) {
+	t := &transcript{}
 
-// supervise is Generate with reviewers attached.
-func supervise[T Output](ctx context.Context, s *Session, prompt string, reviewers []Option) (T, error) {
-	briefed := make([]bool, len(reviewers))
-	for round := 1; ; round++ {
-		t := &transcript{wake: make(chan struct{})}
+	// The worker's turn, in the background so the supervisors can run beside it.
+	var res T
+	var err error
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		res, err = generate[T](ctx, s, prompt, t.append)
+	}()
 
-		// The worker's turn, in the background so the reviewers can run beside it.
-		var res T
-		var err error
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			res, err = generate[T](ctx, s, prompt, t.append)
-		}()
-
-		// Each reviewer, self-paced: look whenever there is a new tool result,
-		// steer on objection, stop looking when the turn ends.
-		seen := make([]int, len(reviewers))
-		var wg sync.WaitGroup
-		for i, r := range reviewers {
-			wg.Go(func() {
-				for {
-					events, ok := t.next(done, seen[i])
-					if !ok {
-						return
-					}
-					seen[i] += len(events)
-					look := lookPrompt(r, prompt, briefed[i], events, nil)
-					briefed[i] = true
-					review, err := r.reviewer.Generate[Review](ctx, look)
-					if err != nil {
-						logf("%s: review of %s failed: %v", r.reviewer.id, s.id, err)
-						continue
-					}
-					if len(review.Objections) > 0 {
-						_ = s.Steer(ctx, "A reviewer objects:\n\n- "+strings.Join(review.Objections, "\n- "))
-					}
+	// Each supervisor, on its own clock: look at what is new, steer on
+	// objection, stop when the turn ends.
+	var wg sync.WaitGroup
+	for _, o := range supervisors {
+		wg.Go(func() {
+			tick := time.NewTicker(o.every)
+			defer tick.Stop()
+			seen := 0
+			for {
+				select {
+				case <-done:
+					return
+				case <-tick.C:
 				}
-			})
-		}
-		<-done
-		wg.Wait()
-		if err != nil {
-			return res, err
-		}
-
-		// A final look at the finished answer.
-		answer, _ := json.Marshal(res)
-		var objections []string
-		for i, r := range reviewers {
-			look := lookPrompt(r, prompt, briefed[i], t.since(seen[i]), answer)
-			briefed[i] = true
-			review, err := r.reviewer.Generate[Review](ctx, look)
-			if err != nil {
-				return res, err
+				events := t.since(seen)
+				if len(events) == 0 {
+					continue
+				}
+				look := lookPrompt(o, prompt, seen == 0, events)
+				seen += len(events)
+				review, err := o.supervisor.Generate[Review](ctx, look)
+				if err != nil {
+					logf("%s: a look at %s failed: %v", o.supervisor.id, s.id, err)
+					continue
+				}
+				if len(review.Objections) > 0 {
+					_ = s.Steer(ctx, "Your supervisor objects:\n\n- "+strings.Join(review.Objections, "\n- "))
+				}
 			}
-			objections = append(objections, review.Objections...)
-		}
-		if len(objections) == 0 {
-			return res, nil // every reviewer approved
-		}
-		if round == maxRounds {
-			return res, fmt.Errorf("supervise: %d rounds without approval", round)
-		}
-		logf("%s: round %d ended with %d objections", s.id, round, len(objections))
-		prompt = "Your reviewers object to the finished work:\n\n- " + strings.Join(objections, "\n- ") +
-			"\n\nAddress every objection, then answer again as you were first asked to."
+		})
 	}
+	<-done
+	wg.Wait()
+	return res, err
 }
 
-// lookPrompt asks a reviewer for objections: to the work so far while the
-// turn runs, or to the finished work when answer is set.
-func lookPrompt(r Option, prompt string, briefed bool, events []Event, answer []byte) string {
+// lookPrompt asks a supervisor for objections to what the worker did since
+// its last look; the first look also carries the instruction and the task.
+func lookPrompt(o Option, prompt string, first bool, events []Event) string {
 	var b strings.Builder
-	if !briefed {
-		fmt.Fprintf(&b, "You are reviewing the work of another agent in %s while it happens. What you watch for:\n\n%s\n\n", r.reviewer.workdir, r.instruction)
+	if first {
+		fmt.Fprintf(&b, "You are supervising another agent in %s while it works. What you watch for:\n\n%s\n\n", o.supervisor.workdir, o.instruction)
 		fmt.Fprintf(&b, "The agent was asked:\n\n%s\n\n", prompt)
-		b.WriteString("You will be shown what it does as it goes. Object only when what it does goes against what you watch for; each objection is sent to the agent at once, as an instruction. You may read the files yourself; do not change any. When you have no objection, answer with an empty list.\n\n")
+		b.WriteString("Every few minutes you are shown what it did since your last look; tool output is shortened, so read the files yourself when you need more, and change none. Object only when what it does goes against what you watch for; each objection is sent to the agent at once, as an instruction. When you have no objection, answer with an empty list.\n\n")
 	}
-	if len(events) > 0 {
-		b.WriteString("What the agent did since your last look:\n\n")
-		b.WriteString(renderEvents(events))
-		b.WriteString("\n")
-	}
-	if answer != nil {
-		fmt.Fprintf(&b, "The agent has finished its turn. Its answer:\n\n%s\n\n", render(answer))
-		b.WriteString("Object to anything in the finished work that goes against what you watch for; the agent will be asked to fix it. Answer with an empty list to approve.")
-	} else {
-		b.WriteString("Any objections?")
-	}
+	b.WriteString("What the agent did since your last look:\n\n")
+	b.WriteString(renderEvents(events))
 	return b.String()
 }
 
@@ -156,34 +129,12 @@ func clip(text string) string {
 type transcript struct {
 	mu     sync.Mutex
 	events []Event
-	wake   chan struct{} // closed and replaced whenever an event arrives
 }
 
 func (t *transcript) append(e Event) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.events = append(t.events, e)
-	close(t.wake)
-	t.wake = make(chan struct{})
-}
-
-// next blocks until a tool result has arrived after the first seen events
-// and returns every event after seen, or returns false once the turn is done.
-func (t *transcript) next(done <-chan struct{}, seen int) ([]Event, bool) {
-	for {
-		t.mu.Lock()
-		events := slices.Clone(t.events[seen:])
-		wake := t.wake
-		t.mu.Unlock()
-		if slices.ContainsFunc(events, func(e Event) bool { return e.Kind == "tool_result" }) {
-			return events, true
-		}
-		select {
-		case <-done:
-			return nil, false
-		case <-wake:
-		}
-	}
 }
 
 func (t *transcript) since(seen int) []Event {

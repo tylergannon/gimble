@@ -14,6 +14,7 @@ it. Everything else is ordinary Go written in the workflow.
 - `ephemeral/research/api/API.md`: the API and the reasons behind it.
 - `ephemeral/research/api/SPRINTS.md`: what is being built, in what order,
   and how each sprint is proven.
+- `docs/definition-of-done.md`: how work is gated, validated, and merged.
 
 ## No wrappers
 

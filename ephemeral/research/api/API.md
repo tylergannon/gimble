@@ -585,113 +585,104 @@ Details:
 
 ## Supervise
 
-`Supervise` attaches reviewers to a turn. A reviewer is a session of its own
-and an instruction saying what to watch for.
+`Supervise` attaches supervisors to a turn. A supervisor is a session of
+its own and an instruction saying what to watch for.
 
 ```go
 func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...Option) (T, error)
 
-func Supervise(reviewer *Session, instruction string) Option
+// every is how often the supervisor looks; it defaults to three minutes.
+func Supervise(supervisor *Session, instruction string, every ...time.Duration) Option
 ```
 
 ```go
 coder := gimble.NewSession(ctx, "coder", adapter, model, workdir)
-scope := gimble.NewSession(ctx, "scope", adapter, cheap, workdir)
 taste := gimble.NewSession(ctx, "taste", adapter, cheap, workdir)
 
 res, err := coder.Generate[Result](ctx, task.Text,
-	Supervise(scope, "don't let it implement anything the goal doesn't require"),
-	Supervise(taste, "don't let it over-engineer"),
+	gimble.Supervise(taste, "don't let it over-engineer"),
 )
 ```
 
-Reviewers watch the turn while it runs and steer the worker the moment they
+Supervisors watch the turn while it runs and steer the worker when they
 object. Steering is the point: a coding turn runs twenty minutes, and a
-reviewer that first speaks at the end watches the worker build the plugin
-system and then pays a second turn to tear it out.
+supervisor that first speaks at the end watches the worker build the
+plugin system and then pays a second turn to tear it out.
 
-What `Generate` does when reviewers are attached. This is the whole
+What `Generate` does when supervisors are attached. This is the whole
 definition; if `Supervise` ever needs more than this, inline it instead.
 
 ```go
-for round := 1; ; round++ {
-	transcript := newTranscript() // the worker's events, appended as they arrive
+transcript := newTranscript() // the worker's events, appended as they arrive
 
-	// The worker's turn, in the background so the reviewers can run beside it.
-	var res T
-	var err error
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		res, err = s.generate[T](ctx, prompt, transcript.append)
-	}()
+// The worker's turn, in the background so the supervisors can run beside it.
+var res T
+var err error
+done := make(chan struct{})
+go func() {
+	defer close(done)
+	res, err = s.generate[T](ctx, prompt, transcript.append)
+}()
 
-	// Each reviewer, self-paced: look whenever there is something new, steer
-	// on objection, stop looking when the turn ends.
-	var wg sync.WaitGroup
-	for _, r := range reviewers {
-		wg.Go(func() {
-			for transcript.waitForNew(done) {
-				review, _ := r.session.Generate[Review](ctx, r.instruction, prompt, transcript.soFar())
-				if len(review.Objections) > 0 {
-					s.Steer(ctx, strings.Join(review.Objections, "\n"))
-				}
+// Each supervisor on its own clock: look at what is new, steer on
+// objection, stop when the turn ends.
+var wg sync.WaitGroup
+for _, sup := range supervisors {
+	wg.Go(func() {
+		for sup.tick(done) { // every three minutes until the turn ends
+			events := transcript.sinceLastLook(sup)
+			if len(events) == 0 {
+				continue
 			}
-		})
-	}
-	<-done
-	wg.Wait()
-	if err != nil {
-		return res, err
-	}
-
-	// A final look at the finished answer.
-	var objections []string
-	for _, r := range reviewers {
-		review, _ := r.session.Generate[Review](ctx, r.instruction, prompt, transcript.soFar(), res)
-		objections = append(objections, review.Objections...)
-	}
-	if len(objections) == 0 {
-		return res, nil // every reviewer approved
-	}
-	if round == maxRounds {
-		return res, fmt.Errorf("supervise: %d rounds without approval", round)
-	}
-	prompt = followUp(objections) // same session: the worker remembers what it did
+			review, _ := sup.session.Generate[Review](ctx, sup.instruction, prompt, events)
+			if len(review.Objections) > 0 {
+				s.Steer(ctx, strings.Join(review.Objections, "\n"))
+			}
+		}
+	})
 }
+<-done
+wg.Wait()
+return res, err
 ```
 
-- Reviewers are attached per turn, not per session. The instruction is
+- Supervisors are attached per turn, not per session. The instruction is
   about the task, and the reader sees at the call site who is watching. A
-  session carries no hidden reviewers. What is per session is the reviewer
-  itself: its model, its workdir, and its memory of earlier objections. A
-  workflow that wants the same watchers on every turn passes the same
-  options every time.
-- A review is `struct{ Objections []string }`. An empty list is approval;
-  there is no `Approved` flag, for the same reason `Task` has no `Done`.
-- Objections raised during the turn are steered. Objections raised at the
-  final look become a follow-up turn on the worker's session, still typed
-  `T` and still supervised. Same review type either way.
-- Cadence is the reviewer's own speed: it looks again as soon as it is done
-  looking and something new has happened. No knob. "Something new" is a
-  tool result, not a token; that is what a review can judge.
+  session carries no hidden supervisors. What is per session is the
+  supervisor itself: its model, its workdir, and its memory of earlier
+  looks. A workflow that wants the same watchers on every turn passes the
+  same options every time.
+- The instruction is the supervisor's prompt, written at the call site, so
+  what a supervisor objects to is whatever its caller told it to watch for.
+- A review is `struct{ Objections []string }`. An empty list is no
+  objection; there is no `Approved` flag, for the same reason `Task` has
+  no `Done`.
+- Cadence is a clock: every three minutes, or the interval passed as the
+  last argument. A tick with nothing new since the last look is skipped,
+  and a turn shorter than the interval is never looked at. Supervisors do
+  not have to run all the time.
+- Supervisors steer; they never gate. There is no final look and no
+  follow-up round, and `Generate` returns the worker's result as it is.
+  Work is gated on the definition of done, which a validator checks
+  (`docs/definition-of-done.md`), not on what a supervisor thinks of it.
+  The first version looked after every tool result, took a final look at
+  the result, and made its objections a follow-up turn, for up to three
+  rounds. Its first live run made 53 looks and 17 steers in eleven
+  minutes, most of them about code quality.
 - A steer lands at the worker's next model call, same as a person talking
-  over its shoulder. The reviewer judged a snapshot that is now a few
-  seconds old; that is fine. If the turn ended first the steer is dropped,
-  and the objection comes back at the final look.
-- `maxRounds` is three, fixed. A workflow that wants another cap inlines
-  the loop above.
-- Reviewers are sessions, so a reviewer in round two remembers round one and
-  can say "you still have not removed the plugin system."
-- Reviewers get the instruction, the worker's prompt, the transcript so far,
-  and the workdir. They read files themselves; nothing is diffed for them.
-- Every review is an agent turn, and reviewers run for the whole worker
-  turn. Reviewers should be on the cheap tier.
+  over its shoulder. The supervisor judged a snapshot that is now a few
+  seconds old; that is fine. If the turn ended first the steer is dropped.
+- Supervisors are sessions, so one remembers its earlier looks and can say
+  "you still have not removed the plugin system."
+- A supervisor's first look carries the instruction and the worker's
+  prompt; every look carries what the worker did since the last one. Tool
+  output is shortened; supervisors read files in the workdir themselves.
+- Every look is an agent turn. Supervisors should be on the cheap tier.
 - Why a built-in when the bake-off is not: the bake-off's decisions differ
   per workflow (how many, what counts as a finisher, when losers stop).
-  Supervision's mechanics never differ; its decisions are who reviews and
-  what they watch for, and those are the arguments. And it needs the event
-  stream, which a workflow does not otherwise see.
+  Supervision's mechanics never differ; its decisions are who supervises,
+  what they watch for, and how often, and those are the arguments. And it
+  needs the event stream, which a workflow does not otherwise see.
 
 Hierarchy is composition, not a third shape. A `Loop` body that calls
 `Generate` with `Supervise` is a manager over a supervised worker; a `Loop`
@@ -814,9 +805,9 @@ Lifecycle events, ours:
 - turn: started (prompt, output type), ended (result or error, tokens,
   duration, interrupted or not). A validation failure is an ended with an
   error.
-- supervise: attached (reviewer session, worker turn, instruction).
-  Reviews are turns on the reviewer's session and rounds are follow-up
-  turns on the worker's, so neither needs an event of its own.
+- supervise: attached (supervisor session, worker turn, instruction,
+  interval). Looks are turns on the supervisor's session, so they need no
+  event of their own.
 - steer: target session, message, source, landed or dropped. interrupt:
   session, source. cancel: run, source.
 
@@ -922,10 +913,10 @@ func cancelRun(ctx context.Context, runID string) error
   One function on the ctx when the first workflow needs it.
 - The template: how much of it the page shows before a run, once the static
   pass exists.
-- `Supervise`: the wording of the prompt it sends a reviewer each look (the
-  instruction, the worker's prompt, the transcript so far, and at the end
-  the result, asking for objections). Prompt engineering against real
-  reviews, not API.
+- `Supervise`: the wording of the prompt it sends a supervisor each look
+  (the instruction and the worker's prompt on the first look, then what
+  the worker did since the last one, asking for objections). Prompt
+  engineering against real looks, not API.
 - Hierarchy. Wanted: a CEO that hears from supervisors about groups of
   agents, deals only in summaries, steers the bottom-level work indirectly,
   and thinks about strategy and pace rather than tactics. Most of it is
