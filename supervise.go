@@ -30,9 +30,10 @@ type supervisor struct {
 // WithSupervisor attaches a supervisor to a turn: a session of its own and
 // an instruction saying what to watch for. While the turn runs, the
 // supervisor looks at what the worker did since its last look, and each
-// objection it raises is steered into the turn. It never holds up the
-// result. opts are the supervisor's: WithInterval for how often it looks,
-// and WithSupervisor for supervisors of its looks.
+// objection it raises is steered into the turn. When the worker finishes,
+// Generate cancels and joins its supervisors before returning the worker's
+// result and error. opts are the supervisor's: WithInterval for how often it
+// looks, and WithSupervisor for supervisors of its looks.
 func WithSupervisor(session *Session, instruction string, opts ...AgentOption) AgentOption {
 	return func(o *options) {
 		o.supervisors = append(o.supervisors, supervisor{session: session, instruction: instruction, opts: opts})
@@ -72,20 +73,15 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 		}
 	}
 
-	// The worker's turn, in the background so the supervisors can run beside it.
-	var res T
-	var err error
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		var out T
-		res, err = generate[T](ctx, s, prompt, t.append, fmt.Sprintf("%T", out))
-	}()
-
 	// Each supervisor, on its own clock: look at what is new, steer on
 	// objection, stop when the turn ends. A look is a turn with the
 	// supervisor's own options, so it can be supervised in turn.
+	lookCtx, cancel := context.WithCancel(ctx)
 	var wg sync.WaitGroup
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
 	for _, sup := range supervisors {
 		wg.Go(func() {
 			tick := time.NewTicker(apply(sup.opts).every)
@@ -93,7 +89,7 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 			seen := 0
 			for {
 				select {
-				case <-done:
+				case <-lookCtx.Done():
 					return
 				case <-tick.C:
 				}
@@ -103,20 +99,22 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 				}
 				look := lookPrompt(sup, prompt, seen == 0, events)
 				seen += len(events)
-				review, err := sup.session.Generate[review](withSteerSource(ctx, sup.session.id), look, sup.opts...)
+				review, err := sup.session.Generate[review](withSteerSource(lookCtx, sup.session.id), look, sup.opts...)
 				if err != nil {
+					if lookCtx.Err() != nil {
+						return
+					}
 					logf("%s: a look at %s failed: %v", sup.session.id, s.id, err)
 					continue
 				}
 				if len(review.Objections) > 0 {
-					_ = s.Steer(withSteerSource(ctx, sup.session.id), "Your supervisor objects:\n\n- "+strings.Join(review.Objections, "\n- "))
+					_ = s.Steer(withSteerSource(lookCtx, sup.session.id), "Your supervisor objects:\n\n- "+strings.Join(review.Objections, "\n- "))
 				}
 			}
 		})
 	}
-	<-done
-	wg.Wait()
-	return res, err
+	var out T
+	return generate[T](ctx, s, prompt, t.append, fmt.Sprintf("%T", out))
 }
 
 // lookPrompt asks a supervisor for objections to what the worker did since

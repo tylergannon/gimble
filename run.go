@@ -39,6 +39,8 @@ type run struct {
 // run's ctx derives from the caller's, so main can put a deadline on it.
 // The run is the root scope: when the body returns, its sessions are
 // closed and its ctx is cancelled.
+// The body must join its concurrent work before returning. Run then finishes
+// the log and returns the body's error; cancellation alone is not completion.
 func Run(ctx context.Context, name string, body func(ctx context.Context) error) error {
 	project, _ := ctx.Value(projectKey{}).(string)
 	if project == "" {
