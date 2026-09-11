@@ -336,3 +336,38 @@ func TestLoop(t *testing.T) {
 		t.Errorf("planner prompts:\n%s\n---\n%s", prompts[0], prompts[1])
 	}
 }
+
+func TestLoopShowsThePlannerABadBacklog(t *testing.T) {
+	var prompts []string
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error) {
+		prompts = append(prompts, prompt)
+		file := strings.Fields(prompt[strings.Index(prompt, "Its backlog is the file ")+len("Its backlog is the file "):])[0]
+		file = strings.TrimSuffix(file, ",")
+		front := "---\ngoal: ship\nsteps:\n  - step: build: the code\n    command: echo checked\n---\n"
+		if len(prompts) == 2 {
+			front = "---\ngoal: ship\nsteps:\n  - step: \"build: the code\"\n    command: echo checked\n---\n"
+		}
+		if err := os.WriteFile(file, []byte(front), 0o644); err != nil {
+			return "", err
+		}
+		if len(prompts) == 3 {
+			return `{"next": ""}`, nil
+		}
+		return `{"next": "write the code"}`, nil
+	}}
+	laps := 0
+	err := runTest(t, func(ctx context.Context) error {
+		planner := NewSession(ctx, "planner", f, "m", t.TempDir())
+		loop := Loop(ctx, "sprint", "ship", planner)
+		for range loop.Laps {
+			laps++
+		}
+		return loop.Err()
+	})
+	if err != nil {
+		t.Fatalf("a bad backlog ended the loop: %v", err)
+	}
+	if laps != 2 || !strings.Contains(prompts[1], "does not parse") || strings.Contains(prompts[1], "$ echo checked") || !strings.Contains(prompts[2], "$ echo checked\nexit 0") {
+		t.Errorf("%d laps; planner prompts:\n%s\n---\n%s", laps, prompts[1], prompts[2])
+	}
+}

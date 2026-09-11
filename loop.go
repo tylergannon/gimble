@@ -43,8 +43,9 @@ func Loop(ctx context.Context, name, goal string, planner *Session) *loop {
 // Laps yields each lap's task with a ctx for the lap, a child scope of the
 // loop's that ends when the body returns. Each lap it reloads the file,
 // runs every step's command, and asks the planner what is next; when the
-// planner names nothing, it returns. It never edits the file after writing
-// the goal into it.
+// planner names nothing, it returns. A file whose frontmatter does not
+// parse runs no commands, and the planner is shown why so it can fix it.
+// It never edits the file after writing the goal into it.
 func (l *loop) Laps(yield func(context.Context, Task) bool) {
 	parent, err := current(l.ctx)
 	if err != nil {
@@ -66,15 +67,19 @@ func (l *loop) Laps(yield func(context.Context, Task) bool) {
 			return fmt.Errorf("gimble: %w", err)
 		}
 		for lap := 1; ; lap++ {
-			text, commands, err := readBacklog(file)
+			raw, err := os.ReadFile(file)
 			if err != nil {
-				return err
+				return fmt.Errorf("gimble: %w", err)
+			}
+			commands, bad := readBacklog(raw)
+			if bad != nil {
+				logf("%s: the backlog does not parse, so the planner is asked to fix it: %v", loopScope.key, bad)
 			}
 			results, err := runCommands(ctx, l.planner.workdir, commands)
 			if err != nil {
 				return err
 			}
-			p, err := l.planner.Generate[plan](ctx, planPrompt(l.name, file, l.planner.workdir, lap, text, results))
+			p, err := l.planner.Generate[plan](ctx, planPrompt(l.name, file, l.planner.workdir, lap, string(raw), bad, results))
 			if err != nil {
 				return err
 			}
@@ -95,8 +100,8 @@ func (l *loop) Laps(yield func(context.Context, Task) bool) {
 	})
 }
 
-// Err returns the error that ended the laps, if any: the file, a command
-// that would not start, or the planner's harness.
+// Err returns the error that ended the laps, if any: a file that cannot be
+// read or written, a command that would not start, or the planner's harness.
 func (l *loop) Err() error {
 	return l.err
 }
@@ -111,20 +116,17 @@ type step struct {
 	Command string `yaml:"command,omitempty"`
 }
 
-// readBacklog returns the file and the commands of its steps.
-func readBacklog(file string) (string, []string, error) {
-	raw, err := os.ReadFile(file)
-	if err != nil {
-		return "", nil, fmt.Errorf("gimble: %w", err)
-	}
+// readBacklog returns the commands of the file's steps, or why its
+// frontmatter does not parse.
+func readBacklog(raw []byte) ([]string, error) {
 	rest, ok := strings.CutPrefix(string(raw), "---\n")
 	front, _, closed := strings.Cut(rest, "\n---")
 	if !ok || !closed {
-		return "", nil, fmt.Errorf("gimble: %s has no YAML frontmatter", file)
+		return nil, errors.New("the file does not start with YAML frontmatter between --- lines")
 	}
 	var b backlog
 	if err := yaml.Unmarshal([]byte(front), &b); err != nil {
-		return "", nil, fmt.Errorf("gimble: %s: %w", file, err)
+		return nil, err
 	}
 	var commands []string
 	for _, s := range b.Steps {
@@ -132,7 +134,7 @@ func readBacklog(file string) (string, []string, error) {
 			commands = append(commands, s.Command)
 		}
 	}
-	return string(raw), commands, nil
+	return commands, nil
 }
 
 type commandResult struct {
@@ -170,7 +172,7 @@ func tail(text string, limit int) string {
 	return "[...]" + strings.ToValidUTF8(text[len(text)-limit:], "")
 }
 
-func planPrompt(name, file, workdir string, lap int, text string, results []commandResult) string {
+func planPrompt(name, file, workdir string, lap int, text string, bad error, results []commandResult) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "You are the planner of the loop %q, working in %s. Its backlog is the file %s, markdown with YAML frontmatter:\n\n", name, workdir, file)
 	b.WriteString("- `goal` is the Definition of Done. Never change it.\n")
@@ -178,7 +180,9 @@ func planPrompt(name, file, workdir string, lap int, text string, results []comm
 	b.WriteString("- Below the frontmatter, keep whatever notes help you plan.\n\n")
 	b.WriteString("The loop never edits the file; you do. Rewrite it however the work shows it should be: add, remove, reorder, and rewrite steps. Keep the frontmatter valid YAML.\n\n")
 	fmt.Fprintf(&b, "This is lap %d. The file now:\n\n%s\n\n", lap, text)
-	if len(results) == 0 {
+	if bad != nil {
+		fmt.Fprintf(&b, "The frontmatter does not parse, so no command ran: %v\n\nFix the file first; quote any value that contains a colon.\n\n", bad)
+	} else if len(results) == 0 {
 		b.WriteString("No step has a command yet.\n\n")
 	} else {
 		b.WriteString("Command results:\n\n")
