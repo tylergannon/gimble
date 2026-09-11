@@ -6,9 +6,10 @@
 "session":{"type":"string"},
 "turn":{"type":"string"},
 "event":{"anyOf":[{"type":"object",
-"description":"Complete marks the durable end of a run log.","properties":{
-"kind":{"type":"string","const":"complete"}
-},"required":["kind"],"additionalProperties":false},
+"description":"Complete marks the durable end of a run log. RecordingError reports an earlier failure in another log owned by the run; an absent Complete means the run log itself did not finish durably.","properties":{
+"kind":{"type":"string","const":"complete"},
+"recording_error":{"type":"string"}
+},"required":["kind","recording_error"],"additionalProperties":false},
 {"type":"object",
 "description":"Interrupt records a request to stop a running session.","properties":{
 "kind":{"type":"string","const":"interrupt"},

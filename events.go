@@ -283,8 +283,12 @@ type Interrupt struct {
 
 func (Interrupt) lifecycleEvent() {}
 
-// Complete marks the durable end of a run log.
-type Complete struct{}
+// Complete marks the durable end of a run log. RecordingError reports an
+// earlier failure in another log owned by the run; an absent Complete means
+// the run log itself did not finish durably.
+type Complete struct {
+	RecordingError string `json:"recording_error"`
+}
 
 func (Complete) lifecycleEvent() {}
 
