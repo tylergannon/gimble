@@ -35,7 +35,7 @@ the proof of a workflow is a live run and what it showed.
 
 ## Working here
 
-- Commit only when Tyler asks.
+- Commit and push whenever there is work to commit.
 - Attestation runs use the cheapest models: Codex `gpt-5.6-luna`, Claude
   Haiku, Gemini flash. Say which model a run used.
 - Ports from `ephemeral/legacy/` are rewritten against the new contract by
