@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "skills": {
+    "df-chapter-create": {
+      "source": "diffusioninc/skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/df-chapter-create/SKILL.md",
+      "computedHash": "cd3e8ecbdcb7c54ebea9c56f6ba86d85ffaaf71479de996392a0893f5ea226ec"
+    },
+    "df-easy-loop-e2e": {
+      "source": "diffusioninc/skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/df-easy-loop-e2e/SKILL.md",
+      "computedHash": "c6d041d8fa489713105c8df325d94a0183bed992db7eff74695f1d7c08def06d"
+    },
+    "df-easy-loop-simple": {
+      "source": "diffusioninc/skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/df-easy-loop-simple/SKILL.md",
+      "computedHash": "c63404fc8d6e3f605c3ad2ad92c82707aec869728f02a5117ff03958a41ea00c"
+    },
+    "df-promise": {
+      "source": "diffusioninc/skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/df-promise/SKILL.md",
+      "computedHash": "054e7cc27961d762d0d04a4fb8818a747d6115f2f2e5efeb68b9defbbacc193a"
+    },
+    "df-semantic-index": {
+      "source": "diffusioninc/skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/df-semantic-index/SKILL.md",
+      "computedHash": "6dbe015294b89c0e55e7aa7893da7b4a2d3e028b351e6f208da9481473a4a02d"
+    },
+    "df-sprint-execute": {
+      "source": "diffusioninc/skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/df-sprint-execute/SKILL.md",
+      "computedHash": "4d1520a845b1ec530b2217afdc3a62a107c190b185fc64e65deb775eab9d9169"
+    },
+    "df-sprint-plan": {
+      "source": "diffusioninc/skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/df-sprint-plan/SKILL.md",
+      "computedHash": "a35ce9a37cafd8495263f021c6785c56fb6eb17d744c44cf83772858a180bf07"
+    }
+  }
+}
