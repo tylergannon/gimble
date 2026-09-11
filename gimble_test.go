@@ -17,12 +17,12 @@ import (
 
 // fake is a HarnessAdapter whose turns are answered by a function.
 type fake struct {
-	answer func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error)
+	answer func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error)
 
 	mu      sync.Mutex
 	made    int
 	steers  []string
-	running map[string]func(Event)
+	running map[string]func(AgentEvent)
 }
 
 func (f *fake) CreateSession(ctx context.Context, model, workdir string) (string, error) {
@@ -32,10 +32,10 @@ func (f *fake) CreateSession(ctx context.Context, model, workdir string) (string
 	return "native-" + string(rune('0'+f.made)), nil
 }
 
-func (f *fake) RunTurn(ctx context.Context, session, prompt string, schema json.RawMessage, onEvent func(Event)) (json.RawMessage, error) {
+func (f *fake) RunTurn(ctx context.Context, session, prompt string, schema json.RawMessage, onEvent func(AgentEvent)) (json.RawMessage, error) {
 	f.mu.Lock()
 	if f.running == nil {
-		f.running = map[string]func(Event){}
+		f.running = map[string]func(AgentEvent){}
 	}
 	f.running[session] = onEvent
 	f.mu.Unlock()
@@ -44,7 +44,7 @@ func (f *fake) RunTurn(ctx context.Context, session, prompt string, schema json.
 		delete(f.running, session)
 		f.mu.Unlock()
 	}()
-	onEvent(Event{Kind: "user", Text: prompt})
+	onEvent(UserMessage{Text: prompt})
 	out, err := f.answer(ctx, session, prompt, schema, onEvent)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func (f *fake) Steer(ctx context.Context, session, message string) error {
 	defer f.mu.Unlock()
 	if emit := f.running[session]; emit != nil {
 		f.steers = append(f.steers, message)
-		emit(Event{Kind: "user", Text: message})
+		emit(UserMessage{Text: message})
 	}
 	return nil
 }
@@ -72,6 +72,80 @@ func (f *fake) Fork(ctx context.Context, session string) (string, error) {
 func runTest(t *testing.T, body func(ctx context.Context) error) error {
 	t.Helper()
 	return Run(Project(t.Context(), t.TempDir()), "test", body)
+}
+
+func lifecycleKind(event lifecycleEvent) string {
+	switch event.(type) {
+	case runStarted:
+		return "run_started"
+	case runEnded:
+		return "run_ended"
+	case runCancelled:
+		return "run_cancelled"
+	case scopeBegan:
+		return "scope_began"
+	case scopeEnded:
+		return "scope_ended"
+	case loopCommand:
+		return "loop_command"
+	case plannerDecision:
+		return "planner_decision"
+	case set:
+		return "set"
+	case sessionCreated:
+		return "session_created"
+	case sessionClosed:
+		return "session_closed"
+	case turnStarted:
+		return "turn_started"
+	case turnEnded:
+		return "turn_ended"
+	case superviseAttached:
+		return "supervise_attached"
+	case steer:
+		return "steer"
+	case interrupt:
+		return "interrupt"
+	case complete:
+		return "complete"
+	default:
+		return "unknown"
+	}
+}
+
+func agentKind(event AgentEvent) string {
+	switch event.(type) {
+	case UserMessage:
+		return "user_message"
+	case AssistantMessage:
+		return "assistant_message"
+	case AssistantMessageDelta:
+		return "assistant_message_delta"
+	case Thinking:
+		return "thinking"
+	case ThinkingDelta:
+		return "thinking_delta"
+	case ToolCall:
+		return "tool_call"
+	case ToolInputDelta:
+		return "tool_input_delta"
+	case ToolResult:
+		return "tool_result"
+	case ToolResultDelta:
+		return "tool_result_delta"
+	case Usage:
+		return "usage"
+	case HarnessError:
+		return "harness_error"
+	case Retry:
+		return "retry"
+	case ApprovalRequest:
+		return "approval_request"
+	case NestedTranscript:
+		return "nested_transcript"
+	default:
+		return "unknown"
+	}
 }
 
 func TestRunLogCanBeRead(t *testing.T) {
@@ -90,8 +164,8 @@ func TestRunLogCanBeRead(t *testing.T) {
 		t.Fatal("run directory was present outside a run")
 	}
 	var got []string
-	if err := runlog.Read[Event](t.Context(), dir, func(e Event) error {
-		got = append(got, e.Kind)
+	if err := runlog.Read[lifecycleRecord](t.Context(), dir, func(e lifecycleRecord) error {
+		got = append(got, lifecycleKind(e.Event))
 		return nil
 	}); err != nil {
 		t.Fatal(err)
@@ -109,15 +183,15 @@ func TestRunLogCanBeRead(t *testing.T) {
 	seen := make(chan string, 2)
 	readErr := make(chan error, 1)
 	go func() {
-		readErr <- runlog.Read[Event](t.Context(), liveDir, func(e Event) error {
-			seen <- e.Kind
+		readErr <- runlog.Read[lifecycleRecord](t.Context(), liveDir, func(e lifecycleRecord) error {
+			seen <- lifecycleKind(e.Event)
 			return nil
 		})
 	}()
-	if err := w.write(Event{Kind: "run_started"}); err != nil {
+	if err := w.writeLifecycle("", "", "", runStarted{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := w.write(Event{Kind: "complete"}); err != nil {
+	if err := w.writeLifecycle("", "", "", complete{}); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -168,7 +242,7 @@ func TestScopeData(t *testing.T) {
 }
 
 func TestGenerate(t *testing.T) {
-	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error) {
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
 		switch {
 		case len(schema) == 0:
 			return "hello", nil
@@ -213,7 +287,7 @@ func TestGenerate(t *testing.T) {
 
 func TestGroupFirstErrorCancelsTheRest(t *testing.T) {
 	boom := errors.New("boom")
-	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error) {
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
 		if prompt == "fail" {
 			return "", boom
 		}
@@ -242,7 +316,7 @@ func TestGroupFirstErrorCancelsTheRest(t *testing.T) {
 }
 
 func TestFork(t *testing.T) {
-	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error) {
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
 		return session, nil
 	}}
 	err := runTest(t, func(ctx context.Context) error {
@@ -268,11 +342,11 @@ func TestFork(t *testing.T) {
 func TestSupervise(t *testing.T) {
 	var workerTurns, looks int
 	f := &fake{}
-	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error) {
+	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
 		if session == "native-1" { // the worker, which runs until the supervisor's steer lands
 			workerTurns++
-			emit(Event{Kind: "tool_call", CallID: "1", Tool: "shell", Data: json.RawMessage(`{"command":"make plugins"}`)})
-			emit(Event{Kind: "tool_result", CallID: "1", Data: json.RawMessage(`"built a plugin system"`)})
+			emit(ToolCall{CallID: "1", Tool: "shell", Input: JSONText(`{"command":"make plugins"}`)})
+			emit(ToolResult{CallID: "1", Output: JSONText(`"built a plugin system"`)})
 			for range 200 {
 				f.mu.Lock()
 				n := len(f.steers)
@@ -326,14 +400,14 @@ func TestSuperviseASupervisor(t *testing.T) {
 		}
 		return false
 	}
-	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error) {
+	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
 		switch {
 		case session == "native-1": // the worker, until its supervisor objects
-			emit(Event{Kind: "tool_result", CallID: "1", Data: json.RawMessage(`"built a plugin system"`)})
+			emit(ToolResult{CallID: "1", Output: JSONText(`"built a plugin system"`)})
 			steered("remove the plugin system")
 			return "done", nil
 		case session == "native-2" && strings.Contains(prompt, "no plugin systems"): // the supervisor's first look, until its own supervisor objects
-			emit(Event{Kind: "assistant", Text: "I object to the variable names"})
+			emit(AssistantMessage{ID: "message-1", Text: "I object to the variable names"})
 			if !steered("object only to plugin systems") {
 				return `{"objections": []}`, nil
 			}
@@ -363,7 +437,7 @@ func TestSuperviseASupervisor(t *testing.T) {
 
 func TestLoop(t *testing.T) {
 	var prompts []string
-	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error) {
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
 		prompts = append(prompts, prompt)
 		file := strings.Fields(prompt[strings.Index(prompt, "Its backlog is the file ")+len("Its backlog is the file "):])[0]
 		file = strings.TrimSuffix(file, ",")
@@ -401,7 +475,7 @@ func TestLoop(t *testing.T) {
 
 func TestLoopShowsThePlannerABadBacklog(t *testing.T) {
 	var prompts []string
-	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error) {
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
 		prompts = append(prompts, prompt)
 		file := strings.Fields(prompt[strings.Index(prompt, "Its backlog is the file ")+len("Its backlog is the file "):])[0]
 		file = strings.TrimSuffix(file, ",")
@@ -437,11 +511,13 @@ func TestLoopShowsThePlannerABadBacklog(t *testing.T) {
 func TestAttestEventFixture(t *testing.T) {
 	project := t.TempDir()
 	f := &fake{}
-	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error) {
-		emit(Event{Kind: "assistant", Text: "working"})
-		if session == "native-2" {
-			emit(Event{Kind: "tool_call", CallID: "call-1", Tool: "shell", Data: json.RawMessage(`{"command":"test"}`)})
-			emit(Event{Kind: "tool_result", CallID: "call-1", Data: json.RawMessage(`"ok"`)})
+	reviewerStarted := make(chan struct{})
+	var reviewerStartedOnce sync.Once
+	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
+		emit(AssistantMessage{ID: "message-1", Text: "working"})
+		if prompt == "build" {
+			emit(ToolCall{CallID: "call-1", Tool: "shell", Input: JSONText(`{"command":"test"}`)})
+			emit(ToolResult{CallID: "call-1", Output: JSONText(`"ok"`)})
 			for {
 				f.mu.Lock()
 				steered := len(f.steers) > 0
@@ -451,6 +527,10 @@ func TestAttestEventFixture(t *testing.T) {
 				}
 				time.Sleep(time.Millisecond)
 			}
+		}
+		if strings.Contains(prompt, "You are supervising another agent") {
+			reviewerStartedOnce.Do(func() { close(reviewerStarted) })
+			return `{"objections": []}`, nil
 		}
 		return "done", nil
 	}
@@ -479,7 +559,11 @@ func TestAttestEventFixture(t *testing.T) {
 				_, err := worker.Generate[Text](ctx, "build", WithSupervisor(reviewer, "watch", WithInterval(time.Millisecond)))
 				turnDone <- err
 			}()
-			time.Sleep(5 * time.Millisecond)
+			select {
+			case <-reviewerStarted:
+			case <-time.After(time.Second):
+				return errors.New("reviewer turn did not start")
+			}
 			if err := worker.Steer(withSteerSource(ctx, reviewer.id), "continue"); err != nil {
 				return err
 			}
@@ -511,10 +595,10 @@ func TestAttestEventFixture(t *testing.T) {
 	if runDir == "" {
 		t.Fatal("run directory was not created")
 	}
-	var tailed []Event
+	var tailed []lifecycleRecord
 	readDone := make(chan error, 1)
 	go func() {
-		readDone <- runlog.Read[Event](t.Context(), runDir, func(e Event) error {
+		readDone <- runlog.Read[lifecycleRecord](t.Context(), runDir, func(e lifecycleRecord) error {
 			tailed = append(tailed, e)
 			return nil
 		})
@@ -531,7 +615,7 @@ func TestAttestEventFixture(t *testing.T) {
 		t.Fatal("public reader did not stop at the final event")
 	}
 
-	if len(tailed) < 2 || tailed[0].Kind != "run_started" || tailed[len(tailed)-1].Kind != "complete" {
+	if len(tailed) < 2 || lifecycleKind(tailed[0].Event) != "run_started" || lifecycleKind(tailed[len(tailed)-1].Event) != "complete" {
 		t.Fatalf("tail did not replay through completion: %v", tailed)
 	}
 	seq := uint64(0)
@@ -544,19 +628,20 @@ func TestAttestEventFixture(t *testing.T) {
 			t.Fatalf("invalid event ordering: %+v", e)
 		}
 		seq = e.Seq
-		seen[e.Kind] = true
-		switch e.Kind {
-		case "scope_began":
+		kind := lifecycleKind(e.Event)
+		seen[kind] = true
+		switch e.Event.(type) {
+		case scopeBegan:
 			scopes[e.Scope] = true
 			intervals[e.Scope] = [2]time.Time{e.Time}
-		case "scope_ended":
+		case scopeEnded:
 			pair := intervals[e.Scope]
 			pair[1] = e.Time
 			intervals[e.Scope] = pair
-		case "session_created":
-			sessionIDs = append(sessionIDs, e.Session)
-		case "turn_started":
-			turnIDs = append(turnIDs, e.Turn)
+		case sessionCreated:
+			sessionIDs = append(sessionIDs, e.Session.Value)
+		case turnStarted:
+			turnIDs = append(turnIDs, e.Turn.Value)
 		}
 	}
 	for _, e := range tailed {
@@ -571,7 +656,7 @@ func TestAttestEventFixture(t *testing.T) {
 			}
 		}
 		if !contained {
-			t.Fatalf("event %q has scope %q outside the began-scope prefix tree", e.Kind, e.Scope)
+			t.Fatalf("event %q has scope %q outside the began-scope prefix tree", lifecycleKind(e.Event), e.Scope)
 		}
 	}
 	for scope, pair := range intervals {
@@ -599,49 +684,54 @@ func TestAttestEventFixture(t *testing.T) {
 		t.Errorf("run_started scope = %q, want root scope", got)
 	}
 	for _, want := range []string{"nested.1", ""} {
-		if !slices.ContainsFunc(tailed, func(e Event) bool { return e.Kind == "scope_began" && e.Scope == want }) {
+		if !slices.ContainsFunc(tailed, func(e lifecycleRecord) bool {
+			_, began := e.Event.(scopeBegan)
+			return began && e.Scope == want
+		}) {
 			t.Errorf("scope tree lacks began event for %q", want)
 		}
 	}
 	for _, e := range tailed {
-		if e.Kind == "set" && e.Key == "root" && string(e.Value) != `"value"` {
-			t.Errorf("root set value = %s, want JSON string", e.Value)
-		}
-		if e.Kind == "set" && e.Key == "child" && e.Scope != "nested.1" {
-			t.Errorf("child set scope = %q, want nested.1", e.Scope)
+		if value, ok := e.Event.(set); ok {
+			if value.Key == "root" && value.Value != JSONText(`"value"`) {
+				t.Errorf("root set value = %s, want JSON string", value.Value)
+			}
+			if value.Key == "child" && e.Scope != "nested.1" {
+				t.Errorf("child set scope = %q, want nested.1", e.Scope)
+			}
 		}
 	}
 	var forked, supervised, landed, dropped bool
 	var workerTurn, reviewerTurn [2]time.Time
 	for _, e := range tailed {
-		switch e.Kind {
-		case "session_created":
-			if e.Session == "planner.1" && e.Parent == "researcher.1" {
+		switch event := e.Event.(type) {
+		case sessionCreated:
+			if e.Session.Value == "planner.1" && event.Parent == "researcher.1" {
 				forked = true
 			}
-		case "supervise_attached":
-			if e.Reviewer == "reviewer.1" && strings.HasPrefix(e.Worker, "worker.1/turn.") {
+		case superviseAttached:
+			if event.Reviewer == "reviewer.1" && strings.HasPrefix(event.Worker, "worker.1/turn.") {
 				supervised = true
 			}
-		case "steer":
-			if e.Source == "reviewer.1" && e.Landed != nil && *e.Landed {
+		case steer:
+			if event.Source == "reviewer.1" && event.Landed {
 				landed = true
 			}
-			if e.Message == "too late" && e.Landed != nil && !*e.Landed {
+			if event.Message == "too late" && !event.Landed {
 				dropped = true
 			}
-		case "turn_started":
-			if strings.HasPrefix(e.Turn, "worker.1/turn.") {
+		case turnStarted:
+			if strings.HasPrefix(e.Turn.Value, "worker.1/turn.") {
 				workerTurn[0] = e.Time
 			}
-			if e.Session == "reviewer.1" {
+			if e.Session.Value == "reviewer.1" && reviewerTurn[0].IsZero() {
 				reviewerTurn[0] = e.Time
 			}
-		case "turn_ended":
-			if strings.HasPrefix(e.Turn, "worker.1/turn.") {
+		case turnEnded:
+			if strings.HasPrefix(e.Turn.Value, "worker.1/turn.") {
 				workerTurn[1] = e.Time
 			}
-			if e.Session == "reviewer.1" {
+			if e.Session.Value == "reviewer.1" && reviewerTurn[1].IsZero() {
 				reviewerTurn[1] = e.Time
 			}
 		}
@@ -652,10 +742,13 @@ func TestAttestEventFixture(t *testing.T) {
 	if workerTurn[0].IsZero() || workerTurn[1].IsZero() || reviewerTurn[0].IsZero() || !workerTurn[0].Before(reviewerTurn[0]) || !reviewerTurn[0].Before(workerTurn[1]) {
 		t.Fatalf("worker/reviewer turns did not overlap: worker=%v reviewer=%v", workerTurn, reviewerTurn)
 	}
+	persisted := readRecords[lifecycleRecord](t, filepath.Join(runDir, "run.jsonl"))
+	if len(persisted) != len(tailed) {
+		t.Fatalf("persisted lifecycle records = %d, tailed %d", len(persisted), len(tailed))
+	}
 
-	var projectEvents []Event
-	readEvents(t, filepath.Join(project, "project.jsonl"), &projectEvents)
-	if len(projectEvents) != 2 || projectEvents[0].Kind != "run_started" || projectEvents[1].Kind != "run_ended" {
+	projectEvents := readRecords[lifecycleRecord](t, filepath.Join(project, "project.jsonl"))
+	if len(projectEvents) != 2 || lifecycleKind(projectEvents[0].Event) != "run_started" || lifecycleKind(projectEvents[1].Event) != "run_ended" {
 		t.Fatalf("project lifecycle: %+v", projectEvents)
 	}
 	files, _ := filepath.Glob(filepath.Join(runDir, "sessions", "*.jsonl"))
@@ -664,9 +757,8 @@ func TestAttestEventFixture(t *testing.T) {
 	}
 	transcriptKinds := map[string]map[string]bool{}
 	for _, file := range files {
-		var events []Event
-		readEvents(t, file, &events)
-		if len(events) == 0 || events[0].Kind != "user" {
+		events := readRecords[agentRecord](t, file)
+		if len(events) == 0 || agentKind(events[0].Event) != "user_message" {
 			t.Errorf("%s is not a transcript: %+v", file, events)
 		}
 		seenKinds := map[string]bool{}
@@ -674,7 +766,7 @@ func TestAttestEventFixture(t *testing.T) {
 			if e.Seq == 0 || e.Time.IsZero() || e.Session == "" || e.Turn == "" {
 				t.Errorf("%s has incomplete agent event placement: %+v", file, e)
 			}
-			seenKinds[e.Kind] = true
+			seenKinds[agentKind(e.Event)] = true
 		}
 		transcriptKinds[filepath.Base(file)] = seenKinds
 	}
@@ -686,20 +778,27 @@ func TestAttestEventFixture(t *testing.T) {
 	}
 }
 
-func readEvents(t *testing.T, file string, dst *[]Event) {
+func readRecords[T any](t *testing.T, file string) []T {
 	t.Helper()
 	raw, err := os.ReadFile(file)
 	if err != nil {
 		t.Fatal(err)
 	}
+	var records []T
 	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
 		if line == "" {
 			continue
 		}
-		var e Event
+		var e T
+		if validator, ok := any(e).(interface{ ValidateJSON([]byte) error }); ok {
+			if err := validator.ValidateJSON([]byte(line)); err != nil {
+				t.Fatalf("validate %s: %v\n%s", file, err, line)
+			}
+		}
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
 			t.Fatalf("decode %s: %v", file, err)
 		}
-		*dst = append(*dst, e)
+		records = append(records, e)
 	}
+	return records
 }

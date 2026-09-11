@@ -63,22 +63,23 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 	pw, _ := newEventWriter(filepath.Join(project, "project.jsonl"))
 	r := &run{dir: dir, writer: w, project: pw, sessions: make(map[string]*eventWriter)}
 	if pw != nil {
-		_ = pw.write(Event{Kind: "run_started", Name: name})
+		_ = pw.writeLifecycle("", "", "", runStarted{Name: name})
 	}
-	r.event(Event{Kind: "run_started", Name: name})
+	r.event("", "", "", runStarted{Name: name})
 	logf("run %s started in %s", id, dir)
 	err = (&scope{run: r}).do(ctx, body)
 	if ctx.Err() != nil {
-		r.event(Event{Kind: "run_cancelled", Error: ctx.Err().Error()})
+		cancelled := runCancelled{Name: name, Source: steerSource(ctx), Error: ctx.Err().Error()}
+		r.event("", "", "", cancelled)
 		if pw != nil {
-			_ = pw.write(Event{Kind: "run_cancelled", Name: name, Error: ctx.Err().Error()})
+			_ = pw.writeLifecycle("", "", "", cancelled)
 		}
 	}
-	r.event(Event{Kind: "run_ended", Name: name, Error: errString(err)})
+	r.event("", "", "", runEnded{Name: name, Error: errString(err)})
 	if pw != nil {
-		_ = pw.write(Event{Kind: "run_ended", Name: name, Error: errString(err)})
+		_ = pw.writeLifecycle("", "", "", runEnded{Name: name, Error: errString(err)})
 	}
-	r.event(Event{Kind: "complete"})
+	r.event("", "", "", complete{})
 	_ = w.close()
 	if pw != nil {
 		_ = pw.close()

@@ -12,14 +12,14 @@ import (
 // projector turns Codex notifications into Gimble events.
 type projector struct {
 	mu      sync.Mutex
-	emit    func(gimble.Event)
+	emit    func(gimble.AgentEvent)
 	started map[string]bool // tool items whose call was emitted
 }
 
 func (p *projector) user(text string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.emit(gimble.Event{Kind: "user", Text: text})
+	p.emit(gimble.UserMessage{Text: text})
 }
 
 func (p *projector) usage(params json.RawMessage) {
@@ -29,7 +29,7 @@ func (p *projector) usage(params json.RawMessage) {
 		TokenUsage json.RawMessage `json:"tokenUsage"`
 	}
 	if json.Unmarshal(params, &notification) == nil && len(notification.TokenUsage) > 0 {
-		p.emit(gimble.Event{Kind: "usage", Data: notification.TokenUsage})
+		p.emit(gimble.Usage{Data: gimble.JSONText(notification.TokenUsage)})
 	}
 }
 
@@ -52,7 +52,7 @@ func (p *projector) itemCompleted(params json.RawMessage) (string, bool) {
 	switch {
 	case item.kind == "agentMessage":
 		text, _ := item.value["text"].(string)
-		p.emit(gimble.Event{Kind: "assistant", Text: text})
+		p.emit(gimble.AssistantMessage{ID: item.id, Text: text})
 		return text, true
 	case item.kind == "reasoning":
 		text := joined(item.value["summary"])
@@ -60,20 +60,20 @@ func (p *projector) itemCompleted(params json.RawMessage) (string, bool) {
 			text = joined(item.value["content"])
 		}
 		if text != "" {
-			p.emit(gimble.Event{Kind: "thinking", Text: text})
+			p.emit(gimble.Thinking{ID: item.id, Text: text})
 		}
 	case isTool(item.kind):
 		if !p.started[item.id] {
 			p.toolCall(item)
 		}
-		p.emit(gimble.Event{Kind: "tool_result", CallID: item.id, Data: encode(toolOutput(item))})
+		p.emit(gimble.ToolResult{CallID: item.id, Output: gimble.JSONText(encode(toolOutput(item)))})
 	}
 	return "", false
 }
 
 func (p *projector) toolCall(item nativeItem) {
 	p.started[item.id] = true
-	p.emit(gimble.Event{Kind: "tool_call", CallID: item.id, Tool: toolName(item), Data: encode(toolArgs(item))})
+	p.emit(gimble.ToolCall{CallID: item.id, Tool: toolName(item), Input: gimble.JSONText(encode(toolArgs(item)))})
 }
 
 type nativeItem struct {

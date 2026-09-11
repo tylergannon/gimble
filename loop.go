@@ -84,12 +84,12 @@ func (l *loop) Laps(yield func(context.Context, Task) bool) {
 				return err
 			}
 			if strings.TrimSpace(p.Next) == "" {
-				loopScope.run.event(Event{Kind: "planner_decision", Scope: loopScope.key, Decision: ""})
+				loopScope.run.event(loopScope.key, "", "", plannerDecision{})
 				logf("%s: the planner named nothing after %d laps", loopScope.key, lap-1)
 				return nil
 			}
 			logf("%s: lap %d: %s", loopScope.key, lap, oneLine(p.Next))
-			loopScope.run.event(Event{Kind: "planner_decision", Scope: loopScope.key, Decision: p.Next})
+			loopScope.run.event(loopScope.key, "", "", plannerDecision{Decision: p.Next})
 			more := true
 			lapCtx := context.WithValue(ctx, taskKey{}, p.Next)
 			_ = loopScope.child("lap").do(lapCtx, func(ctx context.Context) error {
@@ -163,7 +163,7 @@ func runCommands(ctx context.Context, r *run, scope, dir string, commands []stri
 			code = exit.ExitCode()
 		}
 		logf("$ %s: exit %d", command, code)
-		r.event(Event{Kind: "loop_command", Scope: scope, Command: command, ExitCode: code})
+		r.event(scope, "", "", loopCommand{Command: command, ExitCode: code})
 		results = append(results, commandResult{command: command, code: code, output: tail(string(out), 3000)})
 	}
 	return results, nil

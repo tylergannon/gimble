@@ -71,14 +71,14 @@ func (s *scope) adopt(session *Session) {
 // body returns.
 func (s *scope) do(ctx context.Context, body func(context.Context) error) error {
 	ctx, cancel := context.WithCancel(context.WithValue(ctx, scopeKey{}, s))
-	e := Event{Kind: "scope_began", Scope: s.key, Name: path.Base(s.key)}
+	e := scopeBegan{Name: path.Base(s.key)}
 	if task, _ := ctx.Value(taskKey{}).(string); task != "" {
 		e.Task = task
 	}
-	s.run.event(e)
+	s.run.event(s.key, "", "", e)
 	defer s.end(cancel)
 	err := body(ctx)
-	s.run.event(Event{Kind: "scope_ended", Scope: s.key, Error: errString(err)})
+	s.run.event(s.key, "", "", scopeEnded{Error: errString(err)})
 	return err
 }
 
@@ -92,7 +92,7 @@ func (s *scope) end(cancel context.CancelFunc) {
 		session.mu.Lock()
 		session.closed = true
 		session.mu.Unlock()
-		s.run.event(Event{Kind: "session_closed", Scope: s.key, Session: session.id})
+		s.run.event(s.key, session.id, "", sessionClosed{})
 	}
 	cancel()
 }
@@ -115,7 +115,7 @@ func Set[V ~string | ~int | ~float64 | ~bool | ~[]string](ctx context.Context, k
 	if err != nil {
 		return fmt.Errorf("gimble: set %q: %w", key, err)
 	}
-	return set(ctx, key, raw)
+	return store(ctx, key, raw)
 }
 
 // SetJSON stores a polytype-generated value in the ctx's scope, once per
@@ -125,10 +125,10 @@ func SetJSON[V Output](ctx context.Context, key string, value V) error {
 	if err != nil {
 		return fmt.Errorf("gimble: set %q: %w", key, err)
 	}
-	return set(ctx, key, raw)
+	return store(ctx, key, raw)
 }
 
-func set(ctx context.Context, key string, raw []byte) error {
+func store(ctx context.Context, key string, raw []byte) error {
 	s, err := current(ctx)
 	if err != nil {
 		return err
@@ -146,7 +146,7 @@ func set(ctx context.Context, key string, raw []byte) error {
 	}
 	s.values[key] = raw
 	s.keys = append(s.keys, key)
-	s.run.event(Event{Kind: "set", Scope: s.key, Key: key, Value: json.RawMessage(raw)})
+	s.run.event(s.key, "", "", set{Key: key, Value: JSONText(raw)})
 	return nil
 }
 

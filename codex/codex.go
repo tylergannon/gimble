@@ -100,7 +100,7 @@ func (a *adapter) thread(ctx context.Context, method string, params map[string]a
 }
 
 // RunTurn runs one turn on the thread and blocks until it ends.
-func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.Event)) (json.RawMessage, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent)) (json.RawMessage, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
 		return nil, err

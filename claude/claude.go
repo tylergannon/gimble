@@ -76,7 +76,7 @@ func (a *adapter) add(s *session) (string, error) {
 }
 
 // RunTurn runs one turn and blocks until it ends.
-func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.Event)) (json.RawMessage, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent)) (json.RawMessage, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
 		return nil, err
