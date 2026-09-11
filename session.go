@@ -21,6 +21,7 @@ type Session struct {
 	mu      sync.Mutex
 	native  string // the harness's session id, made on the first turn
 	turns   int
+	turnID  string
 	running bool
 	closed  bool
 }
@@ -86,11 +87,13 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	s.running = true
 	s.turns++
 	turnID := fmt.Sprintf("%s/turn.%d", s.id, s.turns)
+	s.turnID = turnID
 	native := s.native
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
 		s.running = false
+		s.turnID = ""
 		s.mu.Unlock()
 	}()
 
@@ -168,22 +171,51 @@ func (s *Session) usable() error {
 // that could not be reached.
 func (s *Session) Steer(ctx context.Context, message string) error {
 	s.mu.Lock()
-	native, running := s.native, s.running
+	native, running, turn := s.native, s.running, s.turnID
 	s.mu.Unlock()
 	if !running || native == "" {
 		logf("%s: steer dropped: %s", s.id, oneLine(message))
 		if scope, err := current(ctx); err == nil {
 			landed := false
-			scope.run.event(Event{Kind: "steer", Scope: scope.key, Session: s.id, Target: s.id, Message: message, Landed: &landed})
+			scope.run.event(Event{Kind: "steer", Scope: scope.key, Session: s.id, Turn: turn, Target: s.id, Source: steerSource(ctx), Message: message, Landed: &landed})
 		}
 		return nil
 	}
 	logf("%s: steer: %s", s.id, oneLine(message))
 	if scope, err := current(ctx); err == nil {
 		landed := true
-		scope.run.event(Event{Kind: "steer", Scope: scope.key, Session: s.id, Target: s.id, Message: message, Landed: &landed})
+		scope.run.event(Event{Kind: "steer", Scope: scope.key, Session: s.id, Turn: turn, Target: s.id, Source: steerSource(ctx), Message: message, Landed: &landed})
 	}
 	return s.adapter.Steer(ctx, native, message)
+}
+
+func (s *Session) Interrupt(ctx context.Context) error {
+	s.mu.Lock()
+	native, running, turn := s.native, s.running, s.turnID
+	s.mu.Unlock()
+	if !running || native == "" {
+		return nil
+	}
+	if scope, err := current(ctx); err == nil {
+		scope.run.event(Event{Kind: "interrupt", Scope: scope.key, Session: s.id, Turn: turn, Target: s.id, Source: steerSource(ctx)})
+	}
+	interruptor, ok := s.adapter.(interface {
+		Interrupt(context.Context, string) error
+	})
+	if !ok {
+		return fmt.Errorf("gimble: %s: adapter does not support interrupt", s.id)
+	}
+	return interruptor.Interrupt(ctx, native)
+}
+
+type steerSourceKey struct{}
+
+func withSteerSource(ctx context.Context, source string) context.Context {
+	return context.WithValue(ctx, steerSourceKey{}, source)
+}
+func steerSource(ctx context.Context) string {
+	source, _ := ctx.Value(steerSourceKey{}).(string)
+	return source
 }
 
 // Fork returns a new session, named for the graph, in the same workdir,
