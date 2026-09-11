@@ -62,6 +62,15 @@ type Review struct {
 // supervise is Generate with supervisors attached.
 func supervise[T Output](ctx context.Context, s *Session, prompt string, supervisors []supervisor) (T, error) {
 	t := &transcript{}
+	for _, sup := range supervisors {
+		s.mu.Lock()
+		turn := fmt.Sprintf("%s/turn.%d", s.id, s.turns+1)
+		s.mu.Unlock()
+		if scope, err := current(ctx); err == nil {
+			o := apply(sup.opts)
+			scope.run.event(Event{Kind: "supervise_attached", Scope: scope.key, Session: s.id, Turn: turn, Reviewer: sup.session.id, Worker: turn, Instruction: sup.instruction, Interval: o.every})
+		}
+	}
 
 	// The worker's turn, in the background so the supervisors can run beside it.
 	var res T
@@ -69,7 +78,8 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		res, err = generate[T](ctx, s, prompt, t.append)
+		var out T
+		res, err = generate[T](ctx, s, prompt, t.append, fmt.Sprintf("%T", out))
 	}()
 
 	// Each supervisor, on its own clock: look at what is new, steer on
@@ -93,13 +103,13 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 				}
 				look := lookPrompt(sup, prompt, seen == 0, events)
 				seen += len(events)
-				review, err := sup.session.Generate[Review](ctx, look, sup.opts...)
+				review, err := sup.session.Generate[Review](withSteerSource(ctx, sup.session.id), look, sup.opts...)
 				if err != nil {
 					logf("%s: a look at %s failed: %v", sup.session.id, s.id, err)
 					continue
 				}
 				if len(review.Objections) > 0 {
-					_ = s.Steer(ctx, "Your supervisor objects:\n\n- "+strings.Join(review.Objections, "\n- "))
+					_ = s.Steer(withSteerSource(ctx, sup.session.id), "Your supervisor objects:\n\n- "+strings.Join(review.Objections, "\n- "))
 				}
 			}
 		})

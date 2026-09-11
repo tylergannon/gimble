@@ -3,6 +3,7 @@ package gimble
 import (
 	"context"
 	"encoding/json"
+	"time"
 )
 
 // HarnessAdapter is the agent-specific code for one coding-agent harness
@@ -32,9 +33,40 @@ type HarnessAdapter interface {
 // first three; CallID pairs a tool call with its result; Tool names the
 // tool; Data carries tool arguments, tool output, or token usage as JSON.
 type Event struct {
-	Kind   string
-	Text   string
-	CallID string
-	Tool   string
-	Data   json.RawMessage
+	Seq         uint64          `json:"seq,omitempty"`
+	Time        time.Time       `json:"time,omitempty"`
+	Kind        string          `json:"kind"`
+	Scope       string          `json:"scope,omitempty"`
+	Session     string          `json:"session,omitempty"`
+	Turn        string          `json:"turn,omitempty"`
+	Name        string          `json:"name,omitempty"`
+	Task        string          `json:"task,omitempty"`
+	Key         string          `json:"key,omitempty"`
+	Value       json.RawMessage `json:"value,omitempty"`
+	Error       string          `json:"error,omitempty"`
+	Result      json.RawMessage `json:"result,omitempty"`
+	OutputType  string          `json:"output_type,omitempty"`
+	Tokens      any             `json:"tokens,omitempty"`
+	Duration    time.Duration   `json:"duration,omitempty"`
+	Interrupted bool            `json:"interrupted,omitempty"`
+	ExitCode    int             `json:"exit_code,omitempty"`
+	Command     string          `json:"command,omitempty"`
+	Decision    string          `json:"decision,omitempty"`
+	Adapter     string          `json:"adapter,omitempty"`
+	Model       string          `json:"model,omitempty"`
+	Workdir     string          `json:"workdir,omitempty"`
+	Parent      string          `json:"parent,omitempty"`
+	Target      string          `json:"target,omitempty"`
+	Source      string          `json:"source,omitempty"`
+	Message     string          `json:"message,omitempty"`
+	Landed      *bool           `json:"landed,omitempty"`
+	Reviewer    string          `json:"reviewer,omitempty"`
+	Worker      string          `json:"worker,omitempty"`
+	Instruction string          `json:"instruction,omitempty"`
+	Interval    time.Duration   `json:"interval,omitempty"`
+	Delta       string          `json:"delta,omitempty"`
+	Text        string          `json:"text,omitempty"`
+	CallID      string          `json:"call_id,omitempty"`
+	Tool        string          `json:"tool,omitempty"`
+	Data        json.RawMessage `json:"data,omitempty"`
 }

@@ -176,6 +176,19 @@ func (a *Adapter) Steer(ctx context.Context, sessionID, message string) error {
 	return nil
 }
 
+func (a *Adapter) Interrupt(ctx context.Context, sessionID string) error {
+	s, err := a.session(sessionID)
+	if err != nil {
+		return err
+	}
+	active := s.getActive()
+	if active == nil {
+		return nil
+	}
+	_, err = active.stream.InterruptWithReceipt(ctx)
+	return err
+}
+
 func (a *Adapter) session(id string) (*session, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()

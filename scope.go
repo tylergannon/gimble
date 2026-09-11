@@ -19,6 +19,7 @@ type Output interface {
 }
 
 type scopeKey struct{}
+type taskKey struct{}
 
 // scope is one instance of a named span of the workflow. Nothing is in the
 // ctx but a pointer to it.
@@ -70,8 +71,15 @@ func (s *scope) adopt(session *Session) {
 // body returns.
 func (s *scope) do(ctx context.Context, body func(context.Context) error) error {
 	ctx, cancel := context.WithCancel(context.WithValue(ctx, scopeKey{}, s))
+	e := Event{Kind: "scope_began", Scope: s.key, Name: path.Base(s.key)}
+	if task, _ := ctx.Value(taskKey{}).(string); task != "" {
+		e.Task = task
+	}
+	s.run.event(e)
 	defer s.end(cancel)
-	return body(ctx)
+	err := body(ctx)
+	s.run.event(Event{Kind: "scope_ended", Scope: s.key, Error: errString(err)})
+	return err
 }
 
 // end closes the scope's sessions, then cancels its ctx.
@@ -84,6 +92,7 @@ func (s *scope) end(cancel context.CancelFunc) {
 		session.mu.Lock()
 		session.closed = true
 		session.mu.Unlock()
+		s.run.event(Event{Kind: "session_closed", Scope: s.key, Session: session.id})
 	}
 	cancel()
 }
@@ -137,6 +146,7 @@ func set(ctx context.Context, key string, raw []byte) error {
 	}
 	s.values[key] = raw
 	s.keys = append(s.keys, key)
+	s.run.event(Event{Kind: "set", Scope: s.key, Key: key, Value: json.RawMessage(raw)})
 	return nil
 }
 

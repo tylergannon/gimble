@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -69,6 +70,65 @@ func (f *fake) Fork(ctx context.Context, session string) (string, error) {
 func runTest(t *testing.T, body func(ctx context.Context) error) error {
 	t.Helper()
 	return Run(Project(t.Context(), t.TempDir()), "test", body)
+}
+
+func TestRunDirAndReadRun(t *testing.T) {
+	project := t.TempDir()
+	var dir string
+	if err := Run(Project(t.Context(), project), "reader", func(ctx context.Context) error {
+		dir = RunDir(ctx)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if dir == "" {
+		t.Fatal("RunDir returned empty inside a run")
+	}
+	if RunDir(t.Context()) != "" {
+		t.Fatal("RunDir returned a directory outside a run")
+	}
+	var got []string
+	if err := ReadRun(t.Context(), dir, func(e Event) error {
+		got = append(got, e.Kind)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) == 0 || got[len(got)-1] != "complete" {
+		t.Fatalf("read events = %v", got)
+	}
+
+	liveDir := t.TempDir()
+	w, err := newEventWriter(filepath.Join(liveDir, "run.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.close()
+	seen := make(chan string, 2)
+	readErr := make(chan error, 1)
+	go func() {
+		readErr <- ReadRun(t.Context(), liveDir, func(e Event) error {
+			seen <- e.Kind
+			return nil
+		})
+	}()
+	if err := w.write(Event{Kind: "run_started"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.write(Event{Kind: "complete"}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-readErr:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("live reader did not stop at complete")
+	}
+	if first, second := <-seen, <-seen; first != "run_started" || second != "complete" {
+		t.Fatalf("live events = %q, %q", first, second)
+	}
 }
 
 func TestScopeData(t *testing.T) {
@@ -369,5 +429,276 @@ func TestLoopShowsThePlannerABadBacklog(t *testing.T) {
 	}
 	if laps != 2 || !strings.Contains(prompts[1], "does not parse") || strings.Contains(prompts[1], "$ echo checked") || !strings.Contains(prompts[2], "$ echo checked\nexit 0") {
 		t.Errorf("%d laps; planner prompts:\n%s\n---\n%s", laps, prompts[1], prompts[2])
+	}
+}
+
+func TestAttestEventFixture(t *testing.T) {
+	project := t.TempDir()
+	f := &fake{}
+	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error) {
+		emit(Event{Kind: "assistant", Text: "working"})
+		if session == "native-2" {
+			emit(Event{Kind: "tool_call", CallID: "call-1", Tool: "shell", Data: json.RawMessage(`{"command":"test"}`)})
+			emit(Event{Kind: "tool_result", CallID: "call-1", Data: json.RawMessage(`"ok"`)})
+			for {
+				f.mu.Lock()
+				steered := len(f.steers) > 0
+				f.mu.Unlock()
+				if steered || ctx.Err() != nil {
+					break
+				}
+				time.Sleep(time.Millisecond)
+			}
+		}
+		return "done", nil
+	}
+
+	ctx := Project(t.Context(), project)
+	runDone := make(chan error, 1)
+	go func() {
+		runDone <- Run(ctx, "attest", func(ctx context.Context) error {
+			if RunDir(ctx) == "" {
+				return errors.New("RunDir returned empty inside a run")
+			}
+			if err := Set(ctx, "root", "value"); err != nil {
+				return err
+			}
+			researcher := NewSession(ctx, "researcher", f, "model", project)
+			if _, err := researcher.Generate[Text](ctx, "prime"); err != nil {
+				return err
+			}
+			fork, err := researcher.Fork(ctx, "planner")
+			if err != nil {
+				return err
+			}
+			worker := NewSession(ctx, "worker", f, "model", project)
+			reviewer := NewSession(ctx, "reviewer", f, "review", project)
+			turnDone := make(chan error, 1)
+			go func() {
+				_, err := worker.Generate[Text](ctx, "build", WithSupervisor(reviewer, "watch", WithInterval(time.Millisecond)))
+				turnDone <- err
+			}()
+			time.Sleep(5 * time.Millisecond)
+			if err := worker.Steer(withSteerSource(ctx, reviewer.id), "continue"); err != nil {
+				return err
+			}
+			if err := <-turnDone; err != nil {
+				return err
+			}
+			if err := worker.Steer(ctx, "too late"); err != nil {
+				return err
+			}
+			if _, err := fork.Generate[Text](ctx, "plan"); err != nil {
+				return err
+			}
+			return Scope(ctx, "nested", func(ctx context.Context) error {
+				return Set(ctx, "child", "value")
+			})
+		})
+	}()
+
+	runs := filepath.Join(project, "runs")
+	var runDir string
+	for range 1000 {
+		entries, _ := os.ReadDir(runs)
+		if len(entries) == 1 {
+			runDir = filepath.Join(runs, entries[0].Name())
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if runDir == "" {
+		t.Fatal("run directory was not created")
+	}
+	var tailed []Event
+	readDone := make(chan error, 1)
+	go func() {
+		readDone <- ReadRun(t.Context(), runDir, func(e Event) error {
+			tailed = append(tailed, e)
+			return nil
+		})
+	}()
+	if err := <-runDone; err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-readDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("public reader did not stop at the final event")
+	}
+
+	if len(tailed) < 2 || tailed[0].Kind != "run_started" || tailed[len(tailed)-1].Kind != "complete" {
+		t.Fatalf("tail did not replay through completion: %v", tailed)
+	}
+	seq := uint64(0)
+	seen := map[string]bool{}
+	intervals := map[string][2]time.Time{}
+	scopes := map[string]bool{}
+	var sessionIDs, turnIDs []string
+	for _, e := range tailed {
+		if e.Seq <= seq || e.Time.IsZero() {
+			t.Fatalf("invalid event ordering: %+v", e)
+		}
+		seq = e.Seq
+		seen[e.Kind] = true
+		switch e.Kind {
+		case "scope_began":
+			scopes[e.Scope] = true
+			intervals[e.Scope] = [2]time.Time{e.Time}
+		case "scope_ended":
+			pair := intervals[e.Scope]
+			pair[1] = e.Time
+			intervals[e.Scope] = pair
+		case "session_created":
+			sessionIDs = append(sessionIDs, e.Session)
+		case "turn_started":
+			turnIDs = append(turnIDs, e.Turn)
+		}
+	}
+	for _, e := range tailed {
+		if e.Scope == "" {
+			continue
+		}
+		contained := false
+		for scope := range scopes {
+			if e.Scope == scope || strings.HasPrefix(e.Scope, scope+"/") {
+				contained = true
+				break
+			}
+		}
+		if !contained {
+			t.Fatalf("event %q has scope %q outside the began-scope prefix tree", e.Kind, e.Scope)
+		}
+	}
+	for scope, pair := range intervals {
+		if pair[1].IsZero() || !pair[0].Before(pair[1]) {
+			t.Fatalf("scope %q lacks a valid began/ended interval: %v", scope, pair)
+		}
+	}
+	if len(sessionIDs) < 4 || !slices.Contains(sessionIDs, "researcher.1") || !slices.Contains(sessionIDs, "planner.1") || !slices.Contains(sessionIDs, "worker.1") || !slices.Contains(sessionIDs, "reviewer.1") {
+		t.Fatalf("ordinal session ids = %v", sessionIDs)
+	}
+	for _, id := range turnIDs {
+		if !strings.Contains(id, "/turn.") {
+			t.Fatalf("turn id lacks ordinal = %q", id)
+		}
+	}
+	for _, kind := range []string{"scope_began", "scope_ended", "set", "session_created", "session_closed", "turn_started", "turn_ended", "supervise_attached", "steer"} {
+		if !seen[kind] {
+			t.Errorf("run log lacks %s", kind)
+		}
+	}
+	if !seen["complete"] {
+		t.Error("run log lacks completion event")
+	}
+	if got := tailed[0].Scope; got != "" {
+		t.Errorf("run_started scope = %q, want root scope", got)
+	}
+	for _, want := range []string{"nested.1", ""} {
+		if !slices.ContainsFunc(tailed, func(e Event) bool { return e.Kind == "scope_began" && e.Scope == want }) {
+			t.Errorf("scope tree lacks began event for %q", want)
+		}
+	}
+	for _, e := range tailed {
+		if e.Kind == "set" && e.Key == "root" && string(e.Value) != `"value"` {
+			t.Errorf("root set value = %s, want JSON string", e.Value)
+		}
+		if e.Kind == "set" && e.Key == "child" && e.Scope != "nested.1" {
+			t.Errorf("child set scope = %q, want nested.1", e.Scope)
+		}
+	}
+	var forked, supervised, landed, dropped bool
+	var workerTurn, reviewerTurn [2]time.Time
+	for _, e := range tailed {
+		switch e.Kind {
+		case "session_created":
+			if e.Session == "planner.1" && e.Parent == "researcher.1" {
+				forked = true
+			}
+		case "supervise_attached":
+			if e.Reviewer == "reviewer.1" && strings.HasPrefix(e.Worker, "worker.1/turn.") {
+				supervised = true
+			}
+		case "steer":
+			if e.Source == "reviewer.1" && e.Landed != nil && *e.Landed {
+				landed = true
+			}
+			if e.Message == "too late" && e.Landed != nil && !*e.Landed {
+				dropped = true
+			}
+		case "turn_started":
+			if strings.HasPrefix(e.Turn, "worker.1/turn.") {
+				workerTurn[0] = e.Time
+			}
+			if e.Session == "reviewer.1" {
+				reviewerTurn[0] = e.Time
+			}
+		case "turn_ended":
+			if strings.HasPrefix(e.Turn, "worker.1/turn.") {
+				workerTurn[1] = e.Time
+			}
+			if e.Session == "reviewer.1" {
+				reviewerTurn[1] = e.Time
+			}
+		}
+	}
+	if !forked || !supervised || !landed || !dropped {
+		t.Fatalf("relations: fork=%v supervise=%v landed=%v dropped=%v", forked, supervised, landed, dropped)
+	}
+	if workerTurn[0].IsZero() || workerTurn[1].IsZero() || reviewerTurn[0].IsZero() || !workerTurn[0].Before(reviewerTurn[0]) || !reviewerTurn[0].Before(workerTurn[1]) {
+		t.Fatalf("worker/reviewer turns did not overlap: worker=%v reviewer=%v", workerTurn, reviewerTurn)
+	}
+
+	var projectEvents []Event
+	readEvents(t, filepath.Join(project, "project.jsonl"), &projectEvents)
+	if len(projectEvents) != 2 || projectEvents[0].Kind != "run_started" || projectEvents[1].Kind != "run_ended" {
+		t.Fatalf("project lifecycle: %+v", projectEvents)
+	}
+	files, _ := filepath.Glob(filepath.Join(runDir, "sessions", "*.jsonl"))
+	if len(files) < 3 {
+		t.Fatalf("session transcripts = %d, want at least 3", len(files))
+	}
+	transcriptKinds := map[string]map[string]bool{}
+	for _, file := range files {
+		var events []Event
+		readEvents(t, file, &events)
+		if len(events) == 0 || events[0].Kind != "user" {
+			t.Errorf("%s is not a transcript: %+v", file, events)
+		}
+		seenKinds := map[string]bool{}
+		for _, e := range events {
+			if e.Seq == 0 || e.Time.IsZero() || e.Session == "" || e.Turn == "" {
+				t.Errorf("%s has incomplete agent event placement: %+v", file, e)
+			}
+			seenKinds[e.Kind] = true
+		}
+		transcriptKinds[filepath.Base(file)] = seenKinds
+	}
+	if !slices.ContainsFunc(files, func(file string) bool {
+		kinds := transcriptKinds[filepath.Base(file)]
+		return kinds["tool_call"] && kinds["tool_result"]
+	}) {
+		t.Error("no session transcript contains the tool call/result pair")
+	}
+}
+
+func readEvents(t *testing.T, file string, dst *[]Event) {
+	t.Helper()
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		if line == "" {
+			continue
+		}
+		var e Event
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("decode %s: %v", file, err)
+		}
+		*dst = append(*dst, e)
 	}
 }
