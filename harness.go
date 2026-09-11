@@ -23,10 +23,6 @@ type HarnessAdapter interface {
 	// running it does nothing and returns nil.
 	Steer(ctx context.Context, sessionID, message string) error
 
-	// Interrupt stops the session's running turn. With no turn running it
-	// does nothing and returns nil.
-	Interrupt(ctx context.Context, sessionID string) error
-
 	// Fork returns a new native session with the conversation so far.
 	Fork(ctx context.Context, sessionID string) (string, error)
 }

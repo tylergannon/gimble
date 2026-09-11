@@ -34,7 +34,6 @@ func (a *exampleAdapter) RunTurn(_ context.Context, _ string, prompt string, sch
 }
 
 func (*exampleAdapter) Steer(context.Context, string, string) error { return nil }
-func (*exampleAdapter) Interrupt(context.Context, string) error     { return nil }
 func (*exampleAdapter) Fork(context.Context, string) (string, error) {
 	return "example-fork", nil
 }

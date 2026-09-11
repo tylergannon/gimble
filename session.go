@@ -190,8 +190,6 @@ func (s *Session) Steer(ctx context.Context, message string) error {
 	return s.adapter.Steer(ctx, native, message)
 }
 
-// Interrupt stops the running turn. It returns nil when no turn is running,
-// since the caller can always race with a turn ending.
 func (s *Session) Interrupt(ctx context.Context) error {
 	s.mu.Lock()
 	native, running, turn := s.native, s.running, s.turnID
@@ -202,7 +200,13 @@ func (s *Session) Interrupt(ctx context.Context) error {
 	if scope, err := current(ctx); err == nil {
 		scope.run.event(Event{Kind: "interrupt", Scope: scope.key, Session: s.id, Turn: turn, Target: s.id, Source: steerSource(ctx)})
 	}
-	return s.adapter.Interrupt(ctx, native)
+	interruptor, ok := s.adapter.(interface {
+		Interrupt(context.Context, string) error
+	})
+	if !ok {
+		return fmt.Errorf("gimble: %s: adapter does not support interrupt", s.id)
+	}
+	return interruptor.Interrupt(ctx, native)
 }
 
 type steerSourceKey struct{}

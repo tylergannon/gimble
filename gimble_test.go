@@ -19,11 +19,10 @@ import (
 type fake struct {
 	answer func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(Event)) (string, error)
 
-	mu         sync.Mutex
-	made       int
-	steers     []string
-	interrupts int
-	running    map[string]func(Event)
+	mu      sync.Mutex
+	made    int
+	steers  []string
+	running map[string]func(Event)
 }
 
 func (f *fake) CreateSession(ctx context.Context, model, workdir string) (string, error) {
@@ -63,13 +62,6 @@ func (f *fake) Steer(ctx context.Context, session, message string) error {
 		f.steers = append(f.steers, message)
 		emit(Event{Kind: "user", Text: message})
 	}
-	return nil
-}
-
-func (f *fake) Interrupt(context.Context, string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.interrupts++
 	return nil
 }
 
@@ -216,38 +208,6 @@ func TestGenerate(t *testing.T) {
 	}
 	if _, err := escaped.Generate[Text](t.Context(), "zombie"); err == nil {
 		t.Error("a session whose scope ended ran a turn")
-	}
-}
-
-func TestInterruptUsesHarnessContract(t *testing.T) {
-	started := make(chan struct{})
-	release := make(chan struct{})
-	f := &fake{answer: func(context.Context, string, string, json.RawMessage, func(Event)) (string, error) {
-		close(started)
-		<-release
-		return "done", nil
-	}}
-	err := runTest(t, func(ctx context.Context) error {
-		session := NewSession(ctx, "worker", f, "model", t.TempDir())
-		done := make(chan error, 1)
-		go func() {
-			_, err := session.Generate[Text](ctx, "work")
-			done <- err
-		}()
-		<-started
-		if err := session.Interrupt(ctx); err != nil {
-			return err
-		}
-		close(release)
-		return <-done
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.interrupts != 1 {
-		t.Fatalf("interrupt calls = %d", f.interrupts)
 	}
 }
 
