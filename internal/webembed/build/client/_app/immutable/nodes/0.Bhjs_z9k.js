@@ -1,1 +1,0 @@
-import{D as e,E as t,H as n,g as r,k as i,l as a,m as o}from"../chunks/BtUDsyhv.js";var s=r(`<nav class="svelte-12qhfyh"><a href="/" class="svelte-12qhfyh">Home</a> <a href="/about" class="svelte-12qhfyh">About</a></nav> <main class="svelte-12qhfyh"><!></main>`,1);function c(r,c){var l=s(),u=i(e(l),2),d=t(u);a(d,()=>c.children),n(u),o(r,l)}export{c as component};

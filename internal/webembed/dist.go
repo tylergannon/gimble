@@ -9,7 +9,10 @@ import (
 	"github.com/tylergannon/gimble/internal/webbridge"
 )
 
-//go:embed all:build
+// b* matches bare.txt in a bare checkout and also the ignored build directory
+// after the frontend is built. The placeholder keeps this package compilable
+// without checking generated frontend output into Git.
+//go:embed all:b*
 var build embed.FS
 
 func init() {

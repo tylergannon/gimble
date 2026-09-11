@@ -1,2 +1,0 @@
-import{V as e,g as t,m as n}from"../chunks/BtUDsyhv.js";import"../chunks/CtkQUipZ.js";var r=t(`<h1 data-testid="title">About</h1> <p>This page is plain SvelteKit. It calls nothing, and Go serves it out of the
-	binary like every other route.</p>`,1);function i(t){var i=r();e(2),n(t,i)}export{i as component};
