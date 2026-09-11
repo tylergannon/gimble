@@ -69,7 +69,8 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		res, err = generate[T](ctx, s, prompt, t.append)
+		var out T
+		res, err = generate[T](ctx, s, prompt, t.append, fmt.Sprintf("%T", out))
 	}()
 
 	// Each supervisor, on its own clock: look at what is new, steer on

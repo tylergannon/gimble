@@ -65,8 +65,8 @@ type Event struct {
 	Instruction string          `json:"instruction,omitempty"`
 	Interval    time.Duration   `json:"interval,omitempty"`
 	Delta       string          `json:"delta,omitempty"`
-	Text        string
-	CallID      string
-	Tool        string
-	Data        json.RawMessage
+	Text        string          `json:"text,omitempty"`
+	CallID      string          `json:"call_id,omitempty"`
+	Tool        string          `json:"tool,omitempty"`
+	Data        json.RawMessage `json:"data,omitempty"`
 }
