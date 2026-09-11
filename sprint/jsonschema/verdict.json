@@ -1,8 +1,0 @@
-{"type":"object",
-"description":"verdict is your answer: the requirements of the goal you did not see working.","properties":{
-"not_seen_working":{"type":"array","description":"Each requirement of the goal you did not see working. Leave it empty when you saw every one working.","items":{"type":"object",
-"description":"finding is one requirement you did not see working.","properties":{
-"requirement":{"type":"string","description":"The requirement, quoted word for word from the goal. A finding that quotes nothing in the goal is dropped."},
-"seen":{"type":"string","description":"What you ran or looked at, and what you saw instead of it working."}
-},"required":["requirement","seen"],"additionalProperties":false}}
-},"required":["not_seen_working"],"additionalProperties":false}

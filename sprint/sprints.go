@@ -5,9 +5,8 @@
 // once; a planner forked from it keeps the backlog; each lap a coder forked
 // from it does the planner's task under a supervisor, and the lap is
 // committed when the checks pass. When the planner is done, a validator
-// runs the work and names the requirements of the goal it did not see
-// working, and those go back to the planner for another loop. Then the
-// planner files what is left and merges the branch.
+// checks that the work is demonstrated, and its objections are another
+// loop. Then the planner files what is left and merges the branch.
 package sprint
 
 import (
@@ -45,20 +44,6 @@ type Input struct {
 
 // checks gate every lap's commit.
 var checks = []string{"just build", "go vet ./...", "go test ./..."}
-
-// verdict is your answer: the requirements of the goal you did not see working.
-type verdict struct {
-	// Each requirement of the goal you did not see working. Leave it empty when you saw every one working.
-	NotSeenWorking []finding `json:"not_seen_working"`
-}
-
-// finding is one requirement you did not see working.
-type finding struct {
-	// The requirement, quoted word for word from the goal. A finding that quotes nothing in the goal is dropped.
-	Requirement string `json:"requirement"`
-	// What you ran or looked at, and what you saw instead of it working.
-	Seen string `json:"seen"`
-}
 
 // Sprint builds sprint in.Sprint in in.Repo and works in.Issues beside it.
 func Sprint(ctx context.Context, in Input) error {
@@ -109,11 +94,9 @@ func issue(ctx context.Context, in Input, base string, n int) error {
 // titles its commits.
 func build(ctx context.Context, in Input, dir, name, goal string) error {
 	cx, cl := codex.New(), claude.New()
-	// The builders get the goal and the definition of done; the validator
-	// gets the goal alone.
-	brief := goal + "\n\n" + fmt.Sprintf(done, dir)
+	goal += "\n\n" + fmt.Sprintf(done, dir)
 	researcher := gimble.NewSession(ctx, "researcher", cx, in.Model, dir)
-	if _, err := researcher.Generate[gimble.Text](ctx, researchPrompt+"\n\n"+brief); err != nil {
+	if _, err := researcher.Generate[gimble.Text](ctx, researchPrompt+"\n\n"+goal); err != nil {
 		return err
 	}
 	planner, err := researcher.Fork(ctx, "planner")
@@ -124,13 +107,11 @@ func build(ctx context.Context, in Input, dir, name, goal string) error {
 	validator := gimble.NewSession(ctx, "validator", cl, in.ReviewModel, dir)
 	referee := gimble.NewSession(ctx, "referee", cl, in.ReviewModel, dir)
 
-	// Build until the planner is done, then validate. The validator can
-	// only name requirements of the goal it did not see working, and the
-	// goal never changes: what it saw goes to the planner, who decides the
-	// next laps, for three rounds at most.
-	laps, findings := 0, ""
+	// Build until the planner is done, then validate. The validator's
+	// objections are the goal of another loop, for three rounds at most.
+	laps := 0
 	for round := 1; ; round++ {
-		loop := gimble.Loop(ctx, "build", brief+findings, planner)
+		loop := gimble.Loop(ctx, "build", goal, planner)
 		for ctx, task := range loop.Laps {
 			if laps++; laps > in.Laps {
 				return fmt.Errorf("%s: the planner was not done after %d laps", name, in.Laps)
@@ -142,28 +123,21 @@ func build(ctx context.Context, in Input, dir, name, goal string) error {
 		if err := loop.Err(); err != nil {
 			return err
 		}
-		v, err := validator.Generate[verdict](ctx, "Run the work and look: which requirements of this goal did you not see working? File anything else as a GitHub issue.\n\n"+goal,
-			gimble.WithSupervisor(referee, "Keep it to running the work and looking: object if it edits files or holds the work to anything the goal does not ask for."),
+		review, err := validator.Generate[gimble.Review](ctx, fmt.Sprintf(validatePrompt, name)+"\n\n"+goal,
+			gimble.WithSupervisor(referee, refereeInstruction),
 		)
 		if err != nil {
 			return err
 		}
-		var unseen []string
-		for _, f := range v.NotSeenWorking {
-			if q := flat(f.Requirement); q == "" || !strings.Contains(flat(goal), q) {
-				log.Printf("sprint: %s, round %d: dropped a finding that quotes nothing in the goal: %q", name, round, f.Requirement)
-				continue
-			}
-			unseen = append(unseen, fmt.Sprintf("%q: %s", f.Requirement, f.Seen))
-		}
-		if len(unseen) == 0 {
+		if len(review.Objections) == 0 {
 			break
 		}
-		findings = "\n\nThe validator did not see these requirements working:\n\n- " + strings.Join(unseen, "\n- ")
-		log.Printf("sprint: %s, round %d:%s", name, round, findings)
+		objections := "- " + strings.Join(review.Objections, "\n- ")
+		log.Printf("sprint: %s, round %d: the validator objects:\n%s", name, round, objections)
 		if round == 3 {
-			return fmt.Errorf("%s: the validator did not see the goal working after %d rounds", name, round)
+			return fmt.Errorf("%s: the validator still objects after %d rounds", name, round)
 		}
+		goal += "\n\nThe validator found the validation invalid, so it is also done only when these are answered:\n\n" + objections
 	}
 
 	// Exit and merge: the planner, who drove the work, files what is left
@@ -228,6 +202,16 @@ const codePrompt = "Do the task below in this repository, following AGENTS.md an
 
 const superviseInstruction = "Don't let it build what its task does not ask for, over-engineer what it does build, or break a rule in AGENTS.md. Object to nothing else: code quality and style are not yours to judge."
 
+const refereeInstruction = "Keep it to validation. Don't let it object to anything but an invalid validation: a part of the goal nothing demonstrates, a demonstration that does not show what it claims, or a check that was tampered with. Enhancements, code quality, and bugs that do not stop the goal being demonstrated go to GitHub issues, never to objections. Don't let it change files."
+
+const validatePrompt = `You are the validator of one piece of work on this repository, Gimble. Its goal is below, and the agents that did it say it is done. Read docs/definition-of-done.md, then decide whether the validation legitimately demonstrates the goal: that the software actually works and what the goal asks for is implemented and has been seen working.
+
+- Find what demonstrates each part of the goal: the tests and the commands. Check that each really exercises what it claims to, and that none was weakened, skipped, or faked to pass. The work's commits are titled "%s, lap ..."; git log -p shows what they changed.
+- Run the checks yourself, and run the software by hand where that shows more, the web page included.
+- Change no files and commit nothing.
+
+Object only where the validation is invalid: the software does not work, a large part of the goal is missing (the work is done at 90-95%%, and the rest is filed as issues), a demonstration does not show what it claims, or a check was tampered with. Code quality, style, enhancements, and bugs that do not stop the goal being demonstrated are not objections; file the ones that matter as GitHub issues with gh issue create. Each objection becomes work for the builders, so write it as an instruction to them. Answer with an empty list when the goal is demonstrated.`
+
 const mergePrompt = `The validator found the work demonstrated, so finish it as docs/definition-of-done.md says. File each quirk and bug the work leaves as a GitHub issue with gh issue create, skipping any that gh issue list already has. Then push this branch, open a pull request for it with gh pr create that says what the work built, how it was seen working, and which issues it left, and merge it with gh pr merge --squash. If main has moved since the branch began, merge main into it and rerun the checks first. Answer with the pull request's URL and the issues you filed.`
 
 // sprintGoal returns the "## Sprint n:" section of the repository's
@@ -255,12 +239,6 @@ func git(ctx context.Context, dir string, args ...string) (string, error) {
 		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, out)
 	}
 	return strings.TrimSpace(string(out)), nil
-}
-
-// flat is text with its backticks dropped and its whitespace collapsed, so
-// a requirement quoted from a wrapped line of markdown still matches.
-func flat(text string) string {
-	return strings.Join(strings.Fields(strings.ReplaceAll(text, "`", "")), " ")
 }
 
 func firstLine(text string) string {
