@@ -25,6 +25,8 @@ type group struct {
 // Each child receives its own named scope. The first error cancels the group,
 // interrupting the other children's turns; Wait joins every child, ends the
 // group scope, and returns that first error.
+// The caller must Wait on every exit path. To stop children early, cancel
+// their parent context before waiting; cancellation alone does not join them.
 func Group(ctx context.Context, name string) *group {
 	parent, err := current(ctx)
 	if err != nil {
@@ -53,7 +55,8 @@ func (g *group) Go(name string, fn func(ctx context.Context) error) {
 }
 
 // Wait joins the group's goroutines, ends its scope, and returns the first
-// error one of them returned.
+// error one of them returned. Call Wait once, after submitting all children.
+// Child results may be read after Wait returns.
 func (g *group) Wait() error {
 	if g.scope == nil {
 		return g.err

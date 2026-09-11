@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimble/internal/runlog"
+	"golang.org/x/sync/errgroup"
 )
 
 // fake is a HarnessAdapter whose turns are answered by a function.
@@ -180,30 +181,27 @@ func TestRunLogCanBeRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer w.close()
-	seen := make(chan string, 2)
-	readErr := make(chan error, 1)
-	go func() {
-		readErr <- runlog.Read[LifecycleRecord](t.Context(), liveDir, func(e LifecycleRecord) error {
-			seen <- lifecycleKind(e.Event)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	var readers errgroup.Group
+	defer func() { cancel(); _ = readers.Wait() }()
+	var seen []string
+	readers.Go(func() error {
+		return runlog.Read[LifecycleRecord](ctx, liveDir, func(e LifecycleRecord) error {
+			seen = append(seen, lifecycleKind(e.Event))
 			return nil
 		})
-	}()
+	})
 	if err := w.writeLifecycle("", "", "", RunStarted{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := w.writeLifecycle("", "", "", Complete{}); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case err := <-readErr:
-		if err != nil {
-			t.Fatal(err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("live reader did not stop at complete")
+	if err := readers.Wait(); err != nil {
+		t.Fatal(err)
 	}
-	if first, second := <-seen, <-seen; first != "run_started" || second != "complete" {
-		t.Fatalf("live events = %q, %q", first, second)
+	if !slices.Equal(seen, []string{"run_started", "complete"}) {
+		t.Fatalf("live events = %q", seen)
 	}
 }
 
@@ -340,7 +338,7 @@ func TestFork(t *testing.T) {
 }
 
 func TestSupervise(t *testing.T) {
-	var workerTurns, looks int
+	var workerTurns, looks, toolResults int
 	f := &fake{}
 	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
 		if session == "native-1" { // the worker, which runs until the supervisor's steer lands
@@ -360,6 +358,7 @@ func TestSupervise(t *testing.T) {
 		}
 		f.mu.Lock() // the supervisor
 		looks++
+		toolResults += strings.Count(prompt, "[tool result]")
 		f.mu.Unlock()
 		if strings.Contains(prompt, "no plugin systems") && strings.Contains(prompt, "built a plugin system") {
 			return `{"objections": ["remove the plugin system"]}`, nil
@@ -381,8 +380,9 @@ func TestSupervise(t *testing.T) {
 	if len(f.steers) == 0 || !strings.Contains(f.steers[0], "remove the plugin system") {
 		t.Errorf("steers: %q", f.steers)
 	}
-	if workerTurns != 1 || looks != 1 {
-		t.Errorf("worker ran %d turns and the supervisor looked %d times, want 1 and 1: a look waits for something new", workerTurns, looks)
+	// A steer is a new event and can cause another look before the worker exits.
+	if workerTurns != 1 || toolResults != 1 {
+		t.Errorf("worker turns=%d, looks=%d, tool results seen=%d; want one worker turn and its tool result seen once", workerTurns, looks, toolResults)
 	}
 }
 
@@ -432,6 +432,54 @@ func TestSuperviseASupervisor(t *testing.T) {
 	}
 	if len(f.steers) < 2 || !strings.Contains(f.steers[0], "object only to plugin systems") || !strings.Contains(f.steers[1], "remove the plugin system") {
 		t.Errorf("steers: %q, want the lead's steer to the supervisor, then the supervisor's to the worker", f.steers)
+	}
+}
+
+func TestSuperviseCancelsAndJoinsLook(t *testing.T) {
+	workerFailure := errors.New("worker failed")
+	for _, workerErr := range []error{nil, workerFailure} {
+		name := "success"
+		if workerErr != nil {
+			name = "failure"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			looking := make(chan struct{}) // the worker finishes only after a look starts
+			joined := false
+			f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
+				if prompt == "work" {
+					select {
+					case <-looking:
+						return "done", workerErr
+					case <-ctx.Done():
+						return "", ctx.Err()
+					}
+				}
+				close(looking)
+				<-ctx.Done()
+				joined = true
+				return "", ctx.Err()
+			}}
+			err := Run(Project(ctx, t.TempDir()), "join", func(ctx context.Context) error {
+				worker := NewSession(ctx, "worker", f, "fake", ".")
+				reviewer := NewSession(ctx, "reviewer", f, "fake", ".")
+				result, err := worker.Generate[Text](ctx, "work", WithSupervisor(reviewer, "watch", WithInterval(time.Millisecond)))
+				if !joined {
+					t.Error("Generate returned before the supervisor exited")
+				}
+				if workerErr == nil && result != "done" {
+					t.Errorf("worker result = %q", result)
+				}
+				return err
+			})
+			if !errors.Is(err, workerErr) {
+				t.Errorf("Run error = %v, want worker error %v", err, workerErr)
+			}
+			if ctx.Err() != nil {
+				t.Fatal("supervisor stopped only when the parent's deadline expired")
+			}
+		})
 	}
 }
 
@@ -510,11 +558,15 @@ func TestLoopShowsThePlannerABadBacklog(t *testing.T) {
 
 func TestAttestEventFixture(t *testing.T) {
 	project := t.TempDir()
+	looking := make(chan struct{})
 	f := &fake{}
-	reviewerStarted := make(chan struct{})
-	var reviewerStartedOnce sync.Once
 	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
 		emit(AssistantMessage{ID: "message-1", Text: "working"})
+		if len(schema) != 0 {
+			close(looking)
+			<-ctx.Done() // keep the look active until the worker finishes
+			return "", ctx.Err()
+		}
 		if prompt == "build" {
 			emit(ToolCall{CallID: "call-1", Tool: "shell", Input: JSONText(`{"command":"test"}`)})
 			emit(ToolResult{CallID: "call-1", Output: JSONText(`"ok"`)})
@@ -528,16 +580,14 @@ func TestAttestEventFixture(t *testing.T) {
 				time.Sleep(time.Millisecond)
 			}
 		}
-		if strings.Contains(prompt, "You are supervising another agent") {
-			reviewerStartedOnce.Do(func() { close(reviewerStarted) })
-			return `{"objections": []}`, nil
-		}
 		return "done", nil
 	}
 
-	runDone := make(chan error, 1)
-	go func() {
-		runDone <- Run(Project(t.Context(), project), "attest", func(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	runsGroup, runCtx := errgroup.WithContext(ctx)
+	defer func() { cancel(); _ = runsGroup.Wait() }()
+	runsGroup.Go(func() error {
+		return Run(Project(runCtx, project), "attest", func(ctx context.Context) error {
 			if runDir(ctx) == "" {
 				return errors.New("run directory was empty inside a run")
 			}
@@ -554,20 +604,20 @@ func TestAttestEventFixture(t *testing.T) {
 			}
 			worker := NewSession(ctx, "worker", f, "model", project)
 			reviewer := NewSession(ctx, "reviewer", f, "review", project)
-			turnDone := make(chan error, 1)
-			go func() {
+			turns := Group(ctx, "build")
+			turns.Go("worker", func(ctx context.Context) error {
 				_, err := worker.Generate[Text](ctx, "build", WithSupervisor(reviewer, "watch", WithInterval(time.Millisecond)))
-				turnDone <- err
-			}()
-			select {
-			case <-reviewerStarted:
-			case <-time.After(time.Second):
-				return errors.New("reviewer turn did not start")
-			}
-			if err := worker.Steer(withSteerSource(ctx, reviewer.id), "continue"); err != nil {
 				return err
-			}
-			if err := <-turnDone; err != nil {
+			})
+			turns.Go("steer", func(ctx context.Context) error {
+				select {
+				case <-looking:
+					return worker.Steer(withSteerSource(ctx, reviewer.id), "continue")
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			})
+			if err := turns.Wait(); err != nil {
 				return err
 			}
 			if err := worker.Steer(ctx, "too late"); err != nil {
@@ -580,7 +630,7 @@ func TestAttestEventFixture(t *testing.T) {
 				return Set(ctx, "child", "value")
 			})
 		})
-	}()
+	})
 
 	runs := filepath.Join(project, "runs")
 	var runDir string
@@ -596,23 +646,18 @@ func TestAttestEventFixture(t *testing.T) {
 		t.Fatal("run directory was not created")
 	}
 	var tailed []LifecycleRecord
-	readDone := make(chan error, 1)
-	go func() {
-		readDone <- runlog.Read[LifecycleRecord](t.Context(), runDir, func(e LifecycleRecord) error {
-			tailed = append(tailed, e)
-			return nil
-		})
-	}()
-	if err := <-runDone; err != nil {
+	// Observation outlives the run context so it can consume the final record.
+	readCtx, stopReading := context.WithTimeout(ctx, time.Second)
+	defer stopReading()
+	readErr := runlog.Read[LifecycleRecord](readCtx, runDir, func(e LifecycleRecord) error {
+		tailed = append(tailed, e)
+		return nil
+	})
+	if err := runsGroup.Wait(); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case err := <-readDone:
-		if err != nil {
-			t.Fatal(err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("public reader did not stop at the final event")
+	if readErr != nil {
+		t.Fatal(readErr)
 	}
 
 	if len(tailed) < 2 || lifecycleKind(tailed[0].Event) != "run_started" || lifecycleKind(tailed[len(tailed)-1].Event) != "complete" {

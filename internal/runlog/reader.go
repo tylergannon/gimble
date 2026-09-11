@@ -15,6 +15,11 @@ import (
 
 // Read replays the run log at dir and follows it until a record whose kind is
 // "complete" is observed. T must decode the records written to the log.
+// Read calls yield synchronously and returns its error, a read error, or the
+// context error. A nil return means the log is complete, not that the run
+// succeeded. The caller owns observation separately from execution: cancelling
+// this context stops reading, not the run. Do not join Read inside the run's
+// body: the final record is written only after that body returns.
 func Read[T any](ctx context.Context, dir string, yield func(T) error) error {
 	f, err := os.Open(filepath.Join(dir, "run.jsonl"))
 	if err != nil {
