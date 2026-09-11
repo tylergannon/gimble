@@ -7,6 +7,7 @@ go 1.27.1
 ignore ./web/node_modules
 
 require (
+	github.com/roasbeef/claude-agent-sdk-go v1.1.1-0.20260713164230-efdbecd88a98
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/tylergannon/polytype v1.0.0-rc.12
 	github.com/tylergannon/skgo v0.3.4
@@ -20,7 +21,7 @@ require (
 	github.com/dop251/goja_nodejs v0.0.0-20260212111938-1f56ff5bcf14 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/google/pprof v0.0.0-20260906184651-6331bc6350fe // indirect
-	github.com/roasbeef/claude-agent-sdk-go v1.1.1-0.20260713164230-efdbecd88a98 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/tylergannon/structtag v0.1.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
