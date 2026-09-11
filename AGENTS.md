@@ -26,6 +26,14 @@ in the workflow that needs it, with `Group`, `Generate`, and git through
 `os/exec`. A new exported name exists only when Tyler asks for it by name.
 Propose "write program X that does Y", never "add function Z".
 
+## Information lands locally
+
+Everything an agent needs to finish its task is on the local filesystem
+before the agent starts: an issue's text, a spec, a prior result. The
+filesystem is the store and the cache for the task, and agents find what
+is there. A prompt never points an agent at a remote source to fetch
+("read issue 120 with gh"); the workflow fetches it into a file first.
+
 ## Build what was asked
 
 Implement only what was asked. A reviewer's objection is not a
