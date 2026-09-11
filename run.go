@@ -13,6 +13,16 @@ import (
 
 type projectKey struct{}
 
+// RunDir returns the directory of the run in ctx. It returns an empty string
+// when ctx is not inside a run.
+func RunDir(ctx context.Context) string {
+	s, _ := ctx.Value(scopeKey{}).(*scope)
+	if s == nil || s.run == nil {
+		return ""
+	}
+	return s.run.dir
+}
+
 // Project puts the project's directory in the root ctx. Runs are made
 // under its runs directory.
 func Project(ctx context.Context, dir string) context.Context {

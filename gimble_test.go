@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -69,6 +70,65 @@ func (f *fake) Fork(ctx context.Context, session string) (string, error) {
 func runTest(t *testing.T, body func(ctx context.Context) error) error {
 	t.Helper()
 	return Run(Project(t.Context(), t.TempDir()), "test", body)
+}
+
+func TestRunDirAndReadRun(t *testing.T) {
+	project := t.TempDir()
+	var dir string
+	if err := Run(Project(t.Context(), project), "reader", func(ctx context.Context) error {
+		dir = RunDir(ctx)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if dir == "" {
+		t.Fatal("RunDir returned empty inside a run")
+	}
+	if RunDir(t.Context()) != "" {
+		t.Fatal("RunDir returned a directory outside a run")
+	}
+	var got []string
+	if err := ReadRun(t.Context(), dir, func(e Event) error {
+		got = append(got, e.Kind)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) == 0 || got[len(got)-1] != "complete" {
+		t.Fatalf("read events = %v", got)
+	}
+
+	liveDir := t.TempDir()
+	w, err := newEventWriter(filepath.Join(liveDir, "run.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.close()
+	seen := make(chan string, 2)
+	readErr := make(chan error, 1)
+	go func() {
+		readErr <- ReadRun(t.Context(), liveDir, func(e Event) error {
+			seen <- e.Kind
+			return nil
+		})
+	}()
+	if err := w.write(Event{Kind: "run_started"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.write(Event{Kind: "complete"}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-readErr:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("live reader did not stop at complete")
+	}
+	if first, second := <-seen, <-seen; first != "run_started" || second != "complete" {
+		t.Fatalf("live events = %q, %q", first, second)
+	}
 }
 
 func TestScopeData(t *testing.T) {
