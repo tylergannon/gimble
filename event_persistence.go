@@ -2,6 +2,7 @@ package gimble
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -73,11 +74,39 @@ func optionalString(value string) polytype.Optional[string] {
 }
 
 func (w *eventWriter) close() error { return w.file.Close() }
-func (r *run) event(scope, session, turn string, event LifecycleEvent) {
-	if r != nil && r.writer != nil {
-		_ = r.writer.writeLifecycle(scope, session, turn, event)
+
+func (r *run) recordFailure(operation string, err error) {
+	if r == nil || err == nil {
+		return
+	}
+	r.errMu.Lock()
+	defer r.errMu.Unlock()
+	if r.recordErr == nil {
+		r.recordErr = fmt.Errorf("gimble: record: %s: %w", operation, err)
 	}
 }
+
+func (r *run) recordingError() error {
+	if r == nil {
+		return nil
+	}
+	r.errMu.Lock()
+	defer r.errMu.Unlock()
+	return r.recordErr
+}
+
+func (r *run) event(scope, session, turn string, event LifecycleEvent) {
+	if r != nil && r.writer != nil {
+		r.recordFailure("write run log", r.writer.writeLifecycle(scope, session, turn, event))
+	}
+}
+
+func (r *run) projectEvent(event LifecycleEvent) {
+	if r != nil && r.project != nil {
+		r.recordFailure("write project log", r.project.writeLifecycle("", "", "", event))
+	}
+}
+
 func (r *run) sessionEvent(scope, session, turn string, event AgentEvent) {
 	if r == nil {
 		return
@@ -85,20 +114,29 @@ func (r *run) sessionEvent(scope, session, turn string, event AgentEvent) {
 	r.mu.Lock()
 	w := r.sessions[session]
 	if w == nil {
-		w, _ = newEventWriter(filepath.Join(r.dir, "sessions", session+".jsonl"))
+		var err error
+		w, err = newEventWriter(filepath.Join(r.dir, "sessions", session+".jsonl"))
+		if err != nil {
+			r.recordFailure("open session log "+session, err)
+		}
 		if w != nil {
 			r.sessions[session] = w
 		}
 	}
 	r.mu.Unlock()
 	if w != nil {
-		_ = w.writeAgent(scope, session, turn, event)
+		r.recordFailure("write session log "+session, w.writeAgent(scope, session, turn, event))
 	}
 }
-func projectEvent(dir string, event LifecycleEvent) {
-	w, err := newEventWriter(filepath.Join(dir, "project.jsonl"))
-	if err == nil {
-		_ = w.writeLifecycle("", "", "", event)
-		_ = w.close()
+
+func (r *run) closeSessions() {
+	r.mu.Lock()
+	writers := make(map[string]*eventWriter, len(r.sessions))
+	for session, writer := range r.sessions {
+		writers[session] = writer
+	}
+	r.mu.Unlock()
+	for session, writer := range writers {
+		r.recordFailure("close session log "+session, writer.close())
 	}
 }

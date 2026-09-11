@@ -28,11 +28,13 @@ func Project(ctx context.Context, dir string) context.Context {
 }
 
 type run struct {
-	dir      string // <project>/runs/<id>
-	writer   *eventWriter
-	project  *eventWriter
-	mu       sync.Mutex
-	sessions map[string]*eventWriter
+	dir       string // <project>/runs/<id>
+	writer    *eventWriter
+	project   *eventWriter
+	mu        sync.Mutex
+	sessions  map[string]*eventWriter
+	errMu     sync.Mutex
+	recordErr error
 }
 
 // Run starts one run of a workflow and blocks until the body returns. The
@@ -40,7 +42,8 @@ type run struct {
 // The run is the root scope: when the body returns, its sessions are
 // closed and its ctx is cancelled.
 // The body must join its concurrent work before returning. Run then finishes
-// the log and returns the body's error; cancellation alone is not completion.
+// every log it owns and returns the body's error joined with the first recording
+// failure, if any; cancellation alone is not completion.
 func Run(ctx context.Context, name string, body func(ctx context.Context) error) error {
 	project, _ := ctx.Value(projectKey{}).(string)
 	if project == "" {
@@ -62,30 +65,31 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 	if err != nil {
 		return fmt.Errorf("gimble: %w", err)
 	}
-	pw, _ := newEventWriter(filepath.Join(project, "project.jsonl"))
-	r := &run{dir: dir, writer: w, project: pw, sessions: make(map[string]*eventWriter)}
-	if pw != nil {
-		_ = pw.writeLifecycle("", "", "", RunStarted{Name: name})
+	r := &run{dir: dir, writer: w, sessions: make(map[string]*eventWriter)}
+	pw, pwErr := newEventWriter(filepath.Join(project, "project.jsonl"))
+	if pwErr != nil {
+		r.recordFailure("open project log", pwErr)
+	} else {
+		r.project = pw
 	}
+	r.projectEvent(RunStarted{Name: name})
 	r.event("", "", "", RunStarted{Name: name})
 	logf("run %s started in %s", id, dir)
 	err = (&scope{run: r}).do(ctx, body)
 	if ctx.Err() != nil {
 		cancelled := RunCancelled{Name: name, Source: steerSource(ctx), Error: ctx.Err().Error()}
 		r.event("", "", "", cancelled)
-		if pw != nil {
-			_ = pw.writeLifecycle("", "", "", cancelled)
-		}
+		r.projectEvent(cancelled)
 	}
 	r.event("", "", "", RunEnded{Name: name, Error: errString(err)})
-	if pw != nil {
-		_ = pw.writeLifecycle("", "", "", RunEnded{Name: name, Error: errString(err)})
+	r.projectEvent(RunEnded{Name: name, Error: errString(err)})
+	r.closeSessions()
+	if r.project != nil {
+		r.recordFailure("close project log", r.project.close())
 	}
-	r.event("", "", "", Complete{})
-	_ = w.close()
-	if pw != nil {
-		_ = pw.close()
-	}
+	r.event("", "", "", Complete{RecordingError: errString(r.recordingError())})
+	r.recordFailure("close run log", w.close())
+	err = errors.Join(err, r.recordingError())
 	logf("run %s ended: %v", id, orNone(err))
 	return err
 }
