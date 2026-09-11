@@ -1,5 +1,10 @@
-// Package webapp assembles Gimble's private SvelteKit application.
-package webapp
+// NewHandler assembles the server. It is here, beside the embedded build and
+// not in package gimble, because the page's remote functions import gimble
+// and gimble cannot import the page. It exists so that there is exactly one
+// production stack: the binary in cmd and any test beside this file both call
+// NewHandler, and neither can be green over a composition the other does not
+// use.
+package web
 
 import (
 	"io/fs"
@@ -10,7 +15,7 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimble/internal/generated"
+	"github.com/tylergannon/gimble/generated"
 )
 
 // NewHandler builds the server over the frontend build in dist. With a

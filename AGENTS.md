@@ -43,10 +43,10 @@ the proof of a workflow is a live run and what it showed.
   hand, never spliced by script.
 - No reflection and no `runtime.Caller` to recover a call site. Every node
   is named at its call site with a constant.
-- The layout: the API is the root package `gimble`. The runtime owns the
-  embedded page and starts it automatically unless `WithNoWeb` is used.
-  `web/` is the SvelteKit app; its server assembly and tracked embedded build
-  are in `internal/webapp/` and `internal/webembed/`. Go lives beside pages in
-  `web/src/routes/*.remote.go`, `internal/generated/` is written by `go
-  generate ./...` and never by hand, and `cmd/` contains binaries. `just
-  build` builds all of it.
+- The layout: the API is the root package `gimble`. The page is a
+  `tylergannon/skgo` app: `web/` is the SvelteKit app, Go beside its pages
+  in `web/src/routes/*.remote.go`, `web/server.go` is the one `NewHandler`
+  the binary and the tests share, `generated/` is written by `go generate
+  ./...` and never by hand, `cmd/` is the binary. `just build` builds all
+  of it. The page's Go imports `gimble`, so `gimble` never imports the
+  page; that is why `Serve` is in package `web`.

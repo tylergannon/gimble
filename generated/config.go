@@ -6,5 +6,4 @@
 // needs skgo to be a writable checkout.
 package generated
 
-//go:generate go tool skgo generate --web ../../web
-//go:generate go run ../generatefixups materialize links
+//go:generate go tool skgo generate --web ../web

@@ -1,13 +1,13 @@
 {
 	"schemaVersion": 1,
-	"linkRoot": "internal/generated/links",
+	"linkRoot": "generated/links",
 	"boundary": {
 		"path": "web/src/routes/go.mod",
 		"owned": true
 	},
 	"links": [
 		{
-			"link": "internal/generated/links/onzggl3sn52xizlt",
+			"link": "generated/links/onzggl3sn52xizlt",
 			"target": "web/src/routes",
 			"perFile": true
 		}

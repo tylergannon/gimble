@@ -39,29 +39,23 @@ func (*exampleAdapter) Fork(context.Context, string) (string, error) {
 	return "example-fork", nil
 }
 
-func exampleRuntime() (*gimble.Runtime, context.Context, func()) {
+func exampleContext() (context.Context, func()) {
 	dir, err := os.MkdirTemp("", "gimble-example-")
 	if err != nil {
 		panic(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	runtime, err := gimble.NewRuntime(ctx, dir, gimble.WithNoWeb())
-	if err != nil {
-		cancel()
-		_ = os.RemoveAll(dir)
-		panic(err)
-	}
-	return runtime, ctx, func() {
+	return gimble.Project(ctx, dir), func() {
 		cancel()
 		_ = os.RemoveAll(dir)
 	}
 }
 
 func Example() {
-	runtime, ctx, closeRuntime := exampleRuntime()
-	defer closeRuntime()
+	ctx, closeProject := exampleContext()
+	defer closeProject()
 
-	err := runtime.Run(ctx, "example", func(ctx context.Context) error {
+	err := gimble.Run(ctx, "example", func(ctx context.Context) error {
 		if err := gimble.Set(ctx, "goal", "demonstrate the public API"); err != nil {
 			return err
 		}
@@ -82,10 +76,10 @@ func Example() {
 }
 
 func ExampleGroup() {
-	runtime, ctx, closeRuntime := exampleRuntime()
-	defer closeRuntime()
+	ctx, closeProject := exampleContext()
+	defer closeProject()
 
-	err := runtime.Run(ctx, "parallel", func(ctx context.Context) error {
+	err := gimble.Run(ctx, "parallel", func(ctx context.Context) error {
 		group := gimble.Group(ctx, "drafts")
 		group.Go("draft", func(ctx context.Context) error {
 			return gimble.Set(ctx, "approach", "first")
@@ -101,10 +95,10 @@ func ExampleGroup() {
 }
 
 func ExampleLoop() {
-	runtime, ctx, closeRuntime := exampleRuntime()
-	defer closeRuntime()
+	ctx, closeProject := exampleContext()
+	defer closeProject()
 
-	err := runtime.Run(ctx, "planned", func(ctx context.Context) error {
+	err := gimble.Run(ctx, "planned", func(ctx context.Context) error {
 		planner := gimble.NewSession(ctx, "planner", &exampleAdapter{}, "example", ".")
 		loop := gimble.Loop(ctx, "delivery", "the implementation works", planner)
 		for _, task := range loop.Laps {

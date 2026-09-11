@@ -5,7 +5,7 @@ package generated
 import (
 	"encoding/json"
 	"fmt"
-	pkg_onzggl3sn52xizlt "github.com/tylergannon/gimble/internal/generated/links/onzggl3sn52xizlt"
+	pkg_onzggl3sn52xizlt "github.com/tylergannon/gimble/generated/links/onzggl3sn52xizlt"
 	devalue "github.com/tylergannon/polytype/devalue"
 	"math"
 	"slices"

@@ -79,21 +79,13 @@ func (f *fake) Fork(ctx context.Context, session string) (string, error) {
 
 func runTest(t *testing.T, body func(ctx context.Context) error) error {
 	t.Helper()
-	runtime, err := NewRuntime(t.Context(), t.TempDir(), WithNoWeb())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return runtime.Run(t.Context(), "test", body)
+	return Run(Project(t.Context(), t.TempDir()), "test", body)
 }
 
 func TestRunLogCanBeRead(t *testing.T) {
 	project := t.TempDir()
 	var dir string
-	runtime, err := NewRuntime(t.Context(), project, WithNoWeb())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := runtime.Run(t.Context(), "reader", func(ctx context.Context) error {
+	if err := Run(Project(t.Context(), project), "reader", func(ctx context.Context) error {
 		dir = runDir(ctx)
 		return nil
 	}); err != nil {
@@ -503,13 +495,9 @@ func TestAttestEventFixture(t *testing.T) {
 		return "done", nil
 	}
 
-	runtime, err := NewRuntime(t.Context(), project, WithNoWeb())
-	if err != nil {
-		t.Fatal(err)
-	}
 	runDone := make(chan error, 1)
 	go func() {
-		runDone <- runtime.Run(t.Context(), "attest", func(ctx context.Context) error {
+		runDone <- Run(Project(t.Context(), project), "attest", func(ctx context.Context) error {
 			if runDir(ctx) == "" {
 				return errors.New("run directory was empty inside a run")
 			}

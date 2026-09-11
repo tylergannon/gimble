@@ -10,7 +10,6 @@ import (
 )
 
 //go:generate go tool polytype --validate
-//go:generate go run ./internal/generatefixups detach-doc jsonschema_gen.go
 
 // AgentOption is an argument to Generate. The same options are a
 // supervisor's own where WithSupervisor attaches it, so a supervisor can

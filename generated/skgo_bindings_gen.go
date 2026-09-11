@@ -7,7 +7,7 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	skgo0 "github.com/tylergannon/gimble/internal/generated/links/onzggl3sn52xizlt"
+	skgo0 "github.com/tylergannon/gimble/generated/links/onzggl3sn52xizlt"
 )
 
 // remote_greet answers src/routes/hello.remote.ts#greet, a command.

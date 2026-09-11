@@ -40,7 +40,7 @@ func current(ctx context.Context) (*scope, error) {
 	if s, _ := ctx.Value(scopeKey{}).(*scope); s != nil {
 		return s, nil
 	}
-	return nil, errors.New("gimble: no scope in the ctx; it must come from Runtime.Run")
+	return nil, errors.New("gimble: no scope in the ctx; it must come from gimble.Run")
 }
 
 // next names the next child of s called name. The caller holds s.mu.
