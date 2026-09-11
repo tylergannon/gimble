@@ -508,25 +508,23 @@ func TestAttestEventFixture(t *testing.T) {
 		t.Fatal("run directory was not created")
 	}
 	var tailed []Event
-	for {
-		raw, _ := os.ReadFile(filepath.Join(runDir, "run.jsonl"))
-		taIledLines := strings.Split(strings.TrimSpace(string(raw)), "\n")
-		taIled := make([]Event, 0, len(taIledLines))
-		for _, line := range taIledLines {
-			var e Event
-			if line != "" && json.Unmarshal([]byte(line), &e) == nil {
-				taIled = append(taIled, e)
-			}
-		}
-		taIled = slices.Clone(taIled)
-		tailed = taIled
-		if len(tailed) > 0 && tailed[len(tailed)-1].Kind == "complete" {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
+	readDone := make(chan error, 1)
+	go func() {
+		readDone <- ReadRun(t.Context(), runDir, func(e Event) error {
+			tailed = append(tailed, e)
+			return nil
+		})
+	}()
 	if err := <-runDone; err != nil {
 		t.Fatal(err)
+	}
+	select {
+	case err := <-readDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("public reader did not stop at the final event")
 	}
 
 	if len(tailed) < 2 || tailed[0].Kind != "run_started" || tailed[len(tailed)-1].Kind != "complete" {
@@ -534,12 +532,56 @@ func TestAttestEventFixture(t *testing.T) {
 	}
 	seq := uint64(0)
 	seen := map[string]bool{}
+	intervals := map[string][2]time.Time{}
+	scopes := map[string]bool{}
+	var sessionIDs, turnIDs []string
 	for _, e := range tailed {
 		if e.Seq <= seq || e.Time.IsZero() {
 			t.Fatalf("invalid event ordering: %+v", e)
 		}
 		seq = e.Seq
 		seen[e.Kind] = true
+		switch e.Kind {
+		case "scope_began":
+			scopes[e.Scope] = true
+			intervals[e.Scope] = [2]time.Time{e.Time}
+		case "scope_ended":
+			pair := intervals[e.Scope]
+			pair[1] = e.Time
+			intervals[e.Scope] = pair
+		case "session_created":
+			sessionIDs = append(sessionIDs, e.Session)
+		case "turn_started":
+			turnIDs = append(turnIDs, e.Turn)
+		}
+	}
+	for _, e := range tailed {
+		if e.Scope == "" {
+			continue
+		}
+		contained := false
+		for scope := range scopes {
+			if e.Scope == scope || strings.HasPrefix(e.Scope, scope+"/") {
+				contained = true
+				break
+			}
+		}
+		if !contained {
+			t.Fatalf("event %q has scope %q outside the began-scope prefix tree", e.Kind, e.Scope)
+		}
+	}
+	for scope, pair := range intervals {
+		if pair[1].IsZero() || !pair[0].Before(pair[1]) {
+			t.Fatalf("scope %q lacks a valid began/ended interval: %v", scope, pair)
+		}
+	}
+	if len(sessionIDs) < 4 || !slices.Contains(sessionIDs, "researcher.1") || !slices.Contains(sessionIDs, "planner.1") || !slices.Contains(sessionIDs, "worker.1") || !slices.Contains(sessionIDs, "reviewer.1") {
+		t.Fatalf("ordinal session ids = %v", sessionIDs)
+	}
+	for _, id := range turnIDs {
+		if !strings.Contains(id, "/turn.") {
+			t.Fatalf("turn id lacks ordinal = %q", id)
+		}
 	}
 	for _, kind := range []string{"scope_began", "scope_ended", "set", "session_created", "session_closed", "turn_started", "turn_ended", "supervise_attached", "steer"} {
 		if !seen[kind] {
@@ -548,6 +590,47 @@ func TestAttestEventFixture(t *testing.T) {
 	}
 	if !seen["complete"] {
 		t.Error("run log lacks completion event")
+	}
+	var forked, supervised, landed, dropped bool
+	var workerTurn, reviewerTurn [2]time.Time
+	for _, e := range tailed {
+		switch e.Kind {
+		case "session_created":
+			if e.Session == "planner.1" && e.Parent == "researcher.1" {
+				forked = true
+			}
+		case "supervise_attached":
+			if e.Reviewer == "reviewer.1" && strings.HasPrefix(e.Worker, "worker.1/turn.") {
+				supervised = true
+			}
+		case "steer":
+			if e.Source == "reviewer.1" && e.Landed != nil && *e.Landed {
+				landed = true
+			}
+			if e.Message == "too late" && e.Landed != nil && !*e.Landed {
+				dropped = true
+			}
+		case "turn_started":
+			if strings.HasPrefix(e.Turn, "worker.1/turn.") {
+				workerTurn[0] = e.Time
+			}
+			if e.Session == "reviewer.1" {
+				reviewerTurn[0] = e.Time
+			}
+		case "turn_ended":
+			if strings.HasPrefix(e.Turn, "worker.1/turn.") {
+				workerTurn[1] = e.Time
+			}
+			if e.Session == "reviewer.1" {
+				reviewerTurn[1] = e.Time
+			}
+		}
+	}
+	if !forked || !supervised || !landed || !dropped {
+		t.Fatalf("relations: fork=%v supervise=%v landed=%v dropped=%v", forked, supervised, landed, dropped)
+	}
+	if workerTurn[0].IsZero() || workerTurn[1].IsZero() || reviewerTurn[0].IsZero() || !workerTurn[0].Before(reviewerTurn[0]) || !reviewerTurn[0].Before(workerTurn[1]) {
+		t.Fatalf("worker/reviewer turns did not overlap: worker=%v reviewer=%v", workerTurn, reviewerTurn)
 	}
 
 	var projectEvents []Event
