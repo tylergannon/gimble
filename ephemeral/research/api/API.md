@@ -14,8 +14,9 @@ inspiration, not the API.
 ## Sessions and turns
 
 ```go
-// The adapter holds the agent-specific code (Codex, Claude, agy). It is
-// untyped: a raw JSON Schema goes in, raw JSON comes out.
+// The adapter holds the agent-specific code (for example, Codex, Claude, or
+// another harness). It is untyped: a raw JSON Schema goes in, raw JSON comes
+// out.
 type HarnessAdapter interface { /* ... */ }
 
 // Session is a concrete struct wrapping one adapter session.

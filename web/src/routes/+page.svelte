@@ -27,6 +27,12 @@
 <svelte:boundary>
 	{@const s = await status()}
 	<h1 data-testid="title">{s.name}</h1>
+	<h2>Agent workflows in ordinary Go</h2>
+	<p>
+		Gimble is a host-neutral Go runtime for writing agent workflows as ordinary
+		Go. Use the harness you need—Codex, Claude Code, another provider, or your
+		own adapter—and run the workflow wherever Go runs.
+	</p>
 	<p data-testid="answered-by">Served by {s.goVersion}.</p>
 	<p>Greetings so far: <strong data-testid="greetings">{s.greetings}</strong></p>
 	<p data-testid="last-greeting">Last greeting: {s.lastGreeting || '(none yet)'}</p>

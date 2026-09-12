@@ -6,8 +6,8 @@ import (
 )
 
 // HarnessAdapter is the agent-specific code for one coding-agent harness
-// (Codex, Claude Code). It is untyped: a raw JSON Schema goes in and raw
-// JSON comes out; Generate validates and decodes.
+// (for example, Codex or Claude Code). It is untyped: a raw JSON Schema goes
+// in, raw JSON comes out; Generate validates and decodes.
 type HarnessAdapter interface {
 	// CreateSession starts a native session and returns its id.
 	CreateSession(ctx context.Context, model, workdir string) (string, error)
