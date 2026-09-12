@@ -6,8 +6,6 @@ package routes
 // bindings package can spell. Each is the function itself and not a wrapper:
 // skgo.Refresh finds a query by the code pointer of the function it names.
 var (
-	// Skgo_greet is greet, published as src/routes/hello.remote.ts#greet.
-	Skgo_greet = greet
-	// Skgo_status is status, published as src/routes/hello.remote.ts#status.
-	Skgo_status = status
+	// Skgo_guide is guide, published as src/routes/guide.remote.ts#guide.
+	Skgo_guide = guide
 )

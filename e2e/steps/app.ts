@@ -4,40 +4,23 @@ import { hydrated, test } from './fixtures.js';
 
 const { Given, When, Then } = createBdd(test);
 
-Given('I open the generated application', async ({ page, browserState }) => {
+Given('I open the Gimble guide', async ({ page, browserState }) => {
 	await page.goto('/');
 	await hydrated(page);
 	expect(browserState.documents).toBe(1);
 });
 
-Then(
-	'the heading is {string} and the initial Go status is visible',
-	async ({ page, browserState }, app: string) => {
-		await expect(page.getByTestId('title')).toHaveText(app);
-		await expect(page.getByTestId('answered-by')).toHaveText(/^Served by go1\./);
-		await expect(page.getByTestId('greetings')).toHaveText('0');
-		await expect(page.getByTestId('last-greeting')).toHaveText('Last greeting: (none yet)');
-		expect(browserState.documents).toBe(1);
-		expect(browserState.pageErrors).toEqual([]);
-	}
-);
-
-When('I greet {string}', async ({ page, browserState }, name: string) => {
-	browserState.remoteMark = browserState.remotes.length;
-	await page.getByTestId('name').fill(name);
-	await page.getByTestId('greet').click();
+Then('the guide says Gimble runs agent workflows in Go', async ({ page, browserState }) => {
+	await expect(page.getByTestId('title')).toHaveText('Agent workflows in Go');
+	await expect(page.getByText('Gimble is a Go library for running agent work from ordinary Go code.')).toBeVisible();
+	expect(browserState.documents).toBe(1);
+	expect(browserState.pageErrors).toEqual([]);
 });
 
-Then(
-	'exactly one greeting from {string} is visible without a document reload',
-	async ({ page, browserState }, name: string) => {
-		await expect(page.getByTestId('greetings')).toHaveText('1');
-		await expect(page.getByTestId('last-greeting')).toHaveText(`Last greeting: ${name}`);
-		expect(browserState.documents).toBe(1);
-		expect(browserState.remotes.slice(browserState.remoteMark)).toHaveLength(1);
-		expect(browserState.pageErrors).toEqual([]);
-	}
-);
+Then('the guide says what Gimble does not do', async ({ page }) => {
+	await expect(page.getByRole('heading', { name: 'What it does not do' })).toBeVisible();
+	await expect(page.getByText('Gimble does not choose your process for you.')).toBeVisible();
+});
 
 When('I follow the About link', async ({ page }) => {
 	await page.getByRole('link', { name: 'About' }).click();
@@ -45,7 +28,7 @@ When('I follow the About link', async ({ page }) => {
 
 Then('About is visible without a document reload', async ({ page, browserState }) => {
 	await expect(page).toHaveURL(/\/about$/);
-	await expect(page.getByTestId('title')).toHaveText('About');
+	await expect(page.getByTestId('title')).toHaveText('About Gimble');
 	expect(browserState.documents).toBe(1);
 	expect(browserState.pageErrors).toEqual([]);
 });
@@ -55,7 +38,7 @@ When('I load the About route directly', async ({ page }) => {
 });
 
 Then('About is visible in a new document', async ({ page, browserState }) => {
-	await expect(page.getByTestId('title')).toHaveText('About');
+	await expect(page.getByTestId('title')).toHaveText('About Gimble');
 	expect(browserState.documents).toBe(2);
 	expect(browserState.pageErrors).toEqual([]);
 });
