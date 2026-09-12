@@ -92,6 +92,9 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 				return fmt.Errorf("gimble: loop %q: %w", l.name, err)
 			}
 			tasks = p.Tasks
+			if tasks == nil {
+				tasks = []Task{}
+			}
 
 			revisedText, err := backlogJSON(l.goal, tasks)
 			if err != nil {
@@ -190,6 +193,7 @@ func planPrompt(name, workdir, backlogText, scoped, previous string) string {
 	fmt.Fprintf(&b, "You plan the loop %q in %s. Its backlog is shown below.\n\n", name, workdir)
 	b.WriteString("Choose the next assignment that offers the greatest concrete gain toward the goal, based on current evidence, priorities, and real dependencies. Size it for one worker to understand, complete, and demonstrate in one working session. A later task may offer more gain than repairing a nonblocking earlier defect; keep deferred defects visible.\n\n")
 	b.WriteString("Treat recorded deterministic results as authoritative: a prose claim or agent judgment cannot override a nonzero command exit. If a check relevant to the goal or an assignment's Definition of Done failed and no later recorded run passed, work remains.\n\n")
+	b.WriteString("Inspect the workspace only to plan; do not perform or validate an assignment yourself.\n\n")
 	b.WriteString("Describe the desired result and necessary non-obvious facts. Trust the worker to choose the approach. Do not supply procedural checklists, obvious advice, speculative code, or a numerical progress score.\n\n")
 	if strings.TrimSpace(scoped) != "" {
 		b.WriteString("Scoped context:\n\n" + scoped + "\n\n")
