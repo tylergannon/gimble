@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/tylergannon/gimble"
 )
@@ -86,27 +85,12 @@ func (*exampleLoopAdapter) CreateSession(context.Context, string, string) (strin
 	return "example-planner", nil
 }
 
-func (a *exampleLoopAdapter) RunTurn(_ context.Context, _ string, prompt string, _ json.RawMessage, _ func(gimble.AgentEvent) error) (json.RawMessage, error) {
+func (a *exampleLoopAdapter) RunTurn(_ context.Context, _ string, _ string, _ json.RawMessage, _ func(gimble.AgentEvent) error) (json.RawMessage, error) {
 	a.turns++
 	if a.turns > 1 {
-		return json.RawMessage(`{"next":null}`), nil
+		return json.RawMessage(`{"tasks":[],"next":null}`), nil
 	}
-	marker := "Its revisable backlog is "
-	rest := prompt[strings.Index(prompt, marker)+len(marker):]
-	file := strings.TrimSuffix(strings.Fields(rest)[0], ".")
-	backlog := `---
-goal: demonstrate adaptive dispatch
-tasks:
-  - name: Show the task
-    description: Make the structured assignment visible to the workflow.
-    definition_of_done: The workflow receives and records the assignment.
-    validation: {}
----
-`
-	if err := os.WriteFile(file, []byte(backlog), 0o644); err != nil {
-		return nil, err
-	}
-	return json.RawMessage(`{"next":{"name":"Show the task","description":"Make the structured assignment visible to the workflow.","definition_of_done":"The workflow receives and records the assignment.","validation":{"command":"","query":""}}}`), nil
+	return json.RawMessage(`{"tasks":[{"name":"Show the task","description":"Make the structured assignment visible to the workflow.","definition_of_done":"The workflow receives and records the assignment.","validation":{"command":"","query":""}}],"next":0}`), nil
 }
 
 func (*exampleLoopAdapter) Steer(context.Context, string, string) error { return nil }
