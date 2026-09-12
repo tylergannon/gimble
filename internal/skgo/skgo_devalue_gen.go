@@ -5,7 +5,6 @@ package skgo
 import (
 	"encoding/json"
 	"fmt"
-	pkg_onzggl3sn52xizlt "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
 	devalue "github.com/tylergannon/polytype/devalue"
 	"math"
 	"slices"
@@ -238,95 +237,6 @@ func dvDecodeTime(raw any, at string) (time.Time, error) {
 	return v, nil
 }
 
-func encStatus(v pkg_onzggl3sn52xizlt.Status, at string) (any, error) {
-	enc1 := devalue.NewObject()
-	var enc2 any = string(v.Name)
-	enc1.Set("name", enc2)
-	var enc3 any = string(v.GoVersion)
-	enc1.Set("goVersion", enc3)
-	var enc4 any = float64(v.Greetings)
-	enc1.Set("greetings", enc4)
-	var enc5 any = string(v.LastGreeting)
-	enc1.Set("lastGreeting", enc5)
-	return enc1, nil
-}
-
-func decStatus(raw any, at string) (pkg_onzggl3sn52xizlt.Status, error) {
-	var dvZero pkg_onzggl3sn52xizlt.Status
-	var dec1 pkg_onzggl3sn52xizlt.Status
-	obj2, err := dvObject(raw, at)
-	if err != nil {
-		return dvZero, err
-	}
-	if err := dvKnown(obj2, at, "name", "goVersion", "greetings", "lastGreeting"); err != nil {
-		return dvZero, err
-	}
-	raw3, err := dvRequired(obj2, "name", at+"/name")
-	if err != nil {
-		return dvZero, err
-	}
-	dec4, err := dvString(raw3, at+"/name")
-	if err != nil {
-		return dvZero, err
-	}
-	dec1.Name = dec4
-	raw5, err := dvRequired(obj2, "goVersion", at+"/goVersion")
-	if err != nil {
-		return dvZero, err
-	}
-	dec6, err := dvString(raw5, at+"/goVersion")
-	if err != nil {
-		return dvZero, err
-	}
-	dec1.GoVersion = dec6
-	raw7, err := dvRequired(obj2, "greetings", at+"/greetings")
-	if err != nil {
-		return dvZero, err
-	}
-	num9, err := dvInteger(raw7, at+"/greetings", math.MinInt, math.MaxInt)
-	if err != nil {
-		return dvZero, err
-	}
-	dec8 := int(num9)
-	dec1.Greetings = dec8
-	raw10, err := dvRequired(obj2, "lastGreeting", at+"/lastGreeting")
-	if err != nil {
-		return dvZero, err
-	}
-	dec11, err := dvString(raw10, at+"/lastGreeting")
-	if err != nil {
-		return dvZero, err
-	}
-	dec1.LastGreeting = dec11
-	return dec1, nil
-}
-
-// EncodeStatus converts v into the devalue value model.
-func EncodeStatus(v pkg_onzggl3sn52xizlt.Status) (any, error) { return encStatus(v, "") }
-
-// DecodeStatus converts a devalue value model tree into a pkg_onzggl3sn52xizlt.Status, rejecting any
-// shape the type grammar does not admit.
-func DecodeStatus(raw any) (pkg_onzggl3sn52xizlt.Status, error) { return decStatus(raw, "") }
-
-// StringifyStatus encodes v and serializes it with devalue.
-func StringifyStatus(v pkg_onzggl3sn52xizlt.Status) (string, error) {
-	encoded, err := encStatus(v, "")
-	if err != nil {
-		return "", err
-	}
-	return devalue.Stringify(encoded)
-}
-
-// ParseStatus parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.Status.
-func ParseStatus(s string) (pkg_onzggl3sn52xizlt.Status, error) {
-	var zero pkg_onzggl3sn52xizlt.Status
-	parsed, err := devalue.Parse(s, nil)
-	if err != nil {
-		return zero, err
-	}
-	return decStatus(parsed, "")
-}
-
 func encRoot0(v string, at string) (any, error) {
 	var enc1 any = string(v)
 	return enc1, nil
@@ -365,47 +275,4 @@ func ParseRoot0(s string) (string, error) {
 		return zero, err
 	}
 	return decRoot0(parsed, "")
-}
-
-func encRoot1(v pkg_onzggl3sn52xizlt.Status, at string) (any, error) {
-	enc1, err := encStatus(v, at)
-	if err != nil {
-		return nil, err
-	}
-	return enc1, nil
-}
-
-func decRoot1(raw any, at string) (pkg_onzggl3sn52xizlt.Status, error) {
-	var dvZero pkg_onzggl3sn52xizlt.Status
-	dec1, err := decStatus(raw, at)
-	if err != nil {
-		return dvZero, err
-	}
-	return dec1, nil
-}
-
-// EncodeRoot1 converts v into the devalue value model.
-func EncodeRoot1(v pkg_onzggl3sn52xizlt.Status) (any, error) { return encRoot1(v, "") }
-
-// DecodeRoot1 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.Status, rejecting any
-// shape the type grammar does not admit.
-func DecodeRoot1(raw any) (pkg_onzggl3sn52xizlt.Status, error) { return decRoot1(raw, "") }
-
-// StringifyRoot1 encodes v and serializes it with devalue.
-func StringifyRoot1(v pkg_onzggl3sn52xizlt.Status) (string, error) {
-	encoded, err := encRoot1(v, "")
-	if err != nil {
-		return "", err
-	}
-	return devalue.Stringify(encoded)
-}
-
-// ParseRoot1 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.Status.
-func ParseRoot1(s string) (pkg_onzggl3sn52xizlt.Status, error) {
-	var zero pkg_onzggl3sn52xizlt.Status
-	parsed, err := devalue.Parse(s, nil)
-	if err != nil {
-		return zero, err
-	}
-	return decRoot1(parsed, "")
 }

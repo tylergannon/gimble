@@ -1,19 +1,15 @@
-Feature: The generated application works through a browser
+Feature: The Gimble guide works through a browser
 
-  These scenarios are part of the generated project. They run unchanged against
-  its development server and its standalone production binary.
+  These scenarios run against its development server and standalone production
+  binary.
 
-  Scenario: Go renders a useful initial document
-    Given I open the generated application
-    Then the heading is "gimble" and the initial Go status is visible
+  Scenario: The guide explains the current product
+    Given I open the Gimble guide
+    Then the guide says Gimble runs agent workflows in Go
+    And the guide says what Gimble does not do
 
-  Scenario: A greeting refreshes the visible status without a reload
-    Given I open the generated application
-    When I greet "release-qualified"
-    Then exactly one greeting from "release-qualified" is visible without a document reload
-
-  Scenario: Kit navigation and a direct deep link both reach About
-    Given I open the generated application
+  Scenario: Navigation and a direct deep link both reach About
+    Given I open the Gimble guide
     When I follow the About link
     Then About is visible without a document reload
     When I load the About route directly

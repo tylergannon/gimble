@@ -1,47 +1,89 @@
 <script lang="ts">
-	import { greet, status } from './hello.remote';
-
-	let name = $state('world');
-	let busy = $state(false);
-
-	async function submit(event: SubmitEvent) {
-		event.preventDefault();
-		if (busy) return;
-		busy = true;
-		try {
-			// A command is a POST, so this is also the check that the app's
-			// origin and the binary's agree. Single flight: the command's
-			// response carries the refreshed query.
-			await greet(name).updates(status());
-		} finally {
-			busy = false;
-		}
-	}
+	import { guide } from './guide.remote';
 </script>
 
-<!--
-	No `pending` snippet: with one, Svelte renders only the snippet on the server
-	and the awaited content on the client. Without it the render waits for Go's
-	answer, so the document arrives with the values in it.
--->
-<svelte:boundary>
-	{@const s = await status()}
-	<h1 data-testid="title">{s.name}</h1>
-	<h2>Agent workflows in ordinary Go</h2>
-	<p>
-		Gimble is a host-neutral Go runtime for writing agent workflows as ordinary
-		Go. Use the harness you need—Codex, Claude Code, another provider, or your
-		own adapter—and run the workflow wherever Go runs.
-	</p>
-	<p data-testid="answered-by">Served by {s.goVersion}.</p>
-	<p>Greetings so far: <strong data-testid="greetings">{s.greetings}</strong></p>
-	<p data-testid="last-greeting">Last greeting: {s.lastGreeting || '(none yet)'}</p>
-	{#snippet failed(error)}
-		<p data-testid="status-failed">{(error as Error).message}</p>
-	{/snippet}
-</svelte:boundary>
+<svelte:head>
+	<title>Gimble — agent workflows in Go</title>
+	<meta
+		name="description"
+		content="Gimble is a Go library for running agent workflows as ordinary Go code."
+	/>
+</svelte:head>
 
-<form onsubmit={submit}>
-	<input data-testid="name" bind:value={name} />
-	<button data-testid="greet" type="submit" disabled={busy}>Greet</button>
-</form>
+<article>
+	<svelte:boundary>
+		{@const name = await guide()}
+		<p class="eyebrow">{name}</p>
+	</svelte:boundary>
+	<h1 data-testid="title">Agent workflows in Go</h1>
+	<p class="lead">
+		Gimble is a Go library for running agent work from ordinary Go code. You write the
+		workflow. Gimble runs the agent sessions, keeps their work inside named scopes, and
+		records what happened.
+	</p>
+
+	<section aria-labelledby="what-it-does">
+		<h2 id="what-it-does">What it does</h2>
+		<ul>
+			<li>Starts a named run and writes a durable JSONL record for it.</li>
+			<li>Creates agent sessions through a harness adapter such as Codex or Claude Code.</li>
+			<li>Runs turns, lets another goroutine steer or interrupt a running turn, and records the result.</li>
+			<li>Gives normal Go concurrency a visible shape with named scopes and groups.</li>
+		</ul>
+	</section>
+
+	<section aria-labelledby="what-you-write">
+		<h2 id="what-you-write">What you write</h2>
+		<p>
+			The workflow is regular Go: functions, loops, conditionals, errors, and the tools you
+			already use. Gimble does not hide a critique round, retry policy, or delivery process
+			behind a special workflow function. Put that logic directly in the program that needs it.
+		</p>
+		<pre><code>ctx = gimble.Project(ctx, ".")
+
+err := gimble.Run(ctx, "repair", func(ctx context.Context) error &#123;
+	worker := gimble.NewSession(ctx, "worker", adapter, model, workdir)
+	answer, err := worker.Generate[gimble.Text](ctx, "Fix the failing test.")
+	if err != nil &#123;
+		return err
+	&#125;
+	fmt.Println(answer)
+	return nil
+&#125;)</code></pre>
+		<p>
+		<code>adapter</code> is the harness-specific implementation. The workflow stays the same
+			whether it talks to Codex, Claude Code, or an adapter you provide.
+		</p>
+	</section>
+
+	<section aria-labelledby="start">
+		<h2 id="start">Start here</h2>
+		<ol>
+			<li>Install the library in a Go project.</li>
+			<li>Create a project context and a <code>Run</code>.</li>
+			<li>Create a named session, then call <code>Generate</code> with the prompt you want.</li>
+			<li>Use <code>Scope</code> and <code>Group</code> when the work has a bounded step or concurrent branches.</li>
+		</ol>
+		<pre><code>go get github.com/tylergannon/gimble
+go doc -all github.com/tylergannon/gimble</code></pre>
+	</section>
+
+	<section aria-labelledby="limits">
+		<h2 id="limits">What it does not do</h2>
+		<p>
+			Gimble does not choose your process for you. It is not a hosted agent product, a new
+			programming language, or a library of named management tactics. It is a small runtime for
+			the parts that are hard to get right repeatedly: agent sessions, cancellation, bounded
+			concurrency, and a record of the run.
+		</p>
+	</section>
+</article>
+
+<style>
+	article { max-width: 48rem; }
+	.eyebrow { margin: 0; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #2b5fd9; }
+	h1 { margin: 0.25rem 0 0; font-size: clamp(2rem, 6vw, 3rem); line-height: 1.1; }
+	.lead { font-size: 1.2rem; }
+	section { margin-top: 2.5rem; }
+	pre { overflow-x: auto; padding: 1rem; border-radius: 0.4rem; background: #171b22; color: #f5f7fa; }
+</style>
