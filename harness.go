@@ -16,7 +16,7 @@ type HarnessAdapter interface {
 	// returns the structured result; without one, the final message encoded
 	// as a JSON string. It passes every event to onEvent as it arrives.
 	// Cancelling ctx interrupts the native turn and returns ctx.Err().
-	RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(AgentEvent)) (json.RawMessage, error)
+	RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(AgentEvent) error) (json.RawMessage, error)
 
 	// Steer sends a message into the session's running turn. With no turn
 	// running it does nothing and returns nil.

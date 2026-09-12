@@ -4,10 +4,13 @@ package skgo
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/tylergannon/skgo"
 
 	skgo0 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
+	skgo2 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5zhk3ttf5nxe5lojfcf2"
+	skgotp0 "github.com/tylergannon/gimble/web/src"
 )
 
 // remote_guide answers src/routes/guide.remote.ts#guide, a query.
@@ -40,14 +43,42 @@ func Remotes() []*skgo.Remote {
 	}
 }
 
+// load_runs_runID_page answers src/routes/runs/[runID]/+page.server.ts.
+//
+// A load's result is the one value no generated encoder produces: it may
+// hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
+// type, so the value is encoded where a promise can still be recognised.
+func load_runs_runID_page(ctx context.Context) (any, error) {
+	return skgo2.Skgo_load(ctx)
+}
+
 // Loads returns every server load declared in the app, ready to hand to
 // skgo.NewLoads.
 func Loads() []*skgo.ServerLoad {
-	return []*skgo.ServerLoad{}
+	return []*skgo.ServerLoad{
+		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/runs/[runID]/+page.server.ts", Run: load_runs_runID_page}),
+	}
 }
 
 // Endpoints returns every server route declared in the app, ready to hand
 // to skgo.NewEndpoints.
 func Endpoints() []*skgo.Endpoint {
 	return []*skgo.Endpoint{}
+}
+
+// Transport is the app's `transport` hook: the Go half of the encode/decode
+// pairs src/hooks.ts declares. Hand it to skgo.RemoteConfig.Transport and
+// skgo.LoadConfig.Transport.
+//
+// Each key must be spelled the same here and in src/hooks.ts: it is what the
+// value travels under, and a client with no decoder for it cannot read the
+// response at all.
+func Transport() skgo.Transport {
+	return skgo.Transport{
+		"RunSnapshot": {
+			Type:   reflect.TypeFor[skgotp0.RunSnapshot](),
+			Encode: func(v any) (any, error) { return EncodeRunSnapshot(v.(skgotp0.RunSnapshot)) },
+			Decode: func(raw any) (any, error) { return DecodeRunSnapshot(raw) },
+		},
+	}
 }

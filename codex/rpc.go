@@ -103,7 +103,7 @@ func start(ctx context.Context) (*connection, error) {
 	defer cancel()
 	_, err = c.call(initCtx, "initialize", map[string]any{
 		"clientInfo":   map[string]any{"name": "gimble", "title": "Gimble", "version": "dev"},
-		"capabilities": map[string]any{},
+		"capabilities": map[string]any{"experimentalApi": true},
 	})
 	if err == nil {
 		err = c.send(map[string]any{"method": "initialized", "params": map[string]any{}})

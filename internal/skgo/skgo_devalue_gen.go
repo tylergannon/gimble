@@ -5,6 +5,7 @@ package skgo
 import (
 	"encoding/json"
 	"fmt"
+	pkg_src "github.com/tylergannon/gimble/web/src"
 	devalue "github.com/tylergannon/polytype/devalue"
 	"math"
 	"slices"
@@ -237,6 +238,61 @@ func dvDecodeTime(raw any, at string) (time.Time, error) {
 	return v, nil
 }
 
+func encRunSnapshot(v pkg_src.RunSnapshot, at string) (any, error) {
+	enc1 := devalue.NewObject()
+	var enc2 any = string(v.JSON)
+	enc1.Set("json", enc2)
+	return enc1, nil
+}
+
+func decRunSnapshot(raw any, at string) (pkg_src.RunSnapshot, error) {
+	var dvZero pkg_src.RunSnapshot
+	var dec1 pkg_src.RunSnapshot
+	obj2, err := dvObject(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	if err := dvKnown(obj2, at, "json"); err != nil {
+		return dvZero, err
+	}
+	raw3, err := dvRequired(obj2, "json", at+"/json")
+	if err != nil {
+		return dvZero, err
+	}
+	dec4, err := dvString(raw3, at+"/json")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.JSON = dec4
+	return dec1, nil
+}
+
+// EncodeRunSnapshot converts v into the devalue value model.
+func EncodeRunSnapshot(v pkg_src.RunSnapshot) (any, error) { return encRunSnapshot(v, "") }
+
+// DecodeRunSnapshot converts a devalue value model tree into a pkg_src.RunSnapshot, rejecting any
+// shape the type grammar does not admit.
+func DecodeRunSnapshot(raw any) (pkg_src.RunSnapshot, error) { return decRunSnapshot(raw, "") }
+
+// StringifyRunSnapshot encodes v and serializes it with devalue.
+func StringifyRunSnapshot(v pkg_src.RunSnapshot) (string, error) {
+	encoded, err := encRunSnapshot(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseRunSnapshot parses a devalue document and decodes it into a pkg_src.RunSnapshot.
+func ParseRunSnapshot(s string) (pkg_src.RunSnapshot, error) {
+	var zero pkg_src.RunSnapshot
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decRunSnapshot(parsed, "")
+}
+
 func encRoot0(v string, at string) (any, error) {
 	var enc1 any = string(v)
 	return enc1, nil
@@ -275,4 +331,47 @@ func ParseRoot0(s string) (string, error) {
 		return zero, err
 	}
 	return decRoot0(parsed, "")
+}
+
+func encRoot1(v pkg_src.RunSnapshot, at string) (any, error) {
+	enc1, err := encRunSnapshot(v, at)
+	if err != nil {
+		return nil, err
+	}
+	return enc1, nil
+}
+
+func decRoot1(raw any, at string) (pkg_src.RunSnapshot, error) {
+	var dvZero pkg_src.RunSnapshot
+	dec1, err := decRunSnapshot(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	return dec1, nil
+}
+
+// EncodeRoot1 converts v into the devalue value model.
+func EncodeRoot1(v pkg_src.RunSnapshot) (any, error) { return encRoot1(v, "") }
+
+// DecodeRoot1 converts a devalue value model tree into a pkg_src.RunSnapshot, rejecting any
+// shape the type grammar does not admit.
+func DecodeRoot1(raw any) (pkg_src.RunSnapshot, error) { return decRoot1(raw, "") }
+
+// StringifyRoot1 encodes v and serializes it with devalue.
+func StringifyRoot1(v pkg_src.RunSnapshot) (string, error) {
+	encoded, err := encRoot1(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseRoot1 parses a devalue document and decodes it into a pkg_src.RunSnapshot.
+func ParseRoot1(s string) (pkg_src.RunSnapshot, error) {
+	var zero pkg_src.RunSnapshot
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decRoot1(parsed, "")
 }

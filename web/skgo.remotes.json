@@ -2,6 +2,8 @@
 	"remotes": [
 		"10a713o/guide"
 	],
-	"loads": [],
+	"loads": [
+		"src/routes/runs/[runID]/+page.server.ts"
+	],
 	"endpoints": {}
 }

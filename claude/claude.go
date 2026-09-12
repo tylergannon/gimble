@@ -76,7 +76,7 @@ func (a *adapter) add(s *session) (string, error) {
 }
 
 // RunTurn runs one turn and blocks until it ends.
-func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent)) (json.RawMessage, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent) error) (json.RawMessage, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
 		return nil, err
@@ -86,11 +86,23 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	s.mu.Unlock()
 
 	nativeErrors := make(chan error, 1)
+	project := newProjector(sessionID, s.model, onEvent)
 	options := []claudeagent.Option{
 		claudeagent.WithCwd(s.workdir),
 		claudeagent.WithModel(s.model),
+		claudeagent.WithIncludePartialMessages(true),
 		claudeagent.WithPermissionMode(claudeagent.PermissionModeBypassAll),
 		claudeagent.WithAllowDangerouslySkipPermissions(true),
+		claudeagent.WithRawMessageObserver(func(raw json.RawMessage) error {
+			err := project.raw(raw)
+			if err != nil {
+				select {
+				case nativeErrors <- err:
+				default:
+				}
+			}
+			return err
+		}),
 		claudeagent.WithStderr(func(data string) {
 			if err := fatalStderr(data); err != nil {
 				select {
@@ -131,15 +143,14 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	}
 	defer func() { _ = stream.Close() }()
 
-	active := &activeTurn{stream: stream, emit: &projector{emit: onEvent}}
+	active := &activeTurn{stream: stream, emit: project}
 	s.setActive(active)
 	defer s.setActive(nil)
-	active.emit.user(prompt)
 	if err := stream.Send(processCtx, prompt); err != nil {
 		return nil, fmt.Errorf("claude: %w", err)
 	}
 
-	result, err := waitTurn(ctx, stream, nativeErrors, sessionID, s, active.emit)
+	result, err := waitTurn(ctx, stream, nativeErrors, sessionID, s)
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -173,7 +184,6 @@ func (a *adapter) Steer(ctx context.Context, sessionID, message string) error {
 		}
 		return fmt.Errorf("claude: %w", err)
 	}
-	active.emit.user(message)
 	return nil
 }
 
@@ -213,7 +223,7 @@ func (s *session) getActive() *activeTurn {
 
 // waitTurn reads the turn to its result. When ctx ends first it interrupts
 // the turn and waits briefly for Claude Code to wind down.
-func waitTurn(ctx context.Context, stream *claudeagent.Stream, nativeErrors <-chan error, sessionID string, s *session, emit *projector) (claudeagent.ResultMessage, error) {
+func waitTurn(ctx context.Context, stream *claudeagent.Stream, nativeErrors <-chan error, sessionID string, s *session) (claudeagent.ResultMessage, error) {
 	messages := make(chan claudeagent.Message)
 	stop := make(chan struct{})
 	defer close(stop)
@@ -233,7 +243,9 @@ func waitTurn(ctx context.Context, stream *claudeagent.Stream, nativeErrors <-ch
 	for {
 		select {
 		case err := <-nativeErrors:
-			return claudeagent.ResultMessage{}, err
+			if err != nil {
+				return claudeagent.ResultMessage{}, err
+			}
 		case <-done:
 			done = nil
 			interruptCtx, cancel := context.WithTimeout(context.Background(), controlTimeout)
@@ -258,7 +270,6 @@ func waitTurn(ctx context.Context, stream *claudeagent.Stream, nativeErrors <-ch
 			if err := assistantError(message); err != nil {
 				return claudeagent.ResultMessage{}, err
 			}
-			emit.message(message)
 			if result, ok := asResult(message); ok {
 				if done == nil {
 					return claudeagent.ResultMessage{}, ctx.Err()

@@ -1,0 +1,3 @@
+friction: `just build` included an ignored reviewer Go helper whose stale Tractor imports made `go mod tidy` fail -> keep reviewer programs outside package-bearing repository directories or give them an ignore build tag
+decision: per-delta UI invalidation belongs at the keyed message row; the reducer remains the only transcript model and reconnect snapshots intentionally refresh every row
+friction: live proof read the DOM immediately after the terminal status appeared and intermittently missed message-row flushes -> wait for the tool and final markers as observable claims before capturing the page

@@ -59,6 +59,9 @@ func Read[T any](ctx context.Context, dir string, yield func(T) error) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		if readErr == nil {
+			continue
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

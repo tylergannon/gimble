@@ -15,6 +15,7 @@ import (
 
 	"github.com/tylergannon/skgo"
 
+	"github.com/tylergannon/gimble/internal/observation"
 	generated "github.com/tylergannon/gimble/internal/skgo"
 )
 
@@ -67,7 +68,7 @@ func NewHandler(dist fs.FS, proxy, origin string) (http.Handler, string, error) 
 		mode = "dev"
 		build = func(loads *skgo.Loads, remotes *skgo.Remotes) (http.Handler, error) {
 			ssr, err := skgo.NewDevSSR(dist, manifest, loads, remotes, proxy, skgo.SSROptions{
-				Fetch: endpoints.Intercept(http.NotFoundHandler()),
+				Fetch: observation.Routes(endpoints.Intercept(http.NotFoundHandler())),
 			})
 			if err != nil {
 				return nil, err
@@ -81,7 +82,7 @@ func NewHandler(dist fs.FS, proxy, origin string) (http.Handler, string, error) 
 		// both of them exist.
 		build = func(loads *skgo.Loads, remotes *skgo.Remotes) (http.Handler, error) {
 			ssr, err := skgo.NewSSR(dist, manifest, loads, remotes, skgo.SSROptions{
-				Fetch: endpoints.Intercept(http.NotFoundHandler()),
+				Fetch: observation.Routes(endpoints.Intercept(http.NotFoundHandler())),
 			})
 			if err != nil {
 				return nil, err
@@ -89,6 +90,14 @@ func NewHandler(dist fs.FS, proxy, origin string) (http.Handler, string, error) 
 			return skgo.NewStaticHandler(dist, skgo.WithSSR(ssr))
 		}
 	}
+
+	// The app's `transport` hook, the Go half of the encode/decode pairs
+	// src/hooks.ts declares. Kit puts the same object on both its client and
+	// its server, so both registries that serialize a result get it. It is
+	// set here, after the dev branch has replaced the configs it rebuilds, so
+	// a dev render encodes exactly what a production one does.
+	remoteCfg.Transport = generated.Transport()
+	loadCfg.Transport = generated.Transport()
 
 	remotes, err := skgo.NewRemotes(remoteCfg, generated.Remotes()...)
 	if err != nil {
@@ -105,8 +114,16 @@ func NewHandler(dist fs.FS, proxy, origin string) (http.Handler, string, error) 
 	if pages, err = build(loads, remotes); err != nil {
 		return nil, "", err
 	}
-	return explainOriginRefusals(remoteCfg,
-		loads.Intercept(remotes.Intercept(endpoints.Intercept(pages)))), mode, nil
+	// The observation routes sit outside the whole kit stack: they are not
+	// pages, loads, remote functions or +server routes, and they read the
+	// registry out of the request context the runtime supplies. Everything
+	// else falls through to kit exactly as before.
+	//
+	// They are also the SSR renderer's fetch host above, so a page rendered
+	// in this process reaches the same snapshot over the same route the
+	// browser uses, without a second composition to keep in step.
+	return observation.Routes(explainOriginRefusals(remoteCfg,
+		loads.Intercept(remotes.Intercept(endpoints.Intercept(pages))))), mode, nil
 }
 
 // explainOriginRefusals turns the one failure a new app is most likely to hit

@@ -26,8 +26,7 @@ func (a *issue131Adapter) CreateSession(context.Context, string, string) (string
 	return fmt.Sprintf("issue131-native-%d", a.next), nil
 }
 
-func (*issue131Adapter) RunTurn(_ context.Context, _ string, prompt string, _ json.RawMessage, emit func(AgentEvent)) (json.RawMessage, error) {
-	emit(UserMessage{Text: prompt})
+func (*issue131Adapter) RunTurn(_ context.Context, _ string, prompt string, _ json.RawMessage, emit func(AgentEvent) error) (json.RawMessage, error) {
 	return json.Marshal("ok")
 }
 

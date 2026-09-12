@@ -18,12 +18,12 @@ import (
 
 // fake is a HarnessAdapter whose turns are answered by a function.
 type fake struct {
-	answer func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error)
+	answer func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error)
 
 	mu      sync.Mutex
 	made    int
 	steers  []string
-	running map[string]func(AgentEvent)
+	running map[string]func(AgentEvent) error
 }
 
 func (f *fake) CreateSession(ctx context.Context, model, workdir string) (string, error) {
@@ -33,10 +33,10 @@ func (f *fake) CreateSession(ctx context.Context, model, workdir string) (string
 	return "native-" + string(rune('0'+f.made)), nil
 }
 
-func (f *fake) RunTurn(ctx context.Context, session, prompt string, schema json.RawMessage, onEvent func(AgentEvent)) (json.RawMessage, error) {
+func (f *fake) RunTurn(ctx context.Context, session, prompt string, schema json.RawMessage, onEvent func(AgentEvent) error) (json.RawMessage, error) {
 	f.mu.Lock()
 	if f.running == nil {
-		f.running = map[string]func(AgentEvent){}
+		f.running = map[string]func(AgentEvent) error{}
 	}
 	f.running[session] = onEvent
 	f.mu.Unlock()
@@ -45,7 +45,6 @@ func (f *fake) RunTurn(ctx context.Context, session, prompt string, schema json.
 		delete(f.running, session)
 		f.mu.Unlock()
 	}()
-	onEvent(UserMessage{Text: prompt})
 	out, err := f.answer(ctx, session, prompt, schema, onEvent)
 	if err != nil {
 		return nil, err
@@ -61,7 +60,6 @@ func (f *fake) Steer(ctx context.Context, session, message string) error {
 	defer f.mu.Unlock()
 	if emit := f.running[session]; emit != nil {
 		f.steers = append(f.steers, message)
-		emit(UserMessage{Text: message})
 	}
 	return nil
 }
@@ -115,38 +113,15 @@ func lifecycleKind(event LifecycleEvent) string {
 }
 
 func agentKind(event AgentEvent) string {
-	switch event.(type) {
-	case UserMessage:
-		return "user_message"
-	case AssistantMessage:
-		return "assistant_message"
-	case AssistantMessageDelta:
-		return "assistant_message_delta"
-	case Thinking:
-		return "thinking"
-	case ThinkingDelta:
-		return "thinking_delta"
-	case ToolCall:
-		return "tool_call"
-	case ToolInputDelta:
-		return "tool_input_delta"
-	case ToolResult:
-		return "tool_result"
-	case ToolResultDelta:
-		return "tool_result_delta"
-	case Usage:
-		return "usage"
-	case HarnessError:
-		return "harness_error"
-	case Retry:
-		return "retry"
-	case ApprovalRequest:
-		return "approval_request"
-	case NestedTranscript:
-		return "nested_transcript"
-	default:
-		return "unknown"
+	return event.Type
+}
+
+func fakeAgentEvent(eventType, session, message string, fields map[string]any) AgentEvent {
+	data := map[string]any{"sessionID": session, "assistantMessageID": message}
+	for key, value := range fields {
+		data[key] = value
 	}
+	return nativeEvent(eventType, data, map[string]any{"provider": "fake"})
 }
 
 func TestRunLogCanBeRead(t *testing.T) {
@@ -191,10 +166,10 @@ func TestRunLogCanBeRead(t *testing.T) {
 			return nil
 		})
 	})
-	if err := w.writeLifecycle("", "", "", RunStarted{}); err != nil {
+	if _, err := w.writeLifecycle("", "", "", RunStarted{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := w.writeLifecycle("", "", "", Complete{}); err != nil {
+	if _, err := w.writeLifecycle("", "", "", Complete{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := readers.Wait(); err != nil {
@@ -240,7 +215,7 @@ func TestScopeData(t *testing.T) {
 }
 
 func TestGenerate(t *testing.T) {
-	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		switch {
 		case len(schema) == 0:
 			return "hello", nil
@@ -285,7 +260,7 @@ func TestGenerate(t *testing.T) {
 
 func TestGroupFirstErrorCancelsTheRest(t *testing.T) {
 	boom := errors.New("boom")
-	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		if prompt == "fail" {
 			return "", boom
 		}
@@ -314,7 +289,7 @@ func TestGroupFirstErrorCancelsTheRest(t *testing.T) {
 }
 
 func TestFork(t *testing.T) {
-	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		return session, nil
 	}}
 	err := runTest(t, func(ctx context.Context) error {
@@ -340,11 +315,11 @@ func TestFork(t *testing.T) {
 func TestSupervise(t *testing.T) {
 	var workerTurns, looks, toolResults int
 	f := &fake{}
-	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
+	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		if session == "native-1" { // the worker, which runs until the supervisor's steer lands
 			workerTurns++
-			emit(ToolCall{CallID: "1", Tool: "shell", Input: JSONText(`{"command":"make plugins"}`)})
-			emit(ToolResult{CallID: "1", Output: JSONText(`"built a plugin system"`)})
+			emit(fakeAgentEvent("session.tool.called", session, "message-1", map[string]any{"id": "1", "input": map[string]any{"command": "make plugins"}, "executed": true}))
+			emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "1", "content": []any{map[string]any{"type": "text", "text": "built a plugin system"}}, "executed": true}))
 			for range 200 {
 				f.mu.Lock()
 				n := len(f.steers)
@@ -400,14 +375,14 @@ func TestSuperviseASupervisor(t *testing.T) {
 		}
 		return false
 	}
-	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
+	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		switch {
 		case session == "native-1": // the worker, until its supervisor objects
-			emit(ToolResult{CallID: "1", Output: JSONText(`"built a plugin system"`)})
+			emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "1", "content": []any{map[string]any{"type": "text", "text": "built a plugin system"}}, "executed": true}))
 			steered("remove the plugin system")
 			return "done", nil
 		case session == "native-2" && strings.Contains(prompt, "no plugin systems"): // the supervisor's first look, until its own supervisor objects
-			emit(AssistantMessage{ID: "message-1", Text: "I object to the variable names"})
+			emit(fakeAgentEvent("session.text.ended", session, "message-1", map[string]any{"ordinal": 0, "text": "I object to the variable names"}))
 			if !steered("object only to plugin systems") {
 				return `{"objections": []}`, nil
 			}
@@ -447,7 +422,7 @@ func TestSuperviseCancelsAndJoinsLook(t *testing.T) {
 			defer cancel()
 			looking := make(chan struct{}) // the worker finishes only after a look starts
 			joined := false
-			f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
+			f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 				if prompt == "work" {
 					select {
 					case <-looking:
@@ -485,7 +460,7 @@ func TestSuperviseCancelsAndJoinsLook(t *testing.T) {
 
 func TestLoop(t *testing.T) {
 	var prompts []string
-	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		prompts = append(prompts, prompt)
 		file := strings.Fields(prompt[strings.Index(prompt, "Its backlog is the file ")+len("Its backlog is the file "):])[0]
 		file = strings.TrimSuffix(file, ",")
@@ -523,7 +498,7 @@ func TestLoop(t *testing.T) {
 
 func TestLoopShowsThePlannerABadBacklog(t *testing.T) {
 	var prompts []string
-	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		prompts = append(prompts, prompt)
 		file := strings.Fields(prompt[strings.Index(prompt, "Its backlog is the file ")+len("Its backlog is the file "):])[0]
 		file = strings.TrimSuffix(file, ",")
@@ -560,16 +535,16 @@ func TestAttestEventFixture(t *testing.T) {
 	project := t.TempDir()
 	looking := make(chan struct{})
 	f := &fake{}
-	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent)) (string, error) {
-		emit(AssistantMessage{ID: "message-1", Text: "working"})
+	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
+		emit(fakeAgentEvent("session.text.ended", session, "message-1", map[string]any{"ordinal": 0, "text": "working"}))
 		if len(schema) != 0 {
 			close(looking)
 			<-ctx.Done() // keep the look active until the worker finishes
 			return "", ctx.Err()
 		}
 		if prompt == "build" {
-			emit(ToolCall{CallID: "call-1", Tool: "shell", Input: JSONText(`{"command":"test"}`)})
-			emit(ToolResult{CallID: "call-1", Output: JSONText(`"ok"`)})
+			emit(fakeAgentEvent("session.tool.called", session, "message-1", map[string]any{"id": "call-1", "input": map[string]any{"command": "test"}, "executed": true}))
+			emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "call-1", "content": []any{map[string]any{"type": "text", "text": "ok"}}, "executed": true}))
 			for {
 				f.mu.Lock()
 				steered := len(f.steers) > 0
@@ -803,7 +778,7 @@ func TestAttestEventFixture(t *testing.T) {
 	transcriptKinds := map[string]map[string]bool{}
 	for _, file := range files {
 		events := readRecords[AgentRecord](t, file)
-		if len(events) == 0 || agentKind(events[0].Event) != "user_message" {
+		if len(events) == 0 || agentKind(events[0].Event) != "session.inbox.enqueued" {
 			t.Errorf("%s is not a transcript: %+v", file, events)
 		}
 		seenKinds := map[string]bool{}
@@ -817,7 +792,7 @@ func TestAttestEventFixture(t *testing.T) {
 	}
 	if !slices.ContainsFunc(files, func(file string) bool {
 		kinds := transcriptKinds[filepath.Base(file)]
-		return kinds["tool_call"] && kinds["tool_result"]
+		return kinds["session.tool.called"] && kinds["session.tool.success"]
 	}) {
 		t.Error("no session transcript contains the tool call/result pair")
 	}

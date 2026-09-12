@@ -11,6 +11,14 @@ import (
 	"github.com/tylergannon/polytype"
 )
 
+func mustJSON(v any) []byte {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return raw
+}
+
 type eventWriter struct {
 	mu   sync.Mutex
 	file *os.File
@@ -27,7 +35,7 @@ func newEventWriter(name string) (*eventWriter, error) {
 	}
 	return &eventWriter{file: f}, nil
 }
-func (w *eventWriter) writeLifecycle(scope, session, turn string, event LifecycleEvent) error {
+func (w *eventWriter) writeLifecycle(scope, session, turn string, event LifecycleEvent) (json.RawMessage, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.seq++
@@ -41,11 +49,11 @@ func (w *eventWriter) writeLifecycle(scope, session, turn string, event Lifecycl
 	}
 	b, err := json.Marshal(record)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	b = append(b, '\n')
-	_, err = w.file.Write(b)
-	return err
+	recordBytes := append(json.RawMessage(nil), b...)
+	_, err = w.file.Write(append(b, '\n'))
+	return recordBytes, err
 }
 
 func (w *eventWriter) writeAgent(scope, session, turn string, event AgentEvent) error {
@@ -53,13 +61,15 @@ func (w *eventWriter) writeAgent(scope, session, turn string, event AgentEvent) 
 	defer w.mu.Unlock()
 	w.seq++
 	record := AgentRecord{
-		Seq:     w.seq,
-		Time:    time.Now().UTC(),
-		Scope:   scope,
-		Session: session,
-		Turn:    turn,
-		Event:   event,
+		Seq:       w.seq,
+		Time:      time.Now().UTC(),
+		Scope:     scope,
+		Session:   session,
+		Turn:      turn,
+		Event:     event,
+		NativeRef: event.NativeRef,
 	}
+	record.Event.NativeRef = nil
 	b, err := json.Marshal(record)
 	if err != nil {
 		return err
@@ -97,36 +107,54 @@ func (r *run) recordingError() error {
 
 func (r *run) event(scope, session, turn string, event LifecycleEvent) {
 	if r != nil && r.writer != nil {
-		r.recordFailure("write run log", r.writer.writeLifecycle(scope, session, turn, event))
+		record, err := r.writer.writeLifecycle(scope, session, turn, event)
+		r.recordFailure("write run log", err)
+		if err == nil {
+			r.observeLifecycle(scope, session, turn, event, record)
+		}
 	}
 }
 
 func (r *run) projectEvent(event LifecycleEvent) {
 	if r != nil && r.project != nil {
-		r.recordFailure("write project log", r.project.writeLifecycle("", "", "", event))
+		_, err := r.project.writeLifecycle("", "", "", event)
+		r.recordFailure("write project log", err)
 	}
 }
 
-func (r *run) sessionEvent(scope, session, turn string, event AgentEvent) {
+func (r *run) sessionEvent(scope, session, turn string, event AgentEvent) error {
 	if r == nil {
-		return
+		return nil
 	}
 	r.mu.Lock()
 	w := r.sessions[session]
+	var openErr error
 	if w == nil {
 		var err error
 		w, err = newEventWriter(filepath.Join(r.dir, "sessions", session+".jsonl"))
 		if err != nil {
 			r.recordFailure("open session log "+session, err)
+			openErr = err
 		}
 		if w != nil {
 			r.sessions[session] = w
 		}
 	}
 	r.mu.Unlock()
-	if w != nil {
-		r.recordFailure("write session log "+session, w.writeAgent(scope, session, turn, event))
+	if openErr != nil {
+		return openErr
 	}
+	if w != nil {
+		err := w.writeAgent(scope, session, turn, event)
+		r.recordFailure("write session log "+session, err)
+		if err != nil {
+			return err
+		}
+		observeErr := r.observeAgent(scope, session, turn, event)
+		r.recordFailure("observe session event "+session, observeErr)
+		return observeErr
+	}
+	return nil
 }
 
 func (r *run) closeSessions() {

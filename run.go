@@ -2,6 +2,7 @@ package gimble
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -9,6 +10,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/tylergannon/gimble/internal/observation"
 )
 
 type projectKey struct{}
@@ -31,6 +34,7 @@ type run struct {
 	dir       string // <project>/runs/<id>
 	writer    *eventWriter
 	project   *eventWriter
+	store     *observation.Store
 	mu        sync.Mutex
 	sessions  map[string]*eventWriter
 	errMu     sync.Mutex
@@ -66,6 +70,11 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 		return fmt.Errorf("gimble: %w", err)
 	}
 	r := &run{dir: dir, writer: w, sessions: make(map[string]*eventWriter)}
+	// The run owns its observation store. With the web runtime in ctx it is
+	// registered there and the page can read it; without one the run still
+	// owns a private store and writes a final snapshot, so observation does
+	// not depend on who started the run.
+	r.store = observation.Open(observation.FromContext(ctx), id, name, dir)
 	pw, pwErr := newEventWriter(filepath.Join(project, "project.jsonl"))
 	if pwErr != nil {
 		r.recordFailure("open project log", pwErr)
@@ -83,6 +92,11 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 	}
 	r.event("", "", "", RunEnded{Name: name, Error: errString(err)})
 	r.projectEvent(RunEnded{Name: name, Error: errString(err)})
+	// The observation is finalized while every log this run owns is still
+	// open, so a failed final checkpoint is part of the run's own recording
+	// verdict below rather than a failure with nowhere left to be reported.
+	// After this the run is served from its checkpoint, not a live store.
+	r.recordFailure("close observation", r.store.Close())
 	r.closeSessions()
 	if r.project != nil {
 		r.recordFailure("close project log", r.project.close())
@@ -111,4 +125,62 @@ func orNone(err error) any {
 		return "ok"
 	}
 	return err
+}
+
+// observeLifecycle folds one lifecycle record into the run's observation and
+// publishes it to the page. record is the exact LifecycleRecord JSON the run
+// log wrote, republished unchanged: the page and the log show one record,
+// not two with different times and sequences.
+//
+// Only a lifecycle record decides a run's status: a native part, step or
+// execution event never means the workflow finished.
+func (r *run) observeLifecycle(scope, session, turn string, event LifecycleEvent, record json.RawMessage) {
+	if r == nil || r.store == nil {
+		return
+	}
+	entry := observation.Lifecycle{
+		Placement: observation.Placement{Scope: scope, Session: session, Turn: turn},
+		Record:    record,
+	}
+	switch e := event.(type) {
+	case RunStarted:
+		entry.Status, entry.Name = observation.StatusRunning, e.Name
+	case RunEnded:
+		entry.Status, entry.Error = observation.StatusCompleted, e.Error
+		if e.Error != "" {
+			entry.Status = observation.StatusFailed
+		}
+	case RunCancelled:
+		entry.Status, entry.Error = observation.StatusCancelled, e.Error
+	case SessionCreated:
+		entry.Session = &observation.SessionInfo{
+			Name: e.Name, Adapter: e.Adapter, Model: e.Model, Scope: scope, Parent: e.Parent,
+		}
+	}
+	r.store.Lifecycle(entry)
+}
+
+// observeAgent applies one stamped native event to its invocation's
+// projection and publishes it. The envelope is the event exactly as the
+// session log holds it; NativeRef rides beside it as placement metadata and
+// is never inserted into the native event.
+//
+// The error is both recorded as a recording failure and returned, so a turn
+// whose events cannot be observed fails where it is produced instead of
+// continuing against an observation that no longer describes it. A read the
+// runtime cannot answer is not this error: it is reported on its own read
+// frame and does not fail the turn.
+func (r *run) observeAgent(scope, session, turn string, event AgentEvent) error {
+	if r == nil || r.store == nil {
+		return nil
+	}
+	envelope, err := json.Marshal(event)
+	if err == nil {
+		err = r.store.Event(observation.Placement{Scope: scope, Session: session, Turn: turn}, envelope, event.NativeRef)
+	}
+	if err != nil {
+		r.recordFailure("observe event "+turn, err)
+		return err
+	}
+	return nil
 }

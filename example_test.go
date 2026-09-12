@@ -15,8 +15,7 @@ func (*exampleAdapter) CreateSession(context.Context, string, string) (string, e
 	return "example-session", nil
 }
 
-func (a *exampleAdapter) RunTurn(_ context.Context, _ string, prompt string, schema json.RawMessage, emit func(gimble.AgentEvent)) (json.RawMessage, error) {
-	emit(gimble.UserMessage{Text: prompt})
+func (a *exampleAdapter) RunTurn(_ context.Context, _ string, prompt string, schema json.RawMessage, emit func(gimble.AgentEvent) error) (json.RawMessage, error) {
 	return json.Marshal("done")
 }
 

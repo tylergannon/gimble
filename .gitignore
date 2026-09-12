@@ -23,3 +23,15 @@ e2e/screenshots/
 e2e/test-results/
 
 .claude/worktrees
+
+# Local reference checkouts and working research (never repository source).
+/ephemeral/inspiration/
+/ephemeral/research/issue-130/*
+!/ephemeral/research/issue-130/README.md
+!/ephemeral/research/issue-130/SPRINT.md
+!/ephemeral/research/issue-130/contract.md
+!/ephemeral/research/issue-130/port-contract.md
+!/ephemeral/research/issue-130/execution/
+/ephemeral/research/issue-130/execution/*
+!/ephemeral/research/issue-130/execution/DELIVERY.md
+!/ephemeral/research/issue-130/proof/
