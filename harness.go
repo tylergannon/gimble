@@ -9,7 +9,8 @@ import (
 // (for example, Codex or Claude Code). It is untyped: a raw JSON Schema goes
 // in, raw JSON comes out; Generate validates and decodes.
 type HarnessAdapter interface {
-	// CreateSession starts a native session and returns its id.
+	// CreateSession reserves one adapter session and returns its id. A harness
+	// may start its native process or conversation lazily in RunTurn.
 	CreateSession(ctx context.Context, model, workdir string) (string, error)
 
 	// RunTurn runs one turn and blocks until it ends. With a schema it

@@ -114,10 +114,11 @@ func (p *projector) envelope(envelope envelope) error {
 func (p *projector) project(update *stepUpdate) error {
 	step := p.steps[update.StepIndex]
 	if step == nil {
+		nativeSessionID := p.nativeSessionID()
 		step = &projectedStep{
 			kind:      update.StepType,
-			messageID: fmt.Sprintf("%s/step.%d", p.sessionID, update.StepIndex),
-			itemID:    fmt.Sprintf("%s/item.%d", p.sessionID, update.StepIndex),
+			messageID: fmt.Sprintf("%s/step.%d", nativeSessionID, update.StepIndex),
+			itemID:    fmt.Sprintf("%s/item.%d", nativeSessionID, update.StepIndex),
 		}
 		p.steps[update.StepIndex] = step
 		if err := p.event("session.step.started", map[string]any{
@@ -228,7 +229,7 @@ func (p *projector) projectTool(step *projectedStep, update *stepUpdate) error {
 }
 
 func (p *projector) event(eventType string, data map[string]any, nativeRef map[string]any) error {
-	data["sessionID"] = p.sessionID
+	data["sessionID"] = p.nativeSessionID()
 	raw, err := json.Marshal(data)
 	if err != nil {
 		return err
@@ -242,7 +243,7 @@ func (p *projector) event(eventType string, data map[string]any, nativeRef map[s
 
 func (p *projector) ref(step *projectedStep, rawUsage map[string]any) map[string]any {
 	ref := map[string]any{
-		"provider": "agy", "sessionID": p.sessionID, "messageID": step.messageID,
+		"provider": "agy", "sessionID": p.nativeSessionID(), "messageID": step.messageID,
 	}
 	if step.kind == "tool" {
 		ref["itemID"] = step.itemID
@@ -255,6 +256,13 @@ func (p *projector) ref(step *projectedStep, rawUsage map[string]any) map[string
 		}
 	}
 	return ref
+}
+
+func (p *projector) nativeSessionID() string {
+	if p.conversationID != "" {
+		return p.conversationID
+	}
+	return p.sessionID
 }
 
 type normalizedUsage struct {

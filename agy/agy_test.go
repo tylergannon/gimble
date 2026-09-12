@@ -40,6 +40,13 @@ func TestAdapterCreatesResumesStructuresAndTranslates(t *testing.T) {
 	if !slices.Contains(eventTypes(events), "session.text.ended") || !slices.Contains(eventTypes(events), "session.step.ended") {
 		t.Fatalf("events = %v", eventTypes(events))
 	}
+	var nativeRef map[string]any
+	if err := json.Unmarshal(events[0].NativeRef, &nativeRef); err != nil {
+		t.Fatal(err)
+	}
+	if nativeRef["sessionID"] != "conversation-test" {
+		t.Fatalf("native session provenance = %#v", nativeRef)
+	}
 	text, err := adapter.RunTurn(t.Context(), sessionID, "TEXT", nil, func(gimble.AgentEvent) error { return nil })
 	if err != nil || string(text) != `"OK"` {
 		t.Fatalf("text result=%s error=%v", text, err)

@@ -79,6 +79,31 @@ func TestProjectorPropagatesCallbackAndProtocolErrors(t *testing.T) {
 	}
 }
 
+func TestProjectorPreservesNativeConversationIdentity(t *testing.T) {
+	var event gimble.AgentEvent
+	p := newProjector("adapter-session", "model", func(value gimble.AgentEvent) error {
+		event = value
+		return nil
+	})
+	p.setConversation("native-conversation")
+	mustProject(t, p.envelope(envelope{StepUpdate: &stepUpdate{
+		ConversationID: "native-conversation", StepIndex: 3, StepType: "agent_response", State: "DONE",
+	}}))
+	var data, ref map[string]any
+	if err := json.Unmarshal(event.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(event.NativeRef, &ref); err != nil {
+		t.Fatal(err)
+	}
+	if data["sessionID"] != "native-conversation" || ref["sessionID"] != "native-conversation" {
+		t.Fatalf("data=%#v ref=%#v", data, ref)
+	}
+	if ref["messageID"] != "native-conversation/step.3" {
+		t.Fatalf("messageID = %v", ref["messageID"])
+	}
+}
+
 func TestScanStreamRejectsMalformedNDJSON(t *testing.T) {
 	output := make(chan streamItem)
 	go scanStream(strings.NewReader("not-json\n"), output)
