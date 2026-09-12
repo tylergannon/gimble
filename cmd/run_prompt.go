@@ -161,7 +161,17 @@ func resolvePromptModel(options runPromptOptions, caller promptCaller) (modelali
 	if options.effort != "" {
 		selection.Effort, selection.EffortPresent = options.effort, true
 	}
-	return modelalias.Resolve(selection)
+	resolved, err := modelalias.Resolve(selection)
+	if err != nil {
+		return modelalias.ResolvedSelection{}, err
+	}
+	if options.effort != "" && resolved.Harness != "agy" {
+		return modelalias.ResolvedSelection{}, fmt.Errorf("--effort is not supported by the current %s harness", resolved.Harness)
+	}
+	if resolved.Harness == "agy" && (resolved.Effort == "xhigh" || resolved.Effort == "max") {
+		return modelalias.ResolvedSelection{}, fmt.Errorf("agy supports effort low, medium, or high, not %q", resolved.Effort)
+	}
+	return resolved, nil
 }
 
 func promptAdapter(name string) (gimble.HarnessAdapter, error) {

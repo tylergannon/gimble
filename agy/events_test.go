@@ -16,6 +16,7 @@ func TestProjectorTranslatesResponseAndToolSteps(t *testing.T) {
 		events = append(events, event)
 		return nil
 	})
+	p.setConversation("conversation-1")
 	mustProject(t, p.envelope(envelope{StepUpdate: &stepUpdate{
 		ConversationID: "conversation-1", StepIndex: 1, StepType: "agent_response", State: "ACTIVE", TextDelta: "hel",
 	}}))
@@ -71,6 +72,7 @@ func TestProjectorPropagatesCallbackAndProtocolErrors(t *testing.T) {
 	}
 
 	p = newProjector("conversation-1", "model", func(gimble.AgentEvent) error { return nil })
+	p.setConversation("conversation-1")
 	err = p.envelope(envelope{StepUpdate: &stepUpdate{ConversationID: "other", StepIndex: 1, StepType: "agent_response", State: "DONE"}})
 	if err == nil {
 		t.Fatal("conversation mismatch was accepted")

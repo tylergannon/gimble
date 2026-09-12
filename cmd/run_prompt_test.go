@@ -40,6 +40,18 @@ func TestResolvePromptModelPrecedence(t *testing.T) {
 	}
 }
 
+func TestResolvePromptModelRejectsEffortTheHarnessCannotReceive(t *testing.T) {
+	for _, model := range []string{"gpt", "fable"} {
+		_, err := resolvePromptModel(runPromptOptions{model: model, effort: "max"}, promptCallerNone)
+		if err == nil || !strings.Contains(err.Error(), "not supported") {
+			t.Fatalf("model %s error = %v", model, err)
+		}
+	}
+	if _, err := resolvePromptModel(runPromptOptions{model: "flash", effort: "max"}, promptCallerNone); err == nil || !strings.Contains(err.Error(), "low, medium, or high") {
+		t.Fatalf("flash max error = %v", err)
+	}
+}
+
 func TestDetectPromptCallerPrefersClaude(t *testing.T) {
 	environment := map[string]string{"CLAUDE_CODE_SESSION_ID": "claude", "CODEX_THREAD_ID": "codex"}
 	if got := detectPromptCaller(func(name string) string { return environment[name] }); got != promptCallerClaude {

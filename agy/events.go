@@ -62,11 +62,20 @@ func (e envelope) conversationID() string {
 }
 
 type projector struct {
-	mu        sync.Mutex
-	sessionID string
-	model     string
-	emit      func(gimble.AgentEvent) error
-	steps     map[int]*projectedStep
+	mu             sync.Mutex
+	sessionID      string
+	conversationID string
+	model          string
+	emit           func(gimble.AgentEvent) error
+	steps          map[int]*projectedStep
+}
+
+func (p *projector) setConversation(id string) {
+	p.mu.Lock()
+	if p.conversationID == "" {
+		p.conversationID = id
+	}
+	p.mu.Unlock()
 }
 
 type projectedStep struct {
@@ -89,8 +98,8 @@ func (p *projector) envelope(envelope envelope) error {
 		return nil
 	}
 	update := envelope.StepUpdate
-	if update.ConversationID != "" && update.ConversationID != p.sessionID {
-		return fmt.Errorf("agy: step returned conversation %q, want %q", update.ConversationID, p.sessionID)
+	if update.ConversationID != "" && p.conversationID != "" && update.ConversationID != p.conversationID {
+		return fmt.Errorf("agy: step returned conversation %q, want %q", update.ConversationID, p.conversationID)
 	}
 	switch update.StepType {
 	case "user_input":

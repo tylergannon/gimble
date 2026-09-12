@@ -22,8 +22,8 @@ func TestAdapterCreatesResumesStructuresAndTranslates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sessionID != "conversation-test" {
-		t.Fatalf("session ID = %q", sessionID)
+	if sessionID == "" || sessionID == "conversation-test" {
+		t.Fatalf("adapter session ID = %q", sessionID)
 	}
 
 	var events []gimble.AgentEvent
@@ -46,13 +46,12 @@ func TestAdapterCreatesResumesStructuresAndTranslates(t *testing.T) {
 	}
 
 	invocations := readInvocations(t, record)
-	if len(invocations) != 3 || !slices.Contains(invocations[0], "--new-project") {
+	if len(invocations) != 2 || !slices.Contains(invocations[0], "--new-project") {
 		t.Fatalf("invocations = %#v", invocations)
 	}
-	assertFlag(t, invocations[1], "--conversation", sessionID)
-	assertFlag(t, invocations[2], "--conversation", sessionID)
-	assertFlag(t, invocations[1], "--model", "gemini-test-low")
-	assertFlag(t, invocations[1], "--add-dir", workdir)
+	assertFlag(t, invocations[1], "--conversation", "conversation-test")
+	assertFlag(t, invocations[0], "--model", "gemini-test-low")
+	assertFlag(t, invocations[0], "--add-dir", workdir)
 	if _, err := adapter.Fork(t.Context(), sessionID); err == nil || !strings.Contains(err.Error(), "unavailable") {
 		t.Fatalf("Fork error = %v", err)
 	}
@@ -72,7 +71,7 @@ func TestAdapterSteerInterruptsAndResumesInsideTurn(t *testing.T) {
 		raw, runErr = adapter.RunTurn(context.Background(), sessionID, "WAIT", nil, func(gimble.AgentEvent) error { return nil })
 		close(done)
 	}()
-	waitInvocations(t, record, 2)
+	waitInvocations(t, record, 1)
 	if err := adapter.Steer(t.Context(), sessionID, "STEER"); err != nil {
 		t.Fatal(err)
 	}
@@ -85,8 +84,35 @@ func TestAdapterSteerInterruptsAndResumesInsideTurn(t *testing.T) {
 		t.Fatalf("result=%s error=%v", raw, runErr)
 	}
 	invocations := readInvocations(t, record)
-	if len(invocations) != 3 || flagValue(invocations[2], "-p") != "STEER" {
+	if len(invocations) != 2 || flagValue(invocations[1], "-p") != "STEER" {
 		t.Fatalf("invocations = %#v", invocations)
+	}
+	assertFlag(t, invocations[1], "--conversation", "conversation-test")
+}
+
+func TestAdapterCancellationAfterStdoutClosesStillInterruptsProcess(t *testing.T) {
+	adapter, record := testAdapter(t)
+	workdir := t.TempDir()
+	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", workdir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := adapter.RunTurn(ctx, sessionID, "CLOSE_STDOUT", nil, func(gimble.AgentEvent) error { return nil })
+		done <- err
+	}()
+	waitInvocations(t, record, 1)
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("RunTurn error = %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("cancelled process did not finish")
 	}
 }
 
@@ -132,6 +158,13 @@ func TestAgyHelperProcess(t *testing.T) {
 	writeEnvelope(map[string]any{"event": "init", "conversation_id": conversation})
 	writeEnvelope(map[string]any{"event": "step_update", "step_update": map[string]any{"conversation_id": conversation, "step_index": 0, "state": "DONE", "step_type": "user_input"}})
 	if prompt == "WAIT" {
+		interrupt := make(chan os.Signal, 1)
+		signal.Notify(interrupt, os.Interrupt)
+		<-interrupt
+		os.Exit(130)
+	}
+	if prompt == "CLOSE_STDOUT" {
+		_ = os.Stdout.Close()
 		interrupt := make(chan os.Signal, 1)
 		signal.Notify(interrupt, os.Interrupt)
 		<-interrupt

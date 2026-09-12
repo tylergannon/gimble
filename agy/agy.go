@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,7 +24,6 @@ import (
 
 const (
 	controlTimeout = 5 * time.Second
-	createTimeout  = 2 * time.Minute
 	printBackstop  = 24 * time.Hour
 )
 
@@ -42,12 +42,13 @@ type adapter struct {
 }
 
 type session struct {
-	model   string
-	workdir string
-	ops     sync.Mutex
-	mu      sync.Mutex
-	active  *activeTurn
-	pending []string
+	model          string
+	workdir        string
+	ops            sync.Mutex
+	mu             sync.Mutex
+	conversationID string
+	active         *activeTurn
+	pending        []string
 }
 
 type activeTurn struct {
@@ -82,7 +83,9 @@ func newAdapter(cfg config) *adapter {
 	return &adapter{sessions: make(map[string]*session), config: cfg}
 }
 
-// CreateSession starts a native Antigravity conversation in workdir.
+// CreateSession reserves an adapter session. The first visible user turn
+// starts the native Antigravity conversation, so no hidden model call escapes
+// Gimble's event and accounting record.
 func (a *adapter) CreateSession(ctx context.Context, model, workdir string) (string, error) {
 	if strings.TrimSpace(model) == "" {
 		return "", errors.New("agy: model is blank")
@@ -91,22 +94,14 @@ func (a *adapter) CreateSession(ctx context.Context, model, workdir string) (str
 	if err != nil {
 		return "", err
 	}
-	createCtx, cancel := context.WithTimeout(ctx, createTimeout)
-	defer cancel()
-	result, _, err := a.runOnce(createCtx, nil, runRequest{
-		prompt: "Reply with the single word OK. Do not use any tools.", model: model,
-		workdir: absolute, newProject: true,
-	})
+	id, err := newSessionID()
 	if err != nil {
 		return "", err
 	}
-	if result.conversationID == "" {
-		return "", errors.New("agy: create result omitted conversation_id")
-	}
 	a.mu.Lock()
-	a.sessions[result.conversationID] = &session{model: model, workdir: absolute}
+	a.sessions[id] = &session{model: model, workdir: absolute}
 	a.mu.Unlock()
-	return result.conversationID, nil
+	return id, nil
 }
 
 // RunTurn runs one resumed agy print process and translates its NDJSON stream.
@@ -117,10 +112,14 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	}
 	s.ops.Lock()
 	defer s.ops.Unlock()
+	s.mu.Lock()
+	conversationID := s.conversationID
+	s.mu.Unlock()
 
 	request := runRequest{
-		prompt: prompt, model: s.model, workdir: s.workdir, sessionID: sessionID,
-		schema: schema, projector: newProjector(sessionID, s.model, onEvent),
+		prompt: prompt, model: s.model, workdir: s.workdir, sessionID: conversationID,
+		newProject: conversationID == "",
+		schema:     schema, projector: newProjector(sessionID, s.model, onEvent),
 	}
 	result, err := a.run(ctx, s, request)
 	if ctx.Err() != nil {
@@ -196,6 +195,14 @@ func (a *adapter) session(id string) (*session, error) {
 func (a *adapter) run(ctx context.Context, s *session, request runRequest) (nativeResult, error) {
 	for {
 		result, active, err := a.runOnce(ctx, s, request)
+		if request.newProject && result.conversationID != "" {
+			request.sessionID = result.conversationID
+			request.newProject = false
+			s.mu.Lock()
+			s.conversationID = result.conversationID
+			s.mu.Unlock()
+			request.projector.setConversation(result.conversationID)
+		}
 		message := s.takeSteer()
 		if message == "" {
 			return result, err
@@ -205,6 +212,16 @@ func (a *adapter) run(ctx context.Context, s *session, request runRequest) (nati
 		}
 		request.prompt = message
 	}
+}
+
+func newSessionID() (string, error) {
+	var value [16]byte
+	if _, err := rand.Read(value[:]); err != nil {
+		return "", fmt.Errorf("agy: mint session id: %w", err)
+	}
+	value[6] = value[6]&0x0f | 0x40
+	value[8] = value[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", value[0:4], value[4:6], value[6:8], value[8:10], value[10:16]), nil
 }
 
 func (s *session) takeSteer() string {
@@ -290,15 +307,12 @@ func (a *adapter) runOnce(ctx context.Context, s *session, request runRequest) (
 				continue
 			}
 			envelope := item.envelope
-			if request.projector != nil && protocolErr == nil {
-				if err := request.projector.envelope(envelope); err != nil {
-					protocolErr = err
-					interruptProcess(active)
-				}
-			}
 			switch envelope.Event {
 			case "init":
 				initID = envelope.conversationID()
+				if request.projector != nil {
+					request.projector.setConversation(initID)
+				}
 				if request.sessionID != "" && initID != request.sessionID && protocolErr == nil {
 					protocolErr = fmt.Errorf("agy: init returned conversation %q, want %q", initID, request.sessionID)
 					interruptProcess(active)
@@ -312,12 +326,25 @@ func (a *adapter) runOnce(ctx context.Context, s *session, request runRequest) (
 					}
 				}
 			}
+			if request.projector != nil && protocolErr == nil {
+				if err := request.projector.envelope(envelope); err != nil {
+					protocolErr = err
+					interruptProcess(active)
+				}
+			}
 		case <-ctxDone:
 			ctxDone = nil
 			interruptProcess(active)
 		}
 	}
-	processErr = command.Wait()
+	waited := make(chan error, 1)
+	go func() { waited <- command.Wait() }()
+	select {
+	case processErr = <-waited:
+	case <-ctx.Done():
+		interruptProcess(active)
+		processErr = <-waited
+	}
 	close(active.done)
 	if ctx.Err() != nil {
 		return nativeResult{}, active, ctx.Err()
@@ -326,7 +353,7 @@ func (a *adapter) runOnce(ctx context.Context, s *session, request runRequest) (
 		return nativeResult{}, active, protocolErr
 	}
 	if active.interrupted.Load() {
-		return nativeResult{}, active, errInterrupted
+		return nativeResult{conversationID: initID}, active, errInterrupted
 	}
 	if result == nil {
 		message := strings.TrimSpace(stderr.String())
