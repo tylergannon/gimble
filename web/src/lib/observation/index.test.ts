@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { RunObservation, accounting, foldProvenance, type RunSnapshot } from './index.ts'
+import { RunObservation, accounting, foldProvenance, type LifecycleRecord, type RunSnapshot } from './index.ts'
 import type { Snapshot } from '../sessionstate/index.ts'
 
 const projection = (): Snapshot => ({
@@ -53,4 +54,15 @@ test('provenance keys the latest native sidecar by normalized message ID', () =>
 	foldProvenance(provenance, { data: { assistantMessageID: 'source-id' } }, { normalizedMessageID: 'msg_canonical', messageID: 'provider-id', accounting: { costAvailable: false, tokensAvailable: false, costSource: 'unavailable' } })
 	assert.deepEqual(Object.keys(provenance), ['msg_canonical'])
 	assert.equal((provenance.msg_canonical as { messageID: string }).messageID, 'provider-id')
+})
+
+test('a cancelled run stays cancelled, as the Go store decides it', () => {
+	const observation = new RunObservation(snapshot())
+	const connection = observation.beginConnection()
+	const fixture = new URL('../../../../internal/observation/testdata/cancelled-run.jsonl', import.meta.url)
+	for (const line of readFileSync(fixture, 'utf8').trim().split('\n')) {
+		observation.apply({ type: 'lifecycle', data: JSON.parse(line) as LifecycleRecord }, connection)
+	}
+	assert.equal(observation.run.status, 'cancelled')
+	assert.equal(observation.run.error, 'context canceled')
 })

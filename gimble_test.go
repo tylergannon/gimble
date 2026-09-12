@@ -1,6 +1,7 @@
 package gimble
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimble/internal/observation"
 	"github.com/tylergannon/gimble/internal/runlog"
 	"golang.org/x/sync/errgroup"
 )
@@ -974,4 +976,26 @@ func readRecords[T any](t *testing.T, file string) []T {
 		records = append(records, e)
 	}
 	return records
+}
+
+// TestCancelledRunStaysCancelled replays the shared fixture through the
+// runtime's own fold. The browser reducer reads the same file.
+func TestCancelledRunStaysCancelled(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("internal", "observation", "testdata", "cancelled-run.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := observation.Open(nil, "run-1", "cancelled", t.TempDir())
+	defer func() { _ = store.Close() }()
+	r := &run{store: store}
+	for _, line := range bytes.Split(bytes.TrimSpace(raw), []byte("\n")) {
+		var record LifecycleRecord
+		if err := json.Unmarshal(line, &record); err != nil {
+			t.Fatalf("decode %s: %v", line, err)
+		}
+		r.observeLifecycle(record.Scope, record.Session.Value, record.Turn.Value, record.Event, append(json.RawMessage(nil), line...))
+	}
+	if got := store.Snapshot().Run; got.Status != observation.StatusCancelled {
+		t.Fatalf("status = %q (error %q), want cancelled", got.Status, got.Error)
+	}
 }

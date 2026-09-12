@@ -82,7 +82,8 @@ export function foldLifecycle(run: RunSnapshot['run'], record: LifecycleRecord) 
 	const event = record.event
 	switch (event.kind) {
 		case 'run_started': run.name = String(event.name); run.status = 'running'; delete run.error; break
-		case 'run_ended': run.status = event.error ? 'failed' : 'completed'; if (event.error) run.error = String(event.error); else delete run.error; break
+		// A cancelled run stays cancelled, as the Go store decides it.
+		case 'run_ended': if (run.status === 'running') { run.status = event.error ? 'failed' : 'completed'; if (event.error) run.error = String(event.error); else delete run.error }; break
 		case 'run_cancelled': run.status = 'cancelled'; if (event.error) run.error = String(event.error); else delete run.error; break
 		case 'session_created':
 			if (record.session) run.sessions[record.session] = { name: String(event.name), adapter: String(event.adapter), model: String(event.model), scope: record.scope, ...(event.parent ? { parent: String(event.parent) } : {}) }
