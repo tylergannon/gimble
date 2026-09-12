@@ -6,6 +6,11 @@ go 1.27.1
 // descends into web/node_modules looking for Go packages.
 ignore ./web/node_modules
 
+// Downloaded reference source and the pinned oracle are separate workspaces.
+ignore ./ephemeral/inspiration
+
+ignore ./third_party/opencode/oracle/upstream
+
 require (
 	github.com/roasbeef/claude-agent-sdk-go v1.1.1-0.20260713164230-efdbecd88a98
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
@@ -14,6 +19,8 @@ require (
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
 	golang.org/x/sync v0.23.0
 )
+
+replace github.com/roasbeef/claude-agent-sdk-go => github.com/tylergannon/claude-agent-sdk-go v1.1.1-0.20260912021749-9a4ffeca77cc
 
 require (
 	github.com/dave/dst v0.27.4 // indirect

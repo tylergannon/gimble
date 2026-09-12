@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimble/internal/observation"
 )
 
 // Runtime owns a project's runs and web application. It remains active until
@@ -112,6 +113,11 @@ func NewRuntime(ctx context.Context, projectDir string, opts ...Option) (*Runtim
 		}
 	}
 	runtimeCtx, cancel := context.WithCancelCause(ctx)
+	// The observation registry lives in the runtime's context. Every run the
+	// runtime starts finds it there and registers its store; the web server
+	// serves requests from this same context through BaseContext, so its
+	// routes and its page loads read the very same registry.
+	runtimeCtx = observation.WithRegistry(runtimeCtx, observation.NewRegistry(dir))
 	runtime := &Runtime{ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{})}
 	if cfg.network == "none" {
 		context.AfterFunc(runtimeCtx, func() { close(runtime.done) })

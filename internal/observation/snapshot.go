@@ -1,0 +1,63 @@
+package observation
+
+import (
+	"encoding/json"
+
+	"github.com/tylergannon/gimble/internal/sessionstate"
+)
+
+// Run statuses. Only a lifecycle record sets one: a native part, step or
+// execution event never decides that a workflow finished.
+const (
+	StatusRunning   = "running"
+	StatusCompleted = "completed"
+	StatusFailed    = "failed"
+	StatusCancelled = "cancelled"
+)
+
+// Placement is where a native event happened in the workflow. It lives
+// outside the native envelope, so native IDs stay unchanged inside it and
+// two concurrent invocations never share a projection.
+type Placement struct {
+	Scope   string `json:"scope"`
+	Session string `json:"session"`
+	Turn    string `json:"turn"`
+}
+
+// SessionInfo is one agent conversation's runtime metadata, taken from the
+// run's own lifecycle records.
+type SessionInfo struct {
+	Name    string `json:"name"`
+	Adapter string `json:"adapter"`
+	Model   string `json:"model"`
+	Scope   string `json:"scope"`
+	Parent  string `json:"parent,omitempty"`
+}
+
+// RunInfo is the run and its sessions.
+type RunInfo struct {
+	ID       string                 `json:"id"`
+	Name     string                 `json:"name"`
+	Status   string                 `json:"status"`
+	Error    string                 `json:"error,omitempty"`
+	Sessions map[string]SessionInfo `json:"sessions"`
+}
+
+// Invocation is one turn's placement, its complete session projection
+// snapshot, and the current native provenance of each of its messages.
+type Invocation struct {
+	Scope      string                     `json:"scope"`
+	Session    string                     `json:"session"`
+	Turn       string                     `json:"turn"`
+	Snapshot   sessionstate.Snapshot      `json:"snapshot"`
+	Provenance map[string]json.RawMessage `json:"provenance"`
+}
+
+// RunSnapshot is the complete public observation of one run: everything a
+// consumer needs to render it and to continue reducing its events. It is
+// the body of GET /api/runs/:runID, the first SSE frame, and the SSR load's
+// `snapshot` property.
+type RunSnapshot struct {
+	Run         RunInfo               `json:"run"`
+	Invocations map[string]Invocation `json:"invocations"`
+}

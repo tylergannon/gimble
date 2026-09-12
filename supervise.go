@@ -3,6 +3,7 @@ package gimble
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -197,25 +198,48 @@ type transcriptPart struct {
 // mistaken for a different item.
 func transcriptPartFor(e AgentEvent) (transcriptPart, bool) {
 	identity := func(value string) string { return transcriptIdentity(value) }
-	field := func(value string) string { return clipText(value, 256) }
-	switch e := e.(type) {
-	case UserMessage:
-		return transcriptPart{prefix: "[message to the agent] ", text: e.Text}, true
-	case AssistantMessage:
-		return transcriptPart{prefix: fmt.Sprintf("[agent] message_id=%s ", identity(e.ID)), text: e.Text}, true
-	case AssistantMessageDelta:
-		id := identity(e.ID)
-		return transcriptPart{prefix: fmt.Sprintf("[agent fragment] message_id=%s ", id), text: e.Text, coalesceKey: "assistant:" + id}, true
-	case ToolCall:
-		return transcriptPart{prefix: fmt.Sprintf("[tool call: %s] call_id=%s ", field(e.Tool), identity(e.CallID)), text: string(e.Input)}, true
-	case ToolInputDelta:
-		id := identity(e.CallID)
-		return transcriptPart{prefix: fmt.Sprintf("[tool input fragment] call_id=%s ", id), text: string(e.Input), coalesceKey: "tool-input:" + id}, true
-	case ToolResult:
-		return transcriptPart{prefix: fmt.Sprintf("[tool result] call_id=%s ", identity(e.CallID)), text: string(e.Output)}, true
-	case ToolResultDelta:
-		id := identity(e.CallID)
-		return transcriptPart{prefix: fmt.Sprintf("[tool result fragment] call_id=%s ", id), text: string(e.Output), coalesceKey: "tool-result:" + id}, true
+	var data struct {
+		AssistantMessageID string          `json:"assistantMessageID"`
+		ID                 string          `json:"id"`
+		Delta              string          `json:"delta"`
+		Text               string          `json:"text"`
+		Input              json.RawMessage `json:"input"`
+		Content            json.RawMessage `json:"content"`
+		Metadata           json.RawMessage `json:"metadata"`
+		Error              json.RawMessage `json:"error"`
+		Item               struct {
+			Type    string `json:"type"`
+			Payload struct {
+				Text string `json:"text"`
+			} `json:"payload"`
+		} `json:"item"`
+	}
+	if json.Unmarshal(e.Data, &data) != nil {
+		return transcriptPart{}, false
+	}
+	switch e.Type {
+	case "session.inbox.enqueued":
+		if data.Item.Type != "user" {
+			return transcriptPart{}, false
+		}
+		return transcriptPart{prefix: "[message to the agent] ", text: data.Item.Payload.Text}, true
+	case "session.text.ended":
+		return transcriptPart{prefix: fmt.Sprintf("[agent] message_id=%s ", identity(data.AssistantMessageID)), text: data.Text}, true
+	case "session.text.delta":
+		id := identity(data.AssistantMessageID)
+		return transcriptPart{prefix: fmt.Sprintf("[agent fragment] message_id=%s ", id), text: data.Delta, coalesceKey: "assistant:" + id}, true
+	case "session.tool.called":
+		return transcriptPart{prefix: fmt.Sprintf("[tool call] call_id=%s ", identity(data.ID)), text: string(data.Input)}, true
+	case "session.tool.input.delta":
+		id := identity(data.ID)
+		return transcriptPart{prefix: fmt.Sprintf("[tool input fragment] call_id=%s ", id), text: data.Delta, coalesceKey: "tool-input:" + id}, true
+	case "session.tool.success":
+		return transcriptPart{prefix: fmt.Sprintf("[tool result] call_id=%s ", identity(data.ID)), text: string(data.Content)}, true
+	case "session.tool.failed":
+		return transcriptPart{prefix: fmt.Sprintf("[tool failed] call_id=%s ", identity(data.ID)), text: string(data.Error)}, true
+	case "session.tool.progress":
+		id := identity(data.ID)
+		return transcriptPart{prefix: fmt.Sprintf("[tool result fragment] call_id=%s ", id), text: string(data.Metadata), coalesceKey: "tool-result:" + id}, true
 	default:
 		return transcriptPart{}, false
 	}
@@ -306,10 +330,10 @@ func newTranscript(readers, maxBytes int) *transcript {
 	return t
 }
 
-func (t *transcript) append(e AgentEvent) {
+func (t *transcript) append(e AgentEvent) error {
 	part, ok := transcriptPartFor(e)
 	if !ok {
-		return
+		return nil
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -329,6 +353,7 @@ func (t *transcript) append(e AgentEvent) {
 	if t.bytes > t.peak {
 		t.peak = t.bytes
 	}
+	return nil
 }
 
 func (t *transcript) consumed(entry transcriptEntry) bool {

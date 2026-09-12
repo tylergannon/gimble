@@ -8,7 +8,8 @@
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"test": "bun test src/lib/sessionstate/index.test.ts src/lib/observation/index.test.ts"
 	},
 	"devDependencies": {
 		"@skgo/sveltekit-adapter": "<=0.4.0",

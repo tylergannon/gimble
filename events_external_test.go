@@ -27,22 +27,7 @@ func TestPublishedEventTypesAreUsableOutsideGimble(t *testing.T) {
 		gimble.Interrupt{},
 		gimble.Complete{},
 	}
-	agent := []gimble.AgentEvent{
-		gimble.UserMessage{},
-		gimble.AssistantMessage{},
-		gimble.AssistantMessageDelta{},
-		gimble.Thinking{},
-		gimble.ThinkingDelta{},
-		gimble.ToolCall{},
-		gimble.ToolInputDelta{},
-		gimble.ToolResult{},
-		gimble.ToolResultDelta{},
-		gimble.Usage{},
-		gimble.HarnessError{},
-		gimble.Retry{},
-		gimble.ApprovalRequest{},
-		gimble.NestedTranscript{},
-	}
+	agent := gimble.AgentEvent{Type: "session.execution.started", ID: "evt_1", Created: 1, Data: json.RawMessage(`{"sessionID":"ses_1"}`)}
 
 	lifecycleRaw, err := json.Marshal(gimble.LifecycleRecord{Seq: 1, Time: time.Now().UTC(), Event: lifecycle[0]})
 	if err != nil {
@@ -56,7 +41,7 @@ func TestPublishedEventTypesAreUsableOutsideGimble(t *testing.T) {
 		t.Fatalf("decoded lifecycle event = %T", lifecycleRecord.Event)
 	}
 
-	agentRaw, err := json.Marshal(gimble.AgentRecord{Seq: 1, Time: time.Now().UTC(), Session: "coder.1", Turn: "coder.1/turn.1", Event: agent[0]})
+	agentRaw, err := json.Marshal(gimble.AgentRecord{Seq: 1, Time: time.Now().UTC(), Session: "coder.1", Turn: "coder.1/turn.1", Event: agent})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +49,7 @@ func TestPublishedEventTypesAreUsableOutsideGimble(t *testing.T) {
 	if err := json.Unmarshal(agentRaw, &agentRecord); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := agentRecord.Event.(gimble.UserMessage); !ok {
-		t.Fatalf("decoded agent event = %T", agentRecord.Event)
+	if agentRecord.Event.Type != "session.execution.started" {
+		t.Fatalf("decoded agent event = %#v", agentRecord.Event)
 	}
 }

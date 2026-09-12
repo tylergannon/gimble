@@ -51,11 +51,12 @@ func New() gimble.HarnessAdapter {
 // CreateSession starts a Codex thread.
 func (a *adapter) CreateSession(ctx context.Context, model, workdir string) (string, error) {
 	return a.thread(ctx, "thread/start", map[string]any{
-		"model":          model,
-		"cwd":            workdir,
-		"approvalPolicy": "never",
-		"sandbox":        "danger-full-access",
-		"serviceName":    "gimble",
+		"model":                 model,
+		"cwd":                   workdir,
+		"approvalPolicy":        "never",
+		"sandbox":               "danger-full-access",
+		"serviceName":           "gimble",
+		"experimentalRawEvents": true,
 	}, &session{model: model, workdir: workdir})
 }
 
@@ -100,7 +101,7 @@ func (a *adapter) thread(ctx context.Context, method string, params map[string]a
 }
 
 // RunTurn runs one turn on the thread and blocks until it ends.
-func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent)) (json.RawMessage, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent) error) (json.RawMessage, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
 		return nil, err
@@ -136,10 +137,9 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		return nil, err
 	}
 
-	active := &activeTurn{conn: conn, turnID: turn, emit: &projector{emit: onEvent, started: map[string]bool{}}}
+	active := &activeTurn{conn: conn, turnID: turn, emit: newProjector(sessionID, turn, s.model, onEvent)}
 	s.setActive(active)
 	defer s.setActive(nil)
-	active.emit.user(prompt)
 
 	text, err := readTurn(ctx, conn, sessionID, turn, active.emit)
 	if ctx.Err() != nil {
@@ -181,7 +181,6 @@ func (a *adapter) Steer(ctx context.Context, sessionID, message string) error {
 		}
 		return err
 	}
-	active.emit.user(message)
 	return nil
 }
 
@@ -280,14 +279,37 @@ func readTurn(ctx context.Context, conn *connection, threadID, turnID string, em
 		}
 		switch message.Method {
 		case "item/started":
-			emit.itemStarted(message.Params)
+			if err := emit.itemStarted(message.Params); err != nil {
+				return "", err
+			}
+		case "item/agentMessage/delta":
+			if err := emit.textDelta(message.Params); err != nil {
+				return "", err
+			}
+		case "item/reasoning/summaryTextDelta":
+			if err := emit.reasoningDelta(message.Params); err != nil {
+				return "", err
+			}
+		case "item/commandExecution/outputDelta":
+			if err := emit.toolOutputDelta(message.Params); err != nil {
+				return "", err
+			}
 		case "item/completed":
-			if text, ok := emit.itemCompleted(message.Params); ok {
+			text, ok, err := emit.itemCompleted(message.Params)
+			if err != nil {
+				return "", err
+			}
+			if ok {
 				final = text
 			}
-		case "thread/tokenUsage/updated":
-			emit.usage(message.Params)
+		case "rawResponse/completed":
+			if err := emit.rawResponseCompleted(message.Params); err != nil {
+				return "", err
+			}
 		case "turn/completed":
+			if err := emit.turnCompleted(message.Params); err != nil {
+				return "", err
+			}
 			status, failure := completedTurn(message.Params)
 			switch status {
 			case "completed":

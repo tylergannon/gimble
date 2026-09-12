@@ -32,26 +32,45 @@ func (a *noisyWorker) CreateSession(ctx context.Context, model, workdir string) 
 	return a.inner.CreateSession(ctx, model, workdir)
 }
 
-func (a *noisyWorker) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, emit func(gimble.AgentEvent)) (json.RawMessage, error) {
-	return a.inner.RunTurn(ctx, sessionID, prompt, schema, func(event gimble.AgentEvent) {
-		emit(event)
-		if _, ok := event.(gimble.UserMessage); !ok {
-			return
+func (a *noisyWorker) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, emit func(gimble.AgentEvent) error) (json.RawMessage, error) {
+	return a.inner.RunTurn(ctx, sessionID, prompt, schema, func(event gimble.AgentEvent) error {
+		if err := emit(event); err != nil {
+			return err
 		}
+		var injectErr error
 		a.once.Do(func() {
 			for i := range 400 {
-				emit(gimble.ToolResult{
-					CallID: fmt.Sprintf("noise-%03d", i),
-					Output: gimble.JSONText(strings.Repeat("noisy tool output ", 240)),
-				})
+				injectErr = emit(noiseEvent(sessionID, "session.tool.success", map[string]any{
+					"assistantMessageID": "noise-message", "id": fmt.Sprintf("noise-%03d", i),
+					"content":  []any{map[string]any{"type": "text", "text": strings.Repeat("noisy tool output ", 240)}},
+					"executed": true,
+				}))
+				if injectErr != nil {
+					return
+				}
 			}
-			emit(gimble.ToolCall{
-				CallID: "proposed-change",
-				Tool:   "design",
-				Input:  `{"action":"add workflow-level supervisor buffer controls"}`,
-			})
+			injectErr = emit(noiseEvent(sessionID, "session.tool.called", map[string]any{
+				"assistantMessageID": "noise-message", "id": "proposed-change",
+				"input": map[string]any{"action": "add workflow-level supervisor buffer controls"}, "executed": true,
+			}))
 		})
+		return injectErr
 	})
+}
+
+func noiseEvent(sessionID, eventType string, data map[string]any) gimble.AgentEvent {
+	data["sessionID"] = sessionID
+	raw, err := json.Marshal(data)
+	if err != nil {
+		panic(err)
+	}
+	ref, err := json.Marshal(map[string]any{
+		"provider": "issue129", "sessionID": sessionID, "messageID": "noise-message",
+	})
+	if err != nil {
+		panic(err)
+	}
+	return gimble.AgentEvent{Type: eventType, Data: raw, NativeRef: ref}
 }
 
 func (a *noisyWorker) Steer(ctx context.Context, sessionID, message string) error {
@@ -76,7 +95,7 @@ func (a *measuredReviewer) CreateSession(ctx context.Context, model, workdir str
 	return a.inner.CreateSession(ctx, model, workdir)
 }
 
-func (a *measuredReviewer) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, emit func(gimble.AgentEvent)) (json.RawMessage, error) {
+func (a *measuredReviewer) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, emit func(gimble.AgentEvent) error) (json.RawMessage, error) {
 	for old := a.maxPrompt.Load(); int64(len(prompt)) > old && !a.maxPrompt.CompareAndSwap(old, int64(len(prompt))); old = a.maxPrompt.Load() {
 	}
 	if strings.Contains(prompt, "[gap] Supervisor activity items") {
