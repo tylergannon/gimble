@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -94,6 +95,9 @@ func newProjector(sessionID, model string, emit func(gimble.AgentEvent) error) *
 func (p *projector) envelope(envelope envelope) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if envelope.Result != nil {
+		return p.finishResult(envelope.Result)
+	}
 	if envelope.StepUpdate == nil {
 		return nil
 	}
@@ -160,25 +164,7 @@ func (p *projector) project(update *stepUpdate) error {
 		}
 		step.textOpen = false
 	}
-	if err := p.event("session.step.streamed", map[string]any{"assistantMessageID": step.messageID}, p.ref(step, nil)); err != nil {
-		return err
-	}
-	usage := normalizeUsage(update.Usage)
-	finish := "stop"
-	if step.kind == "tool" || step.text.Len() == 0 {
-		finish = "tool-calls"
-	}
-	if err := p.event("session.step.ended", map[string]any{
-		"assistantMessageID": step.messageID, "finish": finish, "cost": 0,
-		"tokens": map[string]any{
-			"input": usage.input, "output": usage.output, "reasoning": usage.reasoning,
-			"cache": map[string]any{"read": usage.cacheRead, "write": usage.cacheWrite},
-		},
-	}, p.ref(step, update.Usage)); err != nil {
-		return err
-	}
-	step.ended = true
-	return nil
+	return p.endStep(step, update.Usage)
 }
 
 func (p *projector) projectTool(step *projectedStep, update *stepUpdate) error {
@@ -226,6 +212,68 @@ func (p *projector) projectTool(step *projectedStep, update *stepUpdate) error {
 		"assistantMessageID": step.messageID, "id": step.itemID, "executed": true,
 		"content": []any{map[string]any{"type": "text", "text": outputText(info.Output)}},
 	}, p.ref(step, nil))
+}
+
+// agy reports its schema-returning finish tool as ACTIVE, then puts the
+// structured value directly in the result envelope without a DONE update.
+// Settle only that documented terminal tool; any other open step is a broken
+// stream rather than inferred success.
+func (p *projector) finishResult(result *result) error {
+	indexes := make([]int, 0, len(p.steps))
+	for index := range p.steps {
+		indexes = append(indexes, index)
+	}
+	sort.Ints(indexes)
+	for _, index := range indexes {
+		step := p.steps[index]
+		if step.ended {
+			continue
+		}
+		if step.kind != "tool" || step.name != "finish" || !step.toolCalled {
+			return fmt.Errorf("agy: result arrived with unsettled %s step %d", step.kind, index)
+		}
+		if result.Status == "SUCCESS" {
+			if err := p.event("session.tool.success", map[string]any{
+				"assistantMessageID": step.messageID, "id": step.itemID, "executed": true,
+				"content": []any{map[string]any{"type": "text", "text": outputText(result.StructuredOutput)}},
+			}, p.ref(step, nil)); err != nil {
+				return err
+			}
+		} else {
+			if err := p.event("session.tool.failed", map[string]any{
+				"assistantMessageID": step.messageID, "id": step.itemID, "executed": true,
+				"error": map[string]any{"type": "result", "message": result.Error},
+			}, p.ref(step, nil)); err != nil {
+				return err
+			}
+		}
+		if err := p.endStep(step, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *projector) endStep(step *projectedStep, rawUsage map[string]any) error {
+	if err := p.event("session.step.streamed", map[string]any{"assistantMessageID": step.messageID}, p.ref(step, nil)); err != nil {
+		return err
+	}
+	usage := normalizeUsage(rawUsage)
+	finish := "stop"
+	if step.kind == "tool" || step.text.Len() == 0 {
+		finish = "tool-calls"
+	}
+	if err := p.event("session.step.ended", map[string]any{
+		"assistantMessageID": step.messageID, "finish": finish, "cost": 0,
+		"tokens": map[string]any{
+			"input": usage.input, "output": usage.output, "reasoning": usage.reasoning,
+			"cache": map[string]any{"read": usage.cacheRead, "write": usage.cacheWrite},
+		},
+	}, p.ref(step, rawUsage)); err != nil {
+		return err
+	}
+	step.ended = true
+	return nil
 }
 
 func (p *projector) event(eventType string, data map[string]any, nativeRef map[string]any) error {

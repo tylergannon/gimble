@@ -104,6 +104,41 @@ func TestProjectorPreservesNativeConversationIdentity(t *testing.T) {
 	}
 }
 
+func TestProjectorSettlesStructuredFinishToolFromResult(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("adapter-session", "model", func(value gimble.AgentEvent) error {
+		events = append(events, value)
+		return nil
+	})
+	p.setConversation("native-conversation")
+	mustProject(t, p.envelope(envelope{StepUpdate: &stepUpdate{
+		ConversationID: "native-conversation", StepIndex: 4, StepType: "tool", State: "ACTIVE",
+		ToolInfo: &toolInfo{Name: "finish", Parameters: map[string]any{"answer": "yes"}},
+	}}))
+	mustProject(t, p.envelope(envelope{Result: &result{
+		ConversationID: "native-conversation", Status: "SUCCESS", StructuredOutput: map[string]any{"answer": "yes"},
+	}}))
+	want := []string{
+		"session.step.started", "session.tool.input.started", "session.tool.input.ended", "session.tool.called",
+		"session.tool.success", "session.step.streamed", "session.step.ended",
+	}
+	if got := eventTypes(events); !slices.Equal(got, want) {
+		t.Fatalf("event types = %v, want %v", got, want)
+	}
+}
+
+func TestProjectorRejectsUnsettledNonFinishStepAtResult(t *testing.T) {
+	p := newProjector("adapter-session", "model", func(gimble.AgentEvent) error { return nil })
+	p.setConversation("native-conversation")
+	mustProject(t, p.envelope(envelope{StepUpdate: &stepUpdate{
+		ConversationID: "native-conversation", StepIndex: 2, StepType: "tool", State: "ACTIVE",
+		ToolInfo: &toolInfo{Name: "run_command", Parameters: map[string]any{"CommandLine": "sleep 1"}},
+	}}))
+	if err := p.envelope(envelope{Result: &result{Status: "SUCCESS"}}); err == nil {
+		t.Fatal("result accepted an unsettled non-finish tool")
+	}
+}
+
 func TestScanStreamRejectsMalformedNDJSON(t *testing.T) {
 	output := make(chan streamItem)
 	go scanStream(strings.NewReader("not-json\n"), output)
