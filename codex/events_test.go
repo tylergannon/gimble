@@ -101,6 +101,22 @@ func TestProjectorCompletesTwoResponsesWithoutTokenUsage(t *testing.T) {
 	}
 }
 
+func TestProjectorCompletesResumedTurnWithoutRawResponse(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"message","type":"agentMessage"}}`)))
+	_, _, err := p.itemCompleted(json.RawMessage(`{"item":{"id":"message","type":"agentMessage","text":"done"}}`))
+	mustProject(t, err)
+	mustProject(t, p.turnCompleted(json.RawMessage(`{"turn":{"status":"completed"}}`)))
+
+	if got := countType(events, "session.step.ended"); got != 1 {
+		t.Fatalf("step.ended count = %d, want 1; types=%v", got, types(events))
+	}
+}
+
 func TestNormalizeUsageDistinguishesKnownZeroFromNullableMissing(t *testing.T) {
 	known := normalizeUsage(map[string]any{"inputTokens": float64(0), "cachedInputTokens": float64(0), "cacheWriteInputTokens": float64(0), "outputTokens": float64(0), "reasoningOutputTokens": float64(0)}, true)
 	if !known.available {

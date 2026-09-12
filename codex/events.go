@@ -362,9 +362,6 @@ func (p *projector) turnCompleted(params json.RawMessage) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.stepOpen {
-		if !p.streamed {
-			return errors.New("codex: turn completed before rawResponse/completed")
-		}
 		if p.pendingTools != 0 {
 			return fmt.Errorf("codex: turn completed with %d unsettled tools", p.pendingTools)
 		}
