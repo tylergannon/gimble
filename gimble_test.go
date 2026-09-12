@@ -999,3 +999,38 @@ func TestCancelledRunStaysCancelled(t *testing.T) {
 		t.Fatalf("status = %q (error %q), want cancelled", got.Status, got.Error)
 	}
 }
+
+// TestTurnRecordsValidationFailure is issue 144 item 1: a result the typed
+// output rejects is the turn's own outcome, not a clean turn beside a failing
+// scope.
+func TestTurnRecordsValidationFailure(t *testing.T) {
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
+		return `{"objections": "not a list"}`, nil
+	}}
+	var dir string
+	if err := Run(Project(t.Context(), t.TempDir()), "validate", func(ctx context.Context) error {
+		dir = runDir(ctx)
+		s := NewSession(ctx, "coder", f, "m", "/w")
+		if _, err := s.Generate[review](ctx, "review"); err == nil {
+			t.Error("a result that does not validate was accepted")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var ended []TurnEnded
+	if err := runlog.Read[LifecycleRecord](t.Context(), dir, func(e LifecycleRecord) error {
+		if turn, ok := e.Event.(TurnEnded); ok {
+			ended = append(ended, turn)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(ended) != 1 {
+		t.Fatalf("recorded %d turn_ended records, want 1", len(ended))
+	}
+	if !strings.Contains(ended[0].Error, "objections") || ended[0].Result == "" {
+		t.Fatalf("turn_ended = %+v, want the validation failure and the result it rejected", ended[0])
+	}
+}
