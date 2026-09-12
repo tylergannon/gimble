@@ -29,11 +29,28 @@ const (
 // union it cannot import.
 type Lifecycle struct {
 	Placement
-	Record  json.RawMessage
-	Name    string
-	Status  string
-	Error   string
-	Session *SessionInfo
+	Record   json.RawMessage
+	Name     string
+	Status   string
+	Error    string
+	Session  *SessionInfo
+	Scope    *ScopeChange
+	Value    *ValueChange
+	Decision json.RawMessage
+}
+
+// ScopeChange is one scope beginning or ending, in the placement's scope.
+type ScopeChange struct {
+	Name   string
+	Status string
+	Error  string
+	Task   json.RawMessage
+}
+
+// ValueChange is one value written into the placement's scope.
+type ValueChange struct {
+	Key   string
+	Value json.RawMessage
 }
 
 // invocation is one turn's reduction. The projection is mutated in place;
@@ -53,6 +70,7 @@ type Store struct {
 
 	mu          sync.Mutex
 	run         RunInfo
+	scopes      map[string]ScopeInfo
 	invocations map[string]*invocation
 	subs        map[*Subscription]struct{}
 	closed      bool
@@ -75,6 +93,7 @@ func Open(registry *Registry, id, name, dir string) *Store {
 			Status:   StatusRunning,
 			Sessions: map[string]SessionInfo{},
 		},
+		scopes:      map[string]ScopeInfo{},
 		invocations: map[string]*invocation{},
 		subs:        map[*Subscription]struct{}{},
 		maxFrames:   defaultMaxFrames,
@@ -117,6 +136,30 @@ func (s *Store) Lifecycle(entry Lifecycle) {
 	}
 	if id := entry.Placement.Session; entry.Session != nil && id != "" {
 		s.run.Sessions[id] = *entry.Session
+	}
+	if change := entry.Scope; change != nil {
+		info := s.scopes[entry.Placement.Scope]
+		if change.Name != "" {
+			info.Name = change.Name
+		}
+		info.Status, info.Error = change.Status, change.Error
+		if len(change.Task) > 0 {
+			info.Task = change.Task
+		}
+		s.scopes[entry.Placement.Scope] = info
+	}
+	if change := entry.Value; change != nil {
+		info := s.scopes[entry.Placement.Scope]
+		if info.Values == nil {
+			info.Values = map[string]json.RawMessage{}
+		}
+		info.Values[change.Key] = change.Value
+		s.scopes[entry.Placement.Scope] = info
+	}
+	if len(entry.Decision) > 0 {
+		info := s.scopes[entry.Placement.Scope]
+		info.Decisions = append(info.Decisions, entry.Decision)
+		s.scopes[entry.Placement.Scope] = info
 	}
 	if len(entry.Record) > 0 {
 		s.publishLocked(Frame{Name: FrameLifecycle, Data: entry.Record})
@@ -197,10 +240,14 @@ func (s *Store) Snapshot() RunSnapshot {
 func (s *Store) snapshotLocked() RunSnapshot {
 	out := RunSnapshot{
 		Run:         RunInfo{ID: s.run.ID, Name: s.run.Name, Status: s.run.Status, Error: s.run.Error, Sessions: make(map[string]SessionInfo, len(s.run.Sessions))},
+		Scopes:      make(map[string]ScopeInfo, len(s.scopes)),
 		Invocations: make(map[string]Invocation, len(s.invocations)),
 	}
 	for id, info := range s.run.Sessions {
 		out.Run.Sessions[id] = info
+	}
+	for key, info := range s.scopes {
+		out.Scopes[key] = cloneScope(info)
 	}
 	for turn, inv := range s.invocations {
 		out.Invocations[turn] = Invocation{
@@ -212,6 +259,33 @@ func (s *Store) snapshotLocked() RunSnapshot {
 		}
 	}
 	return out
+}
+
+// cloneScope detaches one scope's own JSON, so a snapshot never shares a
+// buffer with the store's reduction.
+func cloneScope(in ScopeInfo) ScopeInfo {
+	out := in
+	out.Task = cloneRaw(in.Task)
+	if in.Values != nil {
+		out.Values = make(map[string]json.RawMessage, len(in.Values))
+		for key, value := range in.Values {
+			out.Values[key] = cloneRaw(value)
+		}
+	}
+	if in.Decisions != nil {
+		out.Decisions = make([]json.RawMessage, 0, len(in.Decisions))
+		for _, decision := range in.Decisions {
+			out.Decisions = append(out.Decisions, cloneRaw(decision))
+		}
+	}
+	return out
+}
+
+func cloneRaw(in json.RawMessage) json.RawMessage {
+	if in == nil {
+		return nil
+	}
+	return append(json.RawMessage(nil), in...)
 }
 
 func cloneProvenance(in map[string]json.RawMessage) map[string]json.RawMessage {

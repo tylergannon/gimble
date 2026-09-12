@@ -9,7 +9,7 @@ const projection = (): Snapshot => ({
 })
 const snapshot = (title = 'start'): RunSnapshot => {
 	const value = projection(); value.state.info.ses.title = title
-	return { run: { id: 'run', name: 'Run', status: 'running', sessions: { ses: { name: 'agent', adapter: 'codex', model: 'm', scope: 'lap' } } }, invocations: { turn: { scope: 'lap', session: 'ses', turn: 'turn', snapshot: value, provenance: {} } } }
+	return { run: { id: 'run', name: 'Run', status: 'running', sessions: { ses: { name: 'agent', adapter: 'codex', model: 'm', scope: 'lap' } } }, scopes: { 'loop.1': { name: 'loop.1', status: 'running' } }, invocations: { turn: { scope: 'lap', session: 'ses', turn: 'turn', snapshot: value, provenance: {} } } }
 }
 
 test('replacement snapshot resets machines and stale connection callbacks cannot mutate them', () => {
@@ -65,4 +65,20 @@ test('a cancelled run stays cancelled, as the Go store decides it', () => {
 	}
 	assert.equal(observation.run.status, 'cancelled')
 	assert.equal(observation.run.error, 'context canceled')
+})
+
+test('the snapshot carries the scope tree and workflow lifecycle folds into it', () => {
+	const observation = new RunObservation(snapshot())
+	const connection = observation.beginConnection()
+	const frame = (seq: number, scope: string, event: Record<string, unknown>) =>
+		observation.apply({ type: 'lifecycle', data: { seq, time: '2026-01-01T00:00:00Z', scope, event } as LifecycleRecord }, connection)
+	frame(1, 'loop.1', { kind: 'planner_decision', task: { name: 'write a.txt' } })
+	frame(2, 'loop.1/task.2', { kind: 'scope_began', name: 'task.2', task: { name: 'write a.txt' } })
+	frame(3, 'loop.1/task.2', { kind: 'value_set', key: 'worker result', value: '"done"' })
+	frame(4, 'loop.1/task.2', { kind: 'scope_ended', error: '' })
+	frame(5, 'loop.1', { kind: 'planner_decision' })
+	// An ended scope with no error is ended, never succeeded.
+	assert.deepEqual(observation.scopes['loop.1/task.2'], { name: 'task.2', status: 'ended', task: { name: 'write a.txt' }, values: { 'worker result': 'done' } })
+	assert.deepEqual(observation.scopes['loop.1'].decisions, [{ task: { name: 'write a.txt' } }, {}])
+	assert.deepEqual(observation.snapshot().scopes, observation.scopes)
 })

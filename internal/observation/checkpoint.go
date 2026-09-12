@@ -67,6 +67,9 @@ func loadCheckpoint(dir string) (RunSnapshot, error) {
 	if out.Run.Sessions == nil {
 		out.Run.Sessions = map[string]SessionInfo{}
 	}
+	if out.Scopes == nil {
+		out.Scopes = map[string]ScopeInfo{}
+	}
 	if out.Invocations == nil {
 		out.Invocations = map[string]Invocation{}
 	}
