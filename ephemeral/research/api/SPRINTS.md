@@ -57,28 +57,31 @@ Ship: `go get github.com/tylergannon/gimble` and write any workflow in
   there is something new, objections become steers, no gate. A supervisor
   takes the same options, so it can be supervised. `Review` is
   `struct{ Objections []string }`.
-- `Loop(ctx, name, goal, planner)`, `Laps`, `Task`, `Err`. Backlog file:
-  markdown with YAML frontmatter, goal as Definition of Done, steps with
-  optional `command:`. Per lap: reload, run the commands, ask the planner,
-  yield a child scope with the task, or return. Never marks anything.
+- `Loop(ctx, name, goal, planner)`, `Tasks`, structured `Task`, `Err`.
+  Backlog file: markdown with YAML frontmatter, immutable goal, and revisable
+  tasks. Per dispatch: reload, ask the planner, yield a child scope containing
+  the selected task, and carry that scope's recorded result into the next
+  decision. Validation is ordinary workflow code. Ending dispatch never marks
+  the goal fulfilled.
 - `Run` and `Project`. `Project` is the runs directory only; `Run` opens
   the root scope, calls the body, ends it. No `Serve`, no `Start`.
 - `cmd/sprint`: `sprint.Sprint(ctx, in Input)` in `sprint/sprints.go`,
   gated as `docs/definition-of-done.md` says. A researcher primed once on
   `API.md` and the code; a `Loop` whose goal is the sprint's section of
   this file with the definition of done, and whose planner is forked from
-  the researcher; each lap a coder forked from the researcher, one
-  supervisor on it that steers and never gates, the lap committed when `go
-  vet ./...` and `go test ./...` pass and left in the tree for the planner
-  otherwise. When the planner is done, a validator checks that the sprint
-  is legitimately demonstrated; its objections are another loop. Then the
+  the researcher; each task gets a coder forked from the researcher, one
+  supervisor that steers and never gates, explicit task validation, and the
+  repository checks. Passing work is committed and failed work remains in the
+  tree for the planner to respond to. When the planner is done, a validator
+  checks that the sprint is legitimately demonstrated; its objections are
+  another loop. Then the
   planner files what is left as issues and merges the branch with `gh`. No
-  bake-off: it multiplies every lap's cost, and a sprint does not need it.
+  bake-off: it multiplies every assignment's cost, and a sprint does not need it.
 - `Justfile` gains `vet`, `test`, `attest`. Tests: every primitive over a
   fake adapter. `just attest`: one workflow on `gpt-5.6-luna` and Haiku
   that touches every primitive once (a scope with data, a schema turn, a
   text turn, a steer that lands and one that drops, an interrupt, a fork,
-  a group of two, a supervised turn with an objection, a loop of two laps)
+  a group of two, a supervised turn with an objection, a loop of two tasks)
   and prints what it saw.
 
 Proof: Sprint 2 is built by `cmd/sprint`.
@@ -101,8 +104,8 @@ agent can read while it runs and after.
   ended, cancelled; `scopes/<loop key>/backlog.md` for a loop's file.
 - The typed `Event`: `seq`, `time`, scope key, session and turn ids when
   present, then the kind. Lifecycle: run started, ended, cancelled; scope
-  began, ended (a lap's began carries its task); loop command with exit
-  code, planner decision; set; session created (name, adapter, model,
+  began, ended (a task scope's began carries its task); planner decision;
+  set; session created (name, adapter, model,
   workdir, parent), closed; turn started (prompt, output type), ended
   (result or error, tokens, duration, interrupted); supervise attached;
   steer (target, message, source, landed or dropped); interrupt. Agent:
@@ -137,7 +140,7 @@ drawn as the graph.
   data and what `ScopeText` would say, siblings on a timeline with
   overlaps drawn as concurrent, sessions stacked under their node, turns
   with tokens and duration, transcripts coalesced by delta id, replayed
-  then live; the loop's backlog as the planner left it each lap.
+  then live; the loop's backlog as the planner left it after each dispatch.
 - Tests: skgo's three layers over `testdata/runs/` seeded with Sprint 2's
   real run; the typed-drift test on the form.
 
@@ -173,5 +176,5 @@ it from the page.
   `ScopeText` referencing large values by path.
 - `Compact` and restart: still open, see `API.md`.
 - Hierarchy, which Tyler asked to be reminded of once `Loop` exists: a
-  top `Loop` whose planner is the CEO and whose laps run sprint loops. A
+  top `Loop` whose planner is the CEO and whose assignments run sprint loops. A
   program, not a primitive. Its first job is running this list.

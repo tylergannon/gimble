@@ -224,7 +224,7 @@ func commandText(command string, code int, output string) string {
 	return fmt.Sprintf("$ %s\nexit %d\n%s", command, code, output)
 }
 
-const done = "Definition of done (docs/definition-of-done.md): the software actually works, and what this section asks for is 90-95%% built and committed in %s, with `go vet ./...` and `go test ./...` exiting 0 there and each part seen working in a test or a command. Gate on these requirements only, never on code quality. When this is true the goal is met, even with quirks left: they are filed as issues after the loop, not fixed in it. Give the two checks steps of their own, with those commands."
+const done = "Definition of done (docs/definition-of-done.md): the software actually works, and what this section asks for is 90-95%% built and committed in %s, with `go vet ./...` and `go test ./...` exiting 0 there and each part seen working in a test or a command. Gate on these requirements only, never on code quality. When this is true the goal is met, even with quirks left: they are filed as issues after the loop, not fixed in it."
 
 const researchPrompt = `You are about to lead the build of one sprint on this repository, Gimble, a Go library. Read AGENTS.md, docs/definition-of-done.md, ephemeral/research/api/API.md, ephemeral/research/api/SPRINTS.md, and the code the sprint below touches, until you know where everything it needs is. Change no files. Answer with a short summary of what exists and what the sprint needs.`
 

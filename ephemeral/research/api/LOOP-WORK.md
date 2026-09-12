@@ -61,8 +61,9 @@ The retained [live result](../../attest/issue125/result.txt) and
 `gpt-5.6-luna` planning and work plus an independent Claude Haiku PASS. The
 no-plan run carries the parent constraint and failed check into adaptive
 follow-up, preserves a real probe exit 7 as failure, and later records exit 0.
-The plan run demonstrates task selection only: it chooses the higher-priority
-export ahead of a nonblocking earlier typo; it does not claim the export was
+The plan run demonstrates adaptation of a supplied order: it advances the
+missing export despite a candidate plan that gates it on perfecting an already
+working phase with one nonblocking typo. It does not claim the export was
 implemented.
 
 Focused Loop tests cover the structured assignment, scoped feedback,

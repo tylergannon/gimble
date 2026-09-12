@@ -635,6 +635,41 @@ func TestLoopEndsTaskScopeOnBreak(t *testing.T) {
 	}
 }
 
+func TestLoopEndsTaskScopeOnCancellation(t *testing.T) {
+	task := Task{Name: "Wait", Description: "Observe cancellation while work is active.", DefinitionOfDone: "The active task stops with its parent."}
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
+		if err := writeTestBacklog(plannerBacklog(prompt), "wait", []Task{task}); err != nil {
+			return "", err
+		}
+		raw, err := json.Marshal(plan{Next: nullableTask(task)})
+		return string(raw), err
+	}}
+	ctx, cancel := context.WithCancel(t.Context())
+	var taskCtx context.Context
+	var worker *Session
+	err := Run(Project(ctx, t.TempDir()), "test", func(ctx context.Context) error {
+		planner := NewSession(ctx, "planner", f, "m", t.TempDir())
+		loop := Loop(ctx, "work", "wait", planner)
+		for ctx := range loop.Tasks {
+			taskCtx = ctx
+			worker = NewSession(ctx, "worker", f, "m", t.TempDir())
+			cancel()
+			<-ctx.Done()
+			break
+		}
+		return loop.Err()
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !errors.Is(taskCtx.Err(), context.Canceled) {
+		t.Fatalf("task context error = %v, want canceled", taskCtx.Err())
+	}
+	if _, err := worker.Generate[Text](taskCtx, "too late"); err == nil || !strings.Contains(err.Error(), "scope ended") {
+		t.Fatalf("task-owned session remained usable: %v", err)
+	}
+}
+
 func plannerBacklog(prompt string) string {
 	marker := "Its revisable backlog is "
 	rest := prompt[strings.Index(prompt, marker)+len(marker):]

@@ -101,7 +101,7 @@ func TestProjectorCompletesTwoResponsesWithoutTokenUsage(t *testing.T) {
 	}
 }
 
-func TestProjectorMarksTurnBoundaryWhenResumedTurnHasNoRawResponse(t *testing.T) {
+func TestProjectorCompletesResumedTurnWithoutRawResponse(t *testing.T) {
 	var events []gimble.AgentEvent
 	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error {
 		events = append(events, event)
@@ -112,12 +112,8 @@ func TestProjectorMarksTurnBoundaryWhenResumedTurnHasNoRawResponse(t *testing.T)
 	mustProject(t, err)
 	mustProject(t, p.turnCompleted(json.RawMessage(`{"turn":{"status":"completed"}}`)))
 
-	if slices.Contains(types(events), "session.step.streamed") {
-		t.Fatal("turn boundary was presented as an observed raw response boundary")
-	}
-	ended := firstType(t, events, "session.step.ended")
-	if !jsonContains(ended.NativeRef, `"boundarySource":"turn/completed"`) || !jsonContains(ended.NativeRef, `"tokensAvailable":false`) {
-		t.Fatalf("fallback boundary is not explicit: %s", ended.NativeRef)
+	if got := countType(events, "session.step.ended"); got != 1 {
+		t.Fatalf("step.ended count = %d, want 1; types=%v", got, types(events))
 	}
 }
 

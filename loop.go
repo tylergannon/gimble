@@ -198,7 +198,7 @@ func planPrompt(name, file, workdir, backlogText string, bad error, scoped, prev
 	var b strings.Builder
 	fmt.Fprintf(&b, "You plan the loop %q in %s. Its revisable backlog is %s.\n\n", name, workdir, file)
 	b.WriteString("Choose the next assignment that offers the greatest concrete gain toward the goal, based on current evidence, priorities, and real dependencies. Size it for one worker to understand, complete, and demonstrate in one working session. A later task may offer more gain than repairing a nonblocking earlier defect; keep deferred defects visible.\n\n")
-	b.WriteString("Treat recorded deterministic results as authoritative: a prose claim or agent judgment cannot override a nonzero command exit.\n\n")
+	b.WriteString("Treat recorded deterministic results as authoritative: a prose claim or agent judgment cannot override a nonzero command exit. If a check relevant to the goal or an assignment's Definition of Done failed and no later recorded run passed, work remains.\n\n")
 	b.WriteString("Inspect the workspace only to plan. Change only the backlog; do not perform or validate an assignment yourself.\n\n")
 	b.WriteString("Describe the desired result and necessary non-obvious facts. Trust the worker to choose the approach. Do not supply procedural checklists, obvious advice, speculative code, or a numerical progress score.\n\n")
 	b.WriteString("The backlog has immutable `goal` and a `tasks` list using the result schema. Edit it as the work changes. The exact task you return must remain in that list until its result is available on the next call. Return `next: null` to end dispatch; that does not certify that the goal is fulfilled.\n\n")

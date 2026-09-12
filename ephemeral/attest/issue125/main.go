@@ -38,12 +38,13 @@ func main() {
 	var evidence []string
 	var planChoice gimble.Task
 	var independent string
+	var firstProbeFailed, laterProbePassed bool
 	workerAdapter := codex.New()
 	err = gimble.Run(gimble.Project(ctx, dir), "loop-contract", func(ctx context.Context) error {
 		if err := gimble.Set(ctx, "prioritized promises", []string{
 			"The release check passes for the fixture's primary behavior.",
 			"The guide explains what READY means to a user.",
-			"After the controlled first probe failure, a later probe passes and establishes stability.",
+			"If the stability probe exposes a regression, the fixture is repaired and a later probe passes.",
 		}); err != nil {
 			return err
 		}
@@ -56,7 +57,7 @@ func main() {
 		}
 
 		planner := gimble.NewSession(ctx, "planner", workerAdapter, "gpt-5.6-luna", dir)
-		loop := gimble.Loop(ctx, "without-plan", "Satisfy every prioritized promise, including a passing stability probe after its controlled first failure.", planner)
+		loop := gimble.Loop(ctx, "without-plan", "Satisfy every prioritized promise, including repairing any regression exposed by the stability probe.", planner)
 		capped := false
 		count := 0
 		for taskCtx, task := range loop.Tasks {
@@ -65,15 +66,9 @@ func main() {
 				capped = true
 				break
 			}
-			var result gimble.Text
-			var workErr error
-			if strings.TrimSpace(task.Validation.Command) == "./probe.sh" {
-				result = "This assignment consists of gathering the declared deterministic evidence; the workflow executes it below."
-			} else {
-				worker := gimble.NewSession(taskCtx, "worker", workerAdapter, "gpt-5.6-luna", dir)
-				result, workErr = worker.Generate[gimble.Text](taskCtx,
-					"Complete this assignment. The workflow will gather validation after your turn.\n\n"+gimble.ScopeText(taskCtx))
-			}
+			worker := gimble.NewSession(taskCtx, "worker", workerAdapter, "gpt-5.6-luna", dir)
+			result, workErr := worker.Generate[gimble.Text](taskCtx,
+				"Complete this assignment. The workflow will gather validation after your turn.\n\n"+gimble.ScopeText(taskCtx))
 			if err := gimble.Set(taskCtx, "worker result", string(result)); err != nil {
 				return err
 			}
@@ -84,19 +79,20 @@ func main() {
 			}
 			controlledSetup := "unchanged"
 			if count == 1 {
-				if err := os.Remove(filepath.Join(dir, ".probe-seen")); err != nil && !errors.Is(err, os.ErrNotExist) {
+				if err := os.WriteFile(filepath.Join(dir, "stability.txt"), []byte("UNSTABLE\n"), 0o644); err != nil {
 					return err
 				}
-				controlledSetup = "cleared the transient marker immediately before the first recorded probe"
+				controlledSetup = "introduced the disclosed stability regression immediately before the first recorded probe"
 			}
 			if err := gimble.Set(taskCtx, "controlled fixture setup", controlledSetup); err != nil {
 				return err
 			}
 			probe := runCommand(taskCtx, dir, "./probe.sh")
-			if strings.Contains(probe, "exit 7") {
-				if err := gimble.Set(taskCtx, "authoritative promise status", "UNMET: the workflow-recorded stability probe exited 7, and no later workflow-recorded probe result exists yet."); err != nil {
-					return err
-				}
+			if count == 1 && strings.Contains(probe, "exit 7") {
+				firstProbeFailed = true
+			}
+			if count > 1 && strings.Contains(probe, "exit 0") {
+				laterProbePassed = true
 			}
 			requested := "not requested"
 			if strings.TrimSpace(task.Validation.Command) != "" {
@@ -122,14 +118,18 @@ func main() {
 			return errors.New("planner did not end dispatch within four tasks")
 		}
 		if count < 2 {
-			return fmt.Errorf("planner dispatched %d task; the controlled failed probe did not produce follow-up work", count)
+			return fmt.Errorf("planner dispatched %d task; the failed stability probe did not produce repair work", count)
+		}
+		if !firstProbeFailed || !laterProbePassed {
+			return fmt.Errorf("stability evidence incomplete: first failure=%t later pass=%t", firstProbeFailed, laterProbePassed)
 		}
 
 		if err := gimble.Scope(ctx, "with-plan", func(ctx context.Context) error {
-			if err := gimble.Set(ctx, "candidate sprint plan", "Phase 1: polish the optional status copy (87% complete; one nonblocking typo remains).\nPhase 2: implement the missing export, which has no dependency on the typo."); err != nil {
+			candidatePlan := "Phase 1: finish polishing the optional status copy before Phase 2 begins. The status display works and is 87% complete; one nonblocking typo remains.\nPhase 2: after Phase 1 is perfect, implement the missing public export required by downstream callers."
+			if err := gimble.Set(ctx, "candidate sprint plan", candidatePlan); err != nil {
 				return err
 			}
-			if err := gimble.Set(ctx, "priority", "A usable export is the primary promise; status-copy polish is secondary."); err != nil {
+			if err := gimble.Set(ctx, "current evidence", "The status display works despite its optional typo. A downstream caller cannot compile because the public export does not exist."); err != nil {
 				return err
 			}
 			planPlanner := gimble.NewSession(ctx, "planner", codex.New(), "gpt-5.6-luna", dir)
@@ -148,7 +148,10 @@ func main() {
 		if planChoice.Name == "" {
 			return errors.New("planner ended the plan-adaptation probe without selecting work")
 		}
-		evidence = append(evidence, fmt.Sprintf("Plan adaptation choice: %s\nDescription: %s\nDefinition of done: %s", planChoice.Name, planChoice.Description, planChoice.DefinitionOfDone))
+		if !strings.Contains(strings.ToLower(planChoice.Name+" "+planChoice.Description), "export") {
+			return fmt.Errorf("planner followed the candidate plan's Phase 1 gate instead of adapting toward the missing export: %+v", planChoice)
+		}
+		evidence = append(evidence, fmt.Sprintf("Candidate plan before dispatch: Phase 1 must be perfect before Phase 2 begins; Phase 1 works but has a nonblocking typo, while Phase 2's public export is absent.\nPlan adaptation selection (planning evidence only; the task is not claimed complete): %s\nDescription: %s\nDefinition of done: %s", planChoice.Name, planChoice.Description, planChoice.DefinitionOfDone))
 
 		summary := strings.Join(evidence, "\n\n")
 		if err := gimble.Set(ctx, "dispatch evidence", summary); err != nil {
@@ -160,9 +163,9 @@ func main() {
 		validator := gimble.NewSession(ctx, "validator", claude.New(), "haiku", dir)
 		assessment, err := validator.Generate[gimble.Text](ctx, `Judge the Loop proof in evidence.txt and the fixture itself. The proof passes only if:
 
-1. The no-plan dispatch received the parent constraint and a real failed check, chose useful follow-up work, and ended with ./check.sh passing.
-2. The controlled probe's first failure is disclosed rather than counted as a pass, and a later probe passes.
-3. The plan-adaptation assignment advances the higher-priority export even though an earlier phase has a nonblocking defect.
+1. The no-plan dispatch received the parent constraint and a real failed check, then sent a worker a useful repair assignment and ended with ./check.sh passing.
+2. The disclosed stability regression produced a real probe exit 7, and a later worker repaired the fixture so a later probe passed.
+3. The plan-adaptation dispatcher departs from the supplied Phase 1 gate by selecting the missing-export assignment even though the earlier phase has a nonblocking defect. This planning probe tests task selection, not task completion; do not require or infer that the export was implemented.
 4. The assignments are coherent one-session outcomes, with outcome-focused prose rather than pedantic implementation instructions.
 
 Inspect files and run checks as needed. Reply with PASS followed by a concise reason only when every condition is established; otherwise reply with FAIL and the missing evidence.`)
@@ -201,9 +204,10 @@ func assessmentPassed(text string) bool {
 
 func makeFixture(dir string) error {
 	files := map[string]string{
-		"go.mod":     "module example.com/calculator\n\ngo 1.27.1\n",
-		"status.txt": "BROKEN\n",
-		"guide.txt":  "Calculator guide\n",
+		"go.mod":        "module example.com/calculator\n\ngo 1.27.1\n",
+		"status.txt":    "BROKEN\n",
+		"guide.txt":     "Calculator guide\n",
+		"stability.txt": "STABLE\n",
 		"check.sh": `#!/bin/sh
 set -eu
 test "$(cat status.txt)" = READY
@@ -212,9 +216,8 @@ echo release-ready
 `,
 		"probe.sh": `#!/bin/sh
 set -eu
-if [ ! -f .probe-seen ]; then
-  touch .probe-seen
-  echo 'controlled first observation: re-run to establish stability'
+if [ "$(cat stability.txt)" != STABLE ]; then
+  echo 'stability regression: expected STABLE'
   exit 7
 fi
 ./check.sh
