@@ -1,4 +1,6 @@
-// Package gimble runs agent workflows written as ordinary Go.
+// Package gimble runs agent workflows written as ordinary Go, independently of
+// any particular agent host or coding-agent environment. A workflow can use
+// Codex, Claude Code, another harness, or an adapter supplied by its author.
 //
 // Project places the project directory in a context. Run uses that context to
 // establish the root scope and durable record for one workflow run.

@@ -1,7 +1,11 @@
 # Gimble
 
-Gimble is a Go library for writing agent workflows as ordinary Go. Its public
-programming contract is the root package's Godoc and compiling examples:
+Gimble is a Go library for writing agent workflows as ordinary Go. It is a
+host-neutral runtime: a workflow can drive Codex, Claude Code, another agent
+harness, or an adapter you provide. Gimble is not a feature of any one coding
+agent or development environment, and it can run wherever your Go program can
+run. Its public programming contract is the root package's Godoc and compiling
+examples:
 
 ```sh
 go doc -all github.com/tylergannon/gimble
