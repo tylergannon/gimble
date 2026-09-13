@@ -55,7 +55,12 @@ func New() gimble.HarnessAdapter {
 }
 
 // conn returns the shared connection, dialing it if there is none yet or
-// the last one's reader has failed (the daemon restarted).
+// the last one's reader has failed (the daemon restarted). A freshly
+// dialed connection resumes every thread this adapter already knows about
+// before it is handed to any caller: `turn/start` does not subscribe the
+// calling connection to a thread's notifications, only `thread/start`,
+// `thread/fork`, and `thread/resume` do, so a redialed connection that
+// skipped this would run turns that hang forever in readTurn.
 func (a *adapter) conn(ctx context.Context) (*connection, error) {
 	a.connMu.Lock()
 	defer a.connMu.Unlock()
@@ -66,8 +71,47 @@ func (a *adapter) conn(ctx context.Context) (*connection, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := a.resumeThreads(ctx, conn); err != nil {
+		return nil, err
+	}
 	a.sharedConn = conn
 	return conn, nil
+}
+
+// resumeThreads re-subscribes conn to every session this adapter has
+// created, so a connection that replaces a dead one keeps receiving turn
+// notifications for threads that already exist in the daemon. It is only
+// needed on redial: thread/start, thread/fork, and thread/resume already
+// subscribe the connection that made the call.
+func (a *adapter) resumeThreads(ctx context.Context, conn *connection) error {
+	a.mu.Lock()
+	sessions := make(map[string]*session, len(a.sessions))
+	for id, s := range a.sessions {
+		sessions[id] = s
+	}
+	a.mu.Unlock()
+	for id, s := range sessions {
+		callCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+		result, err := conn.call(callCtx, "thread/resume", map[string]any{
+			"threadId":       id,
+			"cwd":            s.workdir,
+			"approvalPolicy": "never",
+			"sandbox":        "danger-full-access",
+		})
+		cancel()
+		if err != nil {
+			return fmt.Errorf("codex: resume thread %s: %w", id, err)
+		}
+		resumed, err := threadID(result)
+		if err != nil {
+			return fmt.Errorf("codex: resume thread %s: %w", id, err)
+		}
+		if resumed != id {
+			return fmt.Errorf("codex: resume thread %s: daemon returned a different thread id %s", id, resumed)
+		}
+		conn.registerThread(id)
+	}
+	return nil
 }
 
 // CreateSession starts a Codex thread.

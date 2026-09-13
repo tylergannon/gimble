@@ -2,10 +2,11 @@
 // package attaches to the machine's one shared `codex app-server` daemon
 // instead of launching a process per thread or per turn: the daemon's pid
 // and the machine's app-server process set are identical before and after
-// a run that creates two Codex sessions, runs a turn on each, and forks one
-// of them without running a turn on the fork. It also confirms, straight
-// from the daemon over its own control socket, that the threads the run
-// created are loaded there.
+// a run that creates two Codex sessions, runs a first and a second turn on
+// one of them (the reuse path that replaced the old per-turn process),
+// forks that session, and runs a turn on the fork. It also confirms,
+// straight from the daemon over its own control socket, that the threads
+// the run created are loaded there.
 package main
 
 import (
@@ -82,7 +83,7 @@ func main() {
 	fmt.Printf("Before: daemon_pid=%s (err=%v) app_server_processes=%v (err=%v)\n", beforePID, beforePIDErr, beforeProcs, beforeProcsErr)
 
 	adapter := &recordingAdapter{inner: codex.New()}
-	var turn1, turn2 string
+	var turn1, turn1Again, turn2, forkTurn string
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -94,10 +95,30 @@ func main() {
 		}
 		turn1 = string(result)
 
+		// A second turn on the same session is the reuse path that
+		// replaced the old per-turn process: it must run on the one
+		// shared connection without a fresh thread/start.
+		result, err = first.Generate[gimble.Text](ctx, "Reply with exactly one short sentence naming a different prime number. No tools.")
+		if err != nil {
+			return fmt.Errorf("second turn on first session: %w", err)
+		}
+		turn1Again = string(result)
+
 		group := gimble.Group(ctx, "concurrent")
 		group.Go("fork", func(ctx context.Context) error {
-			_, err := first.Fork(ctx, "forked")
-			return err
+			fork, err := first.Fork(ctx, "forked")
+			if err != nil {
+				return err
+			}
+			// A turn on the fork, not just the fork itself, proves
+			// thread/fork's subscription covers running a real turn,
+			// not only creating the thread.
+			result, err := fork.Generate[gimble.Text](ctx, "Reply with exactly one short sentence naming a fruit. No tools.")
+			if err != nil {
+				return fmt.Errorf("turn on fork: %w", err)
+			}
+			forkTurn = string(result)
+			return nil
 		})
 		group.Go("second", func(ctx context.Context) error {
 			second := gimble.NewSession(ctx, "second", adapter, model, dir)
@@ -112,7 +133,9 @@ func main() {
 	})
 
 	fmt.Printf("Turn 1 answer: %q\n", turn1)
+	fmt.Printf("Turn 1 (second turn, same session) answer: %q\n", turn1Again)
 	fmt.Printf("Turn 2 answer: %q\n", turn2)
+	fmt.Printf("Fork turn answer: %q\n", forkTurn)
 	fmt.Printf("Run error: %v\n", runErr)
 
 	afterPID, afterPIDErr := daemonPID()
@@ -137,7 +160,7 @@ func main() {
 
 	samePID := beforePIDErr == nil && afterPIDErr == nil && beforePID != "" && beforePID == afterPID
 	sameProcs := beforeProcsErr == nil && afterProcsErr == nil && slices.Equal(beforeProcs, afterProcs)
-	ok := runErr == nil && turn1 != "" && turn2 != "" && samePID && sameProcs && allLoaded && len(createdThreads) == 3
+	ok := runErr == nil && turn1 != "" && turn1Again != "" && turn2 != "" && forkTurn != "" && samePID && sameProcs && allLoaded && len(createdThreads) == 3
 	fmt.Printf("Success: %v (same_daemon_pid=%v same_app_server_processes=%v)\n", ok, samePID, sameProcs)
 	if !ok {
 		os.Exit(1)

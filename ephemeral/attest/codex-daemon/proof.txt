@@ -1,65 +1,126 @@
-Proof for issue #143 (commit 1 of 2): the codex adapter attaches to the
-machine's one shared `codex app-server` daemon instead of launching a
-process per thread or per turn.
+Proof for issue #143 (commit 2 of 2, fixing round-01 review findings): the
+codex adapter attaches to the machine's one shared `codex app-server`
+daemon, reuses one WebSocket connection across every session and turn, and
+recovers from a dead connection by resuming every thread it knows about
+before handing the new connection to any caller.
 
-Model used: gpt-5.6-luna (Codex), the cheapest Codex model, for both turns.
+Model used: gpt-5.6-luna (Codex), the cheapest Codex model, for every turn
+in both the attest program and the live test below.
+
+## Finding 1 fix: a redialed connection now re-subscribes existing threads
+
+`adapter.conn` (codex/codex.go) now calls a new `resumeThreads` before
+handing out a freshly dialed connection: for every session the adapter
+knows about, it sends `thread/resume` with the same params the old
+per-process adapter used (`threadId`, `cwd`, `approvalPolicy: "never"`,
+`sandbox: "danger-full-access"`), checks the returned thread id matches,
+and registers the thread for routing on the new connection. If any resume
+fails, `conn(ctx)` returns that error rather than handing back a
+half-subscribed connection. `turn/start` alone was never enough: only
+`thread/start`, `thread/fork`, and `thread/resume` add the calling
+connection to a thread's subscriber set in the daemon.
+
+### Live proof, without restarting the daemon
+
+`codex/daemon_live_test.go` (`TestRunTurnAfterRedialResumesThread`, skipped
+unless `GIMBLE_LIVE=1`) creates a session, runs a turn, forcibly closes the
+adapter's current WebSocket from inside the test (`conn.ws.CloseNow()`,
+reached directly since the test is in package `codex`), waits for the
+reader to notice, then runs a second turn on the same session inside a
+bounded 60s context. Before the fix this hangs until the context expires
+(`turn/start` succeeds, but nothing routes its notifications); after the
+fix it passes well within the bound.
+
+Run with:
+
+    GIMBLE_LIVE=1 go test ./codex -run TestRunTurnAfterRedialResumesThread -v
+
+Passing output:
+
+    === RUN   TestRunTurnAfterRedialResumesThread
+    2026/09/12 21:30:47 gimble: run 20260912-213047.daemon-live started in /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/TestRunTurnAfterRedialResumesThread3418039722/001/runs/20260912-213047.daemon-live
+    2026/09/12 21:30:48 gimble: live.1: turn started (gpt-5.6-luna)
+    2026/09/12 21:30:51 gimble: live.1: turn ended after 3s: ok
+    2026/09/12 21:30:51 gimble: live.1: turn started (gpt-5.6-luna)
+    2026/09/12 21:30:53 gimble: live.1: turn ended after 3s: ok
+    2026/09/12 21:30:53 gimble: run 20260912-213047.daemon-live ended: ok
+    --- PASS: TestRunTurnAfterRedialResumesThread (6.07s)
+    PASS
+    ok  	github.com/tylergannon/gimble/codex	6.294s
+
+`pgrep -f 'app-server --listen unix'` returned the same two pids (the
+managed daemon and its launch wrapper) before and after this run: the test
+kills only the adapter's client-side WebSocket, never the daemon.
+
+## Finding 2 fix: the attest program now exercises the reuse contract
+
+`ephemeral/attest/codex-daemon/main.go` now runs a second turn on the
+first session (the reuse path that replaced the old per-turn process) and
+a first turn on that session's fork (previously the fork was created but
+never used for a turn), in addition to the original concurrent second
+session.
 
 Run with: go run ./ephemeral/attest/codex-daemon
 
 Output:
 
-Evidence directory: /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-codex-daemon-2858202750
+Evidence directory: /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-codex-daemon-2104268190
 Model: gpt-5.6-luna (Codex)
-Before: daemon_pid=1516 (err=<nil>) app_server_processes=[13055 1508 1516 24270] (err=<nil>)
-2026/09/12 19:43:14 gimble: run 20260912-194314.codex-daemon started in /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-codex-daemon-2858202750/runs/20260912-194314.codex-daemon
-2026/09/12 19:43:14 gimble: first.1: turn started (gpt-5.6-luna)
-2026/09/12 19:43:17 gimble: first.1: turn ended after 3s: ok
-2026/09/12 19:43:18 gimble: concurrent.1/second.1/second.1: turn started (gpt-5.6-luna)
-2026/09/12 19:43:18 gimble: concurrent.1/fork.1/forked.1: forked from first.1
-2026/09/12 19:43:21 gimble: concurrent.1/second.1/second.1: turn ended after 4s: ok
-2026/09/12 19:43:21 gimble: run 20260912-194314.codex-daemon ended: ok
+Before: daemon_pid=1516 (err=<nil>) app_server_processes=[13055 1508 1516 68604] (err=<nil>)
+2026/09/12 21:30:59 gimble: run 20260912-213059.codex-daemon started in /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-codex-daemon-2104268190/runs/20260912-213059.codex-daemon
+2026/09/12 21:30:59 gimble: first.1: turn started (gpt-5.6-luna)
+2026/09/12 21:31:03 gimble: first.1: turn ended after 4s: ok
+2026/09/12 21:31:03 gimble: first.1: turn started (gpt-5.6-luna)
+2026/09/12 21:31:05 gimble: first.1: turn ended after 2s: ok
+2026/09/12 21:31:05 gimble: concurrent.1/second.1/second.1: turn started (gpt-5.6-luna)
+2026/09/12 21:31:06 gimble: concurrent.1/fork.1/forked.1: forked from first.1
+2026/09/12 21:31:06 gimble: concurrent.1/fork.1/forked.1: turn started (gpt-5.6-luna)
+2026/09/12 21:31:08 gimble: concurrent.1/fork.1/forked.1: turn ended after 3s: ok
+2026/09/12 21:31:10 gimble: concurrent.1/second.1/second.1: turn ended after 5s: ok
+2026/09/12 21:31:10 gimble: run 20260912-213059.codex-daemon ended: ok
 Turn 1 answer: "Seven is a prime number."
+Turn 1 (second turn, same session) answer: "Eleven is a prime number."
 Turn 2 answer: "Blue."
+Fork turn answer: "Apple is a fruit."
 Run error: <nil>
-After: daemon_pid=1516 (err=<nil>) app_server_processes=[13055 1508 1516 24270] (err=<nil>)
-Threads created by this run: [01a0986e-d050-78f1-8296-93cab859bae8 01a0986e-de7f-7ea1-99d6-41f7e3d9bb77 01a0986e-de81-7f23-b81a-10e3949fa6c1]
-Daemon thread/loaded/list: [01a0923a-03a3-7f62-9e4a-e9edf0cb009d 01a0928a-adb2-7cc1-8689-0c69fe06d37c 01a0928b-87f2-7950-8c39-bffc9655d787 01a0939c-9b3f-7e01-9cd6-c4f6c91f2350 01a093ac-fece-7793-a6cd-292cefbcf94b 01a093c9-7aa6-7882-b800-ca9ce2629afd 01a09585-487d-7cf3-9983-88a1466c4b40 01a0986e-d050-78f1-8296-93cab859bae8 01a0986e-de7f-7ea1-99d6-41f7e3d9bb77 01a0986e-de81-7f23-b81a-10e3949fa6c1] (err=<nil>)
+After: daemon_pid=1516 (err=<nil>) app_server_processes=[13055 1508 1516 68604] (err=<nil>)
+Threads created by this run: [01a098d1-7762-7233-9af3-3f61396e580e 01a098d1-8fc2-7b20-ac8b-b75049ca0b2d 01a098d1-8fc2-7b20-ac8b-b779185c2240]
+Daemon thread/loaded/list: [01a0923a-03a3-7f62-9e4a-e9edf0cb009d 01a0928a-adb2-7cc1-8689-0c69fe06d37c 01a0928b-87f2-7950-8c39-bffc9655d787 01a0939c-9b3f-7e01-9cd6-c4f6c91f2350 01a093ac-fece-7793-a6cd-292cefbcf94b 01a093c9-7aa6-7882-b800-ca9ce2629afd 01a09585-487d-7cf3-9983-88a1466c4b40 01a098d1-4a07-74a1-b261-bf3286c48a9b 01a098d1-7762-7233-9af3-3f61396e580e 01a098d1-8fc2-7b20-ac8b-b75049ca0b2d 01a098d1-8fc2-7b20-ac8b-b779185c2240] (err=<nil>)
 All created threads loaded in the shared daemon: true
 Success: true (same_daemon_pid=true same_app_server_processes=true)
 
 Reading the evidence:
 
-- daemon_pid is 1516 before and after: the shared daemon (started by
-  `codex app-server daemon start`/`... version`, matched via
-  `pgrep -f 'app-server --listen unix'`, filtered to the pid whose command
-  actually starts with `codex ` rather than the `/bin/sh` launch wrapper
-  that also matches the same grep) never restarted.
+- daemon_pid is 1516 before and after, matching the daemon pid from
+  `pgrep -f 'app-server --listen unix'` immediately before and after this
+  whole attestation session: the shared daemon never restarted.
 - app_server_processes (every pid on the machine whose command line
-  mentions app-server: the managed daemon 1516, its `/bin/sh` launch
-  wrapper 1508, the separate ChatGPT.app app-server 13055 that this
-  adapter never touches, and an unrelated `codex app-server proxy` 24270)
-  is byte-for-byte identical before and after: no new app-server process
-  was spawned by creating two sessions, running two turns, and forking one
-  of them.
-- Three threads were created (the first session, its fork, and the second,
-  concurrent session) and `thread/loaded/list`, queried straight from the
-  daemon over its own control socket independently of the codex package,
-  includes all three alongside threads left loaded from earlier, unrelated
-  daemon activity (Codex Desktop and prior runs) -- proof the threads live
-  in the shared daemon, not in a process this adapter owns.
-- Both turns returned text ("Seven is a prime number." and "Blue.") and
-  the run completed with no error.
+  mentions app-server) is identical before and after: no new app-server
+  process was spawned by two sessions, four turns, and one fork.
+- The second turn on `first` ("Eleven is a prime number.") ran on the same
+  connection and thread as the first turn, without a new thread/start:
+  this is the reuse path finding 2 said was unexercised.
+- The fork turn ("Apple is a fruit.") proves thread/fork's subscription
+  covers running a real turn on the fork, not only creating the thread.
+- Three threads were created and `thread/loaded/list`, queried straight
+  from the daemon over its own control socket independently of the codex
+  package, includes all three alongside threads left loaded from earlier,
+  unrelated daemon activity (Codex Desktop and prior runs).
+- All four turns returned text and the run completed with no error.
 
-What was left out and why:
+## What was left out and why
 
-- No `thread/resume` fallback for a "thread not loaded" `turn/start`
-  failure (for example, after the daemon restarts between turns) was
-  added. The task allowed leaving it out if detecting that failure mode
-  is not simple, and it is not: `turn/start` gives no reliable, documented
-  error shape for "this thread is not loaded" versus any other failure,
-  and provoking a real daemon restart to observe it would mean stopping
-  the one shared daemon other clients (Codex Desktop) depend on, which is
-  exactly what this change must never do. The adapter still recovers from
-  a dead connection (redials the shared daemon on the next call), which
-  covers the daemon-restart case for the connection itself; only the
-  "resume a thread the fresh daemon has not loaded" fallback is left out.
+- A WebSocket-connections-opened counter was not added. Doing so would
+  require either exporting a new field/method from the unexported
+  `adapter`/`connection` types or widening the `HarnessAdapter` interface,
+  and the caller's instructions reserve interface and lifecycle changes
+  (including `Close`) for a separate commit. The live test above already
+  demonstrates the redial path directly (it forces the exact connection
+  loss the counter would otherwise be inferred from), so the counter would
+  add confirmation, not new coverage, at the cost of exporting something
+  new. Both the attest program and the live test observe daemon and
+  connection identity by other means: the daemon pid and app-server
+  process set (attest program) and the redial itself, since the live test
+  waits on `conn.readDone` before its second turn (live test).
+- `HarnessAdapter.Close` and any adapter-lifecycle cleanup remain
+  unaddressed by design; that is explicitly the next commit's scope.
