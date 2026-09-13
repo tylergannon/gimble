@@ -1,4 +1,7 @@
 import { SessionProjection, type JSONObject, type JSONValue, type ProjectionState, type Snapshot } from '../sessionstate/index.js'
+import type { Usage } from '../skgo/observation/types.js'
+
+export type { Usage }
 
 export type RunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
 export type RunSession = { name: string; adapter: string; model: string; scope: string; parent?: string }
@@ -6,7 +9,7 @@ export type InvocationSnapshot = { scope: string; session: string; turn: string;
 /** One scope instance's workflow state. An ended scope with no error is 'ended', never 'succeeded'. */
 export type ScopeInfo = { name: string; status: 'running' | 'ended'; error?: string; task?: JSONValue; values?: Record<string, JSONValue>; decisions?: JSONValue[] }
 export type RunSnapshot = {
-	run: { id: string; name: string; status: RunStatus; error?: string; sessions: Record<string, RunSession> }
+	run: { id: string; name: string; status: RunStatus; error?: string; sessions: Record<string, RunSession>; usage?: Record<string, Usage> }
 	scopes: Record<string, ScopeInfo>
 	invocations: Record<string, InvocationSnapshot>
 }
@@ -16,6 +19,9 @@ export type ObservationFrame =
 	| { type: 'event'; data: { scope: string; session: string; turn: string; event: JSONObject; nativeRef?: JSONValue } }
 	| { type: 'lifecycle'; data: LifecycleRecord }
 export type Invocation = Omit<InvocationSnapshot, 'snapshot'> & { projection: SessionProjection }
+
+/** The native event that carries a session's running total. */
+const usageUpdated = 'session.usage.updated'
 
 const emptySnapshot = (): Snapshot => ({ state: { info: {}, family: {}, active: {}, message: {}, pending: {}, permission: {}, form: {} } })
 const clone = <T>(value: T): T => structuredClone(value)
@@ -67,6 +73,10 @@ export class RunObservation {
 					this.invocations.set(value.turn, invocation)
 				}
 				invocation.projection.apply(value.event)
+				// The session's running total lives on the run, keyed by placement
+				// session, exactly as the Go store folds it: set semantics, the
+				// latest event is the total so far.
+				if (value.event.type === usageUpdated) (this.run.usage ??= {})[value.session] = usageOf(value.event.data)
 				foldProvenance(invocation.provenance, value.event, value.nativeRef)
 				break
 			}
@@ -137,11 +147,26 @@ export function foldProvenance(target: Record<string, unknown>, event: JSONObjec
 	if (messageID) target[messageID] = clone(nativeRef)
 }
 
-export function accounting(message: JSONObject, provenance: unknown): string {
-	const sidecar = typeof provenance === 'object' && provenance !== null ? provenance as JSONObject : {}
-	const availability = typeof sidecar.accounting === 'object' && sidecar.accounting !== null ? sidecar.accounting as JSONObject : {}
-	const cost = availability.costAvailable === true && message.cost !== undefined ? String(message.cost) : 'unavailable'
-	const tokens = availability.tokensAvailable === true && message.tokens !== undefined ? JSON.stringify(message.tokens) : 'unavailable'
-	if (cost === 'unavailable' && tokens === 'unavailable') return 'unavailable'
-	return `cost ${cost}; tokens ${tokens}`
+/** The five token counts and the cost of one message or session, zero-filled.
+ * A count a harness did not report is 0: zero is a number, and nothing here
+ * says whether it was measured. */
+export function usageOf(value: JSONObject | undefined): Usage {
+	const tokens = (value?.tokens ?? {}) as JSONObject
+	const cache = (tokens.cache ?? {}) as JSONObject
+	return {
+		cost: numberOf(value?.cost),
+		tokens: {
+			input: numberOf(tokens.input),
+			output: numberOf(tokens.output),
+			reasoning: numberOf(tokens.reasoning),
+			cache: { read: numberOf(cache.read), write: numberOf(cache.write) }
+		}
+	}
 }
+
+/** One line of usage, for a message, a session total or a scope. */
+export const usageText = (usage: Usage): string =>
+	`${usage.tokens.input} in · ${usage.tokens.output} out · ${usage.tokens.reasoning} reasoning · ` +
+	`${usage.tokens.cache.read} cache read · ${usage.tokens.cache.write} cache write · $${usage.cost}`
+
+const numberOf = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0)

@@ -15,8 +15,9 @@ func (*exampleAdapter) CreateSession(context.Context, string, string) (string, e
 	return "example-session", nil
 }
 
-func (a *exampleAdapter) RunTurn(_ context.Context, _ string, prompt string, schema json.RawMessage, emit func(gimble.AgentEvent) error) (json.RawMessage, error) {
-	return json.Marshal("done")
+func (a *exampleAdapter) RunTurn(_ context.Context, _ string, prompt string, schema json.RawMessage, emit func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+	out, err := json.Marshal("done")
+	return gimble.TurnResult{Output: out}, err
 }
 
 func (*exampleAdapter) Steer(context.Context, string, string) error { return nil }
@@ -85,12 +86,12 @@ func (*exampleLoopAdapter) CreateSession(context.Context, string, string) (strin
 	return "example-planner", nil
 }
 
-func (a *exampleLoopAdapter) RunTurn(_ context.Context, _ string, _ string, _ json.RawMessage, _ func(gimble.AgentEvent) error) (json.RawMessage, error) {
+func (a *exampleLoopAdapter) RunTurn(_ context.Context, _ string, _ string, _ json.RawMessage, _ func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
 	a.turns++
 	if a.turns > 1 {
-		return json.RawMessage(`{"tasks":[],"next":null}`), nil
+		return gimble.TurnResult{Output: json.RawMessage(`{"tasks":[],"next":null}`)}, nil
 	}
-	return json.RawMessage(`{"tasks":[{"name":"Show the task","description":"Make the structured assignment visible to the workflow.","definition_of_done":"The workflow receives and records the assignment.","validation":{"command":"","query":""}}],"next":0}`), nil
+	return gimble.TurnResult{Output: json.RawMessage(`{"tasks":[{"name":"Show the task","description":"Make the structured assignment visible to the workflow.","definition_of_done":"The workflow receives and records the assignment.","validation":{"command":"","query":""}}],"next":0}`)}, nil
 }
 
 func (*exampleLoopAdapter) Steer(context.Context, string, string) error { return nil }

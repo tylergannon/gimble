@@ -22,6 +22,7 @@ import (
 // fake is a HarnessAdapter whose turns are answered by a function.
 type fake struct {
 	answer func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error)
+	report map[string]Usage // the harness's own turn report, when this fake states one
 
 	mu      sync.Mutex
 	made    int
@@ -36,7 +37,7 @@ func (f *fake) CreateSession(ctx context.Context, model, workdir string) (string
 	return "native-" + string(rune('0'+f.made)), nil
 }
 
-func (f *fake) RunTurn(ctx context.Context, session, prompt string, schema json.RawMessage, onEvent func(AgentEvent) error) (json.RawMessage, error) {
+func (f *fake) RunTurn(ctx context.Context, session, prompt string, schema json.RawMessage, onEvent func(AgentEvent) error) (TurnResult, error) {
 	f.mu.Lock()
 	if f.running == nil {
 		f.running = map[string]func(AgentEvent) error{}
@@ -50,12 +51,13 @@ func (f *fake) RunTurn(ctx context.Context, session, prompt string, schema json.
 	}()
 	out, err := f.answer(ctx, session, prompt, schema, onEvent)
 	if err != nil {
-		return nil, err
+		return TurnResult{}, err
 	}
+	result := TurnResult{Output: json.RawMessage(out), Usage: f.report}
 	if len(schema) == 0 {
-		return json.Marshal(out)
+		result.Output, err = json.Marshal(out)
 	}
-	return json.RawMessage(out), nil
+	return result, err
 }
 
 func (f *fake) Steer(ctx context.Context, session, message string) error {

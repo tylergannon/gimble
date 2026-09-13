@@ -41,13 +41,17 @@ type SessionInfo struct {
 	Parent  string `json:"parent,omitempty"`
 }
 
-// RunInfo is the run and its sessions.
+// RunInfo is the run, its sessions, and each session's usage so far.
 type RunInfo struct {
 	ID       string                 `json:"id"`
 	Name     string                 `json:"name"`
 	Status   string                 `json:"status"`
 	Error    string                 `json:"error,omitempty"`
 	Sessions map[string]SessionInfo `json:"sessions"`
+	// Usage is each session's latest running total, keyed the same way
+	// Sessions is. It rides in the snapshot so a finished run answers for
+	// its usage from its checkpoint, exactly as a live one does.
+	Usage map[string]Usage `json:"usage"`
 }
 
 // Invocation is one turn's placement, its complete session projection
