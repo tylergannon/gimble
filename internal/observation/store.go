@@ -74,6 +74,7 @@ func Open(registry *Registry, id, name, dir string) *Store {
 			Name:     name,
 			Status:   StatusRunning,
 			Sessions: map[string]SessionInfo{},
+			Usage:    map[string]Usage{},
 		},
 		invocations: map[string]*invocation{},
 		subs:        map[*Subscription]struct{}{},
@@ -165,6 +166,9 @@ func (s *Store) Event(at Placement, envelope, nativeRef json.RawMessage) error {
 	}
 	inv := s.invocationLocked(at)
 	inv.projection.Apply(event)
+	if kind, _ := event.Get("type").(string); kind == usageUpdated {
+		s.foldUsageLocked(at, envelope)
+	}
 	s.foldProvenanceLocked(inv, ref, nativeRef)
 
 	s.publishLocked(Frame{Name: FrameEvent, Data: mustMarshal(eventFrame{
@@ -196,11 +200,16 @@ func (s *Store) Snapshot() RunSnapshot {
 
 func (s *Store) snapshotLocked() RunSnapshot {
 	out := RunSnapshot{
-		Run:         RunInfo{ID: s.run.ID, Name: s.run.Name, Status: s.run.Status, Error: s.run.Error, Sessions: make(map[string]SessionInfo, len(s.run.Sessions))},
+		Run: RunInfo{ID: s.run.ID, Name: s.run.Name, Status: s.run.Status, Error: s.run.Error,
+			Sessions: make(map[string]SessionInfo, len(s.run.Sessions)),
+			Usage:    make(map[string]Usage, len(s.run.Usage))},
 		Invocations: make(map[string]Invocation, len(s.invocations)),
 	}
 	for id, info := range s.run.Sessions {
 		out.Run.Sessions[id] = info
+	}
+	for id, usage := range s.run.Usage {
+		out.Run.Usage[id] = usage
 	}
 	for turn, inv := range s.invocations {
 		out.Invocations[turn] = Invocation{

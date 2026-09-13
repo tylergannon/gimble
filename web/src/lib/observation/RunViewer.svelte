@@ -53,7 +53,7 @@
 		<header>
 			<div><h2>{session?.name ?? invocation.session}</h2><p>{session?.adapter ?? 'agent'} · {session?.model ?? 'model unavailable'}</p></div>
 		</header>
-		{#if state}<SessionTimeline {state} {revision} {observation} turn={invocation.turn} provenance={invocation.provenance} />{/if}
+		{#if state}<SessionTimeline {state} {revision} {observation} turn={invocation.turn} />{/if}
 	</section>
 {/each}
 {#if views.length === 0}<p>No agent turns have started.</p>{/if}

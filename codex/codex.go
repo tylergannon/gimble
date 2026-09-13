@@ -67,10 +67,11 @@ func (a *adapter) Fork(ctx context.Context, sessionID string) (string, error) {
 		return "", err
 	}
 	return a.thread(ctx, "thread/fork", map[string]any{
-		"threadId":       sessionID,
-		"cwd":            parent.workdir,
-		"approvalPolicy": "never",
-		"sandbox":        "danger-full-access",
+		"threadId":              sessionID,
+		"cwd":                   parent.workdir,
+		"approvalPolicy":        "never",
+		"sandbox":               "danger-full-access",
+		"experimentalRawEvents": true,
 	}, &session{model: parent.model, workdir: parent.workdir})
 }
 
@@ -100,15 +101,17 @@ func (a *adapter) thread(ctx context.Context, method string, params map[string]a
 	return id, nil
 }
 
-// RunTurn runs one turn on the thread and blocks until it ends.
-func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent) error) (json.RawMessage, error) {
+// RunTurn runs one turn on the thread and blocks until it ends. The result
+// carries no usage: Codex states no cost and no per-model turn report beyond
+// the steps, so the session accounts for the turn from its step events.
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
-		return nil, err
+		return gimble.TurnResult{}, err
 	}
 	conn, err := s.open(ctx, sessionID)
 	if err != nil {
-		return nil, err
+		return gimble.TurnResult{}, err
 	}
 	defer conn.close()
 
@@ -128,13 +131,13 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	cancel()
 	if err != nil {
 		if ctx.Err() != nil {
-			return nil, ctx.Err()
+			return gimble.TurnResult{}, ctx.Err()
 		}
-		return nil, err
+		return gimble.TurnResult{}, err
 	}
 	turn, err := turnID(result)
 	if err != nil {
-		return nil, err
+		return gimble.TurnResult{}, err
 	}
 
 	active := &activeTurn{conn: conn, turnID: turn, emit: newProjector(sessionID, turn, s.model, onEvent)}
@@ -147,15 +150,16 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		drainCtx, drainCancel := context.WithTimeout(context.Background(), controlTimeout)
 		_, _ = readTurn(drainCtx, conn, sessionID, turn, active.emit)
 		drainCancel()
-		return nil, ctx.Err()
+		return gimble.TurnResult{}, ctx.Err()
 	}
 	if err != nil {
-		return nil, err
+		return gimble.TurnResult{}, err
 	}
 	if len(schema) == 0 {
-		return json.Marshal(text)
+		out, err := json.Marshal(text)
+		return gimble.TurnResult{Output: out}, err
 	}
-	return json.RawMessage(strings.TrimSpace(text)), nil
+	return gimble.TurnResult{Output: json.RawMessage(strings.TrimSpace(text))}, nil
 }
 
 // Steer sends message into the thread's running turn, if there is one.
@@ -236,10 +240,11 @@ func (s *session) open(ctx context.Context, id string) (*connection, error) {
 	callCtx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 	result, err := conn.call(callCtx, "thread/resume", map[string]any{
-		"threadId":       id,
-		"cwd":            s.workdir,
-		"approvalPolicy": "never",
-		"sandbox":        "danger-full-access",
+		"threadId":              id,
+		"cwd":                   s.workdir,
+		"approvalPolicy":        "never",
+		"sandbox":               "danger-full-access",
+		"experimentalRawEvents": true,
 	})
 	if err != nil {
 		conn.close()
@@ -304,6 +309,10 @@ func readTurn(ctx context.Context, conn *connection, threadID, turnID string, em
 			}
 		case "rawResponse/completed":
 			if err := emit.rawResponseCompleted(message.Params); err != nil {
+				return "", err
+			}
+		case "thread/tokenUsage/updated":
+			if err := emit.tokenUsageUpdated(message.Params); err != nil {
 				return "", err
 			}
 		case "turn/completed":

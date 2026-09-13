@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { RunObservation, accounting, foldProvenance, type RunSnapshot } from './index.ts'
+import { RunObservation, foldProvenance, usageOf, usageText, type RunSnapshot } from './index.ts'
 import type { Snapshot } from '../sessionstate/index.ts'
 
 const projection = (): Snapshot => ({
@@ -42,15 +42,26 @@ test('message revision survives a following lifecycle frame', () => {
 	assert.equal(observation.messageRevision('turn', 'message'), changed)
 })
 
-test('accounting distinguishes unavailable from measured zero', () => {
-	assert.equal(accounting({}, undefined), 'unavailable')
-	assert.equal(accounting({ cost: 0, tokens: { input: 0 } }, undefined), 'unavailable')
-	assert.equal(accounting({ cost: 0, tokens: { input: 0 } }, { accounting: { costAvailable: true, tokensAvailable: true, costSource: 'provider' } }), 'cost 0; tokens {"input":0}')
+test('usage is five zero-filled token counts and a cost, whatever the harness reported', () => {
+	assert.deepEqual(usageOf(undefined), { cost: 0, tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } } })
+	assert.deepEqual(usageOf({ cost: 0.25, tokens: { input: 10, output: 2, reasoning: 3, cache: { read: 4, write: 5 } } }),
+		{ cost: 0.25, tokens: { input: 10, output: 2, reasoning: 3, cache: { read: 4, write: 5 } } })
+	// A field the harness never reported reads as the number zero, with no
+	// wording about availability anywhere in the line.
+	assert.equal(usageText(usageOf({ tokens: { input: 7 } })), '7 in · 0 out · 0 reasoning · 0 cache read · 0 cache write · $0')
+})
+
+test('a session total is the running total the reducer folded into session info', () => {
+	const observation = new RunObservation(snapshot())
+	const connection = observation.beginConnection()
+	const usage = { cost: 0.5, tokens: { input: 12, output: 3, reasoning: 1, cache: { read: 6, write: 7 } } }
+	observation.apply({ type: 'event', data: { scope: 'lap', session: 'ses', turn: 'turn', event: { id: 'usage', created: 4, type: 'session.usage.updated', data: { sessionID: 'ses', ...usage } } } }, connection)
+	assert.deepEqual(usageOf(observation.state('turn')?.info.ses), usage)
 })
 
 test('provenance keys the latest native sidecar by normalized message ID', () => {
 	const provenance: Record<string, unknown> = {}
-	foldProvenance(provenance, { data: { assistantMessageID: 'source-id' } }, { normalizedMessageID: 'msg_canonical', messageID: 'provider-id', accounting: { costAvailable: false, tokensAvailable: false, costSource: 'unavailable' } })
+	foldProvenance(provenance, { data: { assistantMessageID: 'source-id' } }, { normalizedMessageID: 'msg_canonical', messageID: 'provider-id' })
 	assert.deepEqual(Object.keys(provenance), ['msg_canonical'])
 	assert.equal((provenance.msg_canonical as { messageID: string }).messageID, 'provider-id')
 })
