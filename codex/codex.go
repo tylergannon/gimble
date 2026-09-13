@@ -31,6 +31,11 @@ type adapter struct {
 
 	mu       sync.Mutex
 	sessions map[string]*session
+
+	// onUnsubscribe, when set, is called with the status thread/unsubscribe
+	// returned for a thread. It exists only so a live test can observe the
+	// daemon's response; production adapters never set it.
+	onUnsubscribe func(threadID, status string)
 }
 
 type session struct {
@@ -265,6 +270,49 @@ func (a *adapter) Interrupt(ctx context.Context, sessionID string) error {
 	return nil
 }
 
+// Close deregisters sessionID's notification routing and asks the daemon to
+// stop notifying this connection about it, with thread/unsubscribe. The
+// thread itself stays loaded in the daemon: only this adapter's
+// subscription ends. It never sends thread/archive or thread/delete, and
+// it never touches the shared connection or the daemon process. Idempotent:
+// an unknown id, a session with no connection yet, or an already-dead
+// shared connection all return nil.
+func (a *adapter) Close(ctx context.Context, sessionID string) error {
+	a.mu.Lock()
+	_, known := a.sessions[sessionID]
+	delete(a.sessions, sessionID)
+	a.mu.Unlock()
+	if !known {
+		return nil
+	}
+	a.connMu.Lock()
+	conn := a.sharedConn
+	a.connMu.Unlock()
+	if conn == nil || conn.dead() {
+		return nil
+	}
+	conn.unregisterThread(sessionID)
+	callCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+	result, err := conn.call(callCtx, "thread/unsubscribe", map[string]any{"threadId": sessionID})
+	if err != nil {
+		return fmt.Errorf("codex: unsubscribe thread %s: %w", sessionID, err)
+	}
+	status, err := unsubscribeStatus(result)
+	if err != nil {
+		return fmt.Errorf("codex: unsubscribe thread %s: %w", sessionID, err)
+	}
+	if a.onUnsubscribe != nil {
+		a.onUnsubscribe(sessionID, status)
+	}
+	switch status {
+	case "unsubscribed", "notSubscribed", "notLoaded":
+		return nil
+	default:
+		return fmt.Errorf("codex: unsubscribe thread %s: unexpected status %q", sessionID, status)
+	}
+}
+
 func (a *adapter) session(id string) (*session, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -415,6 +463,19 @@ func turnID(raw json.RawMessage) (string, error) {
 		return "", errors.New("codex: the response has no turn.id")
 	}
 	return response.Turn.ID, nil
+}
+
+func unsubscribeStatus(raw json.RawMessage) (string, error) {
+	var response struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(raw, &response); err != nil {
+		return "", fmt.Errorf("codex: decode unsubscribe response: %w", err)
+	}
+	if response.Status == "" {
+		return "", errors.New("codex: the unsubscribe response has no status")
+	}
+	return response.Status, nil
 }
 
 func completedTurn(raw json.RawMessage) (status, failure string) {

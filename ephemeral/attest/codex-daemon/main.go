@@ -70,6 +70,10 @@ func (a *recordingAdapter) Steer(ctx context.Context, sessionID, message string)
 	return a.inner.Steer(ctx, sessionID, message)
 }
 
+func (a *recordingAdapter) Close(ctx context.Context, sessionID string) error {
+	return a.inner.Close(ctx, sessionID)
+}
+
 func main() {
 	dir, err := os.MkdirTemp("", "gimble-codex-daemon-")
 	if err != nil {
