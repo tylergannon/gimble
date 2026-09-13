@@ -72,6 +72,10 @@ func (a *adapter) conn(ctx context.Context) (*connection, error) {
 		return nil, err
 	}
 	if err := a.resumeThreads(ctx, conn); err != nil {
+		// The connection is initialized and its reader is running; drop
+		// it so a failed redial does not leave a subscribed client and a
+		// goroutine behind. The daemon itself is untouched.
+		_ = conn.ws.CloseNow()
 		return nil, err
 	}
 	a.sharedConn = conn

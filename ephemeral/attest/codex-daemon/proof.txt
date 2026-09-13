@@ -110,17 +110,22 @@ Reading the evidence:
 
 ## What was left out and why
 
-- A WebSocket-connections-opened counter was not added. Doing so would
-  require either exporting a new field/method from the unexported
-  `adapter`/`connection` types or widening the `HarnessAdapter` interface,
-  and the caller's instructions reserve interface and lifecycle changes
-  (including `Close`) for a separate commit. The live test above already
-  demonstrates the redial path directly (it forces the exact connection
-  loss the counter would otherwise be inferred from), so the counter would
-  add confirmation, not new coverage, at the cost of exporting something
-  new. Both the attest program and the live test observe daemon and
-  connection identity by other means: the daemon pid and app-server
-  process set (attest program) and the redial itself, since the live test
-  waits on `conn.readDone` before its second turn (live test).
+- The attest program does not count WebSocket connections: it runs outside
+  package codex and cannot see the adapter's connection. Connection
+  identity is observed instead by the in-package live test, which holds
+  the `*connection` pointer after the first turn, asserts an ordinary
+  second turn left it unchanged (one connection for every turn), then
+  kills it and asserts the third turn ran on a different one (redial with
+  resume). Round-2 review run, 2026-09-12, gpt-5.6-luna, daemon pid 1516
+  before and after:
+
+    === RUN   TestRunTurnAfterRedialResumesThread
+    --- PASS: TestRunTurnAfterRedialResumesThread (7.23s)
+    PASS
+    ok  	github.com/tylergannon/gimble/codex	7.491s
+
+- A redial whose thread/resume fails now closes the connection it just
+  dialed before returning the error, so retrying does not accumulate
+  subscribed clients in the daemon or reader goroutines in the process.
 - `HarnessAdapter.Close` and any adapter-lifecycle cleanup remain
   unaddressed by design; that is explicitly the next commit's scope.

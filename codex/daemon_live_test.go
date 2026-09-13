@@ -49,30 +49,51 @@ func TestRunTurnAfterRedialResumesThread(t *testing.T) {
 		if strings.TrimSpace(string(first)) == "" {
 			t.Fatal("first turn returned no text")
 		}
-
-		// Kill the connection the first turn used, the same way an
-		// ordinary network blip or the daemon-side idle timeout would.
-		// The next call must redial and, per the fix, resume this
-		// thread before running the next turn on it.
-		ad.connMu.Lock()
-		conn := ad.sharedConn
-		ad.connMu.Unlock()
+		conn := ad.current()
 		if conn == nil {
-			t.Fatal("adapter has no connection to kill")
+			t.Fatal("adapter has no connection after the first turn")
 		}
-		conn.ws.CloseNow()
-		<-conn.readDone // wait for the reader to notice, so the next call redials deterministically
 
+		// An ordinary second turn reuses the connection the first turn
+		// dialed: this is the one-connection contract, observed directly
+		// rather than inferred from process counts.
 		second, err := session.Generate[gimble.Text](ctx, "Reply with exactly one word: two.")
 		if err != nil {
 			return err
 		}
 		if strings.TrimSpace(string(second)) == "" {
-			t.Fatal("second turn (after redial) returned no text")
+			t.Fatal("second turn returned no text")
+		}
+		if ad.current() != conn {
+			t.Fatal("an ordinary second turn opened a new connection instead of reusing the first")
+		}
+
+		// Kill that connection, the same way a network blip or the
+		// daemon-side idle timeout would. The next call must redial and,
+		// per the fix, resume this thread before running a turn on it.
+		conn.ws.CloseNow()
+		<-conn.readDone // wait for the reader to notice, so the next call redials deterministically
+
+		third, err := session.Generate[gimble.Text](ctx, "Reply with exactly one word: three.")
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(string(third)) == "" {
+			t.Fatal("third turn (after redial) returned no text")
+		}
+		if ad.current() == conn {
+			t.Fatal("the turn after the kill ran on the dead connection")
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+// current returns the adapter's shared connection without dialing.
+func (a *adapter) current() *connection {
+	a.connMu.Lock()
+	defer a.connMu.Unlock()
+	return a.sharedConn
 }
