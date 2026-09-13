@@ -65,3 +65,14 @@ test('provenance keys the latest native sidecar by normalized message ID', () =>
 	assert.deepEqual(Object.keys(provenance), ['msg_canonical'])
 	assert.equal((provenance.msg_canonical as { messageID: string }).messageID, 'provider-id')
 })
+
+test('a usage.updated frame is the session running total on the run, replaced by the next one', () => {
+	const observation = new RunObservation(snapshot())
+	const connection = observation.beginConnection()
+	const first = { cost: 0.5, tokens: { input: 12, output: 3, reasoning: 1, cache: { read: 6, write: 7 } } }
+	const second = { cost: 1.25, tokens: { input: 30, output: 9, reasoning: 2, cache: { read: 8, write: 0 } } }
+	observation.apply({ type: 'event', data: { scope: 'lap', session: 'ses', turn: 'turn', event: { id: 'usage-1', created: 4, type: 'session.usage.updated', data: { sessionID: 'ses_native', ...first } } } }, connection)
+	assert.deepEqual(observation.run.usage?.ses, first)
+	observation.apply({ type: 'event', data: { scope: 'lap', session: 'ses', turn: 'turn', event: { id: 'usage-2', created: 5, type: 'session.usage.updated', data: { sessionID: 'ses_native', ...second } } } }, connection)
+	assert.deepEqual(observation.run.usage?.ses, second)
+})

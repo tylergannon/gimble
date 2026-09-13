@@ -11,8 +11,15 @@
 		return [...new Set([...Object.keys(state.message), ...Object.keys(state.pending), ...Object.keys(state.active)])].map((sessionID) => {
 			const messages = state.message[sessionID] ?? [];
 			const pending = new Map((state.pending[sessionID] ?? []).map((input) => [input.id, input]));
-			return { sessionID, messages, pending, total: usageOf(state.info[sessionID]), unmatchedPending: [...pending.values()].filter((input) => !messages.some((message) => message.id === input.id)) };
+			return { sessionID, messages, pending, unmatchedPending: [...pending.values()].filter((input) => !messages.some((message) => message.id === input.id)) };
 		});
+	});
+	// The session's running total is the run's, keyed by the turn's placement
+	// session -- the same map the Go store folds `session.usage.updated` into.
+	// An absent entry zero-fills through usageOf.
+	const total = $derived.by(() => {
+		revision;
+		return usageOf(observation.run.usage?.[observation.invocations.get(turn)?.session ?? '']);
 	});
 </script>
 
@@ -20,7 +27,7 @@
 	{#each sessions as session (session.sessionID)}
 		<section class="native-session" data-session-id={session.sessionID}>
 			<header class="session-header"><code>{session.sessionID}</code><span>{state.active[session.sessionID] ?? 'idle'}</span></header>
-			<p class="session-total">{usageText(session.total)}</p>
+			<p class="session-total">{usageText(total)}</p>
 			{#each session.messages as message (message.id)}
 				<MessageRow {message} pending={session.pending.get(message.id)} revision={observation.messageRevision(turn, message.id)} />
 			{/each}

@@ -17,6 +17,9 @@ export type ObservationFrame =
 	| { type: 'lifecycle'; data: LifecycleRecord }
 export type Invocation = Omit<InvocationSnapshot, 'snapshot'> & { projection: SessionProjection }
 
+/** The native event that carries a session's running total. */
+const usageUpdated = 'session.usage.updated'
+
 const emptySnapshot = (): Snapshot => ({ state: { info: {}, family: {}, active: {}, message: {}, pending: {}, permission: {}, form: {} } })
 const clone = <T>(value: T): T => structuredClone(value)
 
@@ -62,6 +65,10 @@ export class RunObservation {
 					this.invocations.set(value.turn, invocation)
 				}
 				invocation.projection.apply(value.event)
+				// The session's running total lives on the run, keyed by placement
+				// session, exactly as the Go store folds it: set semantics, the
+				// latest event is the total so far.
+				if (value.event.type === usageUpdated) (this.run.usage ??= {})[value.session] = usageOf(value.event.data)
 				foldProvenance(invocation.provenance, value.event, value.nativeRef)
 				break
 			}
