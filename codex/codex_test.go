@@ -20,9 +20,12 @@ func TestCloseIsIdempotentForAnUnknownSession(t *testing.T) {
 }
 
 // TestCloseOnADeadConnectionDropsLocalRoutingState: when the shared
-// connection's reader has already failed there is no daemon to talk to, but
-// Close must still release everything the adapter holds locally: the
-// session entry and the thread's routing channel on that connection.
+// connection's reader has already failed, Close must still release
+// everything the adapter holds locally (the session entry and the thread's
+// routing channel on that connection) before it tries to reach the daemon.
+// The cleanup context here is already cancelled, so the redial cannot
+// succeed: Close must then report the archive it could not do rather than
+// return nil, and the local state must be gone regardless.
 func TestCloseOnADeadConnectionDropsLocalRoutingState(t *testing.T) {
 	ad := New().(*adapter)
 	conn := &connection{threads: make(map[string]chan rpcMessage), readDone: make(chan struct{})}
@@ -31,8 +34,10 @@ func TestCloseOnADeadConnectionDropsLocalRoutingState(t *testing.T) {
 	ad.sharedConn = conn
 	ad.sessions["thread-1"] = &session{}
 
-	if err := ad.Close(context.Background(), "thread-1"); err != nil {
-		t.Fatalf("Close = %v, want nil", err)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := ad.Close(ctx, "thread-1"); err == nil {
+		t.Fatal("Close = nil, want an error: the archive could not run on a cancelled cleanup context")
 	}
 	if n := len(ad.sessions); n != 0 {
 		t.Fatalf("sessions after Close = %d, want 0", n)

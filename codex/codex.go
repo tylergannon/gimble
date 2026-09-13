@@ -272,13 +272,15 @@ func (a *adapter) Interrupt(ctx context.Context, sessionID string) error {
 	return nil
 }
 
-// Close deregisters sessionID's notification routing and asks the daemon to
-// stop notifying this connection about it, with thread/unsubscribe. The
-// thread itself stays loaded in the daemon: only this adapter's
-// subscription ends. It never sends thread/archive or thread/delete, and
-// it never touches the shared connection or the daemon process. Idempotent:
-// an unknown id, a session with no connection yet, or an already-dead
-// shared connection all return nil.
+// Close forgets sessionID locally and archives its thread in the daemon.
+// Archiving unloads the thread, releasing the MCP children and descriptors
+// it held in the shared daemon; unsubscribing would leave all of that
+// loaded. The archive goes over a live connection: if the adapter's socket
+// has died, Close redials through conn (the daemon is usually still up) so
+// a dead client socket cannot leak a thread while reporting success. It
+// never stops or restarts the daemon. Idempotent: an unknown or already
+// closed id returns nil without a network call, and the daemon's "no
+// rollout found" for an already-archived thread is success.
 func (a *adapter) Close(ctx context.Context, sessionID string) error {
 	a.mu.Lock()
 	_, known := a.sessions[sessionID]
@@ -287,24 +289,17 @@ func (a *adapter) Close(ctx context.Context, sessionID string) error {
 	if !known {
 		return nil
 	}
+	// Local routing state goes first, whatever the connection's health, so
+	// even a failed archive leaves nothing of this thread in the process.
 	a.connMu.Lock()
-	conn := a.sharedConn
+	if a.sharedConn != nil {
+		a.sharedConn.unregisterThread(sessionID)
+	}
 	a.connMu.Unlock()
-	if conn == nil {
-		return nil
+	conn, err := a.conn(ctx)
+	if err != nil {
+		return fmt.Errorf("codex: archive thread %s: %w", sessionID, err)
 	}
-	// Local routing state goes first, whatever the connection's health: a
-	// dead connection has nothing to say to the daemon, but it must not keep
-	// the thread's channel alive either.
-	conn.unregisterThread(sessionID)
-	if conn.dead() {
-		return nil
-	}
-	// Archive, not unsubscribe. An unsubscribed thread stays loaded in the
-	// shared daemon with its MCP children and their pipes (about a dozen
-	// descriptors per thread against a 256 limit); archiving unloads it.
-	// The daemon answers "no rollout found" when the thread is already
-	// archived or deleted, which is the state Close wants.
 	callCtx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 	if _, err := conn.call(callCtx, "thread/archive", map[string]any{"threadId": sessionID}); err != nil && !strings.Contains(err.Error(), "no rollout found") {

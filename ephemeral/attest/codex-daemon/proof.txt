@@ -207,10 +207,23 @@ Reading the evidence:
   that were loaded before the run.
 - The managed daemon's pid was 1516 before and after: Close never stopped
   or restarted the shared daemon.
-- The dead-connection branch, where Close must still drop the routing entry
-  without a daemon call, is covered without a daemon in
-  `codex/codex_test.go`'s `TestCloseOnADeadConnectionDropsLocalRoutingState`
-  (round-01 review finding on this commit).
+- Round-02 review found that Close on a dead client socket dropped local
+  state and returned nil without archiving, leaking the thread in a daemon
+  that was still up. Close now archives through `adapter.conn`, the same
+  redial path turns use, so a dead socket redials and archives; if the
+  redial itself fails, Close returns the error and the run records it.
+  `TestCloseArchivesThroughARedialedConnection` runs a turn, kills the
+  adapter's socket, and lets the scope end with no further turn:
+
+      === RUN   TestCloseArchivesThroughARedialedConnection
+          daemon_live_test.go:284: thread 01a098f3-5e1c-79b1-b398-c26dc6ca31d6 archived through the redialed connection and unloaded from the daemon
+          daemon_live_test.go:292: daemon pid before=1516 after=1516 (unchanged)
+      --- PASS: TestCloseArchivesThroughARedialedConnection (3.93s)
+
+  Without a daemon, `codex/codex_test.go`'s
+  `TestCloseOnADeadConnectionDropsLocalRoutingState` gives Close a dead
+  connection and an already-cancelled cleanup context: local maps are
+  empty afterwards and Close returns an error rather than a false success.
 
 ### What was left out and why
 

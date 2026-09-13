@@ -217,6 +217,81 @@ func TestCloseArchivesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 	t.Logf("daemon pid before=%s after=%s (unchanged)", beforePID, afterPID)
 }
 
+// TestCloseArchivesThroughARedialedConnection covers the intersection the
+// two tests above leave open: the adapter's socket dies after a turn, and
+// the scope then ends with no further turn. Close must not take the dead
+// socket as permission to skip the archive; it redials (the daemon is still
+// up) and archives through the new connection, so the thread is unloaded
+// from the daemon exactly as on the healthy path.
+//
+//	GIMBLE_LIVE=1 go test ./codex -run TestCloseArchivesThroughARedialedConnection -v
+func TestCloseArchivesThroughARedialedConnection(t *testing.T) {
+	if os.Getenv("GIMBLE_LIVE") != "1" {
+		t.Skip("set GIMBLE_LIVE=1 to run against the live codex app-server daemon")
+	}
+	beforePID, err := managedDaemonPID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ad := New().(*adapter)
+	var mu sync.Mutex
+	var archived []string
+	ad.onArchive = func(threadID string) {
+		mu.Lock()
+		defer mu.Unlock()
+		archived = append(archived, threadID)
+	}
+
+	dir := t.TempDir()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	ctx = gimble.Project(ctx, dir)
+
+	var dead *connection
+	err = gimble.Run(ctx, "daemon-close-redial-live", func(ctx context.Context) error {
+		session := gimble.NewSession(ctx, "live", ad, "gpt-5.6-luna", dir)
+		if _, err := session.Generate[gimble.Text](ctx, "Reply with exactly one word: proof."); err != nil {
+			return err
+		}
+		dead = ad.current()
+		dead.ws.CloseNow()
+		<-dead.readDone
+		return nil // the scope ends here; Close runs on a dead socket
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	archivedIDs := slices.Clone(archived)
+	mu.Unlock()
+	if len(archivedIDs) != 1 {
+		t.Fatalf("archived threads = %v, want exactly the one session", archivedIDs)
+	}
+	conn := ad.current()
+	if conn == nil || conn == dead {
+		t.Fatal("Close did not redial: no live connection after the run")
+	}
+	callCtx, cancelCall := context.WithTimeout(context.Background(), requestTimeout)
+	loadedRaw, err := conn.call(callCtx, "thread/loaded/list", map[string]any{})
+	cancelCall()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(loadedThreadIDs(loadedRaw), archivedIDs[0]) {
+		t.Fatalf("thread %s is still loaded in the daemon after Close on a dead socket", archivedIDs[0])
+	}
+	t.Logf("thread %s archived through the redialed connection and unloaded from the daemon", archivedIDs[0])
+	afterPID, err := managedDaemonPID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if beforePID != afterPID {
+		t.Fatalf("daemon pid changed from %s to %s", beforePID, afterPID)
+	}
+	t.Logf("daemon pid before=%s after=%s (unchanged)", beforePID, afterPID)
+}
+
 // loadedThreadIDs decodes thread/loaded/list's result, whose entries have
 // appeared as a bare id, {"id":...}, or {"thread":{"id":...}}.
 func loadedThreadIDs(raw json.RawMessage) []string {
