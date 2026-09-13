@@ -3,6 +3,7 @@ package codex
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -63,15 +64,24 @@ type daemonVersion struct {
 	SocketPath string `json:"socketPath"`
 }
 
-// connect finds or starts the machine's shared app-server daemon, dials its
-// socket, and completes the JSON-RPC handshake. It never stops or restarts
-// the daemon: other clients (Codex Desktop included) share it.
-func connect(ctx context.Context) (*connection, error) {
+// errDaemonNotRunning is connect's answer when the daemon is down and the
+// caller did not ask to start it.
+var errDaemonNotRunning = errors.New("codex: app-server daemon is not running")
+
+// connect finds the machine's shared app-server daemon, dials its socket,
+// and completes the JSON-RPC handshake. With startDaemon it starts the
+// daemon if none is running; without it, a stopped daemon is
+// errDaemonNotRunning. It never stops or restarts the daemon: other clients
+// (Codex Desktop included) share it.
+func connect(ctx context.Context, startDaemon bool) (*connection, error) {
 	socketPath, running, err := daemonStatus(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if !running {
+		if !startDaemon {
+			return nil, errDaemonNotRunning
+		}
 		if _, err := runCodex(ctx, "app-server", "daemon", "start"); err != nil {
 			return nil, fmt.Errorf("codex: start app-server daemon: %w", err)
 		}

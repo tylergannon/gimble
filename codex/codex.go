@@ -69,12 +69,18 @@ func New() gimble.HarnessAdapter {
 // `thread/fork`, and `thread/resume` do, so a redialed connection that
 // skipped this would run turns that hang forever in readTurn.
 func (a *adapter) conn(ctx context.Context) (*connection, error) {
+	return a.connection(ctx, true)
+}
+
+// connection is conn with a choice about a stopped daemon: turns start it,
+// Close does not.
+func (a *adapter) connection(ctx context.Context, startDaemon bool) (*connection, error) {
 	a.connMu.Lock()
 	defer a.connMu.Unlock()
 	if a.sharedConn != nil && !a.sharedConn.dead() {
 		return a.sharedConn, nil
 	}
-	conn, err := connect(ctx)
+	conn, err := connect(ctx, startDaemon)
 	if err != nil {
 		return nil, err
 	}
@@ -276,11 +282,13 @@ func (a *adapter) Interrupt(ctx context.Context, sessionID string) error {
 // Archiving unloads the thread, releasing the MCP children and descriptors
 // it held in the shared daemon; unsubscribing would leave all of that
 // loaded. The archive goes over a live connection: if the adapter's socket
-// has died, Close redials through conn (the daemon is usually still up) so
-// a dead client socket cannot leak a thread while reporting success. It
-// never stops or restarts the daemon. Idempotent: an unknown or already
-// closed id returns nil without a network call, and the daemon's "no
-// rollout found" for an already-archived thread is success.
+// has died, Close redials (the daemon is usually still up) so a dead client
+// socket cannot leak a thread while reporting success. It never starts,
+// stops, or restarts the daemon: a daemon that is not running holds nothing
+// for this thread, so that case is a successful Close with no call.
+// Idempotent: an unknown or already closed id returns nil without a network
+// call, and the daemon's "no rollout found" for an already-archived thread
+// is success.
 func (a *adapter) Close(ctx context.Context, sessionID string) error {
 	a.mu.Lock()
 	_, known := a.sessions[sessionID]
@@ -296,7 +304,10 @@ func (a *adapter) Close(ctx context.Context, sessionID string) error {
 		a.sharedConn.unregisterThread(sessionID)
 	}
 	a.connMu.Unlock()
-	conn, err := a.conn(ctx)
+	conn, err := a.connection(ctx, false)
+	if errors.Is(err, errDaemonNotRunning) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("codex: archive thread %s: %w", sessionID, err)
 	}

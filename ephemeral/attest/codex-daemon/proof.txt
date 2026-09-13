@@ -147,12 +147,17 @@ ended.
 The Codex adapter's `Close` (codex/codex.go) removes the session from
 `a.sessions`, deregisters the thread from the shared connection's routing
 table (`connection.unregisterThread`, the counterpart to `registerThread`)
-whether or not that connection is still alive, and then, only if the
-connection's reader has not failed, sends `thread/archive {"threadId": id}`
-on it. It never touches the connection or the daemon process itself. An
-unknown id (never registered, or already closed) returns nil without a
-network call, and the daemon's "no rollout found" answer for a thread
-someone else already archived is treated as success.
+whether or not that connection is still alive, and then sends
+`thread/archive {"threadId": id}` over a live connection: the shared one if
+its reader is healthy, otherwise a redial through the same path turns use,
+because a dead client socket does not mean the daemon or the thread is
+gone. The redial for Close never starts a daemon: if `daemon version`
+reports it stopped, the thread holds nothing anywhere and Close returns
+nil without a call (`TestCloseNeverStartsAStoppedDaemon` proves this with
+a fake `codex` on PATH). It never stops or restarts the daemon. An unknown
+id (never registered, or already closed) returns nil without a network
+call, and the daemon's "no rollout found" answer for a thread someone else
+already archived is treated as success.
 
 Why archive rather than unsubscribe: the first version of this commit used
 `thread/unsubscribe`, and the live run showed both threads still in
