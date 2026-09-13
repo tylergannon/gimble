@@ -1,0 +1,65 @@
+Proof for issue #143 (commit 1 of 2): the codex adapter attaches to the
+machine's one shared `codex app-server` daemon instead of launching a
+process per thread or per turn.
+
+Model used: gpt-5.6-luna (Codex), the cheapest Codex model, for both turns.
+
+Run with: go run ./ephemeral/attest/codex-daemon
+
+Output:
+
+Evidence directory: /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-codex-daemon-2858202750
+Model: gpt-5.6-luna (Codex)
+Before: daemon_pid=1516 (err=<nil>) app_server_processes=[13055 1508 1516 24270] (err=<nil>)
+2026/09/12 19:43:14 gimble: run 20260912-194314.codex-daemon started in /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-codex-daemon-2858202750/runs/20260912-194314.codex-daemon
+2026/09/12 19:43:14 gimble: first.1: turn started (gpt-5.6-luna)
+2026/09/12 19:43:17 gimble: first.1: turn ended after 3s: ok
+2026/09/12 19:43:18 gimble: concurrent.1/second.1/second.1: turn started (gpt-5.6-luna)
+2026/09/12 19:43:18 gimble: concurrent.1/fork.1/forked.1: forked from first.1
+2026/09/12 19:43:21 gimble: concurrent.1/second.1/second.1: turn ended after 4s: ok
+2026/09/12 19:43:21 gimble: run 20260912-194314.codex-daemon ended: ok
+Turn 1 answer: "Seven is a prime number."
+Turn 2 answer: "Blue."
+Run error: <nil>
+After: daemon_pid=1516 (err=<nil>) app_server_processes=[13055 1508 1516 24270] (err=<nil>)
+Threads created by this run: [01a0986e-d050-78f1-8296-93cab859bae8 01a0986e-de7f-7ea1-99d6-41f7e3d9bb77 01a0986e-de81-7f23-b81a-10e3949fa6c1]
+Daemon thread/loaded/list: [01a0923a-03a3-7f62-9e4a-e9edf0cb009d 01a0928a-adb2-7cc1-8689-0c69fe06d37c 01a0928b-87f2-7950-8c39-bffc9655d787 01a0939c-9b3f-7e01-9cd6-c4f6c91f2350 01a093ac-fece-7793-a6cd-292cefbcf94b 01a093c9-7aa6-7882-b800-ca9ce2629afd 01a09585-487d-7cf3-9983-88a1466c4b40 01a0986e-d050-78f1-8296-93cab859bae8 01a0986e-de7f-7ea1-99d6-41f7e3d9bb77 01a0986e-de81-7f23-b81a-10e3949fa6c1] (err=<nil>)
+All created threads loaded in the shared daemon: true
+Success: true (same_daemon_pid=true same_app_server_processes=true)
+
+Reading the evidence:
+
+- daemon_pid is 1516 before and after: the shared daemon (started by
+  `codex app-server daemon start`/`... version`, matched via
+  `pgrep -f 'app-server --listen unix'`, filtered to the pid whose command
+  actually starts with `codex ` rather than the `/bin/sh` launch wrapper
+  that also matches the same grep) never restarted.
+- app_server_processes (every pid on the machine whose command line
+  mentions app-server: the managed daemon 1516, its `/bin/sh` launch
+  wrapper 1508, the separate ChatGPT.app app-server 13055 that this
+  adapter never touches, and an unrelated `codex app-server proxy` 24270)
+  is byte-for-byte identical before and after: no new app-server process
+  was spawned by creating two sessions, running two turns, and forking one
+  of them.
+- Three threads were created (the first session, its fork, and the second,
+  concurrent session) and `thread/loaded/list`, queried straight from the
+  daemon over its own control socket independently of the codex package,
+  includes all three alongside threads left loaded from earlier, unrelated
+  daemon activity (Codex Desktop and prior runs) -- proof the threads live
+  in the shared daemon, not in a process this adapter owns.
+- Both turns returned text ("Seven is a prime number." and "Blue.") and
+  the run completed with no error.
+
+What was left out and why:
+
+- No `thread/resume` fallback for a "thread not loaded" `turn/start`
+  failure (for example, after the daemon restarts between turns) was
+  added. The task allowed leaving it out if detecting that failure mode
+  is not simple, and it is not: `turn/start` gives no reliable, documented
+  error shape for "this thread is not loaded" versus any other failure,
+  and provoking a real daemon restart to observe it would mean stopping
+  the one shared daemon other clients (Codex Desktop) depend on, which is
+  exactly what this change must never do. The adapter still recovers from
+  a dead connection (redials the shared daemon on the next call), which
+  covers the daemon-restart case for the connection itself; only the
+  "resume a thread the fresh daemon has not loaded" fallback is left out.

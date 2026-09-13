@@ -1,7 +1,9 @@
 // Package codex is Gimble's HarnessAdapter for Codex, through `codex
-// app-server`. Each turn runs in its own app-server process that resumes
-// the thread; the process that started or forked a thread is kept for its
-// first turn, because a thread with no turn is not yet resumable.
+// app-server`. The adapter attaches to the one shared app-server daemon
+// already running on the machine: it never launches its own app-server
+// process, and it never stops or restarts the daemon, because other
+// clients (Codex Desktop included) share it. Threads stay loaded in the
+// daemon for the life of the machine's daemon process, not this adapter.
 package codex
 
 import (
@@ -21,8 +23,12 @@ const (
 	controlTimeout = 5 * time.Second
 )
 
-// adapter runs Codex sessions.
+// adapter runs Codex sessions against the machine's shared app-server
+// daemon over one shared connection, dialed lazily on first use.
 type adapter struct {
+	connMu     sync.Mutex
+	sharedConn *connection
+
 	mu       sync.Mutex
 	sessions map[string]*session
 }
@@ -32,7 +38,6 @@ type session struct {
 	workdir string
 
 	mu     sync.Mutex
-	fresh  *connection // the process that made the thread, until its first turn
 	active *activeTurn
 }
 
@@ -42,10 +47,27 @@ type activeTurn struct {
 	emit   *projector
 }
 
-// New returns Gimble's Codex harness. It launches `codex app-server --stdio`
-// when a session first needs it.
+// New returns Gimble's Codex harness. It attaches to the machine's shared
+// `codex app-server` daemon on first use, starting it (idempotently) if it
+// is not already running.
 func New() gimble.HarnessAdapter {
 	return &adapter{sessions: make(map[string]*session)}
+}
+
+// conn returns the shared connection, dialing it if there is none yet or
+// the last one's reader has failed (the daemon restarted).
+func (a *adapter) conn(ctx context.Context) (*connection, error) {
+	a.connMu.Lock()
+	defer a.connMu.Unlock()
+	if a.sharedConn != nil && !a.sharedConn.dead() {
+		return a.sharedConn, nil
+	}
+	conn, err := connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	a.sharedConn = conn
+	return conn, nil
 }
 
 // CreateSession starts a Codex thread.
@@ -74,10 +96,10 @@ func (a *adapter) Fork(ctx context.Context, sessionID string) (string, error) {
 	}, &session{model: parent.model, workdir: parent.workdir})
 }
 
-// thread calls a method that makes a thread and keeps its process for the
-// thread's first turn.
+// thread calls a method that makes a thread and registers the returned
+// thread id for notification routing before returning it.
 func (a *adapter) thread(ctx context.Context, method string, params map[string]any, s *session) (string, error) {
-	conn, err := start(ctx)
+	conn, err := a.conn(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -85,15 +107,13 @@ func (a *adapter) thread(ctx context.Context, method string, params map[string]a
 	defer cancel()
 	result, err := conn.call(callCtx, method, params)
 	if err != nil {
-		conn.close()
 		return "", err
 	}
 	id, err := threadID(result)
 	if err != nil {
-		conn.close()
 		return "", err
 	}
-	s.fresh = conn
+	conn.registerThread(id)
 	a.mu.Lock()
 	a.sessions[id] = s
 	a.mu.Unlock()
@@ -106,11 +126,11 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	if err != nil {
 		return nil, err
 	}
-	conn, err := s.open(ctx, sessionID)
+	conn, err := a.conn(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer conn.close()
+	ch := conn.registerThread(sessionID)
 
 	params := map[string]any{
 		"threadId":       sessionID,
@@ -141,11 +161,11 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	s.setActive(active)
 	defer s.setActive(nil)
 
-	text, err := readTurn(ctx, conn, sessionID, turn, active.emit)
+	text, err := readTurn(ctx, conn, ch, sessionID, turn, active.emit)
 	if ctx.Err() != nil {
 		interrupt(conn, sessionID, turn)
 		drainCtx, drainCancel := context.WithTimeout(context.Background(), controlTimeout)
-		_, _ = readTurn(drainCtx, conn, sessionID, turn, active.emit)
+		_, _ = readTurn(drainCtx, conn, ch, sessionID, turn, active.emit)
 		drainCancel()
 		return nil, ctx.Err()
 	}
@@ -218,40 +238,6 @@ func (s *session) getActive() *activeTurn {
 	return s.active
 }
 
-// open returns a process attached to the thread: the one that made it if
-// no turn has used it yet, otherwise a new one that resumes the thread.
-// The caller closes it.
-func (s *session) open(ctx context.Context, id string) (*connection, error) {
-	s.mu.Lock()
-	fresh := s.fresh
-	s.fresh = nil
-	s.mu.Unlock()
-	if fresh != nil {
-		return fresh, nil
-	}
-	conn, err := start(ctx)
-	if err != nil {
-		return nil, err
-	}
-	callCtx, cancel := context.WithTimeout(ctx, requestTimeout)
-	defer cancel()
-	result, err := conn.call(callCtx, "thread/resume", map[string]any{
-		"threadId":       id,
-		"cwd":            s.workdir,
-		"approvalPolicy": "never",
-		"sandbox":        "danger-full-access",
-	})
-	if err != nil {
-		conn.close()
-		return nil, err
-	}
-	if resumed, err := threadID(result); err != nil || resumed != id {
-		conn.close()
-		return nil, fmt.Errorf("codex: thread/resume of %s returned %q: %v", id, resumed, err)
-	}
-	return conn, nil
-}
-
 func interrupt(conn *connection, threadID, turnID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), controlTimeout)
 	defer cancel()
@@ -262,12 +248,12 @@ func input(text string) []map[string]any {
 	return []map[string]any{{"type": "text", "text": text, "text_elements": []any{}}}
 }
 
-// readTurn consumes notifications until the turn completes and returns the
-// agent's final message.
-func readTurn(ctx context.Context, conn *connection, threadID, turnID string, emit *projector) (string, error) {
+// readTurn consumes notifications from the thread's routed channel until
+// the turn completes and returns the agent's final message.
+func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadID, turnID string, emit *projector) (string, error) {
 	var final string
 	for {
-		message, err := conn.next(ctx)
+		message, err := conn.next(ctx, ch)
 		if err != nil {
 			return "", err
 		}
