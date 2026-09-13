@@ -74,12 +74,9 @@ func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ..
 
 func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent func(AgentEvent) error, outputType string) (T, error) {
 	var out T
-	raw, err := s.turn(ctx, prompt, out.Schema(), onEvent, outputType)
+	raw, err := s.turn(ctx, prompt, out.Schema(), onEvent, outputType, out.ValidateJSON)
 	if err != nil {
 		return out, err
-	}
-	if err := out.ValidateJSON(raw); err != nil {
-		return out, fmt.Errorf("gimble: %s: the result does not validate: %w", s.id, err)
 	}
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return out, fmt.Errorf("gimble: %s: decode the result: %w", s.id, err)
@@ -87,7 +84,10 @@ func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent 
 	return out, nil
 }
 
-func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessage, onEvent func(AgentEvent) error, outputType string) (json.RawMessage, error) {
+// turn runs one agent turn and records its outcome. validate, if any, is the
+// typed output's check: the turn is recorded as failed when the result does
+// not validate, because that is what the turn produced.
+func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessage, onEvent func(AgentEvent) error, outputType string, validate func([]byte) error) (json.RawMessage, error) {
 	s.mu.Lock()
 	if err := s.usable(); err != nil {
 		s.mu.Unlock()
@@ -206,6 +206,16 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}
 	if terminalErr := wrapped(nativeEvent("session.execution.succeeded", map[string]any{"sessionID": native}, map[string]any{"provider": "gimble", "sessionID": native, "turnID": turnID})); terminalErr != nil {
 		return nil, fmt.Errorf("gimble: %s: complete execution: %w", s.id, terminalErr)
+	}
+	// The harness succeeded, so its native events stand; only the turn's own
+	// recorded outcome carries the validation failure.
+	if validate != nil {
+		if err := validate(result.Output); err != nil {
+			if scope != nil {
+				scope.run.event(scope.key, s.id, turnID, TurnEnded{Result: JSONText(result.Output), Error: err.Error(), Usage: report, Duration: time.Since(start)})
+			}
+			return nil, fmt.Errorf("gimble: %s: the result does not validate: %w", s.id, err)
+		}
 	}
 	if scope != nil {
 		scope.run.event(scope.key, s.id, turnID, TurnEnded{Result: JSONText(result.Output), Usage: report, Duration: time.Since(start)})

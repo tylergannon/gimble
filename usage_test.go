@@ -54,7 +54,7 @@ func TestSessionUsageAccumulates(t *testing.T) {
 			}
 			totals = append(totals, total)
 			return nil
-		}, "gimble.Text")
+		}, "gimble.Text", nil)
 		return err
 	})
 	if err != nil {
@@ -103,7 +103,7 @@ func TestTurnUsageFallsBackToItsSteps(t *testing.T) {
 	if err := runTest(t, func(ctx context.Context) error {
 		dir = runDir(ctx)
 		s := NewSession(ctx, "worker", f, "fake-model", ".")
-		_, err := s.turn(ctx, "go", nil, nil, "gimble.Text")
+		_, err := s.turn(ctx, "go", nil, nil, "gimble.Text", nil)
 		return err
 	}); err != nil {
 		t.Fatal(err)
