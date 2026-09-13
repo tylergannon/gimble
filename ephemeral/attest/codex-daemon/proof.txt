@@ -146,88 +146,81 @@ ended.
 
 The Codex adapter's `Close` (codex/codex.go) removes the session from
 `a.sessions`, deregisters the thread from the shared connection's routing
-table (`connection.unregisterThread`, the counterpart to `registerThread`),
-and — only if the shared connection still exists and its reader has not
-already failed — sends `thread/unsubscribe {"threadId": id}` on it. A
-`status` of `unsubscribed`, `notSubscribed`, or `notLoaded` is treated as
-success. It never sends `thread/archive` or `thread/delete`, and it never
-touches the connection or the daemon process itself: the thread stays
-loaded in the daemon, which owns that retention decision. An unknown id
-(never registered, or already closed) returns nil without a network call.
+table (`connection.unregisterThread`, the counterpart to `registerThread`)
+whether or not that connection is still alive, and then, only if the
+connection's reader has not failed, sends `thread/archive {"threadId": id}`
+on it. It never touches the connection or the daemon process itself. An
+unknown id (never registered, or already closed) returns nil without a
+network call, and the daemon's "no rollout found" answer for a thread
+someone else already archived is treated as success.
+
+Why archive rather than unsubscribe: the first version of this commit used
+`thread/unsubscribe`, and the live run showed both threads still in
+`thread/loaded/list` afterwards. A loaded thread keeps its MCP child
+processes and their pipes inside the shared daemon. Measured on this
+machine on 2026-09-12: archiving one thread dropped the daemon from 261 to
+249 open descriptors and from 48 to 45 child processes; archiving the
+day's 12 proof threads dropped it from 248 to 141 descriptors and from 45
+to 19 children, and from 18 loaded threads to the 7 that belong to Codex
+Desktop. The daemon runs under a 256-descriptor soft limit and had logged
+413 "Too many open files" errors by then. Unsubscribe releases nothing
+that matters; archive is the release.
 
 ### Live proof, without restarting the daemon
 
 `codex/daemon_live_test.go`
-(`TestCloseUnsubscribesThreadsWithoutTouchingTheDaemon`, skipped unless
+(`TestCloseArchivesThreadsWithoutTouchingTheDaemon`, skipped unless
 `GIMBLE_LIVE=1`) runs inside `gimble.Run`: it creates one session, runs one
 short turn on gpt-5.6-luna, forks the session without ever running a turn
 on the fork (so the fork's only allocation is `thread/fork`'s
 subscription), and lets the run's root scope end. It then asserts the
 adapter's `sessions` map and the shared connection's `threads` map are both
-empty, captures the `thread/unsubscribe` status for each of the two
-threads through an unexported test-only hook (`adapter.onUnsubscribe`, set
-directly since the test is in package `codex`), queries `thread/loaded/list`
-on that same still-open connection, and confirms the managed daemon's pid
-(`pgrep -fl 'app-server --listen unix'`, filtered to the line starting
-`codex `) is unchanged before and after.
+empty, that `thread/archive` succeeded for both threads (observed through
+the unexported test-only hook `adapter.onArchive`), that neither thread is
+in `thread/loaded/list` any more (queried on the same still-open
+connection), and that the managed daemon's pid (`pgrep -fl 'app-server
+--listen unix'`, filtered to the line starting `codex `) is unchanged.
 
 Run with:
 
-    GIMBLE_LIVE=1 go test ./codex -run TestCloseUnsubscribesThreadsWithoutTouchingTheDaemon -v
+    GIMBLE_LIVE=1 go test ./codex -run TestCloseArchivesThreadsWithoutTouchingTheDaemon -v
 
-Passing output:
+Passing output, 2026-09-12, daemon descriptors 141 before and 149 after
+(the adapter's own still-open WebSocket accounts for the connection):
 
-    === RUN   TestCloseUnsubscribesThreadsWithoutTouchingTheDaemon
-    2026/09/12 21:49:29 gimble: run 20260912-214929.daemon-close-live started in /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/TestCloseUnsubscribesThreadsWithoutTouchingTheDaemon1777408711/001/runs/20260912-214929.daemon-close-live
-    2026/09/12 21:49:30 gimble: live.1: turn started (gpt-5.6-luna)
-    2026/09/12 21:49:33 gimble: live.1: turn ended after 4s: ok
-    2026/09/12 21:49:34 gimble: forked.1: forked from live.1
-    2026/09/12 21:49:34 gimble: run 20260912-214929.daemon-close-live ended: ok
-        daemon_live_test.go:190: thread/unsubscribe 01a098e2-6908-7380-897a-79cdff6bcb98: unsubscribed
-        daemon_live_test.go:190: thread/unsubscribe 01a098e2-7839-7020-996b-fc16158139d8: unsubscribed
-        daemon_live_test.go:206: daemon thread/loaded/list after Close: [01a0923a-03a3-7f62-9e4a-e9edf0cb009d 01a0928a-adb2-7cc1-8689-0c69fe06d37c 01a0928b-87f2-7950-8c39-bffc9655d787 01a0939c-9b3f-7e01-9cd6-c4f6c91f2350 01a093ac-fece-7793-a6cd-292cefbcf94b 01a093c9-7aa6-7882-b800-ca9ce2629afd 01a09585-487d-7cf3-9983-88a1466c4b40 01a098d1-4a07-74a1-b261-bf3286c48a9b 01a098d1-7762-7233-9af3-3f61396e580e 01a098d1-8fc2-7b20-ac8b-b75049ca0b2d 01a098d1-8fc2-7b20-ac8b-b779185c2240 01a098d5-2d89-79f3-bc79-6bb4867f7526 01a098d5-53db-7c12-b2a4-d465c79854b8 01a098d5-6d61-7253-a2ff-34feafa1ac76 01a098d5-6d61-7253-a2ff-351422d53963 01a098d7-cf93-7f11-ad36-4413dd9c6cae 01a098e2-6908-7380-897a-79cdff6bcb98 01a098e2-7839-7020-996b-fc16158139d8]
-        daemon_live_test.go:208: unsubscribed thread 01a098e2-6908-7380-897a-79cdff6bcb98 still loaded in the daemon: true
-        daemon_live_test.go:208: unsubscribed thread 01a098e2-7839-7020-996b-fc16158139d8 still loaded in the daemon: true
-        daemon_live_test.go:218: daemon pid before=1516 after=1516 (unchanged)
-    --- PASS: TestCloseUnsubscribesThreadsWithoutTouchingTheDaemon (4.25s)
+    === RUN   TestCloseArchivesThreadsWithoutTouchingTheDaemon
+        daemon_live_test.go:201: daemon thread/loaded/list after Close: 7 threads
+        daemon_live_test.go:206: archived thread 01a098eb-726f-75e2-9e2f-3ed2587263e1: unloaded from the daemon
+        daemon_live_test.go:206: archived thread 01a098eb-8069-7471-b44c-eed590c5b5d0: unloaded from the daemon
+        daemon_live_test.go:217: daemon pid before=1516 after=1516 (unchanged)
+    --- PASS: TestCloseArchivesThreadsWithoutTouchingTheDaemon (4.24s)
     PASS
-    ok  	github.com/tylergannon/gimble/codex	4.595s
+    ok  	github.com/tylergannon/gimble/codex	4.503s
 
 Reading the evidence:
 
 - Both `sessions` and `threads` maps were empty after `Run` returned: Close
   ran for the plain session and for the fork, and nothing was left
   registered client-side for either.
-- `thread/unsubscribe` returned `unsubscribed` for both threads: the daemon
-  had this connection as a live subscriber for each and dropped it cleanly.
-- `thread/loaded/list`, queried on the same connection Close just used
-  (never a fresh dial, since Close does not touch the connection), still
-  listed both unsubscribed threads alongside every other thread this
-  session and earlier sessions left loaded. Reporting this, not asserting
-  it: whether an unsubscribed thread stays loaded is the daemon's own
-  retention policy, not something this adapter controls or should assert
-  about.
-- The managed daemon's pid was 1516 before and after, matching
-  `pgrep -fl 'app-server --listen unix'` run independently right before
-  this attestation: Close never stopped or restarted the shared daemon.
+- Both threads were archived and the daemon's own loaded list no longer
+  contains them: the 7 threads left loaded are Codex Desktop's, the same 7
+  that were loaded before the run.
+- The managed daemon's pid was 1516 before and after: Close never stopped
+  or restarted the shared daemon.
+- The dead-connection branch, where Close must still drop the routing entry
+  without a daemon call, is covered without a daemon in
+  `codex/codex_test.go`'s `TestCloseOnADeadConnectionDropsLocalRoutingState`
+  (round-01 review finding on this commit).
 
 ### What was left out and why
 
-- Immediately after this passing run, further live re-runs against the same
-  long-lived daemon (in this same session, verifying idempotence and
-  re-checking the commit-1 redial test) started failing with the daemon's
-  own `Fatal error: ... Too many open files (os error 24)` when opening a
-  new thread-writer lock file — an EMFILE from the daemon process itself,
-  hit while creating a brand new thread, not from anything `Close`
-  unsubscribed or any connection this adapter held open. The daemon's pid
-  stayed 1516 throughout: it did not restart, crash, or get touched by this
-  adapter; it is simply low on file descriptors after the day's cumulative
-  attestation traffic (this and earlier proof rounds) against one
-  long-running shared process. Since the daemon must never be stopped or
-  restarted by this adapter, no attempt was made to work around or clear
-  that state; the passing run captured above is the proof, taken before
-  that exhaustion appeared. Idempotence (`Close` on an unknown id, twice)
-  is instead proven without any daemon traffic at all, in
+- The unsubscribe version of this commit was what pushed the shared daemon
+  into `Too many open files (os error 24)`: each proof run left its
+  threads loaded, and by the end of the day the daemon held 261
+  descriptors against a 256 soft limit. That is the failure issue #143
+  exists to prevent, reproduced by the first attempt at fixing it. The
+  archive version above is the correction. Idempotence (`Close` on an
+  unknown id, twice) is proven without any daemon traffic in
   `codex/codex_test.go`'s `TestCloseIsIdempotentForAnUnknownSession`, and
   correspondingly for Claude in `claude/claude_test.go`.
 - Every other acceptance item (the scope-error/CloseError contract, the

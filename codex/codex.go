@@ -2,8 +2,10 @@
 // app-server`. The adapter attaches to the one shared app-server daemon
 // already running on the machine: it never launches its own app-server
 // process, and it never stops or restarts the daemon, because other
-// clients (Codex Desktop included) share it. Threads stay loaded in the
-// daemon for the life of the machine's daemon process, not this adapter.
+// clients (Codex Desktop included) share it. A thread lives in the daemon
+// until the session's scope ends, when Close archives it: an archived
+// thread is unloaded, and its MCP child processes and file descriptors
+// are released from the shared daemon.
 package codex
 
 import (
@@ -32,10 +34,10 @@ type adapter struct {
 	mu       sync.Mutex
 	sessions map[string]*session
 
-	// onUnsubscribe, when set, is called with the status thread/unsubscribe
-	// returned for a thread. It exists only so a live test can observe the
-	// daemon's response; production adapters never set it.
-	onUnsubscribe func(threadID, status string)
+	// onArchive, when set, is called after thread/archive succeeds for a
+	// thread. It exists only so a live test can observe which threads Close
+	// archived; production adapters never set it.
+	onArchive func(threadID string)
 }
 
 type session struct {
@@ -288,29 +290,30 @@ func (a *adapter) Close(ctx context.Context, sessionID string) error {
 	a.connMu.Lock()
 	conn := a.sharedConn
 	a.connMu.Unlock()
-	if conn == nil || conn.dead() {
+	if conn == nil {
 		return nil
 	}
+	// Local routing state goes first, whatever the connection's health: a
+	// dead connection has nothing to say to the daemon, but it must not keep
+	// the thread's channel alive either.
 	conn.unregisterThread(sessionID)
+	if conn.dead() {
+		return nil
+	}
+	// Archive, not unsubscribe. An unsubscribed thread stays loaded in the
+	// shared daemon with its MCP children and their pipes (about a dozen
+	// descriptors per thread against a 256 limit); archiving unloads it.
+	// The daemon answers "no rollout found" when the thread is already
+	// archived or deleted, which is the state Close wants.
 	callCtx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
-	result, err := conn.call(callCtx, "thread/unsubscribe", map[string]any{"threadId": sessionID})
-	if err != nil {
-		return fmt.Errorf("codex: unsubscribe thread %s: %w", sessionID, err)
+	if _, err := conn.call(callCtx, "thread/archive", map[string]any{"threadId": sessionID}); err != nil && !strings.Contains(err.Error(), "no rollout found") {
+		return fmt.Errorf("codex: archive thread %s: %w", sessionID, err)
 	}
-	status, err := unsubscribeStatus(result)
-	if err != nil {
-		return fmt.Errorf("codex: unsubscribe thread %s: %w", sessionID, err)
+	if a.onArchive != nil {
+		a.onArchive(sessionID)
 	}
-	if a.onUnsubscribe != nil {
-		a.onUnsubscribe(sessionID, status)
-	}
-	switch status {
-	case "unsubscribed", "notSubscribed", "notLoaded":
-		return nil
-	default:
-		return fmt.Errorf("codex: unsubscribe thread %s: unexpected status %q", sessionID, status)
-	}
+	return nil
 }
 
 func (a *adapter) session(id string) (*session, error) {
@@ -463,19 +466,6 @@ func turnID(raw json.RawMessage) (string, error) {
 		return "", errors.New("codex: the response has no turn.id")
 	}
 	return response.Turn.ID, nil
-}
-
-func unsubscribeStatus(raw json.RawMessage) (string, error) {
-	var response struct {
-		Status string `json:"status"`
-	}
-	if err := json.Unmarshal(raw, &response); err != nil {
-		return "", fmt.Errorf("codex: decode unsubscribe response: %w", err)
-	}
-	if response.Status == "" {
-		return "", errors.New("codex: the unsubscribe response has no status")
-	}
-	return response.Status, nil
 }
 
 func completedTurn(raw json.RawMessage) (status, failure string) {

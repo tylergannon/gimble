@@ -103,19 +103,19 @@ func (a *adapter) current() *connection {
 	return a.sharedConn
 }
 
-// TestCloseUnsubscribesThreadsWithoutTouchingTheDaemon proves commit 2's
+// TestCloseArchivesThreadsWithoutTouchingTheDaemon proves commit 2's
 // contract live: HarnessAdapter.Close on the Codex adapter deregisters a
-// session's routing and asks the daemon to stop notifying this connection
-// about it (thread/unsubscribe), but never stops or restarts the shared
-// daemon, and never archives or deletes the thread. It creates a session,
+// session's routing and archives its thread, which unloads the thread from
+// the shared daemon and releases the MCP children and descriptors it held
+// there, but never stops or restarts the daemon. It creates a session,
 // runs one short turn, forks it without ever running a turn on the fork
 // (proving Close also releases a session whose only allocation was
 // thread/fork, not thread/start), and lets gimble.Run's root scope end.
 // It talks to the machine's real shared `codex app-server` daemon, using
 // the cheap model gpt-5.6-luna, so it only runs when explicitly requested:
 //
-//	GIMBLE_LIVE=1 go test ./codex -run TestCloseUnsubscribesThreadsWithoutTouchingTheDaemon -v
-func TestCloseUnsubscribesThreadsWithoutTouchingTheDaemon(t *testing.T) {
+//	GIMBLE_LIVE=1 go test ./codex -run TestCloseArchivesThreadsWithoutTouchingTheDaemon -v
+func TestCloseArchivesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 	if os.Getenv("GIMBLE_LIVE") != "1" {
 		t.Skip("set GIMBLE_LIVE=1 to run against the live codex app-server daemon")
 	}
@@ -130,11 +130,11 @@ func TestCloseUnsubscribesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 		t.Fatalf("codex.New() did not return *adapter")
 	}
 	var mu sync.Mutex
-	statuses := map[string]string{}
-	ad.onUnsubscribe = func(threadID, status string) {
+	archived := map[string]bool{}
+	ad.onArchive = func(threadID string) {
 		mu.Lock()
 		defer mu.Unlock()
-		statuses[threadID] = status
+		archived[threadID] = true
 	}
 
 	dir := t.TempDir()
@@ -178,24 +178,19 @@ func TestCloseUnsubscribesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 	}
 
 	mu.Lock()
-	statusesCopy := make(map[string]string, len(statuses))
-	for id, status := range statuses {
-		statusesCopy[id] = status
+	archivedIDs := make([]string, 0, len(archived))
+	for id := range archived {
+		archivedIDs = append(archivedIDs, id)
 	}
 	mu.Unlock()
-	if len(statusesCopy) != 2 {
-		t.Fatalf("thread/unsubscribe statuses = %v, want 2 (the session and its fork)", statusesCopy)
-	}
-	for id, status := range statusesCopy {
-		t.Logf("thread/unsubscribe %s: %s", id, status)
-		if status != "unsubscribed" && status != "notSubscribed" && status != "notLoaded" {
-			t.Errorf("thread/unsubscribe %s returned unexpected status %q", id, status)
-		}
+	if len(archivedIDs) != 2 {
+		t.Fatalf("archived threads = %v, want 2 (the session and its fork)", archivedIDs)
 	}
 
 	// The adapter's connection is still alive (Close never touches it), so
 	// thread/loaded/list is queried straight over it: this is the daemon's
-	// own answer, not a guess from process state.
+	// own answer, not a guess from process state. An archived thread is
+	// unloaded, which is the whole reason Close archives.
 	callCtx, cancelCall := context.WithTimeout(context.Background(), requestTimeout)
 	loadedRaw, err := conn.call(callCtx, "thread/loaded/list", map[string]any{})
 	cancelCall()
@@ -203,9 +198,13 @@ func TestCloseUnsubscribesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 		t.Fatal(err)
 	}
 	loadedIDs := loadedThreadIDs(loadedRaw)
-	t.Logf("daemon thread/loaded/list after Close: %v", loadedIDs)
-	for id := range statusesCopy {
-		t.Logf("unsubscribed thread %s still loaded in the daemon: %v", id, slices.Contains(loadedIDs, id))
+	t.Logf("daemon thread/loaded/list after Close: %d threads", len(loadedIDs))
+	for _, id := range archivedIDs {
+		if slices.Contains(loadedIDs, id) {
+			t.Errorf("archived thread %s is still loaded in the daemon", id)
+		} else {
+			t.Logf("archived thread %s: unloaded from the daemon", id)
+		}
 	}
 
 	afterPID, err := managedDaemonPID()
